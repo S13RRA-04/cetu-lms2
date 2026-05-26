@@ -25,13 +25,28 @@ const ltiService        = require('./services/lti.service');
 const PORT = parseInt(process.env.PORT, 10) || 3001;
 
 // ── LTI Provider Setup ────────────────────────────────────────────────────────
-const ltiDbOpts = process.env.DATABASE_URL
-  ? { connectionString: process.env.DATABASE_URL, dialect: 'postgres', dialectOptions: { ssl: { require: true, rejectUnauthorized: false } } }
-  : { host: process.env.DB_HOST, port: parseInt(process.env.DB_PORT, 10) || 5432, dialect: 'postgres' };
-
-const ltiDb = process.env.DATABASE_URL
-  ? new Database(process.env.DATABASE_URL, ltiDbOpts)
-  : new Database(process.env.DB_NAME, process.env.DB_USER, process.env.DB_PASSWORD, ltiDbOpts);
+let ltiDb;
+if (process.env.DATABASE_URL) {
+  const u = new URL(process.env.DATABASE_URL);
+  ltiDb = new Database(
+    u.pathname.slice(1),          // database name
+    u.username,
+    u.password,
+    {
+      host:    u.hostname,
+      port:    parseInt(u.port, 10) || 5432,
+      dialect: 'postgres',
+      dialectOptions: { ssl: { require: true, rejectUnauthorized: false } },
+    }
+  );
+} else {
+  ltiDb = new Database(
+    process.env.DB_NAME,
+    process.env.DB_USER,
+    process.env.DB_PASSWORD,
+    { host: process.env.DB_HOST, port: parseInt(process.env.DB_PORT, 10) || 5432, dialect: 'postgres' }
+  );
+}
 
 lti.setup(
   process.env.LTI_KEY,
