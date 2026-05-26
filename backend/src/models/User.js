@@ -30,7 +30,7 @@ module.exports = (sequelize) => {
         attributes: { exclude: ['password_hash'] },
       },
       scopes: {
-        withPassword: { attributes: {} },
+        withPassword: { attributes: { exclude: [] } },
       },
     }
   );
