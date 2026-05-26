@@ -57,14 +57,9 @@ async function rotateRefreshToken(raw) {
 
 async function login(email, password) {
   const user = await User.unscoped().findOne({ where: { email } });
-  const logger = require('../utils/logger');
-  const dbUrl = process.env.DATABASE_URL;
-  const dbHost = dbUrl ? new URL(dbUrl).hostname : 'none';
-  logger.warn('LOGIN_DEBUG', { found: !!user, hasHash: !!user?.password_hash, dbHost });
   if (!user || !user.password_hash) throw new AppError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
 
   const valid = await bcrypt.compare(password, user.password_hash);
-  logger.warn('LOGIN_DEBUG bcrypt', { valid });
   if (!valid) throw new AppError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
   if (!user.is_active) throw new AppError('Account is deactivated', 403, 'DEACTIVATED');
 
