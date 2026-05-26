@@ -12,9 +12,7 @@ services:
       - key: PORT
         value: 3001
       - key: DATABASE_URL
-        fromDatabase:
-          name: cetu-lms-db
-          property: connectionString
+        sync: false   # set manually in dashboard — paste your Neon connection string
       - key: JWT_SECRET
         generateValue: true
       - key: LTI_KEY
@@ -22,8 +20,3 @@ services:
       - key: FRONTEND_URL
         sync: false   # set to your Render service URL after first deploy
 
-databases:
-  - name: cetu-lms-db
-    plan: free
-    databaseName: cetu_lms
-    user: cetu_user
