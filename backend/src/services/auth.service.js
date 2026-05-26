@@ -34,7 +34,7 @@ async function validateRefreshToken(raw) {
   const hash   = crypto.createHash('sha256').update(raw).digest('hex');
   const record = await RefreshToken.findOne({
     where: { token_hash: hash, revoked: false },
-    include: [{ model: User, scope: 'withPassword' }],
+    include: [{ model: User.unscoped() }],
   });
 
   if (!record || record.expires_at < new Date()) {
@@ -56,7 +56,7 @@ async function rotateRefreshToken(raw) {
 }
 
 async function login(email, password) {
-  const user = await User.scope('withPassword').findOne({ where: { email } });
+  const user = await User.unscoped().findOne({ where: { email } });
   if (!user || !user.password_hash) throw new AppError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
 
   const valid = await bcrypt.compare(password, user.password_hash);
