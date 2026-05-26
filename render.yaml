@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: cetu-lms
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cetu-lms-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: LTI_KEY
+        sync: false   # set manually in dashboard — must be exactly 32 chars
+      - key: FRONTEND_URL
+        sync: false   # set to your Render service URL after first deploy
+
+databases:
+  - name: cetu-lms-db
+    plan: free
+    databaseName: cetu_lms
+    user: cetu_user

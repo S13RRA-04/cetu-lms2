@@ -1,0 +1,57 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cetu_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${DB_NAME:-cetu_lms}
+      POSTGRES_USER:     ${DB_USER:-cetu_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-cetu_user} -d ${DB_NAME:-cetu_lms}"]
+      interval: 10s
+      timeout:  5s
+      retries:  5
+
+  backend:
+    build:
+      context: ./backend
+      target:  development
+    container_name: cetu_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ./backend/.env
+    environment:
+      DB_HOST: postgres
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./backend/src:/app/src
+
+  frontend:
+    build:
+      context: ./frontend
+      target:  development
+    container_name: cetu_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend/src:/app/src
+    environment:
+      VITE_API_BASE_URL: /api/v1
+      VITE_BACKEND_URL: http://backend:3001
+
+volumes:
+  postgres_data:
