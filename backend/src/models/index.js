@@ -6,6 +6,7 @@ const Course              = require('./Course')(sequelize);
 const Module              = require('./Module')(sequelize);
 const ContentItem         = require('./ContentItem')(sequelize);
 const Enrollment          = require('./Enrollment')(sequelize);
+const Cohort              = require('./Cohort')(sequelize);
 const Assignment          = require('./Assignment')(sequelize);
 const Submission          = require('./Submission')(sequelize);
 const Grade               = require('./Grade')(sequelize);
@@ -30,8 +31,16 @@ User.belongsToMany(Course, { through: Enrollment, foreignKey: 'user_id',   as: '
 Course.belongsToMany(User, { through: Enrollment, foreignKey: 'course_id', as: 'enrolledUsers' });
 Enrollment.belongsTo(User,   { foreignKey: 'user_id' });
 Enrollment.belongsTo(Course, { foreignKey: 'course_id' });
+Enrollment.belongsTo(Cohort, { foreignKey: 'cohort_id', as: 'cohort' });
 User.hasMany(Enrollment,   { foreignKey: 'user_id' });
 Course.hasMany(Enrollment, { foreignKey: 'course_id' });
+
+// ── Course ↔ Cohort ────────────────────────────────────────────────────────
+Course.hasMany(Cohort,  { as: 'cohorts', foreignKey: 'course_id', onDelete: 'CASCADE' });
+Cohort.belongsTo(Course,               { foreignKey: 'course_id' });
+Cohort.hasMany(Enrollment, { foreignKey: 'cohort_id', as: 'enrollments' });
+User.belongsToMany(Cohort, { through: Enrollment, foreignKey: 'user_id',  as: 'cohorts' });
+Cohort.belongsToMany(User, { through: Enrollment, foreignKey: 'cohort_id', as: 'members' });
 
 // ── Course ↔ Assignment ────────────────────────────────────────────────────
 Course.hasMany(Assignment,  { as: 'assignments', foreignKey: 'course_id', onDelete: 'CASCADE' });
@@ -65,6 +74,7 @@ module.exports = {
   Module,
   ContentItem,
   Enrollment,
+  Cohort,
   Assignment,
   Submission,
   Grade,

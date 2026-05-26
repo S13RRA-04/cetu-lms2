@@ -5,6 +5,7 @@ const enrollCtrl   = require('../controllers/enrollment.controller');
 const assignCtrl   = require('../controllers/assignment.controller');
 const contentCtrl  = require('../controllers/contentItem.controller');
 const subCtrl      = require('../controllers/submission.controller');
+const cohortCtrl   = require('../controllers/cohort.controller');
 const { requireAuth, requireInstructor, requireAdmin } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
 const { auditLog } = require('../middleware/audit');
@@ -55,5 +56,14 @@ router.get('/:id/assignments/:aid/submissions',       requireAuth, requireInstru
 router.get('/:id/assignments/:aid/submissions/mine',  requireAuth,                    subCtrl.getMine);
 router.post('/:id/assignments/:aid/submit',           requireAuth,                    subCtrl.submit);
 router.put('/:id/assignments/:aid/submissions/:sid',  requireAuth, requireInstructor, subCtrl.updateStatus);
+
+// Cohorts (nested under course)
+router.get('/:id/cohorts',                    requireAuth, requireInstructor, cohortCtrl.listByCourse);
+router.post('/:id/cohorts',                   requireAuth, requireInstructor, auditLog('create', 'cohort'), cohortCtrl.create);
+router.get('/:id/cohorts/:cid',               requireAuth, requireInstructor, cohortCtrl.getOne);
+router.put('/:id/cohorts/:cid',               requireAuth, requireInstructor, auditLog('update', 'cohort'), cohortCtrl.update);
+router.delete('/:id/cohorts/:cid',            requireAuth, requireInstructor, auditLog('delete', 'cohort'), cohortCtrl.remove);
+router.post('/:id/cohorts/:cid/members',      requireAuth, requireInstructor, cohortCtrl.addMember);
+router.delete('/:id/cohorts/:cid/members/:uid', requireAuth, requireInstructor, cohortCtrl.removeMember);
 
 module.exports = router;

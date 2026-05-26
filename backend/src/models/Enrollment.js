@@ -20,6 +20,7 @@ module.exports = (sequelize) => {
       },
       enrolled_at:  { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
       completed_at: { type: DataTypes.DATE, allowNull: true },
+      cohort_id:    { type: DataTypes.UUID, allowNull: true },
     },
     { tableName: 'enrollments' }
   );

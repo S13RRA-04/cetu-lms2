@@ -8,6 +8,8 @@ import {
   getContentItems, createContentItem, updateContentItem, deleteContentItem,
   getSubmissions, getMySubmission, submitAssignment,
 } from '../../api/courses.js';
+import { listCohorts, createCohort, updateCohort, deleteCohort, addMember, removeMember } from '../../api/cohorts.js';
+import { getUsers } from '../../api/users.js';
 import useAuthStore from '../../store/authStore.js';
 import LoadingSpinner from '../../components/common/LoadingSpinner.jsx';
 import Modal from '../../components/common/Modal.jsx';
@@ -413,6 +415,275 @@ function ModuleBlock({ courseId, mod, canManage, onEdit, onDelete }) {
   );
 }
 
+// ── Cohort Form ───────────────────────────────────────────────────────────────
+function CohortForm({ courseId, initial, onSave, onClose }) {
+  const [form, setForm] = useState({
+    name:       initial?.name       ?? '',
+    start_date: initial?.start_date ?? '',
+    end_date:   initial?.end_date   ?? '',
+    is_active:  initial?.is_active  ?? true,
+  });
+  const [saving, setSaving] = useState(false);
+  const set = (k) => (e) => {
+    const v = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    setForm((f) => ({ ...f, [k]: v }));
+  };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const payload = { ...form, start_date: form.start_date || null, end_date: form.end_date || null };
+      if (initial) await updateCohort(courseId, initial.id, payload);
+      else         await createCohort(courseId, payload);
+      onSave();
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <form onSubmit={submit}>
+      <div className="form-group"><label>Name *</label><input value={form.name} onChange={set('name')} required /></div>
+      <div className="grid-2">
+        <div className="form-group"><label>Start Date</label><input type="date" value={form.start_date} onChange={set('start_date')} /></div>
+        <div className="form-group"><label>End Date</label><input type="date" value={form.end_date} onChange={set('end_date')} /></div>
+      </div>
+      <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <input type="checkbox" id="cact" checked={form.is_active} onChange={set('is_active')} style={{ width: 'auto' }} />
+        <label htmlFor="cact" style={{ marginBottom: 0 }}>Active</label>
+      </div>
+      <div className="flex-end" style={{ marginTop: 16, gap: 8 }}>
+        <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+        <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+      </div>
+    </form>
+  );
+}
+
+// ── Add Member Modal ──────────────────────────────────────────────────────────
+function AddMemberModal({ courseId, cohort, onSave, onClose }) {
+  const [query,   setQuery]   = useState('');
+  const [users,   setUsers]   = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [adding,  setAdding]  = useState(null);
+
+  const memberIds = new Set((cohort.members ?? []).map((m) => m.id));
+
+  const search = useCallback(async (q) => {
+    if (!q.trim()) { setUsers([]); return; }
+    setLoading(true);
+    try {
+      const res = await getUsers({ search: q, role: 'student', is_active: true, limit: 20 });
+      setUsers(res.data ?? res.users ?? res ?? []);
+    } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => search(query), 300);
+    return () => clearTimeout(t);
+  }, [query, search]);
+
+  const handleAdd = async (userId) => {
+    setAdding(userId);
+    try { await addMember(courseId, cohort.id, userId); onSave(); }
+    finally { setAdding(null); }
+  };
+
+  return (
+    <Modal title={`Add Member — ${cohort.name}`} onClose={onClose}>
+      <div className="form-group">
+        <input
+          placeholder="Search by name or email…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          autoFocus
+        />
+      </div>
+      {loading && <LoadingSpinner />}
+      {!loading && users.length > 0 && (
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>Email</th><th></th></tr></thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.id}>
+                  <td>{u.first_name} {u.last_name}</td>
+                  <td className="text-sm text-muted">{u.email}</td>
+                  <td>
+                    {memberIds.has(u.id)
+                      ? <span className="badge badge-green">Enrolled</span>
+                      : <button className="btn btn-primary btn-xs" disabled={adding === u.id} onClick={() => handleAdd(u.id)}>{adding === u.id ? '…' : 'Add'}</button>
+                    }
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {!loading && query.trim() && users.length === 0 && (
+        <p className="text-muted text-sm">No matching students found.</p>
+      )}
+    </Modal>
+  );
+}
+
+// ── Cohorts Tab ───────────────────────────────────────────────────────────────
+function CohortsTab({ courseId }) {
+  const [cohorts,      setCohorts]      = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [selected,     setSelected]     = useState(null);
+  const [cohortModal,  setCohortModal]  = useState(null);
+  const [delCohort,    setDelCohort]    = useState(null);
+  const [addModal,     setAddModal]     = useState(null);
+  const [removingId,   setRemovingId]   = useState(null);
+
+  const load = useCallback(() =>
+    listCohorts(courseId).then((data) => {
+      setCohorts(data);
+      setSelected((prev) => data.find((c) => c.id === prev?.id) ?? data[0] ?? null);
+    }).finally(() => setLoading(false)),
+  [courseId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleRemoveMember = async (userId) => {
+    setRemovingId(userId);
+    try { await removeMember(courseId, selected.id, userId); load(); }
+    finally { setRemovingId(null); }
+  };
+
+  const handleDeleteCohort = async () => {
+    await deleteCohort(courseId, delCohort.id);
+    setDelCohort(null);
+    setSelected(null);
+    load();
+  };
+
+  if (loading) return <LoadingSpinner />;
+
+  return (
+    <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+      {/* ── Left: cohort list ── */}
+      <div style={{ width: 220, flexShrink: 0 }}>
+        <div className="flex-end" style={{ marginBottom: 8 }}>
+          <button className="btn btn-primary btn-sm" onClick={() => setCohortModal('new')}>+ New Cohort</button>
+        </div>
+        {cohorts.length === 0
+          ? <p className="text-muted text-sm">No cohorts yet.</p>
+          : cohorts.map((c) => (
+            <div
+              key={c.id}
+              onClick={() => setSelected(c)}
+              style={{
+                padding: '10px 12px', marginBottom: 4, borderRadius: 6, cursor: 'pointer',
+                background: selected?.id === c.id ? 'var(--primary)' : 'var(--surface)',
+                color:      selected?.id === c.id ? '#fff' : 'inherit',
+                border:     '1px solid var(--border)',
+              }}
+            >
+              <div style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</div>
+              <div style={{ fontSize: 12, opacity: .75 }}>
+                {c.members?.length ?? 0} member{(c.members?.length ?? 0) !== 1 ? 's' : ''}
+                {!c.is_active && <span style={{ marginLeft: 6, opacity: .7 }}>· inactive</span>}
+              </div>
+            </div>
+          ))
+        }
+      </div>
+
+      {/* ── Right: cohort detail ── */}
+      <div style={{ flex: 1 }}>
+        {!selected ? (
+          <div className="empty-state"><p>Select a cohort to view members.</p></div>
+        ) : (
+          <div className="card">
+            <div className="card-body">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                <div>
+                  <h3 style={{ marginBottom: 4 }}>{selected.name}</h3>
+                  {(selected.start_date || selected.end_date) && (
+                    <p className="text-sm text-muted">
+                      {selected.start_date ? new Date(selected.start_date).toLocaleDateString() : '?'}
+                      {' – '}
+                      {selected.end_date   ? new Date(selected.end_date).toLocaleDateString()   : 'ongoing'}
+                    </p>
+                  )}
+                  {!selected.is_active && <span className="badge badge-gray" style={{ marginTop: 4 }}>Inactive</span>}
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setCohortModal(selected)}>Edit</button>
+                  <button className="btn btn-primary btn-sm"   onClick={() => setAddModal(selected)}>+ Add Member</button>
+                  <button className="btn btn-ghost btn-sm"     onClick={() => setDelCohort(selected)} style={{ color: 'var(--danger)' }}>Delete</button>
+                </div>
+              </div>
+
+              {(selected.members ?? []).length === 0 ? (
+                <p className="text-muted text-sm">No members yet. Click "+ Add Member" to enroll students.</p>
+              ) : (
+                <div className="table-wrap">
+                  <table>
+                    <thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Enrolled</th><th></th></tr></thead>
+                    <tbody>
+                      {selected.members.map((m) => (
+                        <tr key={m.id}>
+                          <td className="fw-600">{m.first_name} {m.last_name}</td>
+                          <td className="text-sm text-muted">{m.email}</td>
+                          <td><span className="badge badge-blue">{m.Enrollment?.status ?? '—'}</span></td>
+                          <td className="text-xs text-muted">
+                            {m.Enrollment?.enrolled_at ? new Date(m.Enrollment.enrolled_at).toLocaleDateString() : '—'}
+                          </td>
+                          <td>
+                            <button
+                              className="btn btn-ghost btn-xs"
+                              style={{ color: 'var(--danger)' }}
+                              disabled={removingId === m.id}
+                              onClick={() => handleRemoveMember(m.id)}
+                            >
+                              {removingId === m.id ? '…' : 'Remove'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Modals ── */}
+      {cohortModal && (
+        <Modal title={cohortModal === 'new' ? 'New Cohort' : 'Edit Cohort'} onClose={() => setCohortModal(null)}>
+          <CohortForm
+            courseId={courseId}
+            initial={cohortModal !== 'new' ? cohortModal : null}
+            onSave={() => { setCohortModal(null); load(); }}
+            onClose={() => setCohortModal(null)}
+          />
+        </Modal>
+      )}
+      {addModal && (
+        <AddMemberModal
+          courseId={courseId}
+          cohort={addModal}
+          onSave={() => { setAddModal(null); load(); }}
+          onClose={() => setAddModal(null)}
+        />
+      )}
+      {delCohort && (
+        <ConfirmDialog
+          title="Delete Cohort"
+          message={`Delete cohort "${delCohort.name}"? All members will be unenrolled from this cohort.`}
+          onConfirm={handleDeleteCohort}
+          onCancel={() => setDelCohort(null)}
+        />
+      )}
+    </div>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function CourseDetailPage() {
   const { id }    = useParams();
@@ -509,7 +780,7 @@ export default function CourseDetailPage() {
       )}
 
       <div className="tabs">
-        {['modules', 'assignments', ...(canManage ? ['enrollments'] : [])].map((t) => (
+        {['modules', 'assignments', ...(canManage ? ['cohorts', 'enrollments'] : [])].map((t) => (
           <button key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
             {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
@@ -590,6 +861,9 @@ export default function CourseDetailPage() {
           }
         </div>
       )}
+
+      {/* ── Cohorts ── */}
+      {tab === 'cohorts' && canManage && <CohortsTab courseId={id} />}
 
       {/* ── Enrollments ── */}
       {tab === 'enrollments' && canManage && (
