@@ -14,6 +14,17 @@ module.exports = (sequelize) => {
       lti_resource_link_id: { type: DataTypes.STRING(255),  allowNull: true },
       lineitem_url:         { type: DataTypes.STRING(512),  allowNull: true },
       is_published:         { type: DataTypes.BOOLEAN,      defaultValue: false },
+      type: {
+        type:         DataTypes.ENUM('module','game','assessment','survey','challenge','capstone'),
+        allowNull:    false,
+        defaultValue: 'module',
+      },
+      grading_mode: {
+        type:         DataTypes.ENUM('individual','squad'),
+        allowNull:    false,
+        defaultValue: 'individual',
+      },
+      order_index: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     },
     { tableName: 'assignments' }
   );

@@ -1,12 +1,17 @@
 'use strict';
 const Joi = require('joi');
 
+const TYPES = ['module', 'game', 'assessment', 'survey', 'challenge', 'capstone'];
+
 const createAssignmentSchema = Joi.object({
   title:        Joi.string().max(255).required(),
   description:  Joi.string().allow('', null),
   max_score:    Joi.number().positive().default(100),
   due_date:     Joi.date().iso().allow(null),
   is_published: Joi.boolean().default(false),
+  type:         Joi.string().valid(...TYPES).default('module'),
+  grading_mode: Joi.string().valid('individual', 'squad').default('individual'),
+  order_index:  Joi.number().integer().min(0).default(0),
 });
 
 const updateAssignmentSchema = Joi.object({
@@ -15,6 +20,9 @@ const updateAssignmentSchema = Joi.object({
   max_score:    Joi.number().positive(),
   due_date:     Joi.date().iso().allow(null),
   is_published: Joi.boolean(),
+  type:         Joi.string().valid(...TYPES),
+  grading_mode: Joi.string().valid('individual', 'squad'),
+  order_index:  Joi.number().integer().min(0),
 }).min(1);
 
 const gradeSchema = Joi.object({
@@ -22,4 +30,8 @@ const gradeSchema = Joi.object({
   feedback: Joi.string().allow('', null),
 });
 
-module.exports = { createAssignmentSchema, updateAssignmentSchema, gradeSchema };
+const unlockSchema = Joi.object({
+  cohort_id: Joi.string().uuid().required(),
+});
+
+module.exports = { createAssignmentSchema, updateAssignmentSchema, gradeSchema, unlockSchema };

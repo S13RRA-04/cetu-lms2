@@ -11,10 +11,12 @@ module.exports = (sequelize) => {
       content:       { type: DataTypes.TEXT, allowNull: true },
       submitted_at:  { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
       status: {
-        type:         DataTypes.ENUM('submitted', 'graded', 'returned'),
+        type:         DataTypes.ENUM('in_progress', 'submitted', 'graded', 'returned'),
         allowNull:    false,
-        defaultValue: 'submitted',
+        defaultValue: 'in_progress',
       },
+      squad_id: { type: DataTypes.UUID, allowNull: true },
+      progress: { type: DataTypes.SMALLINT, allowNull: false, defaultValue: 0 },
     },
     { tableName: 'submissions' }
   );

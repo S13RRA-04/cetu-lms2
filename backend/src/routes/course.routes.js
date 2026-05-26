@@ -6,6 +6,7 @@ const assignCtrl   = require('../controllers/assignment.controller');
 const contentCtrl  = require('../controllers/contentItem.controller');
 const subCtrl      = require('../controllers/submission.controller');
 const cohortCtrl   = require('../controllers/cohort.controller');
+const squadCtrl    = require('../controllers/squad.controller');
 const { requireAuth, requireInstructor, requireAdmin } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
 const { auditLog } = require('../middleware/audit');
@@ -13,7 +14,7 @@ const {
   createCourseSchema, updateCourseSchema,
   createModuleSchema, updateModuleSchema,
 } = require('../validators/course.validator');
-const { createAssignmentSchema, updateAssignmentSchema, gradeSchema } = require('../validators/assignment.validator');
+const { createAssignmentSchema, updateAssignmentSchema, gradeSchema, unlockSchema } = require('../validators/assignment.validator');
 
 const router = Router();
 
@@ -52,10 +53,27 @@ router.get('/:id/assignments/:aid/grades',  requireAuth, requireInstructor, assi
 router.put('/:id/assignments/:aid/grades/:uid', requireAuth, requireInstructor, validate(gradeSchema), assignCtrl.upsertGrade);
 
 // Submissions (nested under assignment)
-router.get('/:id/assignments/:aid/submissions',       requireAuth, requireInstructor, subCtrl.listByAssignment);
-router.get('/:id/assignments/:aid/submissions/mine',  requireAuth,                    subCtrl.getMine);
-router.post('/:id/assignments/:aid/submit',           requireAuth,                    subCtrl.submit);
-router.put('/:id/assignments/:aid/submissions/:sid',  requireAuth, requireInstructor, subCtrl.updateStatus);
+router.get('/:id/assignments/:aid/submissions',            requireAuth, requireInstructor, subCtrl.listByAssignment);
+router.get('/:id/assignments/:aid/submissions/mine',       requireAuth,                    subCtrl.getMine);
+router.post('/:id/assignments/:aid/submit',                requireAuth,                    subCtrl.submit);
+router.put('/:id/assignments/:aid/submissions/:sid',       requireAuth, requireInstructor, subCtrl.updateStatus);
+router.put('/:id/assignments/:aid/progress',               requireAuth,                    subCtrl.updateProgress);
+router.get('/:id/assignments/:aid/progress',               requireAuth, requireInstructor, assignCtrl.getProgress);
+
+// Assignment unlock/lock (per cohort)
+router.post('/:id/assignments/:aid/unlock',  requireAuth, requireInstructor, validate(unlockSchema), auditLog('unlock', 'assignment'), assignCtrl.unlockForCohort);
+router.post('/:id/assignments/:aid/lock',    requireAuth, requireInstructor, validate(unlockSchema), auditLog('lock',   'assignment'), assignCtrl.lockForCohort);
+
+// Squad grading
+router.put('/:id/assignments/:aid/grades/squad/:squadId', requireAuth, requireInstructor, validate(gradeSchema), assignCtrl.gradeSquad);
+
+// Squads (nested under cohort)
+router.get('/:id/cohorts/:cid/squads',                    requireAuth, requireInstructor, squadCtrl.listByCohort);
+router.post('/:id/cohorts/:cid/squads',                   requireAuth, requireInstructor, squadCtrl.create);
+router.put('/:id/cohorts/:cid/squads/:sid',               requireAuth, requireInstructor, squadCtrl.update);
+router.delete('/:id/cohorts/:cid/squads/:sid',            requireAuth, requireInstructor, squadCtrl.remove);
+router.post('/:id/cohorts/:cid/squads/:sid/members',      requireAuth, requireInstructor, squadCtrl.assignMember);
+router.delete('/:id/cohorts/:cid/squads/:sid/members/:uid', requireAuth, requireInstructor, squadCtrl.removeMember);
 
 // Cohorts (nested under course)
 router.get('/:id/cohorts',                    requireAuth, requireInstructor, cohortCtrl.listByCourse);

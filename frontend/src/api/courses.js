@@ -79,3 +79,18 @@ export const getMySubmission = (courseId, assignmentId) =>
 
 export const submitAssignment = (courseId, assignmentId, content) =>
   client.post(`/courses/${courseId}/assignments/${assignmentId}/submit`, { content }).then((r) => r.data);
+
+export const updateProgress = (courseId, assignmentId, progress) =>
+  client.put(`/courses/${courseId}/assignments/${assignmentId}/progress`, { progress }).then((r) => r.data);
+
+export const getProgress = (courseId, assignmentId) =>
+  client.get(`/courses/${courseId}/assignments/${assignmentId}/progress`).then((r) => r.data);
+
+export const unlockAssignment = (courseId, assignmentId, cohortId) =>
+  client.post(`/courses/${courseId}/assignments/${assignmentId}/unlock`, { cohort_id: cohortId }).then((r) => r.data);
+
+export const lockAssignment = (courseId, assignmentId, cohortId) =>
+  client.post(`/courses/${courseId}/assignments/${assignmentId}/lock`, { cohort_id: cohortId }).then((r) => r.data);
+
+export const gradeSquad = (courseId, assignmentId, squadId, data) =>
+  client.put(`/courses/${courseId}/assignments/${assignmentId}/grades/squad/${squadId}`, data).then((r) => r.data);

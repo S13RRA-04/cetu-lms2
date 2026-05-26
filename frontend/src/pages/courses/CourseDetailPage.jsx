@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   getCourse, deleteModule, createModule, updateModule,
@@ -7,15 +7,24 @@ import {
   getEnrollments, enrollUser,
   getContentItems, createContentItem, updateContentItem, deleteContentItem,
   getSubmissions, getMySubmission, submitAssignment,
+  getProgress, unlockAssignment, lockAssignment,
 } from '../../api/courses.js';
-import { listCohorts, createCohort, updateCohort, deleteCohort, addMember, removeMember } from '../../api/cohorts.js';
+import {
+  listCohorts, createCohort, updateCohort, deleteCohort, addMember, removeMember,
+  listSquads, createSquad, deleteSquad, assignToSquad, removeFromSquad,
+} from '../../api/cohorts.js';
 import { getUsers } from '../../api/users.js';
 import useAuthStore from '../../store/authStore.js';
 import LoadingSpinner from '../../components/common/LoadingSpinner.jsx';
 import Modal from '../../components/common/Modal.jsx';
 import ConfirmDialog from '../../components/common/ConfirmDialog.jsx';
 
-const CONTENT_TYPES = ['video', 'document', 'quiz', 'assignment', 'lti_tool', 'text'];
+const CONTENT_TYPES   = ['video', 'document', 'quiz', 'assignment', 'lti_tool', 'text'];
+const ASSIGNMENT_TYPES = ['module', 'game', 'assessment', 'survey', 'challenge', 'capstone'];
+const TYPE_BADGE = {
+  module: 'badge-blue', game: 'badge-green', assessment: 'badge-yellow',
+  survey: 'badge-gray', challenge: 'badge-red', capstone: 'badge-yellow',
+};
 
 function StatusBadge({ status }) {
   const cls = status === 'published' ? 'badge-green' : status === 'archived' ? 'badge-gray' : 'badge-blue';
@@ -25,10 +34,10 @@ function StatusBadge({ status }) {
 // ── Content Item Form ─────────────────────────────────────────────────────────
 function ContentItemForm({ courseId, moduleId, initial, onSave, onClose }) {
   const [form, setForm] = useState({
-    title:       initial?.title       ?? '',
-    type:        initial?.type        ?? 'document',
-    content_url: initial?.content_url ?? '',
-    order_index: initial?.order_index ?? 0,
+    title:        initial?.title        ?? '',
+    type:         initial?.type         ?? 'document',
+    content_url:  initial?.content_url  ?? '',
+    order_index:  initial?.order_index  ?? 0,
     is_published: initial?.is_published ?? true,
   });
   const [saving, setSaving] = useState(false);
@@ -119,10 +128,14 @@ function ModuleForm({ courseId, initial, onSave, onClose }) {
 // ── Assignment Form ───────────────────────────────────────────────────────────
 function AssignmentForm({ courseId, initial, onSave, onClose }) {
   const [form, setForm] = useState({
-    title: initial?.title ?? '', description: initial?.description ?? '',
-    max_score: initial?.max_score ?? 100,
-    due_date: initial?.due_date?.slice(0, 16) ?? '',
+    title:        initial?.title        ?? '',
+    description:  initial?.description  ?? '',
+    max_score:    initial?.max_score    ?? 100,
+    due_date:     initial?.due_date?.slice(0, 16) ?? '',
     is_published: initial?.is_published ?? true,
+    type:         initial?.type         ?? 'module',
+    grading_mode: initial?.grading_mode ?? 'individual',
+    order_index:  initial?.order_index  ?? 0,
   });
   const [saving, setSaving] = useState(false);
   const set = (k) => (e) => {
@@ -134,7 +147,12 @@ function AssignmentForm({ courseId, initial, onSave, onClose }) {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload = { ...form, max_score: Number(form.max_score), due_date: form.due_date || undefined };
+      const payload = {
+        ...form,
+        max_score:   Number(form.max_score),
+        order_index: Number(form.order_index),
+        due_date:    form.due_date || undefined,
+      };
       if (initial) await updateAssignment(courseId, initial.id, payload);
       else         await createAssignment(courseId, payload);
       onSave();
@@ -146,9 +164,27 @@ function AssignmentForm({ courseId, initial, onSave, onClose }) {
       <div className="form-group"><label>Title *</label><input value={form.title} onChange={set('title')} required /></div>
       <div className="form-group"><label>Description</label><textarea value={form.description} onChange={set('description')} rows={3} /></div>
       <div className="grid-2">
-        <div className="form-group"><label>Max Score</label><input type="number" value={form.max_score} onChange={set('max_score')} min={0} required /></div>
-        <div className="form-group"><label>Due Date</label><input type="datetime-local" value={form.due_date} onChange={set('due_date')} /></div>
+        <div className="form-group">
+          <label>Type</label>
+          <select value={form.type} onChange={set('type')}>
+            {ASSIGNMENT_TYPES.map((t) => (
+              <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+            ))}
+          </select>
+        </div>
+        <div className="form-group">
+          <label>Grading Mode</label>
+          <select value={form.grading_mode} onChange={set('grading_mode')}>
+            <option value="individual">Individual</option>
+            <option value="squad">Squad</option>
+          </select>
+        </div>
       </div>
+      <div className="grid-2">
+        <div className="form-group"><label>Max Score</label><input type="number" value={form.max_score} onChange={set('max_score')} min={0} required /></div>
+        <div className="form-group"><label>Order</label><input type="number" value={form.order_index} onChange={set('order_index')} min={0} /></div>
+      </div>
+      <div className="form-group"><label>Due Date</label><input type="datetime-local" value={form.due_date} onChange={set('due_date')} /></div>
       <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <input type="checkbox" id="apub" checked={form.is_published} onChange={set('is_published')} style={{ width: 'auto' }} />
         <label htmlFor="apub" style={{ marginBottom: 0 }}>Published</label>
@@ -161,10 +197,167 @@ function AssignmentForm({ courseId, initial, onSave, onClose }) {
   );
 }
 
+// ── Add Squad Form ────────────────────────────────────────────────────────────
+function AddSquadForm({ courseId, cohortId, onSave, onClose }) {
+  const [number, setNumber] = useState(1);
+  const [name,   setName]   = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await createSquad(courseId, cohortId, { number: Number(number), name: name || null });
+      onSave();
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <form onSubmit={submit}>
+      <div className="grid-2">
+        <div className="form-group">
+          <label>Number (1–4) *</label>
+          <input type="number" value={number} onChange={(e) => setNumber(e.target.value)} min={1} max={4} required />
+        </div>
+        <div className="form-group">
+          <label>Name (optional)</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Alpha" />
+        </div>
+      </div>
+      <div className="flex-end" style={{ marginTop: 16, gap: 8 }}>
+        <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+        <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Add Squad'}</button>
+      </div>
+    </form>
+  );
+}
+
+// ── Squads Panel ──────────────────────────────────────────────────────────────
+function SquadsPanel({ courseId, cohortId, cohortMembers }) {
+  const [squads,    setSquads]    = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [addModal,  setAddModal]  = useState(false);
+  const [delSquad,  setDelSquad]  = useState(null);
+
+  const load = useCallback(() =>
+    listSquads(courseId, cohortId).then(setSquads).finally(() => setLoading(false)),
+  [courseId, cohortId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (loading) return <LoadingSpinner />;
+
+  const assignedIds = new Set(squads.flatMap((s) => (s.students ?? []).map((u) => u.id)));
+  const unassigned  = (cohortMembers ?? []).filter((m) => !assignedIds.has(m.id));
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <span className="fw-600">Squads ({squads.length})</span>
+        <button className="btn btn-primary btn-sm" onClick={() => setAddModal(true)}>+ Add Squad</button>
+      </div>
+
+      {squads.length === 0 ? (
+        <p className="text-muted text-sm">No squads yet. Add up to 4 squads for this cohort.</p>
+      ) : squads.map((squad) => (
+        <div key={squad.id} style={{ border: '1px solid var(--border)', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--surface)' }}>
+            <span className="fw-600" style={{ fontSize: 14 }}>
+              Squad {squad.number}{squad.name ? ` — ${squad.name}` : ''}
+              <span className="text-muted" style={{ fontWeight: 400, marginLeft: 8, fontSize: 12 }}>
+                {(squad.students ?? []).length} member{(squad.students ?? []).length !== 1 ? 's' : ''}
+              </span>
+            </span>
+            <button className="btn btn-ghost btn-xs" style={{ color: 'var(--danger)' }} onClick={() => setDelSquad(squad)}>Delete</button>
+          </div>
+          <div style={{ padding: '8px 12px' }}>
+            {(squad.students ?? []).length === 0 ? (
+              <p className="text-xs text-muted">No members assigned.</p>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {squad.students.map((u) => (
+                  <div key={u.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    background: '#f8fafc', border: '1px solid var(--border)',
+                    borderRadius: 20, padding: '2px 6px 2px 10px', fontSize: 13,
+                  }}>
+                    {u.first_name} {u.last_name}
+                    <button
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: '0 2px', lineHeight: 1, fontSize: 14 }}
+                      title="Remove from squad"
+                      onClick={async () => { await removeFromSquad(courseId, cohortId, squad.id, u.id); load(); }}
+                    >×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
+
+      {unassigned.length > 0 && squads.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <p className="text-xs text-muted fw-600" style={{ marginBottom: 8 }}>
+            Unassigned cohort members ({unassigned.length})
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {unassigned.map((m) => (
+              <div key={m.id} style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'var(--surface)', border: '1px solid var(--border)',
+                borderRadius: 6, padding: '4px 10px', fontSize: 13,
+              }}>
+                <span>{m.first_name} {m.last_name}</span>
+                <select
+                  style={{ fontSize: 12, padding: '2px 4px', border: '1px solid var(--border)', borderRadius: 4, background: 'white' }}
+                  defaultValue=""
+                  onChange={async (e) => {
+                    if (!e.target.value) return;
+                    await assignToSquad(courseId, cohortId, e.target.value, m.id);
+                    load();
+                  }}
+                >
+                  <option value="">→ assign</option>
+                  {squads.map((s) => <option key={s.id} value={s.id}>Squad {s.number}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {unassigned.length > 0 && squads.length === 0 && (
+        <p className="text-xs text-muted" style={{ marginTop: 8 }}>
+          Add squads above to start assigning {unassigned.length} cohort member{unassigned.length !== 1 ? 's' : ''}.
+        </p>
+      )}
+
+      {addModal && (
+        <Modal title="Add Squad" onClose={() => setAddModal(false)}>
+          <AddSquadForm
+            courseId={courseId}
+            cohortId={cohortId}
+            onSave={() => { setAddModal(false); load(); }}
+            onClose={() => setAddModal(false)}
+          />
+        </Modal>
+      )}
+      {delSquad && (
+        <ConfirmDialog
+          title="Delete Squad"
+          message={`Delete Squad ${delSquad.number}${delSquad.name ? ` (${delSquad.name})` : ''}? Members will be unassigned.`}
+          onConfirm={async () => { await deleteSquad(courseId, cohortId, delSquad.id); setDelSquad(null); load(); }}
+          onCancel={() => setDelSquad(null)}
+        />
+      )}
+    </div>
+  );
+}
+
 // ── Grades Modal ──────────────────────────────────────────────────────────────
 function GradesModal({ courseId, assignment, onClose }) {
   const [grades, setGrades]   = useState([]);
-  const [subs, setSubs]       = useState([]);
+  const [subs,   setSubs]     = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState({});
 
@@ -181,25 +374,28 @@ function GradesModal({ courseId, assignment, onClose }) {
     setEditing((e) => { const n = { ...e }; delete n[userId]; return n; });
   };
 
-  const subMap = Object.fromEntries(subs.map((s) => [s.user_id, s]));
-
   return (
     <Modal title={`Grades — ${assignment.title}`} onClose={onClose}>
       {loading ? <LoadingSpinner /> : (
         <>
+          {assignment.grading_mode === 'squad' && (
+            <div className="alert alert-info" style={{ marginBottom: 12 }}>
+              Squad-graded assignment. Grading one member automatically applies to all squad members.
+            </div>
+          )}
           {subs.length > 0 && (
             <div style={{ marginBottom: 16 }}>
               <p className="text-sm fw-600" style={{ marginBottom: 8 }}>Submissions ({subs.length})</p>
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th>Student</th><th>Submitted</th><th>Status</th><th>Content</th></tr></thead>
+                  <thead><tr><th>Student</th>{assignment.grading_mode === 'squad' && <th>Squad</th>}<th>Submitted</th><th>Status</th></tr></thead>
                   <tbody>
                     {subs.map((s) => (
                       <tr key={s.id}>
                         <td>{s.student?.first_name} {s.student?.last_name}</td>
+                        {assignment.grading_mode === 'squad' && <td>{s.squad ? `Squad ${s.squad.number}` : '—'}</td>}
                         <td className="text-xs text-muted">{new Date(s.submitted_at).toLocaleString()}</td>
                         <td><span className="badge badge-blue">{s.status}</span></td>
-                        <td className="text-sm" style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.content || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -250,7 +446,7 @@ function GradesModal({ courseId, assignment, onClose }) {
   );
 }
 
-// ── Submission Modal (student) ────────────────────────────────────────────────
+// ── Submit Modal (student) ────────────────────────────────────────────────────
 function SubmitModal({ courseId, assignment, onClose }) {
   const [existing, setExisting] = useState(null);
   const [content,  setContent]  = useState('');
@@ -274,18 +470,43 @@ function SubmitModal({ courseId, assignment, onClose }) {
   };
 
   return (
-    <Modal title={assignment.title} onClose={onClose}
-      footer={!done && !loading && <><button className="btn btn-secondary" onClick={onClose}>Cancel</button><button form="sub-form" type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Submitting…' : existing ? 'Resubmit' : 'Submit'}</button></>}
+    <Modal
+      title={assignment.title}
+      onClose={onClose}
+      footer={!done && !loading && (
+        <>
+          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button form="sub-form" type="submit" className="btn btn-primary" disabled={saving}>
+            {saving ? 'Submitting…' : existing ? 'Resubmit' : 'Submit'}
+          </button>
+        </>
+      )}
     >
       {loading ? <LoadingSpinner /> : done ? (
         <div className="alert alert-success">Assignment submitted successfully!</div>
       ) : (
         <>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+            <span className={`badge ${TYPE_BADGE[assignment.type] ?? 'badge-blue'}`}>{assignment.type}</span>
+            {assignment.grading_mode === 'squad' && (
+              <span className="badge badge-yellow">Squad graded</span>
+            )}
+          </div>
+          {assignment.grading_mode === 'squad' && (
+            <div className="alert alert-info" style={{ marginBottom: 12 }}>
+              This is a squad assignment — your submission will be graded for your entire squad.
+            </div>
+          )}
           {assignment.description && <p className="text-sm" style={{ marginBottom: 12 }}>{assignment.description}</p>}
           {assignment.due_date && (
             <p className="text-xs text-muted" style={{ marginBottom: 12 }}>Due: {new Date(assignment.due_date).toLocaleString()}</p>
           )}
-          {existing && <div className="alert alert-info" style={{ marginBottom: 12 }}>You have an existing submission. Resubmitting will replace it.</div>}
+          {existing && (
+            <div className="alert alert-info" style={{ marginBottom: 12 }}>
+              You have an existing submission. Resubmitting will replace it.
+              {existing.squad && <span style={{ marginLeft: 6 }}>Squad: {existing.squad.number}{existing.squad.name ? ` (${existing.squad.name})` : ''}</span>}
+            </div>
+          )}
           <form id="sub-form" onSubmit={handleSubmit}>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label>Your answer</label>
@@ -293,6 +514,135 @@ function SubmitModal({ courseId, assignment, onClose }) {
             </div>
           </form>
         </>
+      )}
+    </Modal>
+  );
+}
+
+// ── Unlock Modal (instructor: toggle cohort access per assignment) ─────────────
+function UnlockModal({ courseId, assignment, onClose }) {
+  const [cohorts, setCohorts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [working, setWorking] = useState(null);
+  const [unlocked, setUnlocked] = useState(
+    () => new Set((assignment.unlocks ?? []).map((u) => u.cohort_id))
+  );
+
+  useEffect(() => {
+    listCohorts(courseId).then(setCohorts).finally(() => setLoading(false));
+  }, [courseId]);
+
+  const toggle = async (cohortId, isCurrentlyUnlocked) => {
+    setWorking(cohortId);
+    try {
+      if (isCurrentlyUnlocked) {
+        await lockAssignment(courseId, assignment.id, cohortId);
+        setUnlocked((s) => { const n = new Set(s); n.delete(cohortId); return n; });
+      } else {
+        await unlockAssignment(courseId, assignment.id, cohortId);
+        setUnlocked((s) => new Set([...s, cohortId]));
+      }
+    } finally { setWorking(null); }
+  };
+
+  return (
+    <Modal title={`Cohort Access — ${assignment.title}`} onClose={onClose}>
+      {loading ? <LoadingSpinner /> : cohorts.length === 0 ? (
+        <p className="text-muted text-sm">No cohorts found. Create cohorts first.</p>
+      ) : (
+        <div>
+          <p className="text-sm text-muted" style={{ marginBottom: 16 }}>
+            Students can only see and submit this assignment once it is unlocked for their cohort.
+          </p>
+          {cohorts.map((c) => {
+            const isUnlocked = unlocked.has(c.id);
+            return (
+              <div key={c.id} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '10px 0', borderBottom: '1px solid var(--border)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="fw-600">{c.name}</span>
+                  {!c.is_active && <span className="badge badge-gray">Inactive</span>}
+                  <span className={`badge ${isUnlocked ? 'badge-green' : 'badge-gray'}`}>
+                    {isUnlocked ? 'Unlocked' : 'Locked'}
+                  </span>
+                </div>
+                <button
+                  className={`btn btn-sm ${isUnlocked ? 'btn-secondary' : 'btn-primary'}`}
+                  disabled={working === c.id}
+                  onClick={() => toggle(c.id, isUnlocked)}
+                >
+                  {working === c.id ? '…' : isUnlocked ? 'Lock' : 'Unlock'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+// ── Progress Modal (instructor: live polling) ─────────────────────────────────
+function ProgressModal({ courseId, assignment, onClose }) {
+  const [subs,    setSubs]    = useState([]);
+  const [loading, setLoading] = useState(true);
+  const intervalRef           = useRef(null);
+
+  const load = useCallback(() =>
+    getProgress(courseId, assignment.id)
+      .then((d) => { setSubs(Array.isArray(d) ? d : d.submissions ?? []); setLoading(false); })
+      .catch(() => setLoading(false)),
+  [courseId, assignment.id]);
+
+  useEffect(() => {
+    load();
+    intervalRef.current = setInterval(load, 15000);
+    return () => clearInterval(intervalRef.current);
+  }, [load]);
+
+  return (
+    <Modal title={`Progress — ${assignment.title}`} onClose={onClose}>
+      {loading ? <LoadingSpinner /> : subs.length === 0 ? (
+        <p className="text-muted text-sm">No progress data yet. Students who have started this assignment will appear here.</p>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Student</th>
+                {assignment.grading_mode === 'squad' && <th>Squad</th>}
+                <th>Progress</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {subs.map((s) => (
+                <tr key={s.id}>
+                  <td>{s.student?.first_name} {s.student?.last_name}</td>
+                  {assignment.grading_mode === 'squad' && (
+                    <td>{s.squad ? `Squad ${s.squad.number}${s.squad.name ? ` (${s.squad.name})` : ''}` : '—'}</td>
+                  )}
+                  <td style={{ minWidth: 140 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ flex: 1, background: 'var(--border)', borderRadius: 4, height: 8 }}>
+                        <div style={{
+                          width: `${s.progress ?? 0}%`,
+                          background: s.progress >= 100 ? 'var(--success)' : 'var(--primary)',
+                          borderRadius: 4, height: '100%', transition: 'width .3s',
+                        }} />
+                      </div>
+                      <span className="text-xs" style={{ width: 34, textAlign: 'right' }}>{s.progress ?? 0}%</span>
+                    </div>
+                  </td>
+                  <td><span className="badge badge-blue">{s.status}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="text-xs text-muted" style={{ padding: '8px 4px' }}>Auto-refreshes every 15 seconds.</p>
+        </div>
       )}
     </Modal>
   );
@@ -529,13 +879,14 @@ function AddMemberModal({ courseId, cohort, onSave, onClose }) {
 
 // ── Cohorts Tab ───────────────────────────────────────────────────────────────
 function CohortsTab({ courseId }) {
-  const [cohorts,      setCohorts]      = useState([]);
-  const [loading,      setLoading]      = useState(true);
-  const [selected,     setSelected]     = useState(null);
-  const [cohortModal,  setCohortModal]  = useState(null);
-  const [delCohort,    setDelCohort]    = useState(null);
-  const [addModal,     setAddModal]     = useState(null);
-  const [removingId,   setRemovingId]   = useState(null);
+  const [cohorts,     setCohorts]     = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [selected,    setSelected]    = useState(null);
+  const [cohortModal, setCohortModal] = useState(null);
+  const [delCohort,   setDelCohort]   = useState(null);
+  const [addModal,    setAddModal]    = useState(null);
+  const [removingId,  setRemovingId]  = useState(null);
+  const [subTab,      setSubTab]      = useState('members');
 
   const load = useCallback(() =>
     listCohorts(courseId).then((data) => {
@@ -573,7 +924,7 @@ function CohortsTab({ courseId }) {
           : cohorts.map((c) => (
             <div
               key={c.id}
-              onClick={() => setSelected(c)}
+              onClick={() => { setSelected(c); setSubTab('members'); }}
               style={{
                 padding: '10px 12px', marginBottom: 4, borderRadius: 6, cursor: 'pointer',
                 background: selected?.id === c.id ? 'var(--primary)' : 'var(--surface)',
@@ -594,10 +945,11 @@ function CohortsTab({ courseId }) {
       {/* ── Right: cohort detail ── */}
       <div style={{ flex: 1 }}>
         {!selected ? (
-          <div className="empty-state"><p>Select a cohort to view members.</p></div>
+          <div className="empty-state"><p>Select a cohort to view details.</p></div>
         ) : (
           <div className="card">
             <div className="card-body">
+              {/* Header */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                 <div>
                   <h3 style={{ marginBottom: 4 }}>{selected.name}</h3>
@@ -605,48 +957,77 @@ function CohortsTab({ courseId }) {
                     <p className="text-sm text-muted">
                       {selected.start_date ? new Date(selected.start_date).toLocaleDateString() : '?'}
                       {' – '}
-                      {selected.end_date   ? new Date(selected.end_date).toLocaleDateString()   : 'ongoing'}
+                      {selected.end_date ? new Date(selected.end_date).toLocaleDateString() : 'ongoing'}
                     </p>
                   )}
                   {!selected.is_active && <span className="badge badge-gray" style={{ marginTop: 4 }}>Inactive</span>}
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button className="btn btn-secondary btn-sm" onClick={() => setCohortModal(selected)}>Edit</button>
-                  <button className="btn btn-primary btn-sm"   onClick={() => setAddModal(selected)}>+ Add Member</button>
-                  <button className="btn btn-ghost btn-sm"     onClick={() => setDelCohort(selected)} style={{ color: 'var(--danger)' }}>Delete</button>
+                  <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }} onClick={() => setDelCohort(selected)}>Delete</button>
                 </div>
               </div>
 
-              {(selected.members ?? []).length === 0 ? (
-                <p className="text-muted text-sm">No members yet. Click "+ Add Member" to enroll students.</p>
-              ) : (
-                <div className="table-wrap">
-                  <table>
-                    <thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Enrolled</th><th></th></tr></thead>
-                    <tbody>
-                      {selected.members.map((m) => (
-                        <tr key={m.id}>
-                          <td className="fw-600">{m.first_name} {m.last_name}</td>
-                          <td className="text-sm text-muted">{m.email}</td>
-                          <td><span className="badge badge-blue">{m.Enrollment?.status ?? '—'}</span></td>
-                          <td className="text-xs text-muted">
-                            {m.Enrollment?.enrolled_at ? new Date(m.Enrollment.enrolled_at).toLocaleDateString() : '—'}
-                          </td>
-                          <td>
-                            <button
-                              className="btn btn-ghost btn-xs"
-                              style={{ color: 'var(--danger)' }}
-                              disabled={removingId === m.id}
-                              onClick={() => handleRemoveMember(m.id)}
-                            >
-                              {removingId === m.id ? '…' : 'Remove'}
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              {/* Sub-tabs */}
+              <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>
+                {['members', 'squads'].map((t) => (
+                  <button
+                    key={t}
+                    className={`btn btn-sm ${subTab === t ? 'btn-primary' : 'btn-ghost'}`}
+                    onClick={() => setSubTab(t)}
+                  >
+                    {t.charAt(0).toUpperCase() + t.slice(1)}
+                  </button>
+                ))}
+              </div>
+
+              {/* Members sub-tab */}
+              {subTab === 'members' && (
+                <>
+                  <div className="flex-end" style={{ marginBottom: 10 }}>
+                    <button className="btn btn-primary btn-sm" onClick={() => setAddModal(selected)}>+ Add Member</button>
+                  </div>
+                  {(selected.members ?? []).length === 0 ? (
+                    <p className="text-muted text-sm">No members yet. Click "+ Add Member" to enroll students.</p>
+                  ) : (
+                    <div className="table-wrap">
+                      <table>
+                        <thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Enrolled</th><th></th></tr></thead>
+                        <tbody>
+                          {selected.members.map((m) => (
+                            <tr key={m.id}>
+                              <td className="fw-600">{m.first_name} {m.last_name}</td>
+                              <td className="text-sm text-muted">{m.email}</td>
+                              <td><span className="badge badge-blue">{m.Enrollment?.status ?? '—'}</span></td>
+                              <td className="text-xs text-muted">
+                                {m.Enrollment?.enrolled_at ? new Date(m.Enrollment.enrolled_at).toLocaleDateString() : '—'}
+                              </td>
+                              <td>
+                                <button
+                                  className="btn btn-ghost btn-xs"
+                                  style={{ color: 'var(--danger)' }}
+                                  disabled={removingId === m.id}
+                                  onClick={() => handleRemoveMember(m.id)}
+                                >
+                                  {removingId === m.id ? '…' : 'Remove'}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Squads sub-tab */}
+              {subTab === 'squads' && (
+                <SquadsPanel
+                  courseId={courseId}
+                  cohortId={selected.id}
+                  cohortMembers={selected.members ?? []}
+                />
               )}
             </div>
           </div>
@@ -696,27 +1077,28 @@ export default function CourseDetailPage() {
   const [assignments, setAssignments] = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [tab,         setTab]         = useState('modules');
-  const [enrolled,    setEnrolled]    = useState(null); // null=unknown, false=not enrolled, obj=enrollment
+  const [enrolled,    setEnrolled]    = useState(null);
   const [enrolling,   setEnrolling]   = useState(false);
 
-  const [moduleModal, setModuleModal] = useState(null);
-  const [delModule,   setDelModule]   = useState(null);
-  const [assignModal, setAssignModal] = useState(null);
-  const [delAssign,   setDelAssign]   = useState(null);
-  const [gradesModal, setGradesModal] = useState(null);
-  const [submitModal, setSubmitModal] = useState(null);
+  const [moduleModal,   setModuleModal]   = useState(null);
+  const [delModule,     setDelModule]     = useState(null);
+  const [assignModal,   setAssignModal]   = useState(null);
+  const [delAssign,     setDelAssign]     = useState(null);
+  const [gradesModal,   setGradesModal]   = useState(null);
+  const [submitModal,   setSubmitModal]   = useState(null);
+  const [unlockModal,   setUnlockModal]   = useState(null);
+  const [progressModal, setProgressModal] = useState(null);
 
   const loadCourse      = useCallback(() => getCourse(id).then(setCourse).catch(() => navigate('/courses')), [id]);
-  const loadAssignments = useCallback(() => getAssignments(id).then((d) => setAssignments(d.data ?? d.assignments ?? [])), [id]);
+  const loadAssignments = useCallback(() => getAssignments(id).then((d) => setAssignments(d.data ?? d.assignments ?? d ?? [])), [id]);
 
   useEffect(() => {
     Promise.all([getCourse(id), getAssignments(id)])
-      .then(([c, a]) => { setCourse(c); setAssignments(a.data ?? a.assignments ?? []); })
+      .then(([c, a]) => { setCourse(c); setAssignments(a.data ?? a.assignments ?? a ?? []); })
       .catch(() => navigate('/courses'))
       .finally(() => setLoading(false));
   }, [id]);
 
-  // Check self-enrollment status for students
   useEffect(() => {
     if (!isStudent || !course) return;
     getEnrollments(id).then((data) => {
@@ -827,32 +1209,59 @@ export default function CourseDetailPage() {
                   <table>
                     <thead>
                       <tr>
-                        <th>Title</th><th>Max Score</th><th>Due Date</th><th>Status</th><th></th>
+                        <th>Title</th>
+                        <th>Type</th>
+                        <th>Max Score</th>
+                        <th>Due Date</th>
+                        <th>Status</th>
+                        <th></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {assignments.map((a) => (
-                        <tr key={a.id}>
-                          <td className="fw-600">{a.title}</td>
-                          <td>{a.max_score}</td>
-                          <td className="text-sm text-muted">{a.due_date ? new Date(a.due_date).toLocaleDateString() : '—'}</td>
-                          <td>{a.is_published ? <span className="badge badge-green">Published</span> : <span className="badge badge-gray">Draft</span>}</td>
-                          <td>
-                            <div style={{ display: 'flex', gap: 4 }}>
-                              {isStudent && a.is_published && (
-                                <button className="btn btn-primary btn-xs" onClick={() => setSubmitModal(a)}>Submit</button>
-                              )}
-                              {canManage && (
-                                <>
-                                  <button className="btn btn-ghost btn-xs" onClick={() => setGradesModal(a)}>Grades</button>
-                                  <button className="btn btn-ghost btn-xs" onClick={() => setAssignModal(a)}>Edit</button>
-                                  <button className="btn btn-ghost btn-xs" style={{ color: 'var(--danger)' }} onClick={() => setDelAssign(a)}>Delete</button>
-                                </>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                      {assignments.map((a) => {
+                        const unlockedCount = a.unlocks?.length ?? 0;
+                        const isLocked = a.is_unlocked === false; // student view flag
+                        return (
+                          <tr key={a.id}>
+                            <td className="fw-600">{a.title}</td>
+                            <td>
+                              <div style={{ display: 'flex', gap: 4 }}>
+                                <span className={`badge ${TYPE_BADGE[a.type] ?? 'badge-blue'}`}>{a.type ?? 'module'}</span>
+                                {a.grading_mode === 'squad' && <span className="badge badge-gray">squad</span>}
+                              </div>
+                            </td>
+                            <td>{a.max_score}</td>
+                            <td className="text-sm text-muted">{a.due_date ? new Date(a.due_date).toLocaleDateString() : '—'}</td>
+                            <td>
+                              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                {a.is_published
+                                  ? <span className="badge badge-green">Published</span>
+                                  : <span className="badge badge-gray">Draft</span>}
+                                {isStudent && isLocked && <span className="badge badge-gray">Locked</span>}
+                                {canManage && a.unlocks !== undefined && (
+                                  <span className="badge badge-blue">{unlockedCount} unlocked</span>
+                                )}
+                              </div>
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                {isStudent && a.is_published && !isLocked && (
+                                  <button className="btn btn-primary btn-xs" onClick={() => setSubmitModal(a)}>Submit</button>
+                                )}
+                                {canManage && (
+                                  <>
+                                    <button className="btn btn-ghost btn-xs" onClick={() => setGradesModal(a)}>Grades</button>
+                                    <button className="btn btn-ghost btn-xs" onClick={() => setProgressModal(a)}>Progress</button>
+                                    <button className="btn btn-ghost btn-xs" onClick={() => setUnlockModal(a)}>Locks</button>
+                                    <button className="btn btn-ghost btn-xs" onClick={() => setAssignModal(a)}>Edit</button>
+                                    <button className="btn btn-ghost btn-xs" style={{ color: 'var(--danger)' }} onClick={() => setDelAssign(a)}>Delete</button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -898,6 +1307,12 @@ export default function CourseDetailPage() {
       )}
       {submitModal && (
         <SubmitModal courseId={id} assignment={submitModal} onClose={() => setSubmitModal(null)} />
+      )}
+      {unlockModal && (
+        <UnlockModal courseId={id} assignment={unlockModal} onClose={() => setUnlockModal(null)} />
+      )}
+      {progressModal && (
+        <ProgressModal courseId={id} assignment={progressModal} onClose={() => setProgressModal(null)} />
       )}
     </div>
   );

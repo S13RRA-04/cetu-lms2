@@ -27,4 +27,11 @@ async function updateStatus(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { listByAssignment, getMine, submit, updateStatus };
+async function updateProgress(req, res, next) {
+  try {
+    const sub = await submissionService.updateProgress(req.params.aid, req.user.id, req.body.progress);
+    return res.json(sub);
+  } catch (err) { return next(err); }
+}
+
+module.exports = { listByAssignment, getMine, submit, updateStatus, updateProgress };

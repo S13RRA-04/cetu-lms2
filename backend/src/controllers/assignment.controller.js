@@ -1,9 +1,16 @@
 'use strict';
 const assignmentService = require('../services/assignment.service');
 const gradeService      = require('../services/grade.service');
+const submissionService = require('../services/submission.service');
 
 async function listByCourse(req, res, next) {
-  try { return res.json(await assignmentService.listByCourse(req.params.id, req.query)); }
+  try {
+    const isStudent = req.user.role === 'student';
+    const data = isStudent
+      ? await assignmentService.listForStudent(req.params.id, req.user.id)
+      : await assignmentService.listByCourse(req.params.id, req.query);
+    return res.json(data);
+  }
   catch (err) { return next(err); }
 }
 
@@ -39,4 +46,30 @@ async function upsertGrade(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { listByCourse, getOne, create, update, remove, getGrades, upsertGrade };
+async function unlockForCohort(req, res, next) {
+  try {
+    const unlock = await assignmentService.unlockForCohort(req.params.aid, req.body.cohort_id, req.user.id);
+    return res.status(201).json(unlock);
+  } catch (err) { return next(err); }
+}
+
+async function lockForCohort(req, res, next) {
+  try {
+    await assignmentService.lockForCohort(req.params.aid, req.body.cohort_id);
+    return res.status(204).end();
+  } catch (err) { return next(err); }
+}
+
+async function getProgress(req, res, next) {
+  try { return res.json(await submissionService.getProgressForAssignment(req.params.aid)); }
+  catch (err) { return next(err); }
+}
+
+async function gradeSquad(req, res, next) {
+  try {
+    const grades = await gradeService.gradeSquad(req.params.aid, req.params.squadId, req.body, req.user.id);
+    return res.json(grades);
+  } catch (err) { return next(err); }
+}
+
+module.exports = { listByCourse, getOne, create, update, remove, getGrades, upsertGrade, unlockForCohort, lockForCohort, getProgress, gradeSquad };
