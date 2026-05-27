@@ -12,7 +12,7 @@ export const getMyEnrollment = () =>
   client.get(`/courses/${COURSE_ID}/enrollment/me`).then((r) => r.data);
 
 export const getAssignments = () =>
-  client.get(`/courses/${COURSE_ID}/assignments`).then((r) => r.data);
+  client.get(`/courses/${COURSE_ID}/assignments?limit=200`).then((r) => r.data);
 
 export const getAssignment = (id) =>
   client.get(`/courses/${COURSE_ID}/assignments/${id}`).then((r) => r.data);
@@ -36,7 +36,7 @@ export const getScoreboard = () =>
 
 /* ── Admin / instructor ── */
 export const getAdminAssignments = () =>
-  client.get(`/courses/${COURSE_ID}/assignments`).then((r) => {
+  client.get(`/courses/${COURSE_ID}/assignments?limit=200`).then((r) => {
     const raw = r.data;
     return Array.isArray(raw) ? raw : (raw.data ?? []);
   });
