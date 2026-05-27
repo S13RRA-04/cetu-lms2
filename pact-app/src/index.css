@@ -245,6 +245,8 @@ body {
   max-width: 1240px;
   width: 100%;
   margin: 0 auto;
+  position: relative;
+  z-index: 1;
 }
 
 /* ── Info Row (cohort + squad) ───────────────────────────────────────────────── */
@@ -266,12 +268,14 @@ body {
 }
 
 .squad-card {
-  background: var(--surface);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
   border-radius: var(--radius);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.55);
   padding: 24px 28px;
   flex: 1;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 4px 20px rgba(37, 99, 235, 0.07);
 }
 
 .squad-unassigned { border-left-color: var(--border-hi); }
@@ -387,16 +391,18 @@ body {
 }
 
 .assignment-card {
-  background: var(--card);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: var(--radius);
   padding: 22px;
   cursor: pointer;
-  transition: box-shadow .2s, transform .15s;
+  transition: box-shadow .2s, transform .15s, background .2s;
   position: relative;
   display: flex;
   flex-direction: column;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 4px 20px rgba(37, 99, 235, 0.06);
   overflow: hidden;
 }
 
@@ -410,8 +416,9 @@ body {
 }
 
 .assignment-card:not(.assignment-locked):hover {
-  box-shadow: var(--shadow);
+  box-shadow: 0 12px 40px rgba(37, 99, 235, 0.14);
   transform: translateY(-3px);
+  background: rgba(255, 255, 255, 0.88);
 }
 
 .assignment-locked {
@@ -812,104 +819,86 @@ body {
   box-shadow: 0 4px 12px rgba(37,99,235,.3);
 }
 
-/* ── Hero with globe background ──────────────────────────────────────────────── */
-.dashboard-hero {
-  position: relative;
-  width: 100%;
-  height: 320px;
-  overflow: hidden;
-  background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 60%, #1e40af 100%);
-  flex-shrink: 0;
-}
-
-.hero-globe {
-  position: absolute;
-  inset: 0;
-  width: 100% !important;
-  height: 100% !important;
-  opacity: 0.55;
-}
-
-.hero-globe canvas {
-  width: 100% !important;
-  height: 100% !important;
-}
-
-.hero-overlay {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse at 30% 50%, rgba(37,99,235,.18) 0%, transparent 70%),
-              linear-gradient(to bottom, transparent 50%, rgba(15,23,42,.6) 100%);
+/* ── Globe full-page background ──────────────────────────────────────────────── */
+.globe-bg {
+  position: fixed;
+  top: -5%;
+  right: -12%;
+  width: 75vw;
+  height: 110vh;
   pointer-events: none;
+  z-index: 0;
 }
 
-.hero-header {
-  position: relative;
-  z-index: 10;
-  background: transparent !important;
-  border-bottom: 1px solid rgba(255,255,255,.1) !important;
-  box-shadow: none !important;
+.globe-bg-canvas {
+  width: 100% !important;
+  height: 100% !important;
 }
 
-.hero-header .header-pact   { color: #ffffff !important; }
-.hero-header .operator-label { color: rgba(255,255,255,.5) !important; }
-.hero-header .operator-name  { color: #ffffff !important; }
-.hero-header .btn-logout {
-  border-color: rgba(255,255,255,.25) !important;
-  color: rgba(255,255,255,.7) !important;
-}
-.hero-header .btn-logout:hover {
-  border-color: #f87171 !important;
-  color: #f87171 !important;
-  background: rgba(220,38,38,.15) !important;
+/* page gets a soft light bg so globe reads against it */
+body {
+  background: #f0f4ff;
 }
 
-.hero-content {
-  position: absolute;
-  bottom: 0; left: 0; right: 0;
-  z-index: 10;
-  padding: 0 40px 32px;
+/* ── Frosted-glass utilities ─────────────────────────────────────────────────── */
+.glass-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(248, 250, 255, 0.72) !important;
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border-bottom: 1px solid rgba(37, 99, 235, 0.1) !important;
+  box-shadow: 0 2px 20px rgba(37, 99, 235, 0.06) !important;
 }
 
-.hero-stats {
+.glass-card {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 32px rgba(37, 99, 235, 0.08), 0 1px 0 rgba(255,255,255,.8) inset;
+}
+
+/* ── Stats banner ────────────────────────────────────────────────────────────── */
+.stats-banner {
   display: flex;
-  align-items: flex-end;
-  gap: 0;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+  position: relative;
+  z-index: 1;
 }
 
-.hero-stat {
-  padding: 0 32px 0 0;
+.stat-glass {
+  background: rgba(255, 255, 255, 0.68);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: var(--radius);
+  padding: 18px 28px;
+  box-shadow: 0 4px 20px rgba(37, 99, 235, 0.07);
+  min-width: 120px;
 }
 
-.hero-stat-value {
+.stat-glass-cohort { flex: 1; }
+
+.stat-glass-value {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 42px;
+  font-size: 38px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--primary);
   line-height: 1;
-  letter-spacing: .02em;
 }
 
-.hero-stat-cohort {
-  font-size: 22px;
-  padding-top: 6px;
-}
-
-.hero-stat-label {
+.stat-glass-label {
   font-size: 10px;
   letter-spacing: .16em;
-  color: rgba(255,255,255,.5);
+  color: var(--muted);
   font-family: var(--mono);
   text-transform: uppercase;
-  margin-top: 4px;
-}
-
-.hero-stat-divider {
-  width: 1px;
-  height: 40px;
-  background: rgba(255,255,255,.15);
-  margin: 0 32px 8px 0;
-  flex-shrink: 0;
+  margin-top: 5px;
 }
 
 /* ── Responsive ──────────────────────────────────────────────────────────────── */
@@ -919,9 +908,8 @@ body {
   .pact-main, .assignment-body { padding: 20px 16px; }
   .login-card { width: calc(100% - 32px); padding: 36px 28px; }
   .pact-header { padding: 0 16px; }
-  .dashboard-hero { height: 260px; }
-  .hero-content { padding: 0 16px 24px; }
-  .hero-stat-value { font-size: 30px; }
-  .hero-stat { padding-right: 20px; }
-  .hero-stat-divider { margin: 0 20px 8px 0; }
+  .globe-bg { right: -40%; width: 130vw; opacity: 0.6; }
+  .stats-banner { gap: 8px; }
+  .stat-glass { padding: 14px 18px; }
+  .stat-glass-value { font-size: 28px; }
 }
