@@ -54,15 +54,15 @@ export default function Globe({ className = '', primaryColor = '#00b0ff' }) {
   const colorRef    = useRef(hexToRgb(primaryColor));
   const arcMatsRef  = useRef([]);
   const dotMatRef   = useRef(null);
-  const glowMatRef  = useRef(null);
+  const glowRedraw  = useRef(null);   // fn({ r,g,b }) → repaints glow canvas
 
   /* update color ref + Three.js materials whenever the squad changes */
   useEffect(() => {
     colorRef.current = hexToRgb(primaryColor);
     const tc = new THREE.Color(primaryColor);
     for (const mat of arcMatsRef.current) mat.color.copy(tc);
-    if (dotMatRef.current)  dotMatRef.current.color.copy(tc);
-    if (glowMatRef.current) glowMatRef.current.uniforms.uColor.value.copy(tc);
+    if (dotMatRef.current) dotMatRef.current.color.copy(tc);
+    if (glowRedraw.current) glowRedraw.current(colorRef.current);
   }, [primaryColor]);
 
   useEffect(() => {
@@ -96,38 +96,38 @@ export default function Globe({ className = '', primaryColor = '#00b0ff' }) {
           return new THREE.Color(r / 255, g / 255, b / 255);
         };
 
-        /* ══ 0. ATMOSPHERE GLOW (Fresnel rim — bright edge, transparent centre) */
+        /* ══ 0. SOFT HALO (billboard sprite with radial gradient canvas) ══════
+           Fades to transparent on both the inner and outer edges — no hard lines. */
         {
-          const { r, g, b } = colorRef.current;
-          glowMatRef.current = new THREE.ShaderMaterial({
-            uniforms: { uColor: { value: new THREE.Color(r/255, g/255, b/255) } },
-            vertexShader: `
-              varying vec3 vNormal;
-              varying vec3 vViewDir;
-              void main() {
-                vNormal   = normalize(normalMatrix * normal);
-                vec4 vPos = modelViewMatrix * vec4(position, 1.0);
-                vViewDir  = normalize(-vPos.xyz);
-                gl_Position = projectionMatrix * vPos;
-              }`,
-            fragmentShader: `
-              uniform vec3 uColor;
-              varying vec3 vNormal;
-              varying vec3 vViewDir;
-              void main() {
-                float rim   = 1.0 - abs(dot(vNormal, vViewDir));
-                float alpha = pow(rim, 4.5) * 0.60;
-                gl_FragColor = vec4(uColor, alpha);
-              }`,
+          const GS = 256;
+          const gc = document.createElement('canvas');
+          gc.width = gc.height = GS;
+          const gCtx = gc.getContext('2d');
+          const glowTex = new THREE.CanvasTexture(gc);
+
+          const paintGlow = ({ r, g, b }) => {
+            gCtx.clearRect(0, 0, GS, GS);
+            const grad = gCtx.createRadialGradient(GS/2, GS/2, GS * 0.36, GS/2, GS/2, GS/2);
+            grad.addColorStop(0,    `rgba(${r},${g},${b},0)`);
+            grad.addColorStop(0.45, `rgba(${r},${g},${b},0.28)`);
+            grad.addColorStop(0.70, `rgba(${r},${g},${b},0.12)`);
+            grad.addColorStop(1,    `rgba(${r},${g},${b},0)`);
+            gCtx.fillStyle = grad;
+            gCtx.fillRect(0, 0, GS, GS);
+            glowTex.needsUpdate = true;
+          };
+
+          paintGlow(colorRef.current);
+          glowRedraw.current = paintGlow;
+
+          const glowSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: glowTex,
+            blending: THREE.AdditiveBlending,
             transparent: true,
             depthWrite: false,
-            blending: THREE.AdditiveBlending,
-            side: THREE.FrontSide,
-          });
-          globeGroup.add(new THREE.Mesh(
-            new THREE.SphereGeometry(GLOBE_R * 1.08, 64, 32),
-            glowMatRef.current,
-          ));
+          }));
+          glowSprite.scale.set(GLOBE_R * 2.8, GLOBE_R * 2.8, 1);
+          scene.add(glowSprite);
         }
 
         /* ══ 1. CONTINENTAL DOTS ══════════════════════════════════════════════ */
