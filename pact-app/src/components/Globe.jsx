@@ -62,7 +62,7 @@ export default function Globe({ className = '', primaryColor = '#00b0ff' }) {
     const tc = new THREE.Color(primaryColor);
     for (const mat of arcMatsRef.current) mat.color.copy(tc);
     if (dotMatRef.current)  dotMatRef.current.color.copy(tc);
-    if (glowMatRef.current) glowMatRef.current.color.copy(tc);
+    if (glowMatRef.current) glowMatRef.current.uniforms.uColor.value.copy(tc);
   }, [primaryColor]);
 
   useEffect(() => {
@@ -96,19 +96,39 @@ export default function Globe({ className = '', primaryColor = '#00b0ff' }) {
           return new THREE.Color(r / 255, g / 255, b / 255);
         };
 
-        /* ══ 0. ATMOSPHERE GLOW ══════════════════════════════════════════════ */
-        glowMatRef.current = new THREE.MeshBasicMaterial({
-          color: liveColor(),
-          transparent: true,
-          opacity: 0.22,
-          side: THREE.BackSide,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        });
-        globeGroup.add(new THREE.Mesh(
-          new THREE.SphereGeometry(GLOBE_R * 1.18, 32, 16),
-          glowMatRef.current,
-        ));
+        /* ══ 0. ATMOSPHERE GLOW (Fresnel rim — bright edge, transparent centre) */
+        {
+          const { r, g, b } = colorRef.current;
+          glowMatRef.current = new THREE.ShaderMaterial({
+            uniforms: { uColor: { value: new THREE.Color(r/255, g/255, b/255) } },
+            vertexShader: `
+              varying vec3 vNormal;
+              varying vec3 vViewDir;
+              void main() {
+                vNormal   = normalize(normalMatrix * normal);
+                vec4 vPos = modelViewMatrix * vec4(position, 1.0);
+                vViewDir  = normalize(-vPos.xyz);
+                gl_Position = projectionMatrix * vPos;
+              }`,
+            fragmentShader: `
+              uniform vec3 uColor;
+              varying vec3 vNormal;
+              varying vec3 vViewDir;
+              void main() {
+                float rim   = 1.0 - abs(dot(vNormal, vViewDir));
+                float alpha = pow(rim, 2.8) * 0.75;
+                gl_FragColor = vec4(uColor, alpha);
+              }`,
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            side: THREE.FrontSide,
+          });
+          globeGroup.add(new THREE.Mesh(
+            new THREE.SphereGeometry(GLOBE_R * 1.05, 64, 32),
+            glowMatRef.current,
+          ));
+        }
 
         /* ══ 1. CONTINENTAL DOTS ══════════════════════════════════════════════ */
         const pos = [];
