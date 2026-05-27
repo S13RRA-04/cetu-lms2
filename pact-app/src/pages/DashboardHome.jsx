@@ -32,43 +32,49 @@ export default function DashboardHome() {
     <div className="dash-home">
       {/* Welcome */}
       <div className="dash-welcome">
-        <h1 className="dash-welcome-name">
-          Welcome, {user?.first_name}
-        </h1>
+        <h1 className="dash-welcome-name">Welcome, {user?.first_name}</h1>
         <p className="dash-welcome-sub">
-          {enrollment?.cohort?.name
-            ? `${enrollment.cohort.name}${enrollment.squad ? ` · Squad ${enrollment.squad.number}` : ''}`
-            : 'PACT Mission Dashboard'}
+          {enrollment?.cohort?.name ?? 'PACT Mission Dashboard'}
+          {enrollment?.squad && (
+            <><span className="dash-welcome-sep">·</span>Squad {enrollment.squad.number}</>
+          )}
         </p>
       </div>
 
       {/* Stats */}
       <div className="stats-banner">
         <div className="stat-glass">
+          <div className="stat-glass-icon">◈</div>
           <div className="stat-glass-value">{unlocked}</div>
           <div className="stat-glass-label">Unlocked</div>
         </div>
-        <div className="stat-glass">
-          <div className="stat-glass-value" style={{ color: '#10b981' }}>{completed}</div>
+        <div className="stat-glass stat-glass-green">
+          <div className="stat-glass-icon">◉</div>
+          <div className="stat-glass-value">{completed}</div>
           <div className="stat-glass-label">Completed</div>
         </div>
-        <div className="stat-glass">
-          <div className="stat-glass-value" style={{ color: '#f59e0b' }}>{inProgress}</div>
+        <div className="stat-glass stat-glass-amber">
+          <div className="stat-glass-icon">⬡</div>
+          <div className="stat-glass-value">{inProgress}</div>
           <div className="stat-glass-label">In Progress</div>
         </div>
-        <div className="stat-glass">
-          <div className="stat-glass-value" style={{ color: '#2563eb' }}>{overallPct}%</div>
+        <div className="stat-glass stat-glass-primary stat-glass-wide">
+          <div className="stat-glass-icon">◇</div>
+          <div className="stat-glass-value">{overallPct}%</div>
           <div className="stat-glass-label">Overall</div>
         </div>
       </div>
 
       {/* Overall progress bar */}
-      <div className="glass-card" style={{ padding: '20px 24px', marginBottom: 24 }}>
-        <div className="section-label" style={{ marginBottom: 10 }}>Course Progress</div>
-        <div className="progress-track">
-          <div className="progress-fill" style={{ width: `${overallPct}%`, background: '#2563eb', transition: 'width .6s ease' }} />
+      <div className="glass-card dash-progress-card">
+        <div className="dash-progress-header">
+          <span className="section-label">Course Progress</span>
+          <span className="dash-progress-fraction">{completed} / {total}</span>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 12, color: 'var(--muted)' }}>
+        <div className="progress-track progress-track-lg">
+          <div className="progress-fill progress-fill-glow" style={{ width: `${overallPct}%` }} />
+        </div>
+        <div className="dash-progress-footer">
           <span>{completed} of {total} missions complete</span>
           <span>{overallPct}%</span>
         </div>
@@ -76,10 +82,15 @@ export default function DashboardHome() {
 
       {/* Squad card */}
       {enrollment?.squad && (
-        <div className="glass-card squad-card" style={{ marginBottom: 24 }}>
-          <div className="squad-number">
-            Squad {enrollment.squad.number}
-            {enrollment.squad.name ? ` · ${enrollment.squad.name}` : ''}
+        <div className="glass-card squad-card squad-card-accent">
+          <div className="squad-card-header">
+            <div className="squad-badge-large">
+              <span className="squad-badge-num">{enrollment.squad.number}</span>
+            </div>
+            <div className="squad-card-title">
+              <div className="squad-number">Squad {enrollment.squad.number}{enrollment.squad.name ? ` · ${enrollment.squad.name}` : ''}</div>
+              <div className="squad-count">{(enrollment.squad.students ?? []).length} operators</div>
+            </div>
           </div>
           <div className="squad-members">
             {(enrollment.squad.students ?? []).map((m) => (
@@ -95,18 +106,18 @@ export default function DashboardHome() {
         </div>
       )}
 
-      {/* Recent activity — assignments with progress */}
+      {/* In-progress missions */}
       {inProgress > 0 && (
-        <div className="glass-card" style={{ padding: '20px 24px' }}>
-          <div className="section-label" style={{ marginBottom: 14 }}>In Progress</div>
+        <div className="glass-card dash-inprogress-card">
+          <div className="section-label" style={{ marginBottom: 14 }}>Active Missions</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {assignments
               .filter((a) => (a.progress ?? 0) > 0 && (a.progress ?? 0) < 100)
               .map((a) => (
                 <div key={a.id} className="dash-progress-row">
                   <span className="dash-progress-title">{a.title}</span>
-                  <div className="progress-track" style={{ flex: 1, height: 6 }}>
-                    <div className="progress-fill" style={{ width: `${a.progress}%`, background: '#2563eb' }} />
+                  <div className="progress-track" style={{ flex: 1 }}>
+                    <div className="progress-fill progress-fill-glow" style={{ width: `${a.progress}%` }} />
                   </div>
                   <span className="dash-progress-pct">{a.progress}%</span>
                 </div>

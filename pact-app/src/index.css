@@ -320,7 +320,8 @@ body {
 
 .squad-number {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 16px;
+  color: var(--primary);
+  font-size: 17px;
   font-weight: 700;
   letter-spacing: .14em;
   color: var(--primary);
@@ -866,12 +867,12 @@ body {
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.78);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.65);
   border-radius: var(--radius-lg);
-  box-shadow: 0 8px 32px rgba(37, 99, 235, 0.08), 0 1px 0 rgba(255,255,255,.8) inset;
+  box-shadow: 0 8px 32px var(--primary-md, rgba(37,99,235,0.08)), 0 1px 0 rgba(255,255,255,.9) inset;
 }
 
 /* ── Stats banner ────────────────────────────────────────────────────────────── */
@@ -885,29 +886,44 @@ body {
 }
 
 .stat-glass {
-  background: rgba(255, 255, 255, 0.68);
+  background: rgba(255, 255, 255, 0.78);
   backdrop-filter: blur(16px) saturate(160%);
   -webkit-backdrop-filter: blur(16px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-top: 3px solid var(--primary, #2563eb);
   border-radius: var(--radius);
-  padding: 18px 28px;
-  box-shadow: 0 4px 20px rgba(37, 99, 235, 0.07);
-  min-width: 120px;
+  padding: 16px 24px 18px;
+  box-shadow: 0 4px 20px var(--primary-md, rgba(37,99,235,0.07)), 0 1px 0 rgba(255,255,255,.9) inset;
+  min-width: 110px;
 }
+.stat-glass-green { border-top-color: #10b981; }
+.stat-glass-amber { border-top-color: #f59e0b; }
+.stat-glass-primary { border-top-color: var(--primary, #2563eb); }
+.stat-glass-wide { flex: 1; }
 
-.stat-glass-cohort { flex: 1; }
+.stat-glass-icon {
+  font-size: 11px;
+  color: var(--primary, #2563eb);
+  opacity: .55;
+  margin-bottom: 6px;
+  letter-spacing: .08em;
+}
+.stat-glass-green .stat-glass-icon  { color: #10b981; }
+.stat-glass-amber .stat-glass-icon  { color: #f59e0b; }
 
 .stat-glass-value {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 38px;
+  font-size: 40px;
   font-weight: 700;
   color: var(--primary);
   line-height: 1;
 }
+.stat-glass-green .stat-glass-value { color: #10b981; }
+.stat-glass-amber .stat-glass-value { color: #f59e0b; }
 
 .stat-glass-label {
-  font-size: 10px;
-  letter-spacing: .16em;
+  font-size: 9px;
+  letter-spacing: .18em;
   color: var(--muted);
   font-family: var(--mono);
   text-transform: uppercase;
@@ -1114,16 +1130,111 @@ body {
 }
 
 /* Dashboard home */
-.dash-home { }
-.dash-welcome { margin-bottom: 24px; }
+.dash-home { display: flex; flex-direction: column; gap: 20px; }
+.dash-welcome { margin-bottom: 4px; }
 .dash-welcome-name {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 32px;
+  font-size: 44px;
   font-weight: 700;
   color: var(--bright);
-  letter-spacing: .03em;
+  letter-spacing: .02em;
+  line-height: 1;
 }
-.dash-welcome-sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.dash-welcome-sub {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.dash-welcome-sep { color: var(--primary); font-weight: 700; opacity: .6; }
+
+/* Progress card */
+.dash-progress-card { padding: 20px 24px; }
+.dash-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.dash-progress-fraction {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--primary);
+  font-weight: 600;
+}
+.dash-progress-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+
+/* In-progress card */
+.dash-inprogress-card { padding: 20px 24px; }
+
+/* Progress bar */
+.progress-track-lg { height: 10px; border-radius: 10px; }
+
+@keyframes progress-shine {
+  0%   { transform: translateX(-120%); }
+  60%  { transform: translateX(120%); }
+  100% { transform: translateX(120%); }
+}
+.progress-fill-glow {
+  background: var(--primary, #2563eb);
+  box-shadow: 0 0 10px var(--primary-md, rgba(37,99,235,.35));
+  position: relative;
+  overflow: hidden;
+}
+.progress-fill-glow::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 55%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.4), transparent);
+  animation: progress-shine 2.8s ease-in-out infinite;
+}
+
+/* Squad card */
+.squad-card-accent {
+  border-left: 4px solid var(--primary, #2563eb);
+  padding: 20px 24px;
+}
+.squad-card-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.squad-badge-large {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: var(--primary-md, rgba(37,99,235,.12));
+  border: 1px solid var(--primary, #2563eb);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.squad-badge-num {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--primary, #2563eb);
+  line-height: 1;
+}
+.squad-card-title { flex: 1; }
+.squad-count { font-size: 11px; color: var(--muted); font-family: var(--mono); letter-spacing: .08em; margin-top: 2px; }
+
 .dash-progress-row {
   display: flex;
   align-items: center;
