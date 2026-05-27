@@ -143,7 +143,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
             <>
               <div className="sidebar-section-label">ADMIN</div>
               <NavLink to="/admin" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
-                <span className="sidebar-icon">◉</span> Grade Center
+                <span className="sidebar-icon">◉</span> Admin Dashboard
               </NavLink>
             </>
           )}
