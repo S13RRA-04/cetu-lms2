@@ -7,14 +7,14 @@ const FLAT_W     = 4098 / 2;
 const FLAT_H     = 1968 / 2;
 const POINTS_URL = 'https://raw.githubusercontent.com/creativetimofficial/public-assets/master/soft-ui-dashboard-pro/assets/js/points.json';
 
-/* binary rain canvas */
-const BIN_W   = 512;
-const BIN_H   = 256;
-const CHAR_W  = 7;
-const CHAR_H  = 9;
-const COLS    = Math.floor(BIN_W / CHAR_W);  // 73
-const ROWS    = Math.floor(BIN_H / CHAR_H);  // 28
-const TRAIL   = 9;                            // rows of fade behind drop head
+/* binary canvas — larger canvas = smaller apparent chars on globe */
+const BIN_W   = 768;
+const BIN_H   = 384;
+const CHAR_W  = 5;
+const CHAR_H  = 6;
+const COLS    = Math.floor(BIN_W  / CHAR_W);   // 153
+const ROWS    = Math.floor(BIN_H  / CHAR_H);   // 64
+const S_TRAIL = 12;                             // columns of fade behind each spark
 
 /* geographic projection */
 function flatToSphere(px, py) {
@@ -25,7 +25,6 @@ function flatToSphere(px, py) {
   const r = Math.cos(lon) * GLOBE_R;
   return new THREE.Vector3(Math.cos(lat) * r, Math.sin(lon) * GLOBE_R, Math.sin(lat) * r);
 }
-
 function rndSurface(radius = GLOBE_R) {
   const u = Math.random(), v = Math.random();
   const th = 2 * Math.PI * u;
@@ -36,7 +35,6 @@ function rndSurface(radius = GLOBE_R) {
     radius * Math.cos(ph),
   );
 }
-
 function makeArc(a, b, lift = 10, segs = 60) {
   const pts = [];
   for (let i = 0; i <= segs; i++) {
@@ -90,20 +88,10 @@ export default function Globe({ className = '' }) {
         for (let i = 0; i < 10; i++) {
           const a = rndSurface(), b = rndSurface();
           const arcPts = makeArc(a, b, 6 + Math.random() * 10);
-
-          const traceGeo = new THREE.BufferGeometry().setFromPoints(arcPts);
-          globeGroup.add(new THREE.Line(traceGeo,
-            new THREE.LineBasicMaterial({ color: 0x2563eb, transparent: true, opacity: 0.14 })));
-
-          [a, b].forEach((ep) => {
-            const m = new THREE.Mesh(
-              new THREE.SphereGeometry(1.4, 6, 6),
-              new THREE.MeshBasicMaterial({ color: 0x2563eb, transparent: true, opacity: 0.35 }),
-            );
-            m.position.copy(ep);
-            globeGroup.add(m);
-          });
-
+          globeGroup.add(new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints(arcPts),
+            new THREE.LineBasicMaterial({ color: 0x2563eb, transparent: true, opacity: 0.14 }),
+          ));
           const spark = new THREE.Mesh(
             new THREE.SphereGeometry(1.8, 6, 6),
             new THREE.MeshBasicMaterial({ color: 0x67b2ff, transparent: true, opacity: 0 }),
@@ -117,129 +105,132 @@ export default function Globe({ className = '' }) {
           circuits.push({ pts: arcPts, spark, halo, t: Math.random(), speed: 0.004 + Math.random() * 0.005 });
         }
 
-        /* ══ 3. BINARY RAIN WAVE ═════════════════════════════════════════════ */
+        /* ══ 3. HORIZONTAL BINARY WAVE ═══════════════════════════════════════
+           Wave fronts sweep left-to-right (U direction = longitude).
+           Each passing wave spawns horizontal sparks in every row that fly
+           outward from the wave front, temporarily replacing the dot field.
+        ════════════════════════════════════════════════════════════════════════ */
 
-        /* canvas texture on a sphere slightly above the globe */
         const bCanvas = document.createElement('canvas');
-        bCanvas.width  = BIN_W;
-        bCanvas.height = BIN_H;
+        bCanvas.width = BIN_W; bCanvas.height = BIN_H;
         const bCtx = bCanvas.getContext('2d');
-        bCtx.font         = `${CHAR_H - 1}px 'Courier New', monospace`;
+        bCtx.font = `${CHAR_H - 1}px 'Courier New', monospace`;
         bCtx.textBaseline = 'top';
         const bTex = new THREE.CanvasTexture(bCanvas);
 
-        const bSphere = new THREE.Mesh(
+        globeGroup.add(new THREE.Mesh(
           new THREE.SphereGeometry(GLOBE_R + 0.8, 64, 32),
           new THREE.MeshBasicMaterial({
-            map:         bTex,
-            transparent: true,
-            depthWrite:  false,
-            blending:    THREE.AdditiveBlending,
-          })
-        );
-        globeGroup.add(bSphere);
+            map: bTex, transparent: true, depthWrite: false,
+            blending: THREE.AdditiveBlending,
+          }),
+        ));
 
-        /* per-column rain state */
-        const col = Array.from({ length: COLS }, () => ({
-          chars:  Array.from({ length: ROWS }, () => (Math.random() < 0.5 ? '1' : '0')),
-          drops:  [],     // { y: float }
-          alpha:  0,
-        }));
-
-        /* wave fronts — U position (0‥1) sweeping across canvas */
+        /* wave fronts: U position 0..1 sweeping left-to-right */
         const waves = [
-          { u: 0.05,  speed: 0.00055, hw: 0.09 },
-          { u: 0.42,  speed: 0.00032, hw: 0.12 },
-          { u: 0.73,  speed: 0.00078, hw: 0.07 },
+          { u: 0.05,  speed: 0.00050, hw: 0.08 },
+          { u: 0.40,  speed: 0.00030, hw: 0.11 },
+          { u: 0.72,  speed: 0.00075, hw: 0.06 },
         ];
 
-        const drawBinaryRain = (dt) => {
-          /* ── update wave U positions ── */
+        /* per-row spark state (horizontal sparks, not vertical drops) */
+        const rowState = Array.from({ length: ROWS }, () => ({
+          chars:  Array.from({ length: COLS }, () => (Math.random() < 0.5 ? '1' : '0')),
+          sparks: [],   // { x: col (float), dir: +1/-1, speed: cols/sec }
+        }));
+
+        /* pre-computed per-column influence (reused each frame) */
+        const cInfl = new Float32Array(COLS);
+
+        const drawBinary = (dt) => {
+          /* advance waves */
           for (const w of waves) w.u = (w.u + w.speed) % 1;
 
-          /* ── per-column logic ── */
+          /* compute per-column influence */
           for (let c = 0; c < COLS; c++) {
             const u = c / COLS;
-            let maxInfl = 0;
+            let mx = 0;
             for (const w of waves) {
               let d = Math.abs(u - w.u);
               if (d > 0.5) d = 1 - d;
-              const infl = Math.max(0, 1 - d / w.hw);
-              if (infl > maxInfl) maxInfl = infl;
+              const iv = Math.max(0, 1 - d / w.hw);
+              if (iv > mx) mx = iv;
             }
+            cInfl[c] = mx;
+          }
 
-            const st = col[c];
-            const targetAlpha = maxInfl > 0.15 ? Math.min(1, maxInfl * 1.4) : 0;
-
-            /* spawn a new drop when wave arrives */
-            if (maxInfl > 0.3 && st.drops.length === 0) {
-              st.drops.push({ y: -(Math.random() * ROWS * 0.4) });
-            }
-            if (maxInfl > 0.5 && st.drops.length < 2 && Math.random() < 0.04) {
-              st.drops.push({ y: -(Math.random() * ROWS * 0.3) });
-            }
-
-            /* advance drops (vary speed by column so they look independent) */
-            const dropSpeed = 14 + (c % 7) * 1.5;
-            st.drops = st.drops
-              .map((d) => ({ y: d.y + dropSpeed * dt }))
-              .filter((d) => d.y < ROWS + TRAIL + 2);
-
-            /* fade column alpha toward target */
-            st.alpha += (targetAlpha - st.alpha) * Math.min(1, dt * 4);
-            if (st.alpha < 0.005) st.alpha = 0;
-
-            /* randomly mutate active chars */
-            if (st.alpha > 0.05 && Math.random() < st.alpha * 0.15) {
-              const r = Math.floor(Math.random() * ROWS);
-              st.chars[r] = Math.random() < 0.5 ? '1' : '0';
+          /* spawn horizontal sparks where wave is strong */
+          for (let c = 0; c < COLS; c += 2) {
+            if (cInfl[c] < 0.35) continue;
+            const spawnP = cInfl[c] * dt * 12;
+            for (let r = 0; r < ROWS; r++) {
+              if (Math.random() > spawnP) continue;
+              const st = rowState[r];
+              if (st.sparks.length >= 6) continue;
+              /* sparks fly both directions from the wave front */
+              const dir = Math.random() < 0.55 ? 1 : -1;
+              st.sparks.push({
+                x:     c,
+                dir,
+                speed: 25 + Math.random() * 40,
+              });
             }
           }
 
-          /* ── draw canvas ── */
+          /* ── draw ── */
           bCtx.clearRect(0, 0, BIN_W, BIN_H);
 
-          for (let c = 0; c < COLS; c++) {
-            const st = col[c];
-            if (st.alpha < 0.005) continue;
+          for (let r = 0; r < ROWS; r++) {
+            const st = rowState[r];
 
-            for (let r = 0; r < ROWS; r++) {
-              /* find how this row relates to active drops */
-              let headAlpha = 0, trailAlpha = 0;
+            /* advance sparks */
+            st.sparks = st.sparks
+              .map((s) => ({ ...s, x: s.x + s.dir * s.speed * dt }))
+              .filter((s) => s.x >= -S_TRAIL && s.x < COLS + S_TRAIL);
 
-              for (const d of st.drops) {
-                const headRow = d.y;
-                if (headRow < 0) continue;
-                const rel = headRow - r; // positive = head is below this row (trail above)
+            /* randomly mutate a char */
+            if (Math.random() < 0.025) {
+              st.chars[Math.floor(Math.random() * COLS)] = Math.random() < 0.5 ? '1' : '0';
+            }
 
-                if (rel >= 0 && rel < 1.5) {
-                  /* head position — bright white */
-                  headAlpha = Math.max(headAlpha, 1.0 - rel * 0.4);
-                } else if (rel >= 0 && rel < TRAIL) {
-                  /* trail — fading blue */
-                  trailAlpha = Math.max(trailAlpha, (1 - rel / TRAIL) * 0.75);
+            const hasActivity = st.sparks.length > 0;
+            let maxWave = 0;
+            for (let c = 0; c < COLS; c++) if (cInfl[c] > maxWave) maxWave = cInfl[c];
+            if (!hasActivity && maxWave < 0.08) continue;
+
+            for (let c = 0; c < COLS; c++) {
+              let headA = 0, trailA = 0;
+
+              for (const s of st.sparks) {
+                /* distance behind the spark head (in direction of travel) */
+                const behind = s.dir > 0 ? s.x - c : c - s.x;
+                if (behind >= 0 && behind < 1.5) {
+                  headA = Math.max(headA, 1.0 - behind * 0.55);
+                } else if (behind >= 0 && behind < S_TRAIL) {
+                  trailA = Math.max(trailA, (1 - behind / S_TRAIL) * 0.72);
                 }
               }
 
-              let rC = 96, gC = 165, bC = 250, a = 0; // default blue
+              /* ambient wave glow (faint, shows shape of wave even without sparks) */
+              const ambientA = cInfl[c] * 0.10;
 
-              if (headAlpha > 0) {
-                /* bright white-blue head */
-                a = headAlpha * st.alpha;
-                rC = Math.round(96  + headAlpha * (224 - 96));
-                gC = Math.round(165 + headAlpha * (242 - 165));
-                bC = Math.round(250 + headAlpha * (254 - 250));
-              } else if (trailAlpha > 0) {
-                a = trailAlpha * st.alpha;
-              } else if (st.alpha > 0.1) {
-                /* very faint ambient char */
-                a = st.alpha * 0.06;
+              let rC = 96, gC = 165, bC = 250, a = 0;
+
+              if (headA > 0) {
+                a  = headA;
+                rC = Math.round(96  + headA * (220 - 96));
+                gC = Math.round(165 + headA * (240 - 165));
+                bC = Math.round(250 + headA * (255 - 250));
+              } else if (trailA > 0) {
+                a = trailA;
+              } else if (ambientA > 0.008) {
+                a = ambientA;
                 rC = 148; gC = 163; bC = 184;
               }
 
-              if (a < 0.008) continue;
+              if (a < 0.007) continue;
               bCtx.fillStyle = `rgba(${rC},${gC},${bC},${a.toFixed(3)})`;
-              bCtx.fillText(st.chars[r], c * CHAR_W, r * CHAR_H);
+              bCtx.fillText(st.chars[c], c * CHAR_W, r * CHAR_H);
             }
           }
 
@@ -248,15 +239,17 @@ export default function Globe({ className = '' }) {
 
         /* ══ DRAG INTERACTION ════════════════════════════════════════════════ */
         let dragging = false, prev = { x: 0, y: 0 }, velX = 0, velY = 0;
+        const canvas = renderer.domElement;
+
         const onDown = (e) => {
           dragging = true; velX = 0; velY = 0;
           const s = e.touches ? e.touches[0] : e;
           prev = { x: s.clientX, y: s.clientY };
-          e.currentTarget.style.cursor = 'grabbing';
+          canvas.style.cursor = 'grabbing';
         };
-        const onUp = (e) => {
+        const onUp = () => {
           dragging = false;
-          if (e.currentTarget) e.currentTarget.style.cursor = 'grab';
+          canvas.style.cursor = 'grab';
         };
         const onMove = (e) => {
           if (!dragging) return;
@@ -267,7 +260,7 @@ export default function Globe({ className = '' }) {
           globeGroup.rotation.x = Math.max(-1.2, Math.min(1.2, globeGroup.rotation.x + velY));
           prev = { x: s.clientX, y: s.clientY };
         };
-        const canvas = renderer.domElement;
+
         canvas.addEventListener('mousedown',  onDown);
         canvas.addEventListener('mouseup',    onUp);
         canvas.addEventListener('mouseleave', onUp);
@@ -278,23 +271,21 @@ export default function Globe({ className = '' }) {
 
         /* ══ ANIMATION LOOP ══════════════════════════════════════════════════ */
         const clock = new THREE.Clock();
-        let lastT = 0;
+        let lastT  = 0;
 
         const animate = () => {
           rafId = requestAnimationFrame(animate);
           const elapsed = clock.getElapsedTime();
-          const dt      = elapsed - lastT;
-          lastT         = elapsed;
+          const dt = Math.min(elapsed - lastT, 0.05);
+          lastT = elapsed;
 
+          /* auto-rotate + momentum decay */
           if (!dragging) {
-            globeGroup.rotation.y += 0.0015;
-            velX *= 0.92; velY *= 0.92;
-          } else {
-            /* momentum on release */
-            globeGroup.rotation.y += velX * 0.1;
+            globeGroup.rotation.y += 0.0015 + velX;
+            velX *= 0.94;
+            velY *= 0.94;
+            globeGroup.rotation.x = Math.max(-1.2, Math.min(1.2, globeGroup.rotation.x + velY));
           }
-
-          globeGroup.updateMatrixWorld(true);
 
           /* circuit sparks */
           circuits.forEach((c) => {
@@ -307,9 +298,7 @@ export default function Globe({ className = '' }) {
             c.halo.material.opacity  = pulse * 0.25;
           });
 
-          /* binary rain */
-          drawBinaryRain(Math.min(dt, 0.05)); // clamp dt to avoid jumps
-
+          drawBinary(dt);
           renderer.render(scene, camera);
         };
         animate();
