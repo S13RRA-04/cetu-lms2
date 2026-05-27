@@ -919,8 +919,8 @@ body {
   right: -12%;
   width: 75vw;
   height: 110vh;
-  pointer-events: none;
   z-index: 0;
+  cursor: grab;
 }
 
 /* ── Sidebar ── */
