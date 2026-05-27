@@ -12,8 +12,11 @@ async function list(req, res, next) {
 
 async function getDownloadUrl(req, res, next) {
   try {
-    const url = await scenarioService.getDownloadUrl(req.params.sid, req.user.id);
-    return res.json({ url });
+    const isAdmin = req.user.role !== 'student';
+    const result  = isAdmin
+      ? await scenarioService.getFilesAdmin(req.params.sid)
+      : await scenarioService.getDownloadUrl(req.params.sid, req.user.id);
+    return res.json(result);
   } catch (err) { return next(err); }
 }
 

@@ -3,12 +3,13 @@ import { getScenarios, getScenarioDownloadUrl } from '../api/pact.js';
 import useAuthStore from '../store/authStore.js';
 
 export default function ScenariosPage() {
-  const { user }     = useAuthStore();
-  const isAdmin      = user?.role === 'admin' || user?.role === 'instructor';
-  const [packages,   setPackages]   = useState([]);
-  const [loading,    setLoading]    = useState(true);
-  const [downloading, setDownloading] = useState({});
-  const [errors,     setErrors]     = useState({});
+  const { user }      = useAuthStore();
+  const isAdmin       = user?.role === 'admin' || user?.role === 'instructor';
+  const [packages,    setPackages]    = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [fileMap,     setFileMap]     = useState({});   // packageId → file[]
+  const [loadingPkg,  setLoadingPkg]  = useState({});
+  const [errors,      setErrors]      = useState({});
 
   useEffect(() => {
     getScenarios()
@@ -17,23 +18,22 @@ export default function ScenariosPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleDownload = async (pkg) => {
-    setDownloading((d) => ({ ...d, [pkg.id]: true }));
+  const handleExpand = async (pkg) => {
+    if (fileMap[pkg.id]) {
+      /* toggle off */
+      setFileMap((m) => { const n = { ...m }; delete n[pkg.id]; return n; });
+      return;
+    }
+    setLoadingPkg((l) => ({ ...l, [pkg.id]: true }));
     setErrors((e) => ({ ...e, [pkg.id]: null }));
     try {
-      let url = pkg.download_url;
-      if (!url) {
-        const res = await getScenarioDownloadUrl(pkg.id);
-        url = res.url;
-      }
-      window.open(url, '_blank', 'noopener,noreferrer');
+      const res   = await getScenarioDownloadUrl(pkg.id);
+      const files = res.files ?? [];
+      setFileMap((m) => ({ ...m, [pkg.id]: files }));
     } catch (err) {
-      setErrors((e) => ({
-        ...e,
-        [pkg.id]: err.response?.data?.error?.message ?? 'Download unavailable',
-      }));
+      setErrors((e) => ({ ...e, [pkg.id]: err.response?.data?.error?.message ?? 'Could not load files' }));
     } finally {
-      setDownloading((d) => ({ ...d, [pkg.id]: false }));
+      setLoadingPkg((l) => ({ ...l, [pkg.id]: false }));
     }
   };
 
@@ -44,9 +44,7 @@ export default function ScenariosPage() {
   return (
     <div className="scenarios-page">
       <h1 className="page-title">Scenario Packages</h1>
-      <p className="page-subtitle">
-        Download scenario files released for your cohort.
-      </p>
+      <p className="page-subtitle">Download scenario files released for your cohort.</p>
 
       {published.length === 0 ? (
         <div className="scenarios-empty">
@@ -57,6 +55,8 @@ export default function ScenariosPage() {
         <div className="scenarios-list">
           {published.map((pkg) => {
             const unlocked = isAdmin || pkg.is_unlocked;
+            const files    = fileMap[pkg.id];
+            const expanded = !!files;
             return (
               <div key={pkg.id} className={`scenario-card${unlocked ? '' : ' scenario-locked'}`}>
                 <div className="scenario-card-header">
@@ -75,27 +75,47 @@ export default function ScenariosPage() {
 
                 <div className="scenario-card-body">
                   <h2 className="scenario-title">{pkg.title}</h2>
-                  {pkg.description && (
-                    <p className="scenario-description">{pkg.description}</p>
-                  )}
-                  <div className="scenario-file-name">
-                    <span className="scenario-file-icon">📄</span>
-                    {pkg.file_name}
-                  </div>
+                  {pkg.description && <p className="scenario-description">{pkg.description}</p>}
                 </div>
 
                 {errors[pkg.id] && (
                   <div className="err-msg" style={{ margin: '0 20px 12px' }}>{errors[pkg.id]}</div>
                 )}
 
+                {/* File listing */}
+                {expanded && files.length > 0 && (
+                  <div className="scenario-file-list">
+                    {files.map((f) => (
+                      <a
+                        key={f.key}
+                        href={f.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="scenario-file-row"
+                        download
+                      >
+                        <span className="scenario-file-icon">📄</span>
+                        <span className="scenario-file-name">{f.name}</span>
+                        {f.size != null && (
+                          <span className="scenario-file-size">{formatSize(f.size)}</span>
+                        )}
+                        <span className="scenario-file-dl">↓</span>
+                      </a>
+                    ))}
+                  </div>
+                )}
+                {expanded && files.length === 0 && (
+                  <div className="scenario-file-empty">No files found in this package.</div>
+                )}
+
                 <div className="scenario-card-footer">
                   {unlocked ? (
                     <button
                       className="btn-submit scenario-dl-btn"
-                      onClick={() => handleDownload(pkg)}
-                      disabled={downloading[pkg.id]}
+                      onClick={() => handleExpand(pkg)}
+                      disabled={loadingPkg[pkg.id]}
                     >
-                      {downloading[pkg.id] ? 'Opening…' : '↓ Download'}
+                      {loadingPkg[pkg.id] ? 'Loading…' : expanded ? '▲ Hide Files' : '↓ View Files'}
                     </button>
                   ) : (
                     <span className="scenario-locked-msg">
@@ -110,4 +130,10 @@ export default function ScenariosPage() {
       )}
     </div>
   );
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

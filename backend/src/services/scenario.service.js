@@ -6,37 +6,64 @@ const { NotFoundError, ForbiddenError } = require('../utils/errors');
 
 const R2_PUBLIC_BASE_URL = (process.env.R2_PUBLIC_BASE_URL ?? '').replace(/\/$/, '');
 
-function keyToTitle(key) {
-  const fileName = key.split('/').pop() ?? key;
-  return fileName
-    .replace(/\.[^.]+$/, '')
-    .replace(/[-_]/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+/* Convert a folder slug like "brokered-exit" → "Brokered Exit" */
+function slugToTitle(slug) {
+  return slug.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/* List all non-folder objects under a given prefix */
+async function listR2Files(prefix) {
+  const files = [];
+  let token;
+  do {
+    const cmd = new ListObjectsV2Command({
+      Bucket: R2_BUCKET,
+      Prefix: prefix,
+      ContinuationToken: token,
+    });
+    const resp = await r2Client.send(cmd);
+    for (const obj of resp.Contents ?? []) {
+      if (!obj.Key.endsWith('/') && obj.Key !== prefix) files.push(obj);
+    }
+    token = resp.IsTruncated ? resp.NextContinuationToken : null;
+  } while (token);
+  return files;
+}
+
+/*
+  Sync: list the top-level sub-folders under R2_DECKS_PREFIX and create one
+  ScenarioPackage row per folder (scenario slug). Idempotent — skips slugs
+  that already have a row.
+*/
 async function syncFromR2(courseId) {
   try {
-    const cmd      = new ListObjectsV2Command({ Bucket: R2_BUCKET, Prefix: R2_DECKS_PREFIX });
-    const response = await r2Client.send(cmd);
-    const objects  = (response.Contents ?? []).filter(
-      (obj) => !obj.Key.endsWith('/') && obj.Key !== R2_DECKS_PREFIX
-    );
+    /* Use delimiter to get top-level "folders" only */
+    const cmd = new ListObjectsV2Command({
+      Bucket: R2_BUCKET,
+      Prefix: R2_DECKS_PREFIX,
+      Delimiter: '/',
+    });
+    const resp = await r2Client.send(cmd);
 
-    if (!objects.length) return;
+    /* CommonPrefixes are the immediate sub-folders */
+    const scenarioPrefixes = (resp.CommonPrefixes ?? []).map((cp) => cp.Prefix);
+    if (!scenarioPrefixes.length) return;
 
-    const existing    = await ScenarioPackage.findAll({ where: { course_id: courseId } });
+    const existing     = await ScenarioPackage.findAll({ where: { course_id: courseId } });
     const existingKeys = new Set(existing.map((p) => p.r2_key));
     const maxRelease   = existing.reduce((m, p) => Math.max(m, p.release_number), 0);
 
     let nextRelease = maxRelease + 1;
-    for (const obj of objects) {
-      if (existingKeys.has(obj.Key)) continue;
-      const fileName = obj.Key.split('/').pop();
+    for (const prefix of scenarioPrefixes) {
+      if (existingKeys.has(prefix)) continue;
+      /* derive a human title from the last path component */
+      const slug  = prefix.replace(R2_DECKS_PREFIX, '').replace(/\/$/, '');
+      const title = slugToTitle(slug);
       await ScenarioPackage.create({
         course_id:      courseId,
-        title:          keyToTitle(obj.Key),
-        file_name:      fileName,
-        r2_key:         obj.Key,
+        title,
+        file_name:      slug,   // slug used as identifier
+        r2_key:         prefix, // full prefix, e.g. "scenarios/brokered-exit/"
         release_number: nextRelease++,
         is_published:   false,
       });
@@ -44,6 +71,21 @@ async function syncFromR2(courseId) {
   } catch (err) {
     console.error('[scenario] R2 sync error:', err.message);
   }
+}
+
+/* Build public URLs for every file inside a scenario's R2 prefix */
+async function getFilesForPackage(pkg) {
+  const objects = await listR2Files(pkg.r2_key);
+  return objects.map((obj) => {
+    /* Relative path inside the scenario folder for display */
+    const relativePath = obj.Key.slice(pkg.r2_key.length);
+    return {
+      key:  obj.Key,
+      name: relativePath,
+      url:  `${R2_PUBLIC_BASE_URL}/${obj.Key}`,
+      size: obj.Size,
+    };
+  });
 }
 
 async function listForStudent(courseId, userId) {
@@ -63,8 +105,7 @@ async function listForStudent(courseId, userId) {
 
   return packages.map((p) => ({
     ...p.toJSON(),
-    is_unlocked:   unlockedSet.has(p.id),
-    download_url:  unlockedSet.has(p.id) ? `${R2_PUBLIC_BASE_URL}/${p.r2_key}` : null,
+    is_unlocked: unlockedSet.has(p.id),
   }));
 }
 
@@ -81,6 +122,7 @@ async function listForAdmin(courseId) {
   });
 }
 
+/* Returns the file list for a package the student is unlocked for */
 async function getDownloadUrl(packageId, userId) {
   const pkg = await ScenarioPackage.findByPk(packageId);
   if (!pkg) throw new NotFoundError('ScenarioPackage');
@@ -93,7 +135,16 @@ async function getDownloadUrl(packageId, userId) {
   });
   if (!unlock) throw new ForbiddenError('This package has not been released for your cohort');
 
-  return `${R2_PUBLIC_BASE_URL}/${pkg.r2_key}`;
+  const files = await getFilesForPackage(pkg);
+  return { files };
+}
+
+/* Admin: list files for any package regardless of unlock status */
+async function getFilesAdmin(packageId) {
+  const pkg = await ScenarioPackage.findByPk(packageId);
+  if (!pkg) throw new NotFoundError('ScenarioPackage');
+  const files = await getFilesForPackage(pkg);
+  return { files };
 }
 
 async function create(courseId, data) {
@@ -119,7 +170,6 @@ async function unlockForCohort(packageId, cohortId, unlockerId) {
   if (!pkg) throw new NotFoundError('ScenarioPackage');
   const cohort = await Cohort.findByPk(cohortId);
   if (!cohort) throw new NotFoundError('Cohort');
-
   const [unlock] = await ScenarioPackageUnlock.findOrCreate({
     where:    { package_id: packageId, cohort_id: cohortId },
     defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
@@ -132,6 +182,6 @@ async function lockForCohort(packageId, cohortId) {
 }
 
 module.exports = {
-  listForStudent, listForAdmin, getDownloadUrl,
+  listForStudent, listForAdmin, getDownloadUrl, getFilesAdmin,
   create, update, remove, unlockForCohort, lockForCohort,
 };

@@ -1707,6 +1707,34 @@ body {
 }
 .scenario-file-icon { font-size: 14px; }
 
+.scenario-file-list {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  max-height: 320px;
+  overflow-y: auto;
+}
+.scenario-file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 20px;
+  font-size: 12px;
+  font-family: var(--mono);
+  color: var(--text);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border);
+  transition: background .12s;
+}
+.scenario-file-row:last-child { border-bottom: none; }
+.scenario-file-row:hover { background: var(--primary-lt, #eff6ff); color: var(--primary); }
+.scenario-file-row .scenario-file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scenario-file-row .scenario-file-icon { font-size: 13px; flex-shrink: 0; }
+.scenario-file-size { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+.scenario-file-dl   { font-size: 13px; color: var(--primary); flex-shrink: 0; opacity: .7; }
+.scenario-file-empty { padding: 16px 20px; font-size: 13px; color: var(--muted); font-style: italic; }
+
 .scenario-card-footer {
   padding: 12px 20px;
   border-top: 1px solid var(--border);
