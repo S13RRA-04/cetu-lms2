@@ -11,32 +11,25 @@ function shuffle(arr) {
   return a;
 }
 
-function scoreAnswer(q, raw) {
+function isAnswerCorrect(q, raw) {
   const p = q.payload;
   if (p.kind === 'multiple_choice') {
-    const correct = new Set(p.correct);
+    const correct  = new Set(p.correct);
     const selected = new Set(raw ?? []);
     if (p.selectionMode === 'single') {
-      return { isCorrect: selected.size === 1 && correct.has([...selected][0]), points: q.scoring.points };
+      return selected.size === 1 && correct.has([...selected][0]);
     }
-    // multiple select — all correct, none wrong
-    const allRight = [...correct].every((id) => selected.has(id));
-    const noneWrong = [...selected].every((id) => correct.has(id));
-    return { isCorrect: allRight && noneWrong, points: q.scoring.points };
+    return [...correct].every((id) => selected.has(id))
+        && [...selected].every((id) => correct.has(id));
   }
   if (p.kind === 'true_false') {
-    return { isCorrect: raw === p.correct, points: q.scoring.points };
+    return raw === p.correct;
   }
   if (p.kind === 'drag_match') {
     const matchMap = Object.fromEntries(p.matches.map((m) => [m.sourceId, m.targetId]));
-    const total = p.matches.length;
-    const correct = Object.entries(raw ?? {}).filter(([src, tgt]) => matchMap[src] === tgt).length;
-    if (p.partialCredit) {
-      const pts = Math.round((correct / total) * q.scoring.points);
-      return { isCorrect: correct === total, points: pts, correct, total };
-    }
-    const ok = correct === total;
-    return { isCorrect: ok, points: ok ? q.scoring.points : 0, correct, total };
+    const entries  = Object.entries(raw ?? {});
+    return entries.length === p.matches.length
+        && entries.every(([src, tgt]) => matchMap[src] === tgt);
   }
   if (p.kind === 'fill_blank') {
     const accepted = (p.blanks ?? []).flatMap((b) =>
@@ -44,14 +37,24 @@ function scoreAnswer(q, raw) {
     );
     const given = (raw ?? '').trim();
     const test  = p.blanks?.[0]?.caseSensitive ? given : given.toLowerCase();
-    return { isCorrect: accepted.includes(test), points: q.scoring.points };
+    return accepted.includes(test);
   }
-  return { isCorrect: false, points: 0 };
+  return false;
+}
+
+/* drag_match: which sources are correctly placed (for partial feedback) */
+function matchCorrectness(q, raw) {
+  const matchMap = Object.fromEntries(q.payload.matches.map((m) => [m.sourceId, m.targetId]));
+  const result   = {};
+  Object.entries(raw ?? {}).forEach(([src, tgt]) => {
+    result[src] = matchMap[src] === tgt;
+  });
+  return result;
 }
 
 /* ── question components ── */
 
-function MultipleChoice({ q, shuffledOpts, selected, onToggle, revealed, scoreResult }) {
+function MultipleChoice({ q, shuffledOpts, selected, onToggle, revealed, forced, lastWrong }) {
   const multi = q.payload.selectionMode === 'multiple';
   return (
     <div className="qz-options">
@@ -60,21 +63,23 @@ function MultipleChoice({ q, shuffledOpts, selected, onToggle, revealed, scoreRe
         const isCorrect  = q.payload.correct.includes(opt.id);
         let cls = 'qz-option';
         if (isSelected) cls += ' qz-selected';
-        if (revealed) {
-          if (isCorrect)  cls += ' qz-correct-opt';
-          else if (isSelected) cls += ' qz-wrong-opt';
+        if (revealed || forced) {
+          if (isCorrect)             cls += ' qz-correct-opt';
+          else if (isSelected)       cls += ' qz-wrong-opt';
         }
         return (
           <button
             key={opt.id}
             className={cls}
-            onClick={() => !revealed && onToggle(opt.id)}
-            disabled={revealed}
+            onClick={() => !(revealed || forced) && onToggle(opt.id)}
+            disabled={revealed || forced}
           >
             <span className="qz-opt-marker">{multi ? '☐' : '○'}</span>
-            {isSelected && !revealed && <span className="qz-opt-marker qz-opt-filled">{multi ? '☑' : '●'}</span>}
-            {revealed && isCorrect   && <span className="qz-opt-marker qz-opt-filled">✓</span>}
-            {revealed && !isCorrect && isSelected && <span className="qz-opt-marker qz-opt-filled">✗</span>}
+            {isSelected && !(revealed || forced) && (
+              <span className="qz-opt-marker qz-opt-filled">{multi ? '☑' : '●'}</span>
+            )}
+            {(revealed || forced) && isCorrect         && <span className="qz-opt-marker qz-opt-filled">✓</span>}
+            {(revealed || forced) && !isCorrect && isSelected && <span className="qz-opt-marker qz-opt-filled">✗</span>}
             <span>{opt.text.en}</span>
           </button>
         );
@@ -83,20 +88,27 @@ function MultipleChoice({ q, shuffledOpts, selected, onToggle, revealed, scoreRe
   );
 }
 
-function TrueFalse({ q, selected, onSelect, revealed, scoreResult }) {
+function TrueFalse({ q, selected, onSelect, revealed, forced }) {
   const correct = q.payload.correct;
   return (
     <div className="qz-tf-row">
       {[true, false].map((val) => {
-        const label    = val ? 'True' : 'False';
-        const isSel    = selected === val;
-        const isCorr   = correct === val;
+        const label  = val ? 'True' : 'False';
+        const isSel  = selected === val;
+        const isCorr = correct === val;
         let cls = 'qz-tf-btn';
         if (isSel) cls += ' qz-selected';
-        if (revealed && isCorr)  cls += ' qz-correct-opt';
-        if (revealed && isSel && !isCorr) cls += ' qz-wrong-opt';
+        if (revealed || forced) {
+          if (isCorr)           cls += ' qz-correct-opt';
+          else if (isSel)       cls += ' qz-wrong-opt';
+        }
         return (
-          <button key={label} className={cls} onClick={() => !revealed && onSelect(val)} disabled={revealed}>
+          <button
+            key={label}
+            className={cls}
+            onClick={() => !(revealed || forced) && onSelect(val)}
+            disabled={revealed || forced}
+          >
             {label}
           </button>
         );
@@ -105,30 +117,31 @@ function TrueFalse({ q, selected, onSelect, revealed, scoreResult }) {
   );
 }
 
-function DragMatch({ q, matchState, onMatch, revealed, scoreResult }) {
+function DragMatch({ q, matchState, onMatch, revealed, forced, partialFeedback }) {
   const [dragging, setDragging] = useState(null);
-  const [pending, setPending]   = useState(null); // for click-to-assign
+  const [pending,  setPending]  = useState(null);
 
-  const matchMap = Object.fromEntries(q.payload.matches.map((m) => [m.sourceId, m.targetId]));
-  const assigned = matchState ?? {};
+  const matchMap  = Object.fromEntries(q.payload.matches.map((m) => [m.sourceId, m.targetId]));
+  const assigned  = matchState ?? {};
+  const locked    = revealed || forced;
 
   const handleDrop = (targetId) => {
-    if (!dragging || revealed) return;
+    if (!dragging || locked) return;
     onMatch({ ...assigned, [dragging]: targetId });
     setDragging(null);
   };
   const handleSourceClick = (srcId) => {
-    if (revealed) return;
+    if (locked) return;
     if (pending === srcId) { setPending(null); return; }
     setPending(srcId);
   };
   const handleTargetClick = (tgtId) => {
-    if (revealed || !pending) return;
+    if (locked || !pending) return;
     onMatch({ ...assigned, [pending]: tgtId });
     setPending(null);
   };
   const clearSlot = (srcId) => {
-    if (revealed) return;
+    if (locked) return;
     const next = { ...assigned };
     delete next[srcId];
     onMatch(next);
@@ -142,27 +155,29 @@ function DragMatch({ q, matchState, onMatch, revealed, scoreResult }) {
       <div className="qz-dm-col">
         <div className="qz-dm-label">Actions</div>
         {q.payload.sources.map((src) => {
-          const isMapped    = src.id in assigned;
-          const isActive    = pending === src.id;
+          const isMapped = src.id in assigned;
+          const isActive = pending === src.id;
           let cls = 'qz-dm-source';
-          if (isMapped) cls += ' qz-dm-placed';
-          if (isActive) cls += ' qz-dm-active';
-          if (revealed) {
+          if (isMapped)  cls += ' qz-dm-placed';
+          if (isActive)  cls += ' qz-dm-active';
+          if (locked) {
             const placedIn = assigned[src.id];
             if (placedIn && matchMap[src.id] === placedIn) cls += ' qz-correct-opt';
-            else if (placedIn) cls += ' qz-wrong-opt';
+            else if (placedIn)                              cls += ' qz-wrong-opt';
+          } else if (partialFeedback && src.id in partialFeedback) {
+            cls += partialFeedback[src.id] ? ' qz-soft-correct' : ' qz-soft-wrong';
           }
           return (
             <div
               key={src.id}
               className={cls}
-              draggable={!revealed && !isMapped}
+              draggable={!locked && !isMapped}
               onDragStart={() => setDragging(src.id)}
               onDragEnd={() => setDragging(null)}
               onClick={() => isMapped ? clearSlot(src.id) : handleSourceClick(src.id)}
             >
               {src.text.en}
-              {isMapped && !revealed && <span className="qz-dm-clear" title="Remove"> ×</span>}
+              {isMapped && !locked && <span className="qz-dm-clear"> ×</span>}
             </div>
           );
         })}
@@ -173,31 +188,28 @@ function DragMatch({ q, matchState, onMatch, revealed, scoreResult }) {
         {q.payload.targets.map((tgt) => {
           const placedSrcId = assignedByTarget[tgt.id];
           const placedSrc   = q.payload.sources.find((s) => s.id === placedSrcId);
-          const isOver      = dragging && !revealed;
           let slotCls = 'qz-dm-target';
-          if (isOver) slotCls += ' qz-dm-over';
-          if (pending && !revealed) slotCls += ' qz-dm-clickable';
-          if (revealed && placedSrcId) {
+          if (dragging && !locked)  slotCls += ' qz-dm-over';
+          if (pending && !locked)   slotCls += ' qz-dm-clickable';
+          if (locked && placedSrcId) {
             slotCls += matchMap[placedSrcId] === tgt.id ? ' qz-correct-opt' : ' qz-wrong-opt';
           }
           return (
             <div
               key={tgt.id}
               className={slotCls}
-              onDragOver={(e) => { e.preventDefault(); }}
+              onDragOver={(e) => e.preventDefault()}
               onDrop={() => handleDrop(tgt.id)}
               onClick={() => handleTargetClick(tgt.id)}
             >
               <span className="qz-dm-tgt-label">{tgt.text.en}</span>
-              {placedSrc && (
-                <span className="qz-dm-placed-chip">{placedSrc.text.en}</span>
-              )}
+              {placedSrc && <span className="qz-dm-placed-chip">{placedSrc.text.en}</span>}
             </div>
           );
         })}
       </div>
 
-      {revealed && (
+      {locked && (
         <div className="qz-dm-key">
           <div className="qz-dm-label">Answer key</div>
           {q.payload.matches.map((m) => {
@@ -217,16 +229,22 @@ function DragMatch({ q, matchState, onMatch, revealed, scoreResult }) {
   );
 }
 
-function FillBlank({ q, value, onChange, revealed, scoreResult }) {
+function FillBlank({ q, value, onChange, revealed, forced }) {
+  const locked = revealed || forced;
   return (
     <div className="qz-fillblank">
       <input
-        className={`qz-blank-input${revealed ? (scoreResult?.isCorrect ? ' qz-correct-opt' : ' qz-wrong-opt') : ''}`}
+        className={`qz-blank-input${locked ? (revealed ? ' qz-correct-opt' : ' qz-wrong-opt') : ''}`}
         value={value ?? ''}
-        onChange={(e) => !revealed && onChange(e.target.value)}
+        onChange={(e) => !locked && onChange(e.target.value)}
         placeholder="Type your answer…"
-        disabled={revealed}
+        disabled={locked}
       />
+      {forced && (
+        <div className="qz-forced-answer">
+          Accepted: {q.payload.blanks?.[0]?.accepted?.join(' / ')}
+        </div>
+      )}
     </div>
   );
 }
@@ -241,54 +259,32 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
         : (q.payload.options ?? [])
     ), [questions]);
 
-  const [qIdx,     setQIdx]     = useState(0);
-  const [answers,  setAnswers]  = useState({});   // questionId → raw answer
-  const [scores,   setScores]   = useState({});   // questionId → { isCorrect, points }
-  const [revealed, setRevealed] = useState(false);
+  const [qIdx,    setQIdx]    = useState(0);
+  const [answers, setAnswers] = useState({});  // questionId → raw answer
 
-  const q          = questions[qIdx];
-  const raw        = answers[q.id];
-  const scoreResult = scores[q.id];
-  const isLast     = qIdx === questions.length - 1;
-  const answered   = Object.keys(scores).length;
+  /* Per-question state */
+  const [qStates, setQStates] = useState(() =>
+    Object.fromEntries(questions.map((q) => [q.id, {
+      available:   q.scoring.points, // points currently available
+      hintUsed:    false,
+      hintVisible: false,
+      revealed:    false,            // correct answer submitted
+      forced:      false,            // ran out of points
+      lastWrong:   false,            // show "wrong, try again" banner
+      partialFeedback: null,         // drag_match wrong-placement hints
+    }]))
+  );
 
-  const hasAnswer = useCallback(() => {
-    const p = q.payload;
-    if (p.kind === 'multiple_choice') return (raw ?? []).length > 0;
-    if (p.kind === 'true_false')      return raw !== undefined;
-    if (p.kind === 'drag_match')      return Object.keys(raw ?? {}).length === p.sources.length;
-    if (p.kind === 'fill_blank')      return (raw ?? '').trim().length > 0;
-    return false;
-  }, [q, raw]);
+  const q   = questions[qIdx];
+  const qs  = qStates[q.id];
+  const raw = answers[q.id];
 
-  const handleReveal = useCallback(() => {
-    const result = scoreAnswer(q, raw);
-    setScores((s) => ({ ...s, [q.id]: result }));
-    setRevealed(true);
-    const pct = Math.round(((answered + 1) / questions.length) * 100);
-    updateProgress(assignmentId, pct).catch(() => {});
-  }, [q, raw, answered, questions.length, assignmentId]);
+  const isLast   = qIdx === questions.length - 1;
+  const answered = questions.filter((qi) => qStates[qi.id]?.revealed || qStates[qi.id]?.forced).length;
 
-  const handleNext = useCallback(() => {
-    if (isLast) {
-      const allScores = { ...scores, [q.id]: scoreAnswer(q, raw) };
-      const total    = Object.values(allScores).reduce((s, r) => s + r.points, 0);
-      const maxTotal = questions.reduce((s, qi) => s + qi.scoring.points, 0);
-      onComplete({
-        answers: questions.map((qi) => ({
-          questionId: qi.id,
-          raw:        answers[qi.id],
-          ...allScores[qi.id],
-        })),
-        totalScore: total,
-        maxScore:   maxTotal,
-      });
-    } else {
-      setQIdx((i) => i + 1);
-      setRevealed(false);
-    }
-  }, [isLast, scores, q, raw, questions, answers, onComplete]);
+  const locked = qs.revealed || qs.forced;
 
+  /* ── answer helpers ── */
   const updateAnswer = useCallback((val) => {
     setAnswers((a) => ({ ...a, [q.id]: val }));
   }, [q.id]);
@@ -304,9 +300,107 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
     }
   }, [answers, q, updateAnswer]);
 
-  const totalEarned = Object.values(scores).reduce((s, r) => s + r.points, 0);
-  const maxSoFar    = questions.slice(0, qIdx + (revealed ? 1 : 0))
-    .reduce((s, qi) => s + qi.scoring.points, 0);
+  const hasAnswer = useCallback(() => {
+    const p = q.payload;
+    if (p.kind === 'multiple_choice') return (raw ?? []).length > 0;
+    if (p.kind === 'true_false')      return raw !== undefined;
+    if (p.kind === 'drag_match')      return Object.keys(raw ?? {}).length === p.sources.length;
+    if (p.kind === 'fill_blank')      return (raw ?? '').trim().length > 0;
+    return false;
+  }, [q, raw]);
+
+  /* ── hint ── */
+  const handleHint = useCallback(() => {
+    setQStates((s) => {
+      const cur = s[q.id];
+      const newAvail = Math.max(0, cur.available - 1);
+      return {
+        ...s,
+        [q.id]: {
+          ...cur,
+          hintUsed:    true,
+          hintVisible: true,
+          available:   newAvail,
+          forced:      newAvail === 0,
+        },
+      };
+    });
+  }, [q.id]);
+
+  /* ── submit answer ── */
+  const handleSubmit = useCallback(() => {
+    const correct = isAnswerCorrect(q, raw);
+
+    if (correct) {
+      setQStates((s) => ({ ...s, [q.id]: { ...s[q.id], revealed: true, lastWrong: false } }));
+      const pct = Math.round(((answered + 1) / questions.length) * 100);
+      updateProgress(assignmentId, pct).catch(() => {});
+    } else {
+      setQStates((s) => {
+        const cur      = s[q.id];
+        const newAvail = Math.max(0, cur.available - 2);
+        const doForce  = newAvail <= 0;
+
+        /* clear selection on wrong (except drag_match — show placements) */
+        if (!doForce && q.payload.kind !== 'drag_match') {
+          setAnswers((a) => {
+            const next = { ...a };
+            if (q.payload.kind === 'true_false')  delete next[q.id];
+            else                                   next[q.id] = q.payload.kind === 'fill_blank' ? '' : [];
+            return next;
+          });
+        }
+
+        return {
+          ...s,
+          [q.id]: {
+            ...cur,
+            available:       newAvail,
+            forced:          doForce,
+            lastWrong:       !doForce,
+            partialFeedback: q.payload.kind === 'drag_match' ? matchCorrectness(q, raw) : null,
+          },
+        };
+      });
+      if (qs.available - 2 <= 0) {
+        const pct = Math.round(((answered + 1) / questions.length) * 100);
+        updateProgress(assignmentId, pct).catch(() => {});
+      }
+    }
+  }, [q, raw, qs, answered, questions.length, assignmentId]);
+
+  /* ── advance to next / complete ── */
+  const handleNext = useCallback(() => {
+    if (isLast) {
+      const total    = questions.reduce((s, qi) => {
+        const st = qStates[qi.id];
+        return s + (st?.revealed ? st.available : 0);
+      }, 0);
+      const maxTotal = questions.reduce((s, qi) => s + qi.scoring.points, 0);
+      onComplete({
+        answers: questions.map((qi) => {
+          const st = qStates[qi.id];
+          return {
+            questionId: qi.id,
+            raw:        answers[qi.id],
+            isCorrect:  !!st?.revealed,
+            points:     st?.revealed ? st.available : 0,
+          };
+        }),
+        totalScore: total,
+        maxScore:   maxTotal,
+      });
+    } else {
+      setQIdx((i) => i + 1);
+    }
+  }, [isLast, questions, qStates, answers, onComplete]);
+
+  const totalEarned = questions.slice(0, qIdx).reduce((s, qi) => {
+    const st = qStates[qi.id];
+    return s + (st?.revealed ? st.available : 0);
+  }, 0);
+
+  const hasHint = !!q.feedback?.reference && !qs.hintUsed && !locked;
 
   return (
     <div className="qz-wrap">
@@ -318,13 +412,9 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
             style={{ width: `${(answered / questions.length) * 100}%`, background: color }}
           />
         </div>
-        <span className="qz-progress-label">
-          {answered} / {questions.length}
-        </span>
+        <span className="qz-progress-label">{answered} / {questions.length}</span>
         {answered > 0 && (
-          <span className="qz-score-running" style={{ color }}>
-            {totalEarned} pts
-          </span>
+          <span className="qz-score-running" style={{ color }}>{totalEarned} pts</span>
         )}
       </div>
 
@@ -333,14 +423,44 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
         {/* header */}
         <div className="qz-card-header">
           <span className="qz-q-num" style={{ color }}>Q{qIdx + 1}</span>
-          {q.scoring.mustPass && (
-            <span className="qz-must-pass">Must Pass</span>
-          )}
-          <span className="qz-pts">{q.scoring.points} pt{q.scoring.points !== 1 ? 's' : ''}</span>
+          {q.scoring.mustPass && <span className="qz-must-pass">Must Pass</span>}
+          <div className="qz-pts-group">
+            {qs.available < q.scoring.points && (
+              <span className="qz-pts-orig">{q.scoring.points}</span>
+            )}
+            <span
+              className="qz-pts"
+              style={{ color: qs.available < q.scoring.points ? (qs.available === 0 ? '#ef4444' : '#f59e0b') : undefined }}
+            >
+              {qs.available} pt{qs.available !== 1 ? 's' : ''} available
+            </span>
+          </div>
         </div>
 
         {/* stem */}
         <p className="qz-stem">{q.stem.en}</p>
+
+        {/* forced-reveal banner */}
+        {qs.forced && (
+          <div className="qz-forced-banner">
+            ✗ Out of points — correct answer shown below
+          </div>
+        )}
+
+        {/* wrong-attempt banner */}
+        {qs.lastWrong && !qs.forced && (
+          <div className="qz-wrong-banner">
+            ✗ Incorrect — {qs.available} pt{qs.available !== 1 ? 's' : ''} remaining. Try again.
+          </div>
+        )}
+
+        {/* hint panel */}
+        {qs.hintVisible && (
+          <div className="qz-hint-panel">
+            <span className="qz-hint-label">Hint</span>
+            {q.feedback.reference}
+          </div>
+        )}
 
         {/* answer widget */}
         {q.payload.kind === 'multiple_choice' && (
@@ -349,8 +469,8 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
             shuffledOpts={shuffledOpts[qIdx]}
             selected={raw}
             onToggle={toggleOption}
-            revealed={revealed}
-            scoreResult={scoreResult}
+            revealed={qs.revealed}
+            forced={qs.forced}
           />
         )}
         {q.payload.kind === 'true_false' && (
@@ -358,8 +478,8 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
             q={q}
             selected={raw}
             onSelect={updateAnswer}
-            revealed={revealed}
-            scoreResult={scoreResult}
+            revealed={qs.revealed}
+            forced={qs.forced}
           />
         )}
         {q.payload.kind === 'drag_match' && (
@@ -367,8 +487,9 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
             q={q}
             matchState={raw}
             onMatch={updateAnswer}
-            revealed={revealed}
-            scoreResult={scoreResult}
+            revealed={qs.revealed}
+            forced={qs.forced}
+            partialFeedback={qs.partialFeedback}
           />
         )}
         {q.payload.kind === 'fill_blank' && (
@@ -376,29 +497,19 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
             q={q}
             value={raw}
             onChange={updateAnswer}
-            revealed={revealed}
-            scoreResult={scoreResult}
+            revealed={qs.revealed}
+            forced={qs.forced}
           />
         )}
 
-        {/* feedback */}
-        {revealed && (
-          <div className={`qz-feedback ${scoreResult?.isCorrect ? 'qz-feedback-correct' : 'qz-feedback-wrong'}`}>
+        {/* final feedback (correct or forced) */}
+        {locked && (
+          <div className={`qz-feedback ${qs.revealed ? 'qz-feedback-correct' : 'qz-feedback-wrong'}`}>
             <div className="qz-feedback-verdict">
-              {scoreResult?.isCorrect ? '✓ Correct' : '✗ Incorrect'}
-              {q.payload.kind === 'drag_match' && (
-                <span style={{ fontWeight: 400, marginLeft: 8 }}>
-                  ({scoreResult?.correct}/{scoreResult?.total} matches)
-                </span>
-              )}
-              <span style={{ fontWeight: 400, marginLeft: 8, opacity: .7 }}>
-                +{scoreResult?.points} pts
-              </span>
+              {qs.revealed ? `✓ Correct — +${qs.available} pts` : '✗ Answer revealed — 0 pts'}
             </div>
             <p className="qz-feedback-text">
-              {scoreResult?.isCorrect
-                ? q.feedback.correct.en
-                : q.feedback.incorrect.en}
+              {qs.revealed ? q.feedback.correct.en : q.feedback.incorrect.en}
             </p>
             {q.feedback.reference && (
               <div className="qz-feedback-ref">↗ {q.feedback.reference}</div>
@@ -409,18 +520,25 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
 
       {/* action buttons */}
       <div className="qz-actions">
-        {!revealed ? (
-          <button
-            className="btn-submit"
-            onClick={handleReveal}
-            disabled={!hasAnswer()}
-          >
-            Submit Answer
-          </button>
-        ) : (
+        {locked ? (
           <button className="btn-submit" onClick={handleNext} style={{ background: color }}>
             {isLast ? 'See Results →' : 'Next Question →'}
           </button>
+        ) : (
+          <>
+            <button
+              className="btn-submit"
+              onClick={handleSubmit}
+              disabled={!hasAnswer()}
+            >
+              Submit Answer
+            </button>
+            {hasHint && (
+              <button className="qz-hint-btn" onClick={handleHint}>
+                💡 Use Hint <span className="qz-hint-cost">−1 pt</span>
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
