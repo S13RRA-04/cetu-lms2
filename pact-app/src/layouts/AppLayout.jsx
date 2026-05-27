@@ -1,7 +1,14 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { NavLink, useNavigate, Outlet } from 'react-router-dom';
 import useAuthStore from '../store/authStore.js';
 import { logout } from '../api/pact.js';
+
+const SQUAD_THEME = {
+  1: { primary: '#ff073a', lt: '#fff0f3', md: 'rgba(255,7,58,0.14)'   }, // neon red
+  2: { primary: '#ffe600', lt: '#fffde6', md: 'rgba(255,230,0,0.14)'  }, // neon yellow
+  3: { primary: '#39ff14', lt: '#f0fff0', md: 'rgba(57,255,20,0.14)'  }, // neon green
+  4: { primary: '#00b0ff', lt: '#e6f7ff', md: 'rgba(0,176,255,0.14)'  }, // neon blue
+};
 
 const Globe = lazy(() => import('../components/Globe.jsx'));
 
@@ -22,7 +29,27 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
   const [collapsed, setCollapsed]       = useState({});
   const [sidebarOpen, setSidebarOpen]   = useState(false);
 
-  const isAdmin = user?.role === 'admin' || user?.role === 'instructor';
+  const isAdmin   = user?.role === 'admin' || user?.role === 'instructor';
+  const squadNum  = enrollment?.squad?.number ? Number(enrollment.squad.number) : null;
+
+  useEffect(() => {
+    const root  = document.documentElement;
+    const theme = SQUAD_THEME[squadNum];
+    if (theme) {
+      root.style.setProperty('--primary',    theme.primary);
+      root.style.setProperty('--primary-lt', theme.lt);
+      root.style.setProperty('--primary-md', theme.md);
+    } else {
+      root.style.removeProperty('--primary');
+      root.style.removeProperty('--primary-lt');
+      root.style.removeProperty('--primary-md');
+    }
+    return () => {
+      root.style.removeProperty('--primary');
+      root.style.removeProperty('--primary-lt');
+      root.style.removeProperty('--primary-md');
+    };
+  }, [squadNum]);
 
   const handleLogout = async () => {
     try { await logout(); } catch {}

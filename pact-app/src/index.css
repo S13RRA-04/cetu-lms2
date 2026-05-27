@@ -974,7 +974,7 @@ body {
   border-left: 3px solid transparent;
 }
 .sidebar-link:hover  { background: rgba(255,255,255,.04); color: #e2e8f0; }
-.sidebar-link.active { background: rgba(37,99,235,.15); color: #60a5fa; border-left-color: #2563eb; }
+.sidebar-link.active { background: var(--primary-md); color: var(--primary); border-left-color: var(--primary); }
 .sidebar-icon { font-size: 14px; opacity: .7; }
 
 .sidebar-section-label {
@@ -1157,7 +1157,7 @@ body {
   transition: background .12s;
 }
 .scoreboard-row:hover { background: var(--card-hi); }
-.scoreboard-row.scoreboard-me { background: var(--primary-lt); border: 1px solid rgba(37,99,235,.15); }
+.scoreboard-row.scoreboard-me { background: var(--primary-lt); border: 1px solid var(--primary-md); }
 .scoreboard-rank  { width: 32px; font-family: var(--mono); font-size: 13px; text-align: center; flex-shrink: 0; }
 .scoreboard-name  { flex: 1; font-size: 14px; color: var(--bright); }
 .scoreboard-you   { color: var(--primary); font-size: 12px; }
