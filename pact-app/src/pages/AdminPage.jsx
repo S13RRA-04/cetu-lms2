@@ -5,6 +5,9 @@ import {
   getGradesForAssignment,
   submitGrade,
   submitSquadGrade,
+  getCohorts,
+  unlockAssignment,
+  lockAssignment,
 } from '../api/pact.js';
 
 const TYPE_COLOR = {
@@ -114,6 +117,7 @@ function GradeForm({ assignmentId, userId, squadId, isSquad, maxScore, existingG
 export default function AdminPage() {
   const [assignments, setAssignments] = useState([]);
   const [loading,     setLoading]     = useState(true);
+  const [cohorts,     setCohorts]     = useState([]);
 
   // drill-down state
   const [selectedAssignment, setSelectedAssignment] = useState(null);
@@ -123,19 +127,26 @@ export default function AdminPage() {
   const [selectedSub,        setSelectedSub]        = useState(null);
   const [savedGrades,        setSavedGrades]        = useState({});
 
+  // right-panel tab: 'submissions' | 'gating'
+  const [rightTab, setRightTab] = useState('submissions');
+
   // filter: 'individual' | 'squad'
   const [modeFilter, setModeFilter] = useState('individual');
 
   useEffect(() => {
-    getAdminAssignments()
-      .then((raw) => setAssignments(Array.isArray(raw) ? raw : (raw.data ?? [])))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    Promise.all([
+      getAdminAssignments().catch(() => []),
+      getCohorts().catch(() => []),
+    ]).then(([rawA, rawC]) => {
+      setAssignments(Array.isArray(rawA) ? rawA : (rawA.data ?? []));
+      setCohorts(Array.isArray(rawC) ? rawC : []);
+    }).finally(() => setLoading(false));
   }, []);
 
   const openAssignment = useCallback(async (a) => {
     setSelectedAssignment(a);
     setSelectedSub(null);
+    setRightTab('submissions');
     setLoadingSubs(true);
     try {
       const [subs, gradeList] = await Promise.all([
@@ -234,14 +245,40 @@ export default function AdminPage() {
                     {' · '}{submissions.length} submission{submissions.length !== 1 ? 's' : ''}
                   </div>
                 </div>
-                {selectedSub && (
+                {selectedSub && rightTab === 'submissions' && (
                   <button className="admin-back-btn" onClick={() => setSelectedSub(null)}>
                     ← All Submissions
                   </button>
                 )}
               </div>
 
-              {loadingSubs ? (
+              <div className="admin-right-tabs">
+                <button
+                  className={`admin-right-tab${rightTab === 'submissions' ? ' active' : ''}`}
+                  onClick={() => { setRightTab('submissions'); setSelectedSub(null); }}
+                >
+                  Submissions
+                </button>
+                <button
+                  className={`admin-right-tab${rightTab === 'gating' ? ' active' : ''}`}
+                  onClick={() => { setRightTab('gating'); setSelectedSub(null); }}
+                >
+                  Access Gating
+                </button>
+              </div>
+
+              {rightTab === 'gating' ? (
+                <GatingPanel
+                  key={selectedAssignment.id}
+                  assignment={selectedAssignment}
+                  cohorts={cohorts}
+                  onUnlocksChange={(updatedUnlocks) =>
+                    setAssignments((prev) =>
+                      prev.map((a) => a.id === selectedAssignment.id ? { ...a, unlocks: updatedUnlocks } : a)
+                    )
+                  }
+                />
+              ) : loadingSubs ? (
                 <div style={{ padding: 32, textAlign: 'center' }}><div className="spinner" /></div>
               ) : selectedSub ? (
                 /* ── Submission detail + grade form ── */
@@ -395,6 +432,72 @@ function SquadSubmissions({ groups, grades, savedGrades, assignment, onSelect, o
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function GatingPanel({ assignment, cohorts, onUnlocksChange }) {
+  const [unlockedIds, setUnlockedIds] = useState(
+    () => new Set((assignment.unlocks ?? []).map((u) => u.cohort_id))
+  );
+  const [busy,   setBusy]   = useState({});
+  const [errors, setErrors] = useState({});
+
+  const toggle = async (cohortId) => {
+    const isUnlocked = unlockedIds.has(cohortId);
+    setBusy((b) => ({ ...b, [cohortId]: true }));
+    setErrors((e) => ({ ...e, [cohortId]: null }));
+    try {
+      if (isUnlocked) {
+        await lockAssignment(assignment.id, cohortId);
+        setUnlockedIds((s) => { const n = new Set(s); n.delete(cohortId); return n; });
+        onUnlocksChange((assignment.unlocks ?? []).filter((u) => u.cohort_id !== cohortId));
+      } else {
+        await unlockAssignment(assignment.id, cohortId);
+        setUnlockedIds((s) => new Set([...s, cohortId]));
+        onUnlocksChange([...(assignment.unlocks ?? []), { cohort_id: cohortId }]);
+      }
+    } catch (err) {
+      setErrors((e) => ({ ...e, [cohortId]: err.response?.data?.error?.message ?? 'Action failed' }));
+    } finally {
+      setBusy((b) => ({ ...b, [cohortId]: false }));
+    }
+  };
+
+  if (!cohorts.length) {
+    return <div className="admin-empty"><p>No cohorts found for this course.</p></div>;
+  }
+
+  return (
+    <div className="admin-gating">
+      <p className="admin-gating-desc">
+        Control which cohorts can access this assignment. Locked cohorts see a "not yet unlocked" message.
+      </p>
+      <div className="admin-gating-list">
+        {cohorts.map((c) => {
+          const unlocked = unlockedIds.has(c.id);
+          return (
+            <div key={c.id} className="admin-gating-row">
+              <div className="admin-gating-info">
+                <span className="admin-gating-name">{c.name}</span>
+                <span className={`admin-gating-badge ${unlocked ? 'badge-unlocked' : 'badge-locked'}`}>
+                  {unlocked ? '🔓 Unlocked' : '🔒 Locked'}
+                </span>
+              </div>
+              {errors[c.id] && (
+                <div className="err-msg" style={{ fontSize: 11, padding: '4px 0' }}>{errors[c.id]}</div>
+              )}
+              <button
+                className={`admin-gate-btn ${unlocked ? 'gate-lock' : 'gate-unlock'}`}
+                onClick={() => toggle(c.id)}
+                disabled={busy[c.id]}
+              >
+                {busy[c.id] ? '…' : unlocked ? 'Lock' : 'Unlock'}
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

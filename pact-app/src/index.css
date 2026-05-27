@@ -1401,6 +1401,71 @@ body {
 }
 .admin-feedback-textarea:focus { border-color: var(--primary); }
 
+/* Right-panel tabs */
+.admin-right-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+.admin-right-tab {
+  padding: 10px 20px;
+  font-size: 13px;
+  font-family: var(--body);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+  margin-bottom: -1px;
+  transition: color .15s, border-color .15s;
+}
+.admin-right-tab:hover { color: var(--text); }
+.admin-right-tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+
+/* Gating panel */
+.admin-gating { padding: 20px 24px; overflow-y: auto; flex: 1; }
+.admin-gating-desc { font-size: 13px; color: var(--muted); margin-bottom: 20px; line-height: 1.5; }
+.admin-gating-list { display: flex; flex-direction: column; gap: 10px; }
+.admin-gating-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.admin-gating-info { flex: 1; display: flex; align-items: center; gap: 12px; min-width: 0; }
+.admin-gating-name { font-size: 14px; font-weight: 600; color: var(--text); flex-shrink: 0; }
+.admin-gating-badge {
+  font-size: 11px;
+  font-family: var(--mono);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.admin-gating-badge.badge-unlocked { background: #d1fae5; color: #065f46; }
+.admin-gating-badge.badge-locked   { background: #fee2e2; color: #991b1b; }
+
+.admin-gate-btn {
+  flex-shrink: 0;
+  padding: 6px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-family: var(--mono);
+  font-weight: 700;
+  cursor: pointer;
+  border: 1.5px solid;
+  transition: background .15s;
+  min-width: 72px;
+}
+.admin-gate-btn.gate-unlock { border-color: var(--green); color: var(--green); background: transparent; }
+.admin-gate-btn.gate-unlock:hover:not(:disabled) { background: var(--green-lt); }
+.admin-gate-btn.gate-lock   { border-color: #ef4444; color: #ef4444; background: transparent; }
+.admin-gate-btn.gate-lock:hover:not(:disabled)   { background: #fef2f2; }
+.admin-gate-btn:disabled { opacity: .5; cursor: default; }
+
 /* assignment-page inside shell — remove old page wrapper padding */
 .assignment-page { }
 .assignment-page .assignment-body { padding: 0; max-width: 720px; }

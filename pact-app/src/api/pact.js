@@ -52,3 +52,17 @@ export const submitGrade = (assignmentId, userId, data) =>
 
 export const submitSquadGrade = (assignmentId, squadId, data) =>
   client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/grades/squad/${squadId}`, data).then((r) => r.data);
+
+/* ── Cohorts ── */
+export const getCohorts = () =>
+  client.get(`/courses/${COURSE_ID}/cohorts`).then((r) => {
+    const raw = r.data;
+    return Array.isArray(raw) ? raw : (raw.data ?? []);
+  });
+
+/* ── Assignment gating ── */
+export const unlockAssignment = (assignmentId, cohortId) =>
+  client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/unlock`, { cohort_id: cohortId }).then((r) => r.data);
+
+export const lockAssignment = (assignmentId, cohortId) =>
+  client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/lock`, { cohort_id: cohortId }).then((r) => r.data);
