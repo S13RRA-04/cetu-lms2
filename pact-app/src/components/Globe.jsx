@@ -158,9 +158,11 @@ export default function Globe({ className = '' }) {
               /* sparks fly both directions from the wave front */
               const dir = Math.random() < 0.55 ? 1 : -1;
               st.sparks.push({
-                x:     c,
+                x:           c,
                 dir,
-                speed: 7 + Math.random() * 9,
+                speed:       7 + Math.random() * 9,
+                headChar:    Math.random() < 0.5 ? '1' : '0',
+                charHistory: [],
               });
             }
           }
@@ -171,10 +173,19 @@ export default function Globe({ className = '' }) {
           for (let r = 0; r < ROWS; r++) {
             const st = rowState[r];
 
-            /* advance sparks */
-            st.sparks = st.sparks
-              .map((s) => ({ ...s, x: s.x + s.dir * s.speed * dt }))
-              .filter((s) => s.x >= -S_TRAIL && s.x < COLS + S_TRAIL);
+            /* advance sparks — track column crossings for char inheritance */
+            for (const s of st.sparks) {
+              const prevCol = Math.floor(s.x);
+              s.x += s.dir * s.speed * dt;
+              const newCol  = Math.floor(s.x);
+              const crossed = s.dir > 0 ? newCol - prevCol : prevCol - newCol;
+              for (let i = 0; i < crossed; i++) {
+                s.charHistory.unshift(s.headChar);
+                if (s.charHistory.length > S_TRAIL) s.charHistory.length = S_TRAIL;
+                s.headChar = Math.random() < 0.5 ? '1' : '0';
+              }
+            }
+            st.sparks = st.sparks.filter((s) => s.x >= -S_TRAIL && s.x < COLS + S_TRAIL);
 
             /* randomly mutate a char */
             if (Math.random() < 0.025) {
@@ -187,38 +198,39 @@ export default function Globe({ className = '' }) {
             if (!hasActivity && maxWave < 0.08) continue;
 
             for (let c = 0; c < COLS; c++) {
-              let headA = 0, trailA = 0;
+              let drawn = false;
 
               for (const s of st.sparks) {
-                /* distance behind the spark head (in direction of travel) */
                 const behind = s.dir > 0 ? s.x - c : c - s.x;
-                if (behind >= 0 && behind < 1.5) {
-                  headA = Math.max(headA, 1.0 - behind * 0.55);
-                } else if (behind >= 0 && behind < S_TRAIL) {
-                  trailA = Math.max(trailA, (1 - behind / S_TRAIL) * 0.72);
+                if (behind < 0 || behind >= S_TRAIL) continue;
+
+                if (behind < 1.5) {
+                  /* head — bright white-blue, randomly changing char */
+                  const a  = 1.0 - behind * 0.4;
+                  const rC = Math.round(200 + a * 55);
+                  const gC = Math.round(220 + a * 35);
+                  bCtx.fillStyle = `rgba(${rC},${gC},255,${a.toFixed(3)})`;
+                  bCtx.fillText(s.headChar, c * CHAR_W, r * CHAR_H);
+                } else {
+                  /* trail — each slot inherits the char the head showed there */
+                  const trailIdx = Math.floor(behind) - 1;
+                  const ch = s.charHistory[trailIdx] ?? s.headChar;
+                  const a  = Math.pow(1 - behind / S_TRAIL, 1.8) * 0.95;
+                  bCtx.fillStyle = `rgba(96,165,250,${a.toFixed(3)})`;
+                  bCtx.fillText(ch, c * CHAR_W, r * CHAR_H);
+                }
+                drawn = true;
+                break;
+              }
+
+              if (!drawn) {
+                /* ambient wave glow */
+                const ambientA = cInfl[c] * 0.10;
+                if (ambientA > 0.008) {
+                  bCtx.fillStyle = `rgba(148,163,184,${ambientA.toFixed(3)})`;
+                  bCtx.fillText(st.chars[c], c * CHAR_W, r * CHAR_H);
                 }
               }
-
-              /* ambient wave glow (faint, shows shape of wave even without sparks) */
-              const ambientA = cInfl[c] * 0.10;
-
-              let rC = 96, gC = 165, bC = 250, a = 0;
-
-              if (headA > 0) {
-                a  = headA;
-                rC = Math.round(96  + headA * (220 - 96));
-                gC = Math.round(165 + headA * (240 - 165));
-                bC = Math.round(250 + headA * (255 - 250));
-              } else if (trailA > 0) {
-                a = trailA;
-              } else if (ambientA > 0.008) {
-                a = ambientA;
-                rC = 148; gC = 163; bC = 184;
-              }
-
-              if (a < 0.007) continue;
-              bCtx.fillStyle = `rgba(${rC},${gC},${bC},${a.toFixed(3)})`;
-              bCtx.fillText(st.chars[c], c * CHAR_W, r * CHAR_H);
             }
           }
 
