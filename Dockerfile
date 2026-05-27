@@ -1,18 +1,26 @@
-# Stage 1: build the React frontend
-FROM node:22-alpine AS frontend-builder
+# Stage 1: build the LMS frontend
+FROM node:22-alpine AS lms-builder
 WORKDIR /frontend
 COPY frontend/package*.json ./
 RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-# Stage 2: production backend (serves API + built frontend)
+# Stage 2: build the PACT app
+FROM node:22-alpine AS pact-builder
+WORKDIR /pact
+COPY pact-app/package*.json ./
+RUN npm ci
+COPY pact-app/ ./
+RUN npm run build
+
+# Stage 3: production backend (serves API + both frontends)
 FROM node:22-alpine
 WORKDIR /app
 COPY backend/package*.json ./
 RUN npm ci --omit=dev
 COPY backend/ ./
-# Copy built frontend into a known path the backend can serve
-COPY --from=frontend-builder /frontend/dist ./public
+COPY --from=lms-builder  /frontend/dist ./public
+COPY --from=pact-builder /pact/dist     ./public-pact
 EXPOSE 3001
 CMD ["sh", "-c", "npx sequelize-cli db:migrate && node src/server.js"]

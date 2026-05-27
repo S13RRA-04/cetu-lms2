@@ -92,26 +92,24 @@ app.use('/api/v1/lti',     ltiRoutes);
 
 app.get('/api/v1/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
-// ── Subdomain redirects ───────────────────────────────────────────────────────
-const SUBDOMAIN_REDIRECTS = {
-  'pact.cetu.online': '/courses/ae2fbd25-2f41-45b1-b9f8-f4fefbad4b63',
-};
-
-app.use((req, res, next) => {
-  const target = SUBDOMAIN_REDIRECTS[req.hostname];
-  if (target && !req.path.startsWith('/api') && !req.path.startsWith('/lti') && req.path === '/') {
-    return res.redirect(302, target);
-  }
-  next();
-});
-
-// ── Serve built frontend in production ────────────────────────────────────────
+// ── Serve built frontends in production ──────────────────────────────────────
 if (process.env.NODE_ENV === 'production') {
-  const staticDir = path.join(__dirname, '../public');
-  app.use(express.static(staticDir));
+  const lmsDir  = path.join(__dirname, '../public');
+  const pactDir = path.join(__dirname, '../public-pact');
+
+  const isPact = (req) => req.hostname === 'pact.cetu.online';
+
+  // Static assets — check pact first, then fall through to lms
+  app.use((req, res, next) => {
+    if (isPact(req)) return express.static(pactDir)(req, res, next);
+    return express.static(lmsDir)(req, res, next);
+  });
+
+  // SPA fallback
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/lti')) return next();
-    res.sendFile(path.join(staticDir, 'index.html'));
+    if (isPact(req)) return res.sendFile(path.join(pactDir, 'index.html'));
+    return res.sendFile(path.join(lmsDir, 'index.html'));
   });
 }
 

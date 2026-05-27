@@ -32,6 +32,7 @@ router.put('/:id/modules/:mid',     requireAuth, requireInstructor, validate(upd
 router.delete('/:id/modules/:mid',  requireAuth, requireInstructor, auditLog('delete', 'module'), ctrl.removeModule);
 
 // Enrollments (nested under course)
+router.get('/:id/enrollment/me',        requireAuth,                    enrollCtrl.getMyEnrollment);
 router.get('/:id/enrollments',          requireAuth, requireInstructor, enrollCtrl.listByCourse);
 router.post('/:id/enroll',              requireAuth,                    enrollCtrl.enroll);
 router.put('/:id/enrollments/:uid',     requireAuth, requireInstructor, enrollCtrl.updateEnrollment);
