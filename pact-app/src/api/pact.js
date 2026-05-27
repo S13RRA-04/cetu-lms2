@@ -60,6 +60,28 @@ export const getCohorts = () =>
     return Array.isArray(raw) ? raw : (raw.data ?? []);
   });
 
+/* ── Scenarios ── */
+export const getScenarios = () =>
+  client.get(`/courses/${COURSE_ID}/scenarios`).then((r) => r.data);
+
+export const getScenarioDownloadUrl = (packageId) =>
+  client.get(`/courses/${COURSE_ID}/scenarios/${packageId}/download`).then((r) => r.data);
+
+export const createScenario = (data) =>
+  client.post(`/courses/${COURSE_ID}/scenarios`, data).then((r) => r.data);
+
+export const updateScenario = (packageId, data) =>
+  client.put(`/courses/${COURSE_ID}/scenarios/${packageId}`, data).then((r) => r.data);
+
+export const deleteScenario = (packageId) =>
+  client.delete(`/courses/${COURSE_ID}/scenarios/${packageId}`);
+
+export const unlockScenario = (packageId, cohortId) =>
+  client.post(`/courses/${COURSE_ID}/scenarios/${packageId}/unlock`, { cohort_id: cohortId }).then((r) => r.data);
+
+export const lockScenario = (packageId, cohortId) =>
+  client.post(`/courses/${COURSE_ID}/scenarios/${packageId}/lock`, { cohort_id: cohortId });
+
 /* ── Assignment gating ── */
 export const unlockAssignment = (assignmentId, cohortId) =>
   client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/unlock`, { cohort_id: cohortId }).then((r) => r.data);

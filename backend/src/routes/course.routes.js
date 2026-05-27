@@ -7,6 +7,7 @@ const contentCtrl  = require('../controllers/contentItem.controller');
 const subCtrl      = require('../controllers/submission.controller');
 const cohortCtrl   = require('../controllers/cohort.controller');
 const squadCtrl    = require('../controllers/squad.controller');
+const scenarioCtrl = require('../controllers/scenario.controller');
 const { requireAuth, requireInstructor, requireAdmin } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
 const { auditLog } = require('../middleware/audit');
@@ -88,5 +89,14 @@ router.put('/:id/cohorts/:cid',               requireAuth, requireInstructor, au
 router.delete('/:id/cohorts/:cid',            requireAuth, requireInstructor, auditLog('delete', 'cohort'), cohortCtrl.remove);
 router.post('/:id/cohorts/:cid/members',      requireAuth, requireInstructor, cohortCtrl.addMember);
 router.delete('/:id/cohorts/:cid/members/:uid', requireAuth, requireInstructor, cohortCtrl.removeMember);
+
+// Scenario packages
+router.get('/:id/scenarios',                       requireAuth,                    scenarioCtrl.list);
+router.post('/:id/scenarios',                      requireAuth, requireInstructor, scenarioCtrl.create);
+router.put('/:id/scenarios/:sid',                  requireAuth, requireInstructor, scenarioCtrl.update);
+router.delete('/:id/scenarios/:sid',               requireAuth, requireInstructor, scenarioCtrl.remove);
+router.get('/:id/scenarios/:sid/download',         requireAuth,                    scenarioCtrl.getDownloadUrl);
+router.post('/:id/scenarios/:sid/unlock',          requireAuth, requireInstructor, scenarioCtrl.unlockForCohort);
+router.post('/:id/scenarios/:sid/lock',            requireAuth, requireInstructor, scenarioCtrl.lockForCohort);
 
 module.exports = router;

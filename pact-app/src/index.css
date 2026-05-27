@@ -1401,6 +1401,34 @@ body {
 }
 .admin-feedback-textarea:focus { border-color: var(--primary); }
 
+/* Admin panel top-level tabs */
+.admin-panel-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 0;
+}
+.admin-panel-tab {
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--body);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+  margin-bottom: -2px;
+  transition: color .15s, border-color .15s;
+}
+.admin-panel-tab:hover { color: var(--text); }
+.admin-panel-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+/* Scenario form */
+.scenario-form { display: flex; flex-direction: column; gap: 14px; }
+.scenario-form-row { display: flex; flex-direction: column; gap: 6px; }
+
 /* Right-panel tabs */
 .admin-right-tabs {
   display: flex;
@@ -1465,6 +1493,86 @@ body {
 .admin-gate-btn.gate-lock   { border-color: #ef4444; color: #ef4444; background: transparent; }
 .admin-gate-btn.gate-lock:hover:not(:disabled)   { background: #fef2f2; }
 .admin-gate-btn:disabled { opacity: .5; cursor: default; }
+
+/* ══ Scenarios Page ═══════════════════════════════════════════════════════════
+══════════════════════════════════════════════════════════════════════════════ */
+.scenarios-page { max-width: 800px; }
+.page-subtitle {
+  color: var(--muted);
+  font-size: 14px;
+  margin-top: -8px;
+  margin-bottom: 24px;
+}
+
+.scenarios-empty {
+  text-align: center;
+  padding: 60px 0;
+  color: var(--muted);
+}
+.scenarios-empty-icon { font-size: 48px; margin-bottom: 12px; }
+
+.scenarios-list { display: flex; flex-direction: column; gap: 16px; }
+
+.scenario-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: box-shadow .15s;
+}
+.scenario-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.08); }
+.scenario-card.scenario-locked { opacity: .75; }
+
+.scenario-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card-hi);
+}
+.scenario-release-badge {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary);
+  background: var(--primary-lt);
+  padding: 2px 10px;
+  border-radius: 999px;
+}
+.scenario-status-badge {
+  font-size: 11px;
+  font-family: var(--mono);
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-weight: 600;
+  margin-left: auto;
+}
+.scenario-status-badge.status-unlocked { background: #d1fae5; color: #065f46; }
+.scenario-status-badge.status-locked   { background: #fee2e2; color: #991b1b; }
+
+.scenario-card-body { padding: 16px 20px; }
+.scenario-title { font-size: 17px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.scenario-description { font-size: 14px; color: var(--muted); line-height: 1.5; margin-bottom: 10px; }
+.scenario-file-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-family: var(--mono);
+  color: var(--muted);
+}
+.scenario-file-icon { font-size: 14px; }
+
+.scenario-card-footer {
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--card-hi);
+  display: flex;
+  align-items: center;
+}
+.scenario-dl-btn { width: auto !important; padding: 8px 20px !important; font-size: 13px !important; }
+.scenario-locked-msg { font-size: 12px; color: var(--muted); font-style: italic; }
 
 /* assignment-page inside shell — remove old page wrapper padding */
 .assignment-page { }

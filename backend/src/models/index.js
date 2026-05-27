@@ -14,7 +14,9 @@ const Submission          = require('./Submission')(sequelize);
 const Grade               = require('./Grade')(sequelize);
 const RefreshToken        = require('./RefreshToken')(sequelize);
 const AuditLog            = require('./AuditLog')(sequelize);
-const LtiToolRegistration = require('./LtiToolRegistration')(sequelize);
+const LtiToolRegistration   = require('./LtiToolRegistration')(sequelize);
+const ScenarioPackage       = require('./ScenarioPackage')(sequelize);
+const ScenarioPackageUnlock = require('./ScenarioPackageUnlock')(sequelize);
 
 // ── User ↔ Course (instructor relationship) ────────────────────────────────
 Course.belongsTo(User, { as: 'instructor', foreignKey: 'instructor_id' });
@@ -86,6 +88,14 @@ RefreshToken.belongsTo(User, { foreignKey: 'user_id' });
 User.hasMany(AuditLog,  { foreignKey: 'user_id' });
 AuditLog.belongsTo(User, { foreignKey: 'user_id' });
 
+// ── ScenarioPackage ↔ ScenarioPackageUnlock ────────────────────────────────
+ScenarioPackage.hasMany(ScenarioPackageUnlock, { as: 'unlocks', foreignKey: 'package_id', onDelete: 'CASCADE' });
+ScenarioPackageUnlock.belongsTo(ScenarioPackage, { foreignKey: 'package_id' });
+ScenarioPackageUnlock.belongsTo(Cohort,          { foreignKey: 'cohort_id' });
+ScenarioPackageUnlock.belongsTo(User, { as: 'unlocker', foreignKey: 'unlocked_by' });
+Course.hasMany(ScenarioPackage, { as: 'scenarioPackages', foreignKey: 'course_id', onDelete: 'CASCADE' });
+ScenarioPackage.belongsTo(Course,               { foreignKey: 'course_id' });
+
 module.exports = {
   sequelize,
   User,
@@ -102,4 +112,6 @@ module.exports = {
   RefreshToken,
   AuditLog,
   LtiToolRegistration,
+  ScenarioPackage,
+  ScenarioPackageUnlock,
 };

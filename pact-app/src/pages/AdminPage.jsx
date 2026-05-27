@@ -8,6 +8,12 @@ import {
   getCohorts,
   unlockAssignment,
   lockAssignment,
+  getScenarios,
+  createScenario,
+  updateScenario,
+  deleteScenario,
+  unlockScenario,
+  lockScenario,
 } from '../api/pact.js';
 
 const TYPE_COLOR = {
@@ -127,6 +133,13 @@ export default function AdminPage() {
   const [selectedSub,        setSelectedSub]        = useState(null);
   const [savedGrades,        setSavedGrades]        = useState({});
 
+  // top-level admin panel: 'grading' | 'scenarios'
+  const [adminPanel, setAdminPanel] = useState('grading');
+
+  // scenarios state
+  const [scenarios,    setScenarios]    = useState([]);
+  const [scenariosLoaded, setScenariosLoaded] = useState(false);
+
   // right-panel tab: 'submissions' | 'gating'
   const [rightTab, setRightTab] = useState('submissions');
 
@@ -142,6 +155,15 @@ export default function AdminPage() {
       setCohorts(Array.isArray(rawC) ? rawC : []);
     }).finally(() => setLoading(false));
   }, []);
+
+  const switchToScenarios = useCallback(() => {
+    setAdminPanel('scenarios');
+    if (!scenariosLoaded) {
+      getScenarios()
+        .then((data) => { setScenarios(Array.isArray(data) ? data : []); setScenariosLoaded(true); })
+        .catch(() => setScenariosLoaded(true));
+    }
+  }, [scenariosLoaded]);
 
   const openAssignment = useCallback(async (a) => {
     setSelectedAssignment(a);
@@ -184,8 +206,29 @@ export default function AdminPage() {
 
   return (
     <div className="admin-page">
-      <h1 className="page-title">Grade Center</h1>
+      <div className="admin-panel-tabs">
+        <button
+          className={`admin-panel-tab${adminPanel === 'grading' ? ' active' : ''}`}
+          onClick={() => setAdminPanel('grading')}
+        >
+          Grade Center
+        </button>
+        <button
+          className={`admin-panel-tab${adminPanel === 'scenarios' ? ' active' : ''}`}
+          onClick={switchToScenarios}
+        >
+          Scenario Gating
+        </button>
+      </div>
 
+      {adminPanel === 'scenarios' ? (
+        <ScenarioGatingPanel
+          scenarios={scenarios}
+          cohorts={cohorts}
+          loaded={scenariosLoaded}
+          onScenariosChange={setScenarios}
+        />
+      ) : (
       <div className="admin-layout">
         {/* ── Left: assignment list ── */}
         <div className="admin-left">
@@ -311,6 +354,7 @@ export default function AdminPage() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }
@@ -432,6 +476,286 @@ function SquadSubmissions({ groups, grades, savedGrades, assignment, onSelect, o
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/* ── Scenario Gating Panel ── */
+
+function ScenarioPackageForm({ initial, onSave, onCancel }) {
+  const [form, setForm] = useState(initial ?? {
+    title: '', description: '', r2_key: '', file_name: '', release_number: 1, is_published: false,
+  });
+  const [saving, setSaving] = useState(false);
+  const [err,    setErr]    = useState('');
+
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const handleSave = async () => {
+    if (!form.title.trim() || !form.r2_key.trim() || !form.file_name.trim()) {
+      setErr('Title, R2 key, and file name are required.');
+      return;
+    }
+    setSaving(true);
+    setErr('');
+    try {
+      await onSave({ ...form, release_number: parseInt(form.release_number, 10) || 1 });
+    } catch (e) {
+      setErr(e.response?.data?.error?.message ?? 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="scenario-form">
+      <div className="scenario-form-row">
+        <label className="admin-grade-label">Title *</label>
+        <input className="admin-score-input" style={{ width: '100%' }} value={form.title}
+          onChange={(e) => set('title', e.target.value)} placeholder="e.g. Operation Nightfall" />
+      </div>
+      <div className="scenario-form-row">
+        <label className="admin-grade-label">Description</label>
+        <textarea className="admin-feedback-textarea" value={form.description ?? ''}
+          onChange={(e) => set('description', e.target.value)} rows={2}
+          placeholder="Brief scenario overview…" />
+      </div>
+      <div className="scenario-form-row">
+        <label className="admin-grade-label">R2 Key (file path in bucket) *</label>
+        <input className="admin-score-input" style={{ width: '100%' }} value={form.r2_key}
+          onChange={(e) => set('r2_key', e.target.value)} placeholder="decks/scenario-01.pdf" />
+      </div>
+      <div className="scenario-form-row">
+        <label className="admin-grade-label">File Display Name *</label>
+        <input className="admin-score-input" style={{ width: '100%' }} value={form.file_name}
+          onChange={(e) => set('file_name', e.target.value)} placeholder="Scenario 01 — Nightfall.pdf" />
+      </div>
+      <div className="scenario-form-row" style={{ display: 'flex', gap: 16 }}>
+        <div style={{ flex: 1 }}>
+          <label className="admin-grade-label">Release #</label>
+          <input type="number" min={1} className="admin-score-input" value={form.release_number}
+            onChange={(e) => set('release_number', e.target.value)} style={{ width: '100%' }} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, paddingBottom: 2 }}>
+          <input type="checkbox" id="sp-pub" checked={!!form.is_published}
+            onChange={(e) => set('is_published', e.target.checked)} />
+          <label htmlFor="sp-pub" style={{ fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>
+            Published
+          </label>
+        </div>
+      </div>
+      {err && <div className="err-msg" style={{ marginBottom: 8 }}>{err}</div>}
+      <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+        <button className="btn-submit" style={{ width: 'auto' }} onClick={handleSave} disabled={saving}>
+          {saving ? 'Saving…' : initial ? 'Update Package' : 'Create Package'}
+        </button>
+        <button className="admin-back-btn" onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function ScenarioGatingPanel({ scenarios, cohorts, loaded, onScenariosChange }) {
+  const [selected,   setSelected]   = useState(null);
+  const [showForm,   setShowForm]   = useState(false);
+  const [editTarget, setEditTarget] = useState(null);
+  const [deleting,   setDeleting]   = useState({});
+
+  const handleCreate = async (data) => {
+    const pkg = await createScenario(data);
+    onScenariosChange((prev) => [...prev, { ...pkg, unlocks: [] }]);
+    setShowForm(false);
+  };
+
+  const handleUpdate = async (data) => {
+    const pkg = await updateScenario(editTarget.id, data);
+    onScenariosChange((prev) => prev.map((p) => p.id === pkg.id ? { ...p, ...pkg } : p));
+    setEditTarget(null);
+    if (selected?.id === pkg.id) setSelected((s) => ({ ...s, ...pkg }));
+  };
+
+  const handleDelete = async (pkg) => {
+    if (!window.confirm(`Delete "${pkg.title}"? This cannot be undone.`)) return;
+    setDeleting((d) => ({ ...d, [pkg.id]: true }));
+    try {
+      await deleteScenario(pkg.id);
+      onScenariosChange((prev) => prev.filter((p) => p.id !== pkg.id));
+      if (selected?.id === pkg.id) setSelected(null);
+    } catch {}
+    setDeleting((d) => ({ ...d, [pkg.id]: false }));
+  };
+
+  if (!loaded) return <div style={{ padding: 32, textAlign: 'center' }}><div className="spinner" /></div>;
+
+  return (
+    <div className="admin-layout">
+      {/* Left: package list */}
+      <div className="admin-left">
+        <div style={{ padding: '12px 16px 8px', borderBottom: '1px solid var(--border)' }}>
+          <button
+            className="btn-submit"
+            style={{ width: '100%', fontSize: 13 }}
+            onClick={() => { setShowForm(true); setEditTarget(null); setSelected(null); }}
+          >
+            + New Package
+          </button>
+        </div>
+
+        <div className="admin-assignment-list">
+          {scenarios.length === 0 && (
+            <p style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 16px' }}>
+              No scenario packages yet.
+            </p>
+          )}
+          {scenarios.map((pkg) => (
+            <button
+              key={pkg.id}
+              className={`admin-assign-btn${selected?.id === pkg.id ? ' active' : ''}`}
+              onClick={() => { setSelected(pkg); setShowForm(false); setEditTarget(null); }}
+            >
+              <span className="admin-assign-type" style={{ color: 'var(--primary)' }}>
+                PKG {pkg.release_number}
+              </span>
+              <span className="admin-assign-title">{pkg.title}</span>
+              {!pkg.is_published && <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 4 }}>draft</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Right: form or gating */}
+      <div className="admin-right">
+        {showForm && !editTarget && (
+          <>
+            <div className="admin-right-header">
+              <div className="admin-right-title">New Scenario Package</div>
+            </div>
+            <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
+              <ScenarioPackageForm onSave={handleCreate} onCancel={() => setShowForm(false)} />
+            </div>
+          </>
+        )}
+
+        {editTarget && (
+          <>
+            <div className="admin-right-header">
+              <div className="admin-right-title">Edit Package</div>
+              <button className="admin-back-btn" onClick={() => setEditTarget(null)}>Cancel</button>
+            </div>
+            <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
+              <ScenarioPackageForm initial={editTarget} onSave={handleUpdate} onCancel={() => setEditTarget(null)} />
+            </div>
+          </>
+        )}
+
+        {!showForm && !editTarget && !selected && (
+          <div className="admin-empty"><p>Select a package to manage cohort access.</p></div>
+        )}
+
+        {!showForm && !editTarget && selected && (
+          <>
+            <div className="admin-right-header">
+              <div>
+                <div className="admin-right-title">{selected.title}</div>
+                <div className="admin-right-sub">
+                  Package {selected.release_number} · {selected.file_name}
+                  {!selected.is_published && ' · Draft'}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                <button className="admin-back-btn" onClick={() => setEditTarget(selected)}>Edit</button>
+                <button
+                  className="admin-back-btn"
+                  style={{ color: '#ef4444', borderColor: '#ef4444' }}
+                  onClick={() => handleDelete(selected)}
+                  disabled={deleting[selected.id]}
+                >
+                  {deleting[selected.id] ? '…' : 'Delete'}
+                </button>
+              </div>
+            </div>
+
+            <ScenarioGatingCohorts
+              key={selected.id}
+              pkg={selected}
+              cohorts={cohorts}
+              onUnlocksChange={(unlocks) => {
+                const updated = { ...selected, unlocks };
+                setSelected(updated);
+                onScenariosChange((prev) => prev.map((p) => p.id === selected.id ? updated : p));
+              }}
+            />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ScenarioGatingCohorts({ pkg, cohorts, onUnlocksChange }) {
+  const [unlockedIds, setUnlockedIds] = useState(
+    () => new Set((pkg.unlocks ?? []).map((u) => u.cohort_id))
+  );
+  const [busy,   setBusy]   = useState({});
+  const [errors, setErrors] = useState({});
+
+  const toggle = async (cohortId) => {
+    const isUnlocked = unlockedIds.has(cohortId);
+    setBusy((b) => ({ ...b, [cohortId]: true }));
+    setErrors((e) => ({ ...e, [cohortId]: null }));
+    try {
+      if (isUnlocked) {
+        await lockScenario(pkg.id, cohortId);
+        const next = new Set(unlockedIds);
+        next.delete(cohortId);
+        setUnlockedIds(next);
+        onUnlocksChange((pkg.unlocks ?? []).filter((u) => u.cohort_id !== cohortId));
+      } else {
+        await unlockScenario(pkg.id, cohortId);
+        setUnlockedIds((s) => new Set([...s, cohortId]));
+        onUnlocksChange([...(pkg.unlocks ?? []), { cohort_id: cohortId }]);
+      }
+    } catch (err) {
+      setErrors((e) => ({ ...e, [cohortId]: err.response?.data?.error?.message ?? 'Action failed' }));
+    } finally {
+      setBusy((b) => ({ ...b, [cohortId]: false }));
+    }
+  };
+
+  if (!cohorts.length) {
+    return <div className="admin-empty"><p>No cohorts found for this course.</p></div>;
+  }
+
+  return (
+    <div className="admin-gating">
+      <p className="admin-gating-desc">
+        Control which cohorts can download this scenario package.
+      </p>
+      <div className="admin-gating-list">
+        {cohorts.map((c) => {
+          const unlocked = unlockedIds.has(c.id);
+          return (
+            <div key={c.id} className="admin-gating-row">
+              <div className="admin-gating-info">
+                <span className="admin-gating-name">{c.name}</span>
+                <span className={`admin-gating-badge ${unlocked ? 'badge-unlocked' : 'badge-locked'}`}>
+                  {unlocked ? '🔓 Released' : '🔒 Locked'}
+                </span>
+              </div>
+              {errors[c.id] && (
+                <div className="err-msg" style={{ fontSize: 11, padding: '4px 0' }}>{errors[c.id]}</div>
+              )}
+              <button
+                className={`admin-gate-btn ${unlocked ? 'gate-lock' : 'gate-unlock'}`}
+                onClick={() => toggle(c.id)}
+                disabled={busy[c.id]}
+              >
+                {busy[c.id] ? '…' : unlocked ? 'Lock' : 'Release'}
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
