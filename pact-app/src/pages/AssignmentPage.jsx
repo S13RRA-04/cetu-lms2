@@ -103,9 +103,10 @@ export default function AssignmentPage() {
     );
   }
 
-  const color   = TYPE_COLOR[assignment.type] ?? TYPE_COLOR.module;
-  const isSquad = assignment.grading_mode === 'squad';
-  const hasQuiz = Array.isArray(assignment.questions) && assignment.questions.length > 0;
+  const color    = TYPE_COLOR[assignment.type] ?? TYPE_COLOR.module;
+  const isSquad  = assignment.grading_mode === 'squad';
+  const isLocked = assignment.is_unlocked === false;
+  const hasQuiz  = !isLocked && Array.isArray(assignment.questions) && assignment.questions.length > 0;
 
   return (
     <div className="assignment-page">
@@ -133,8 +134,13 @@ export default function AssignmentPage() {
 
         <hr className="divider" />
 
-        {/* ── Quiz flow for module-type assignments with questions ── */}
-        {hasQuiz ? (
+        {/* ── Locked state ── */}
+        {isLocked ? (
+          <div className="locked-msg" style={{ padding: '32px 0', fontSize: 14, color: 'var(--muted)' }}>
+            🔒 This assignment has not been unlocked for your cohort yet. Check back later or contact your instructor.
+          </div>
+        ) : /* ── Quiz flow for module-type assignments with questions ── */
+        hasQuiz ? (
           submitted ? (
             <QuizSummary result={quizResult} assignment={assignment} color={color} />
           ) : (

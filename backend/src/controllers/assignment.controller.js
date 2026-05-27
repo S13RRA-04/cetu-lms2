@@ -25,7 +25,10 @@ async function listByCourse(req, res, next) {
 }
 
 async function getOne(req, res, next) {
-  try { return res.json(await assignmentService.getById(req.params.aid)); }
+  try {
+    const userId = req.user.role === 'student' ? req.user.id : null;
+    return res.json(await assignmentService.getById(req.params.aid, userId));
+  }
   catch (err) { return next(err); }
 }
 

@@ -59,11 +59,23 @@ async function getUnlockStatus(assignmentId) {
   return assignment;
 }
 
-async function getById(id) {
+async function getById(id, userId = null) {
   const assignment = await Assignment.findByPk(id, {
     include: [{ model: Course, attributes: ['id', 'title', 'course_code'] }],
   });
   if (!assignment) throw new NotFoundError('Assignment');
+
+  if (userId) {
+    const enrollment = await Enrollment.findOne({ where: { user_id: userId, course_id: assignment.course_id } });
+    if (enrollment?.cohort_id) {
+      const unlock = await AssignmentUnlock.findOne({
+        where: { assignment_id: id, cohort_id: enrollment.cohort_id },
+      });
+      return { ...assignment.toJSON(), is_unlocked: !!unlock };
+    }
+    return { ...assignment.toJSON(), is_unlocked: false };
+  }
+
   return assignment;
 }
 
