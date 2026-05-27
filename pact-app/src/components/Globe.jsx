@@ -10,10 +10,10 @@ const POINTS_URL = 'https://raw.githubusercontent.com/creativetimofficial/public
 /* binary canvas — larger canvas = smaller apparent chars on globe */
 const BIN_W   = 1280;
 const BIN_H   = 640;
-const CHAR_W  = 4;
-const CHAR_H  = 5;
-const COLS    = Math.floor(BIN_W  / CHAR_W);   // 320
-const ROWS    = Math.floor(BIN_H  / CHAR_H);   // 128
+const CHAR_W  = 7;
+const CHAR_H  = 9;
+const COLS    = Math.floor(BIN_W  / CHAR_W);   // 182
+const ROWS    = Math.floor(BIN_H  / CHAR_H);   // 71
 const S_TRAIL = 18;                             // columns of fade behind each spark
 
 /* geographic projection */
@@ -102,7 +102,7 @@ export default function Globe({ className = '' }) {
         const bCanvas = document.createElement('canvas');
         bCanvas.width = BIN_W; bCanvas.height = BIN_H;
         const bCtx = bCanvas.getContext('2d');
-        bCtx.font = `3px 'Courier New', monospace`;
+        bCtx.font = `8px 'Courier New', monospace`;
         bCtx.textBaseline = 'top';
         const bTex = new THREE.CanvasTexture(bCanvas);
 
