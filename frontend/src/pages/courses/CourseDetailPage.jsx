@@ -822,7 +822,7 @@ function AddMemberModal({ courseId, cohort, onSave, onClose }) {
     if (!q.trim()) { setUsers([]); return; }
     setLoading(true);
     try {
-      const res = await getUsers({ search: q, role: 'student', is_active: true, limit: 20 });
+      const res = await getUsers({ search: q, is_active: true, limit: 20 });
       setUsers(res.data ?? res.users ?? res ?? []);
     } finally { setLoading(false); }
   }, []);
