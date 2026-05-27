@@ -9,7 +9,6 @@ import {
   unlockAssignment,
   lockAssignment,
   getScenarios,
-  createScenario,
   updateScenario,
   deleteScenario,
   unlockScenario,
@@ -483,8 +482,11 @@ function SquadSubmissions({ groups, grades, savedGrades, assignment, onSelect, o
 /* ── Scenario Gating Panel ── */
 
 function ScenarioPackageForm({ initial, onSave, onCancel }) {
-  const [form, setForm] = useState(initial ?? {
-    title: '', description: '', r2_key: '', file_name: '', release_number: 1, is_published: false,
+  const [form, setForm] = useState({
+    title:          initial?.title          ?? '',
+    description:    initial?.description    ?? '',
+    release_number: initial?.release_number ?? 1,
+    is_published:   initial?.is_published   ?? false,
   });
   const [saving, setSaving] = useState(false);
   const [err,    setErr]    = useState('');
@@ -492,10 +494,7 @@ function ScenarioPackageForm({ initial, onSave, onCancel }) {
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const handleSave = async () => {
-    if (!form.title.trim() || !form.r2_key.trim() || !form.file_name.trim()) {
-      setErr('Title, R2 key, and file name are required.');
-      return;
-    }
+    if (!form.title.trim()) { setErr('Title is required.'); return; }
     setSaving(true);
     setErr('');
     try {
@@ -516,19 +515,9 @@ function ScenarioPackageForm({ initial, onSave, onCancel }) {
       </div>
       <div className="scenario-form-row">
         <label className="admin-grade-label">Description</label>
-        <textarea className="admin-feedback-textarea" value={form.description ?? ''}
+        <textarea className="admin-feedback-textarea" value={form.description}
           onChange={(e) => set('description', e.target.value)} rows={2}
           placeholder="Brief scenario overview…" />
-      </div>
-      <div className="scenario-form-row">
-        <label className="admin-grade-label">R2 Key (file path in bucket) *</label>
-        <input className="admin-score-input" style={{ width: '100%' }} value={form.r2_key}
-          onChange={(e) => set('r2_key', e.target.value)} placeholder="decks/scenario-01.pdf" />
-      </div>
-      <div className="scenario-form-row">
-        <label className="admin-grade-label">File Display Name *</label>
-        <input className="admin-score-input" style={{ width: '100%' }} value={form.file_name}
-          onChange={(e) => set('file_name', e.target.value)} placeholder="Scenario 01 — Nightfall.pdf" />
       </div>
       <div className="scenario-form-row" style={{ display: 'flex', gap: 16 }}>
         <div style={{ flex: 1 }}>
@@ -547,7 +536,7 @@ function ScenarioPackageForm({ initial, onSave, onCancel }) {
       {err && <div className="err-msg" style={{ marginBottom: 8 }}>{err}</div>}
       <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
         <button className="btn-submit" style={{ width: 'auto' }} onClick={handleSave} disabled={saving}>
-          {saving ? 'Saving…' : initial ? 'Update Package' : 'Create Package'}
+          {saving ? 'Saving…' : 'Save Changes'}
         </button>
         <button className="admin-back-btn" onClick={onCancel}>Cancel</button>
       </div>
@@ -557,21 +546,15 @@ function ScenarioPackageForm({ initial, onSave, onCancel }) {
 
 function ScenarioGatingPanel({ scenarios, cohorts, loaded, onScenariosChange }) {
   const [selected,   setSelected]   = useState(null);
-  const [showForm,   setShowForm]   = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [deleting,   setDeleting]   = useState({});
-
-  const handleCreate = async (data) => {
-    const pkg = await createScenario(data);
-    onScenariosChange((prev) => [...prev, { ...pkg, unlocks: [] }]);
-    setShowForm(false);
-  };
 
   const handleUpdate = async (data) => {
     const pkg = await updateScenario(editTarget.id, data);
     onScenariosChange((prev) => prev.map((p) => p.id === pkg.id ? { ...p, ...pkg } : p));
+    const updated = { ...editTarget, ...pkg };
     setEditTarget(null);
-    if (selected?.id === pkg.id) setSelected((s) => ({ ...s, ...pkg }));
+    setSelected(updated);
   };
 
   const handleDelete = async (pkg) => {
@@ -591,27 +574,21 @@ function ScenarioGatingPanel({ scenarios, cohorts, loaded, onScenariosChange }) 
     <div className="admin-layout">
       {/* Left: package list */}
       <div className="admin-left">
-        <div style={{ padding: '12px 16px 8px', borderBottom: '1px solid var(--border)' }}>
-          <button
-            className="btn-submit"
-            style={{ width: '100%', fontSize: 13 }}
-            onClick={() => { setShowForm(true); setEditTarget(null); setSelected(null); }}
-          >
-            + New Package
-          </button>
+        <div className="scenario-sync-note">
+          Packages auto-populate from R2. Upload files to the <code>decks/</code> bucket prefix and re-open this panel.
         </div>
 
         <div className="admin-assignment-list">
           {scenarios.length === 0 && (
             <p style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 16px' }}>
-              No scenario packages yet.
+              No files found in R2 yet.
             </p>
           )}
           {scenarios.map((pkg) => (
             <button
               key={pkg.id}
               className={`admin-assign-btn${selected?.id === pkg.id ? ' active' : ''}`}
-              onClick={() => { setSelected(pkg); setShowForm(false); setEditTarget(null); }}
+              onClick={() => { setSelected(pkg); setEditTarget(null); }}
             >
               <span className="admin-assign-type" style={{ color: 'var(--primary)' }}>
                 PKG {pkg.release_number}
@@ -623,19 +600,8 @@ function ScenarioGatingPanel({ scenarios, cohorts, loaded, onScenariosChange }) 
         </div>
       </div>
 
-      {/* Right: form or gating */}
+      {/* Right: edit form or cohort gating */}
       <div className="admin-right">
-        {showForm && !editTarget && (
-          <>
-            <div className="admin-right-header">
-              <div className="admin-right-title">New Scenario Package</div>
-            </div>
-            <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
-              <ScenarioPackageForm onSave={handleCreate} onCancel={() => setShowForm(false)} />
-            </div>
-          </>
-        )}
-
         {editTarget && (
           <>
             <div className="admin-right-header">
@@ -648,11 +614,11 @@ function ScenarioGatingPanel({ scenarios, cohorts, loaded, onScenariosChange }) 
           </>
         )}
 
-        {!showForm && !editTarget && !selected && (
+        {!editTarget && !selected && (
           <div className="admin-empty"><p>Select a package to manage cohort access.</p></div>
         )}
 
-        {!showForm && !editTarget && selected && (
+        {!editTarget && selected && (
           <>
             <div className="admin-right-header">
               <div>
