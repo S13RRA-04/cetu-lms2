@@ -1,10 +1,9 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 
-const DOT_COUNT  = 4000;
-const RADIUS     = 1.18;
-const COLOR_DOT  = 0x2563eb;
-const COLOR_BG   = 0xffffff;
+const DOT_COUNT = 4000;
+const RADIUS    = 1.18;
+const COLOR_DOT = 0x2563eb;
 
 function buildGlobe() {
   const geometry = new THREE.BufferGeometry();
@@ -41,18 +40,18 @@ export default function Globe({ className = '' }) {
     const w = el.clientWidth;
     const h = el.clientHeight;
 
-    // Scene
-    const scene    = new THREE.Scene();
-    scene.background = new THREE.Color(COLOR_BG);
+    // Scene — transparent so the CSS background shows through
+    const scene = new THREE.Scene();
 
     // Camera
     const camera = new THREE.PerspectiveCamera(40, w / h, 0.1, 100);
     camera.position.z = 3.4;
 
-    // Renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    // Renderer — alpha so background is transparent
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(w, h);
+    renderer.setClearColor(0x000000, 0);
     el.appendChild(renderer.domElement);
 
     // Globe dots

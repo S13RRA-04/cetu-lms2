@@ -14,27 +14,15 @@ const TYPE_COLOR = {
   capstone:   '#b45309',
 };
 
-const DAY_TABS = [
-  { key: 'all',  label: 'All' },
-  { key: 'day1', label: 'Day 1' },
-  { key: 'day2', label: 'Day 2' },
-  { key: 'day3', label: 'Day 3' },
-  { key: 'day4', label: 'Day 4' },
-  { key: 'day5', label: 'Day 5' },
-  { key: 'assess',   label: 'Assessments' },
-  { key: 'scenario', label: 'Scenario' },
+const TYPE_TABS = [
+  { key: 'all',        label: 'All' },
+  { key: 'module',     label: 'Module' },
+  { key: 'challenge',  label: 'Challenge' },
+  { key: 'capstone',   label: 'Capstone' },
+  { key: 'assessment', label: 'Assessment' },
+  { key: 'survey',     label: 'Survey' },
+  { key: 'game',       label: 'Game' },
 ];
-
-function assignmentDay(a) {
-  const oi = a.order_index ?? 99;
-  if (oi <= 7)  return 'day1';
-  if (oi <= 11) return 'day2';
-  if (oi <= 14) return 'day3';
-  if (oi <= 19) return 'day4';
-  if (oi <= 21) return 'day5';
-  if (oi <= 24) return 'assess';
-  return 'scenario';
-}
 
 export default function DashboardPage() {
   const { user, setUser } = useAuthStore();
@@ -80,24 +68,66 @@ export default function DashboardPage() {
   const completed  = assignments.filter((a) => (a.progress ?? 0) >= 100).length;
   const inProgress = assignments.filter((a) => (a.progress ?? 0) > 0 && (a.progress ?? 0) < 100).length;
 
+  const typesPresent = new Set(assignments.map((a) => a.type));
+  const visibleTabs  = TYPE_TABS.filter((t) => t.key === 'all' || typesPresent.has(t.key));
+
   const visible = activeTab === 'all'
     ? assignments
-    : assignments.filter((a) => assignmentDay(a) === activeTab);
+    : assignments.filter((a) => a.type === activeTab);
 
   return (
     <div className="pact-layout">
-      <header className="pact-header">
-        <span className="header-pact">PACT</span>
-        <div className="header-right">
-          <div className="operator-tag">
-            <span className="operator-label">Operator</span>
-            <span className="operator-name">
-              {user?.first_name?.toUpperCase()} {user?.last_name?.[0]?.toUpperCase()}.
-            </span>
+      {/* ── Hero with globe background ── */}
+      <div className="dashboard-hero">
+        <Suspense fallback={null}>
+          <Globe className="hero-globe" />
+        </Suspense>
+
+        <div className="hero-overlay" />
+
+        <header className="pact-header hero-header">
+          <span className="header-pact">PACT</span>
+          <div className="header-right">
+            <div className="operator-tag">
+              <span className="operator-label">Operator</span>
+              <span className="operator-name">
+                {user?.first_name?.toUpperCase()} {user?.last_name?.[0]?.toUpperCase()}.
+              </span>
+            </div>
+            <button className="btn-logout" onClick={handleLogout}>Log out</button>
           </div>
-          <button className="btn-logout" onClick={handleLogout}>Log out</button>
+        </header>
+
+        <div className="hero-content">
+          <div className="hero-stats">
+            <div className="hero-stat">
+              <div className="hero-stat-value">{unlocked}</div>
+              <div className="hero-stat-label">Unlocked</div>
+            </div>
+            <div className="hero-stat-divider" />
+            <div className="hero-stat">
+              <div className="hero-stat-value" style={{ color: '#34d399' }}>{completed}</div>
+              <div className="hero-stat-label">Completed</div>
+            </div>
+            <div className="hero-stat-divider" />
+            <div className="hero-stat">
+              <div className="hero-stat-value" style={{ color: '#fbbf24' }}>{inProgress}</div>
+              <div className="hero-stat-label">In Progress</div>
+            </div>
+            {enrollment?.cohort && (
+              <>
+                <div className="hero-stat-divider" />
+                <div className="hero-stat">
+                  <div className="hero-stat-value hero-stat-cohort">{enrollment.cohort.name}</div>
+                  <div className="hero-stat-label">Cohort
+                    {enrollment.squad ? ` · Squad ${enrollment.squad.number}` : ''}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
-      </header>
+      </div>
 
       <main className="pact-main">
         {loadError === 'not_enrolled' ? (
@@ -112,49 +142,7 @@ export default function DashboardPage() {
           </div>
         ) : (
           <>
-            {/* ── Globe + Stats ── */}
-            <div className="globe-section">
-              <div className="globe-card">
-                <Suspense fallback={<div className="globe-canvas-wrap" style={{ background: '#fff' }} />}>
-                  <Globe className="globe-canvas-wrap" />
-                </Suspense>
-                <div className="globe-label">
-                  <div className="globe-label-main">PACT Network</div>
-                  <div className="globe-label-sub">Drag to rotate</div>
-                </div>
-              </div>
-
-              <div className="globe-stats">
-                <div className="stat-card">
-                  <div className="stat-value">{unlocked}</div>
-                  <div className="stat-label">Unlocked missions</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-value" style={{ color: 'var(--green)' }}>{completed}</div>
-                  <div className="stat-label">Completed</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-value" style={{ color: 'var(--warning)' }}>{inProgress}</div>
-                  <div className="stat-label">In progress</div>
-                </div>
-                {enrollment && (
-                  <div className="stat-card">
-                    <div className="stat-value" style={{ fontSize: 22, paddingTop: 4 }}>
-                      {enrollment.cohort?.name ?? '—'}
-                    </div>
-                    <div className="stat-label">Cohort</div>
-                    {enrollment.squad && (
-                      <div style={{ marginTop: 8, fontSize: 11, color: 'var(--primary)', fontFamily: 'var(--mono)', letterSpacing: '.1em' }}>
-                        Squad {enrollment.squad.number}
-                        {enrollment.squad.name ? ` · ${enrollment.squad.name}` : ''}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* ── Cohort + Squad ── */}
+            {/* ── Squad members ── */}
             {enrollment?.squad && (
               <div className="info-row">
                 <div className="squad-card">
@@ -190,10 +178,13 @@ export default function DashboardPage() {
 
             {assignments.length > 0 && (
               <div className="day-tabs">
-                {DAY_TABS.map((t) => (
+                {visibleTabs.map((t) => (
                   <button
                     key={t.key}
                     className={`day-tab${activeTab === t.key ? ' active' : ''}`}
+                    style={activeTab === t.key && t.key !== 'all'
+                      ? { background: TYPE_COLOR[t.key], borderColor: TYPE_COLOR[t.key], boxShadow: `0 4px 12px ${TYPE_COLOR[t.key]}55` }
+                      : {}}
                     onClick={() => setActiveTab(t.key)}
                   >
                     {t.label}
