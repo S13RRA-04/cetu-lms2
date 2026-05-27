@@ -3,6 +3,16 @@ const assignmentService = require('../services/assignment.service');
 const gradeService      = require('../services/grade.service');
 const submissionService = require('../services/submission.service');
 
+async function getMyGrades(req, res, next) {
+  try { return res.json(await gradeService.getGradesForUser(req.user.id)); }
+  catch (err) { return next(err); }
+}
+
+async function getScoreboard(req, res, next) {
+  try { return res.json(await gradeService.getScoreboard(req.params.id)); }
+  catch (err) { return next(err); }
+}
+
 async function listByCourse(req, res, next) {
   try {
     const isStudent = req.user.role === 'student';
@@ -72,4 +82,4 @@ async function gradeSquad(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { listByCourse, getOne, create, update, remove, getGrades, upsertGrade, unlockForCohort, lockForCohort, getProgress, gradeSquad };
+module.exports = { listByCourse, getOne, create, update, remove, getGrades, upsertGrade, unlockForCohort, lockForCohort, getProgress, gradeSquad, getMyGrades, getScoreboard };

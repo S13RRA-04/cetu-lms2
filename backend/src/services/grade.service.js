@@ -96,4 +96,30 @@ async function gradeSquad(assignmentId, squadId, data, graderId) {
   return grades;
 }
 
-module.exports = { getGradesForAssignment, getGradesForUser, upsertGrade, gradeSquad };
+async function getScoreboard(courseId) {
+  const { sequelize } = require('../config/database');
+  const [rows] = await sequelize.query(
+    `SELECT u.id AS "userId", u.first_name AS "firstName", u.last_name AS "lastName",
+            COALESCE(SUM(g.score), 0)     AS "totalScore",
+            COALESCE(SUM(g.max_score), 0) AS "maxScore",
+            COUNT(g.id)                   AS "graded"
+     FROM enrollments e
+     JOIN users u ON u.id = e.user_id
+     LEFT JOIN grades g ON g.user_id = e.user_id
+       AND g.assignment_id IN (SELECT id FROM assignments WHERE course_id = :courseId)
+     WHERE e.course_id = :courseId AND u.role = 'student'
+     GROUP BY u.id, u.first_name, u.last_name
+     ORDER BY "totalScore" DESC`,
+    { replacements: { courseId } }
+  );
+  return rows.map((r) => ({
+    userId:     r.userId,
+    firstName:  r.firstName,
+    lastName:   r.lastName,
+    totalScore: Math.round(parseFloat(r.totalScore)),
+    maxScore:   Math.round(parseFloat(r.maxScore)),
+    graded:     parseInt(r.graded, 10),
+  }));
+}
+
+module.exports = { getGradesForAssignment, getGradesForUser, upsertGrade, gradeSquad, getScoreboard };

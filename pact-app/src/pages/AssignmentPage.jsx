@@ -109,10 +109,6 @@ export default function AssignmentPage() {
 
   return (
     <div className="assignment-page">
-      <header className="pact-header">
-        <span className="header-pact">PACT</span>
-      </header>
-
       <div className="assignment-body">
         <Link to="/" className="back-link">← Back to Dashboard</Link>
 

@@ -25,3 +25,30 @@ export const submitAssignment = (assignmentId, content) =>
 
 export const updateProgress = (assignmentId, progress) =>
   client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/progress`, { progress }).then((r) => r.data);
+
+/* ── Grades ── */
+export const getMyGrades = () =>
+  client.get(`/courses/${COURSE_ID}/grades/me`).then((r) => r.data);
+
+/* ── Scoreboard ── */
+export const getScoreboard = () =>
+  client.get(`/courses/${COURSE_ID}/scoreboard`).then((r) => r.data);
+
+/* ── Admin / instructor ── */
+export const getAdminAssignments = () =>
+  client.get(`/courses/${COURSE_ID}/assignments`).then((r) => {
+    const raw = r.data;
+    return Array.isArray(raw) ? raw : (raw.data ?? []);
+  });
+
+export const getSubmissions = (assignmentId) =>
+  client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/submissions`).then((r) => r.data);
+
+export const getGradesForAssignment = (assignmentId) =>
+  client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/grades`).then((r) => r.data);
+
+export const submitGrade = (assignmentId, userId, data) =>
+  client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/grades/${userId}`, data).then((r) => r.data);
+
+export const submitSquadGrade = (assignmentId, squadId, data) =>
+  client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/grades/squad/${squadId}`, data).then((r) => r.data);

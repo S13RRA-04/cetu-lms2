@@ -44,6 +44,10 @@ router.post('/:id/modules/:mid/content',      requireAuth, requireInstructor, au
 router.put('/:id/modules/:mid/content/:cid',  requireAuth, requireInstructor, auditLog('update', 'content_item'), contentCtrl.update);
 router.delete('/:id/modules/:mid/content/:cid', requireAuth, requireInstructor, auditLog('delete', 'content_item'), contentCtrl.remove);
 
+// Student grade summary + scoreboard
+router.get('/:id/grades/me',    requireAuth, assignCtrl.getMyGrades);
+router.get('/:id/scoreboard',   requireAuth, assignCtrl.getScoreboard);
+
 // Assignments (nested under course)
 router.get('/:id/assignments',              requireAuth,                    assignCtrl.listByCourse);
 router.post('/:id/assignments',             requireAuth, requireInstructor, validate(createAssignmentSchema), auditLog('create', 'assignment'), assignCtrl.create);
