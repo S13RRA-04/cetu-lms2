@@ -53,12 +53,14 @@ export default function Globe({ className = '', primaryColor = '#00b0ff' }) {
   const mountRef   = useRef(null);
   const colorRef   = useRef(hexToRgb(primaryColor));
   const arcMatsRef = useRef([]);
+  const dotMatRef  = useRef(null);
 
-  /* update color ref + Three.js arc materials whenever the squad changes */
+  /* update color ref + Three.js materials whenever the squad changes */
   useEffect(() => {
     colorRef.current = hexToRgb(primaryColor);
     const tc = new THREE.Color(primaryColor);
     for (const mat of arcMatsRef.current) mat.color.copy(tc);
+    if (dotMatRef.current) dotMatRef.current.color.copy(tc);
   }, [primaryColor]);
 
   useEffect(() => {
@@ -93,9 +95,10 @@ export default function Globe({ className = '', primaryColor = '#00b0ff' }) {
         }
         const dotGeo = new THREE.BufferGeometry();
         dotGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-        globeGroup.add(new THREE.Points(dotGeo, new THREE.PointsMaterial({
-          color: 0x8392ab, size: 1.8, sizeAttenuation: true, transparent: true, opacity: 0.88,
-        })));
+        dotMatRef.current = new THREE.PointsMaterial({
+          color: new THREE.Color(primaryColor), size: 1.8, sizeAttenuation: true, transparent: true, opacity: 0.88,
+        });
+        globeGroup.add(new THREE.Points(dotGeo, dotMatRef.current));
 
         /* ══ 2. CIRCUIT ARCS (static, no traveling dots) ════════════════════ */
         arcMatsRef.current = [];
@@ -241,10 +244,10 @@ export default function Globe({ className = '', primaryColor = '#00b0ff' }) {
               }
 
               if (!drawn) {
-                /* ambient wave glow */
+                /* ambient wave glow — dim squad color */
                 const ambientA = cInfl[c] * 0.10;
                 if (ambientA > 0.008) {
-                  bCtx.fillStyle = `rgba(148,163,184,${ambientA.toFixed(3)})`;
+                  bCtx.fillStyle = `rgba(${cr},${cg},${cb},${ambientA.toFixed(3)})`;
                   bCtx.fillText(st.chars[c], c * CHAR_W, r * CHAR_H);
                 }
               }
