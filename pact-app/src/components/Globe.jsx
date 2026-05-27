@@ -116,7 +116,7 @@ export default function Globe({ className = '', primaryColor = '#00b0ff' }) {
               varying vec3 vViewDir;
               void main() {
                 float rim   = 1.0 - abs(dot(vNormal, vViewDir));
-                float alpha = pow(rim, 2.8) * 0.75;
+                float alpha = pow(rim, 4.5) * 0.60;
                 gl_FragColor = vec4(uColor, alpha);
               }`,
             transparent: true,
@@ -125,7 +125,7 @@ export default function Globe({ className = '', primaryColor = '#00b0ff' }) {
             side: THREE.FrontSide,
           });
           globeGroup.add(new THREE.Mesh(
-            new THREE.SphereGeometry(GLOBE_R * 1.05, 64, 32),
+            new THREE.SphereGeometry(GLOBE_R * 1.08, 64, 32),
             glowMatRef.current,
           ));
         }
@@ -139,7 +139,7 @@ export default function Globe({ className = '', primaryColor = '#00b0ff' }) {
         const dotGeo = new THREE.BufferGeometry();
         dotGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
         dotMatRef.current = new THREE.PointsMaterial({
-          color: liveColor(), size: 1.8, sizeAttenuation: true, transparent: true, opacity: 0.88,
+          color: liveColor(), size: 1.8, sizeAttenuation: true, transparent: true, opacity: 0.45,
         });
         globeGroup.add(new THREE.Points(dotGeo, dotMatRef.current));
 
