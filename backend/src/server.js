@@ -99,15 +99,18 @@ if (process.env.NODE_ENV === 'production') {
 
   const isPact = (req) => req.hostname === 'pact.cetu.online';
 
-  // Static assets — check pact first, then fall through to lms
+  const serveLms  = express.static(lmsDir);
+  const servePact = express.static(pactDir);
+
   app.use((req, res, next) => {
-    if (isPact(req)) return express.static(pactDir)(req, res, next);
-    return express.static(lmsDir)(req, res, next);
+    if (isPact(req)) return servePact(req, res, next);
+    return serveLms(req, res, next);
   });
 
-  // SPA fallback
+  // SPA fallback — skip if it looks like a missing static asset
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/lti')) return next();
+    if (path.extname(req.path)) return next();
     if (isPact(req)) return res.sendFile(path.join(pactDir, 'index.html'));
     return res.sendFile(path.join(lmsDir, 'index.html'));
   });
