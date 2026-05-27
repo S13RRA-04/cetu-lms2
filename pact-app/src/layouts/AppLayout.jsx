@@ -34,7 +34,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
 
   // Group assignments by type
   const groups = TYPE_ORDER.reduce((acc, type) => {
-    const items = assignments.filter((a) => a.type === type);
+    const items = assignments.filter((a) => a.type === type && a.is_unlocked !== false);
     if (items.length) acc.push({ type, items });
     return acc;
   }, []);
@@ -90,31 +90,22 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
               </button>
               {!collapsed[type] && (
                 <div className="sidebar-group-items">
-                  {items.map((a) => {
-                    const locked = a.is_unlocked === false;
-                    return (
-                      <NavLink
-                        key={a.id}
-                        to={`/assignment/${a.id}`}
-                        className={({ isActive }) =>
-                          `sidebar-assignment${isActive ? ' active' : ''}${locked ? ' locked' : ''}`
-                        }
-                        onClick={() => setSidebarOpen(false)}
-                      >
-                        <span className="sidebar-a-title">{a.title}</span>
-                        {locked && <span className="sidebar-a-lock">🔒</span>}
-                        {!locked && (a.progress ?? 0) > 0 && (
-                          <span
-                            className="sidebar-a-progress"
-                            style={{
-                              width: `${a.progress}%`,
-                              background: TYPE_COLOR[a.type],
-                            }}
-                          />
-                        )}
-                      </NavLink>
-                    );
-                  })}
+                  {items.map((a) => (
+                    <NavLink
+                      key={a.id}
+                      to={`/assignment/${a.id}`}
+                      className={({ isActive }) => `sidebar-assignment${isActive ? ' active' : ''}`}
+                      onClick={() => setSidebarOpen(false)}
+                    >
+                      <span className="sidebar-a-title">{a.title}</span>
+                      {(a.progress ?? 0) > 0 && (
+                        <span
+                          className="sidebar-a-progress"
+                          style={{ width: `${a.progress}%`, background: TYPE_COLOR[a.type] }}
+                        />
+                      )}
+                    </NavLink>
+                  ))}
                 </div>
               )}
             </div>
