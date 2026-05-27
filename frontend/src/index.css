@@ -390,6 +390,18 @@ tbody tr:hover { background: #f8fafc; }
 .login-logo h1 { font-size: 22px; font-weight: 800; color: var(--primary); }
 .login-logo p  { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
 
+.cold-start-notice {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  background: var(--bg-alt, #f8fafc);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 9px 12px;
+  margin-bottom: 18px;
+  text-align: center;
+}
+
 /* ── Search / toolbar ──────────────────────────────────────────────────────── */
 .toolbar {
   display: flex;

@@ -35,6 +35,11 @@ export default function LoginPage() {
           <span className="logo-sub">Practical Applications to Cyber Threats</span>
         </div>
 
+        <div className="cold-start-notice">
+          This service suspends after inactivity. The first login following an
+          idle period may take up to 60 seconds while the server restarts.
+        </div>
+
         {error && <div className="alert-box alert-error">{error}</div>}
 
         <form onSubmit={handleSubmit}>
