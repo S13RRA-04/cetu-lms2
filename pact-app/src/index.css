@@ -840,6 +840,7 @@ body {
   height: 110vh;
   pointer-events: none;
   z-index: 0;
+  opacity: 0.35;
 }
 
 .globe-bg-canvas {
@@ -1680,7 +1681,7 @@ body {
   .pact-main, .assignment-body { padding: 20px 16px; }
   .login-card { width: calc(100% - 32px); padding: 36px 28px; }
   .pact-header { padding: 0 16px; }
-  .globe-bg { right: -40%; width: 130vw; opacity: 0.6; }
+  .globe-bg { right: -40%; width: 130vw; opacity: 0.25; }
   .stats-banner { gap: 8px; }
   .stat-glass { padding: 14px 18px; }
   .stat-glass-value { font-size: 28px; }
