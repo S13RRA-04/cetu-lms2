@@ -4,12 +4,12 @@ import { getMyEnrollment, getAssignments, logout } from '../api/pact.js';
 import useAuthStore from '../store/authStore.js';
 
 const TYPE_COLOR = {
-  module:     '#00d4ff',
-  game:       '#00e676',
-  assessment: '#ffab00',
-  survey:     '#a78bfa',
-  challenge:  '#ff7043',
-  capstone:   '#ffd740',
+  module:     '#2563eb',
+  game:       '#059669',
+  assessment: '#d97706',
+  survey:     '#7c3aed',
+  challenge:  '#dc2626',
+  capstone:   '#b45309',
 };
 
 export default function DashboardPage() {
