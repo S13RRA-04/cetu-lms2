@@ -51,16 +51,18 @@ function hexToRgb(hex) {
 
 export default function Globe({ className = '', primaryColor = '#00b0ff' }) {
   const mountRef   = useRef(null);
-  const colorRef   = useRef(hexToRgb(primaryColor));
-  const arcMatsRef = useRef([]);
-  const dotMatRef  = useRef(null);
+  const colorRef    = useRef(hexToRgb(primaryColor));
+  const arcMatsRef  = useRef([]);
+  const dotMatRef   = useRef(null);
+  const glowMatRef  = useRef(null);
 
   /* update color ref + Three.js materials whenever the squad changes */
   useEffect(() => {
     colorRef.current = hexToRgb(primaryColor);
     const tc = new THREE.Color(primaryColor);
     for (const mat of arcMatsRef.current) mat.color.copy(tc);
-    if (dotMatRef.current) dotMatRef.current.color.copy(tc);
+    if (dotMatRef.current)  dotMatRef.current.color.copy(tc);
+    if (glowMatRef.current) glowMatRef.current.color.copy(tc);
   }, [primaryColor]);
 
   useEffect(() => {
@@ -87,6 +89,27 @@ export default function Globe({ className = '', primaryColor = '#00b0ff' }) {
         const globeGroup = new THREE.Group();
         scene.add(globeGroup);
 
+        /* Use colorRef so the correct squad color applies even if enrollment
+           loaded before this fetch callback fires (avoids stale-closure race). */
+        const liveColor = () => {
+          const { r, g, b } = colorRef.current;
+          return new THREE.Color(r / 255, g / 255, b / 255);
+        };
+
+        /* ══ 0. ATMOSPHERE GLOW ══════════════════════════════════════════════ */
+        glowMatRef.current = new THREE.MeshBasicMaterial({
+          color: liveColor(),
+          transparent: true,
+          opacity: 0.22,
+          side: THREE.BackSide,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        });
+        globeGroup.add(new THREE.Mesh(
+          new THREE.SphereGeometry(GLOBE_R * 1.18, 32, 16),
+          glowMatRef.current,
+        ));
+
         /* ══ 1. CONTINENTAL DOTS ══════════════════════════════════════════════ */
         const pos = [];
         for (const pt of points) {
@@ -96,7 +119,7 @@ export default function Globe({ className = '', primaryColor = '#00b0ff' }) {
         const dotGeo = new THREE.BufferGeometry();
         dotGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
         dotMatRef.current = new THREE.PointsMaterial({
-          color: new THREE.Color(primaryColor), size: 1.8, sizeAttenuation: true, transparent: true, opacity: 0.88,
+          color: liveColor(), size: 1.8, sizeAttenuation: true, transparent: true, opacity: 0.88,
         });
         globeGroup.add(new THREE.Points(dotGeo, dotMatRef.current));
 
@@ -105,7 +128,7 @@ export default function Globe({ className = '', primaryColor = '#00b0ff' }) {
         for (let i = 0; i < 10; i++) {
           const a = rndSurface(), b = rndSurface();
           const arcPts = makeArc(a, b, 6 + Math.random() * 10);
-          const mat = new THREE.LineBasicMaterial({ color: new THREE.Color(primaryColor), transparent: true, opacity: 0.12 });
+          const mat = new THREE.LineBasicMaterial({ color: liveColor(), transparent: true, opacity: 0.12 });
           arcMatsRef.current.push(mat);
           globeGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(arcPts), mat));
         }
