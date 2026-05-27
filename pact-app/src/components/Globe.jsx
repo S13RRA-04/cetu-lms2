@@ -44,8 +44,22 @@ function makeArc(a, b, lift = 10, segs = 60) {
   return pts;
 }
 
-export default function Globe({ className = '' }) {
-  const mountRef = useRef(null);
+function hexToRgb(hex) {
+  const h = hex.replace('#', '');
+  return { r: parseInt(h.slice(0,2),16), g: parseInt(h.slice(2,4),16), b: parseInt(h.slice(4,6),16) };
+}
+
+export default function Globe({ className = '', primaryColor = '#00b0ff' }) {
+  const mountRef   = useRef(null);
+  const colorRef   = useRef(hexToRgb(primaryColor));
+  const arcMatsRef = useRef([]);
+
+  /* update color ref + Three.js arc materials whenever the squad changes */
+  useEffect(() => {
+    colorRef.current = hexToRgb(primaryColor);
+    const tc = new THREE.Color(primaryColor);
+    for (const mat of arcMatsRef.current) mat.color.copy(tc);
+  }, [primaryColor]);
 
   useEffect(() => {
     const el = mountRef.current;
@@ -84,13 +98,13 @@ export default function Globe({ className = '' }) {
         })));
 
         /* ══ 2. CIRCUIT ARCS (static, no traveling dots) ════════════════════ */
+        arcMatsRef.current = [];
         for (let i = 0; i < 10; i++) {
           const a = rndSurface(), b = rndSurface();
           const arcPts = makeArc(a, b, 6 + Math.random() * 10);
-          globeGroup.add(new THREE.Line(
-            new THREE.BufferGeometry().setFromPoints(arcPts),
-            new THREE.LineBasicMaterial({ color: 0x2563eb, transparent: true, opacity: 0.12 }),
-          ));
+          const mat = new THREE.LineBasicMaterial({ color: new THREE.Color(primaryColor), transparent: true, opacity: 0.12 });
+          arcMatsRef.current.push(mat);
+          globeGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(arcPts), mat));
         }
 
         /* ══ 3. HORIZONTAL BINARY WAVE ═══════════════════════════════════════
@@ -169,6 +183,7 @@ export default function Globe({ className = '' }) {
 
           /* ── draw ── */
           bCtx.clearRect(0, 0, BIN_W, BIN_H);
+          const { r: cr, g: cg, b: cb } = colorRef.current;
 
           for (let r = 0; r < ROWS; r++) {
             const st = rowState[r];
@@ -205,18 +220,20 @@ export default function Globe({ className = '' }) {
                 if (behind < 0 || behind >= S_TRAIL) continue;
 
                 if (behind < 1.5) {
-                  /* head — bright white-blue, randomly changing char */
-                  const a  = 1.0 - behind * 0.4;
-                  const rC = Math.round(200 + a * 55);
-                  const gC = Math.round(220 + a * 35);
-                  bCtx.fillStyle = `rgba(${rC},${gC},255,${a.toFixed(3)})`;
+                  /* head — brightened toward white with a tint of the squad color */
+                  const a   = 1.0 - behind * 0.4;
+                  const mix = 0.55 + a * 0.3;
+                  const hR  = Math.min(255, Math.round(cr + (255 - cr) * mix));
+                  const hG  = Math.min(255, Math.round(cg + (255 - cg) * mix));
+                  const hB  = Math.min(255, Math.round(cb + (255 - cb) * mix));
+                  bCtx.fillStyle = `rgba(${hR},${hG},${hB},${a.toFixed(3)})`;
                   bCtx.fillText(s.headChar, c * CHAR_W, r * CHAR_H);
                 } else {
-                  /* trail — each slot inherits the char the head showed there */
+                  /* trail — squad primary color with fade */
                   const trailIdx = Math.floor(behind) - 1;
                   const ch = s.charHistory[trailIdx] ?? s.headChar;
                   const a  = Math.pow(1 - behind / S_TRAIL, 1.8) * 0.95;
-                  bCtx.fillStyle = `rgba(96,165,250,${a.toFixed(3)})`;
+                  bCtx.fillStyle = `rgba(${cr},${cg},${cb},${a.toFixed(3)})`;
                   bCtx.fillText(ch, c * CHAR_W, r * CHAR_H);
                 }
                 drawn = true;

@@ -71,7 +71,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
       {/* Globe background — behind everything */}
       <div className="globe-bg" aria-hidden="true">
         <Suspense fallback={null}>
-          <Globe className="globe-bg-canvas" />
+          <Globe className="globe-bg-canvas" primaryColor={SQUAD_THEME[squadNum]?.primary ?? '#00b0ff'} />
         </Suspense>
       </div>
 
