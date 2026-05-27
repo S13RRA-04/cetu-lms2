@@ -8,13 +8,13 @@ const FLAT_H     = 1968 / 2;
 const POINTS_URL = 'https://raw.githubusercontent.com/creativetimofficial/public-assets/master/soft-ui-dashboard-pro/assets/js/points.json';
 
 /* binary canvas — larger canvas = smaller apparent chars on globe */
-const BIN_W   = 768;
-const BIN_H   = 384;
-const CHAR_W  = 5;
-const CHAR_H  = 6;
-const COLS    = Math.floor(BIN_W  / CHAR_W);   // 153
-const ROWS    = Math.floor(BIN_H  / CHAR_H);   // 64
-const S_TRAIL = 12;                             // columns of fade behind each spark
+const BIN_W   = 1280;
+const BIN_H   = 640;
+const CHAR_W  = 4;
+const CHAR_H  = 5;
+const COLS    = Math.floor(BIN_W  / CHAR_W);   // 320
+const ROWS    = Math.floor(BIN_H  / CHAR_H);   // 128
+const S_TRAIL = 18;                             // columns of fade behind each spark
 
 /* geographic projection */
 function flatToSphere(px, py) {
@@ -83,26 +83,14 @@ export default function Globe({ className = '' }) {
           color: 0x8392ab, size: 1.8, sizeAttenuation: true, transparent: true, opacity: 0.88,
         })));
 
-        /* ══ 2. CIRCUIT ARCS + SPARKS ════════════════════════════════════════ */
-        const circuits = [];
+        /* ══ 2. CIRCUIT ARCS (static, no traveling dots) ════════════════════ */
         for (let i = 0; i < 10; i++) {
           const a = rndSurface(), b = rndSurface();
           const arcPts = makeArc(a, b, 6 + Math.random() * 10);
           globeGroup.add(new THREE.Line(
             new THREE.BufferGeometry().setFromPoints(arcPts),
-            new THREE.LineBasicMaterial({ color: 0x2563eb, transparent: true, opacity: 0.14 }),
+            new THREE.LineBasicMaterial({ color: 0x2563eb, transparent: true, opacity: 0.12 }),
           ));
-          const spark = new THREE.Mesh(
-            new THREE.SphereGeometry(1.8, 6, 6),
-            new THREE.MeshBasicMaterial({ color: 0x67b2ff, transparent: true, opacity: 0 }),
-          );
-          const halo = new THREE.Mesh(
-            new THREE.SphereGeometry(3.5, 6, 6),
-            new THREE.MeshBasicMaterial({ color: 0x2563eb, transparent: true, opacity: 0 }),
-          );
-          globeGroup.add(spark);
-          globeGroup.add(halo);
-          circuits.push({ pts: arcPts, spark, halo, t: Math.random(), speed: 0.004 + Math.random() * 0.005 });
         }
 
         /* ══ 3. HORIZONTAL BINARY WAVE ═══════════════════════════════════════
@@ -114,7 +102,7 @@ export default function Globe({ className = '' }) {
         const bCanvas = document.createElement('canvas');
         bCanvas.width = BIN_W; bCanvas.height = BIN_H;
         const bCtx = bCanvas.getContext('2d');
-        bCtx.font = `${CHAR_H - 1}px 'Courier New', monospace`;
+        bCtx.font = `3px 'Courier New', monospace`;
         bCtx.textBaseline = 'top';
         const bTex = new THREE.CanvasTexture(bCanvas);
 
@@ -128,9 +116,9 @@ export default function Globe({ className = '' }) {
 
         /* wave fronts: U position 0..1 sweeping left-to-right */
         const waves = [
-          { u: 0.05,  speed: 0.00050, hw: 0.08 },
-          { u: 0.40,  speed: 0.00030, hw: 0.11 },
-          { u: 0.72,  speed: 0.00075, hw: 0.06 },
+          { u: 0.05,  speed: 0.00018, hw: 0.08 },
+          { u: 0.40,  speed: 0.00011, hw: 0.11 },
+          { u: 0.72,  speed: 0.00026, hw: 0.06 },
         ];
 
         /* per-row spark state (horizontal sparks, not vertical drops) */
@@ -160,19 +148,19 @@ export default function Globe({ className = '' }) {
           }
 
           /* spawn horizontal sparks where wave is strong */
-          for (let c = 0; c < COLS; c += 2) {
+          for (let c = 0; c < COLS; c += 3) {
             if (cInfl[c] < 0.35) continue;
-            const spawnP = cInfl[c] * dt * 12;
+            const spawnP = cInfl[c] * dt * 5;
             for (let r = 0; r < ROWS; r++) {
               if (Math.random() > spawnP) continue;
               const st = rowState[r];
-              if (st.sparks.length >= 6) continue;
+              if (st.sparks.length >= 4) continue;
               /* sparks fly both directions from the wave front */
               const dir = Math.random() < 0.55 ? 1 : -1;
               st.sparks.push({
                 x:     c,
                 dir,
-                speed: 25 + Math.random() * 40,
+                speed: 7 + Math.random() * 9,
               });
             }
           }
@@ -286,17 +274,6 @@ export default function Globe({ className = '' }) {
             velY *= 0.94;
             globeGroup.rotation.x = Math.max(-1.2, Math.min(1.2, globeGroup.rotation.x + velY));
           }
-
-          /* circuit sparks */
-          circuits.forEach((c) => {
-            c.t = (c.t + c.speed) % 1;
-            const idx   = Math.floor(c.t * (c.pts.length - 1));
-            const pulse = Math.sin(c.t * Math.PI);
-            c.spark.position.copy(c.pts[idx]);
-            c.halo.position.copy(c.pts[idx]);
-            c.spark.material.opacity = pulse * 0.95;
-            c.halo.material.opacity  = pulse * 0.25;
-          });
 
           drawBinary(dt);
           renderer.render(scene, camera);
