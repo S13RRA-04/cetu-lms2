@@ -109,8 +109,8 @@ export default function Globe({ className = '', primaryColor = '#00b0ff' }) {
             gCtx.clearRect(0, 0, GS, GS);
             const grad = gCtx.createRadialGradient(GS/2, GS/2, GS * 0.36, GS/2, GS/2, GS/2);
             grad.addColorStop(0,    `rgba(${r},${g},${b},0)`);
-            grad.addColorStop(0.45, `rgba(${r},${g},${b},0.28)`);
-            grad.addColorStop(0.70, `rgba(${r},${g},${b},0.12)`);
+            grad.addColorStop(0.45, `rgba(${r},${g},${b},0.10)`);
+            grad.addColorStop(0.70, `rgba(${r},${g},${b},0.04)`);
             grad.addColorStop(1,    `rgba(${r},${g},${b},0)`);
             gCtx.fillStyle = grad;
             gCtx.fillRect(0, 0, GS, GS);
