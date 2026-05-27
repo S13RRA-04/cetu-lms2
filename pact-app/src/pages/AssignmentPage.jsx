@@ -103,10 +103,11 @@ export default function AssignmentPage() {
     );
   }
 
-  const color    = TYPE_COLOR[assignment.type] ?? TYPE_COLOR.module;
-  const isSquad  = assignment.grading_mode === 'squad';
-  const isLocked = assignment.is_unlocked === false;
-  const hasQuiz  = !isLocked && Array.isArray(assignment.questions) && assignment.questions.length > 0;
+  const color     = TYPE_COLOR[assignment.type] ?? TYPE_COLOR.module;
+  const isSquad   = assignment.grading_mode === 'squad';
+  const isLocked  = assignment.is_unlocked === false;
+  const isSurvey  = assignment.type === 'survey';
+  const hasQuiz   = !isLocked && !isSurvey && Array.isArray(assignment.questions) && assignment.questions.length > 0;
 
   return (
     <div className="assignment-page">
@@ -139,6 +140,26 @@ export default function AssignmentPage() {
           <div className="locked-msg" style={{ padding: '32px 0', fontSize: 14, color: 'var(--muted)' }}>
             🔒 This assignment has not been unlocked for your cohort yet. Check back later or contact your instructor.
           </div>
+        ) : /* ── Survey flow ── */
+        isSurvey ? (
+          submitted ? (
+            <div className="success-banner" style={{ marginTop: 24 }}>
+              ✓ Survey submitted — thank you for your feedback.
+              <br />
+              <Link to="/" className="btn-submit" style={{ display: 'inline-block', marginTop: 16, textDecoration: 'none', textAlign: 'center', background: color }}>
+                ← Back to Dashboard
+              </Link>
+            </div>
+          ) : (
+            <>
+              {error && <div className="err-msg" style={{ marginBottom: 16 }}>{error}</div>}
+              <SurveyFlow
+                questions={assignment.questions}
+                color={color}
+                onComplete={handleQuizComplete}
+              />
+            </>
+          )
         ) : /* ── Quiz flow for module-type assignments with questions ── */
         hasQuiz ? (
           submitted ? (
@@ -224,6 +245,90 @@ export default function AssignmentPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function SurveyFlow({ questions, color, onComplete }) {
+  const [answers, setAnswers] = useState({});
+  const [saving,  setSaving]  = useState(false);
+
+  const sections = [...new Set(questions.map((q) => q.section).filter(Boolean))];
+
+  const set = (id, val) => setAnswers((prev) => ({ ...prev, [id]: val }));
+
+  const requiredIds  = questions.filter((q) => q.type !== 'text').map((q) => q.id);
+  const allAnswered  = requiredIds.every((id) => answers[id] !== undefined && answers[id] !== '');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    await onComplete({ surveyResponses: answers, totalScore: 0, maxScore: 0 });
+  };
+
+  const renderQuestion = (q, idx) => (
+    <div key={q.id} className="survey-question">
+      <div className="survey-q-num">Q{idx + 1}</div>
+      <div className="survey-q-prompt">{q.prompt}</div>
+
+      {q.type === 'text' ? (
+        <textarea
+          className="survey-text-input"
+          value={answers[q.id] ?? ''}
+          onChange={(e) => set(q.id, e.target.value)}
+          placeholder="Optional — leave blank to skip"
+          rows={3}
+        />
+      ) : (
+        <div className="survey-options">
+          {(q.options ?? []).map((opt) => {
+            const chosen = answers[q.id] === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                className={`survey-option${chosen ? ' survey-option-selected' : ''}`}
+                style={chosen ? { borderColor: color, background: `${color}18`, color } : {}}
+                onClick={() => set(q.id, opt.value)}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <form className="survey-form" onSubmit={handleSubmit}>
+      {sections.length > 0
+        ? sections.map((section) => (
+            <div key={section} className="survey-section">
+              <div className="survey-section-label">{section}</div>
+              {questions
+                .filter((q) => q.section === section)
+                .map((q, i) => renderQuestion(q, questions.indexOf(q)))}
+            </div>
+          ))
+        : questions.map((q, i) => renderQuestion(q, i))
+      }
+
+      <div className="survey-footer">
+        <button
+          type="submit"
+          className="btn-submit"
+          style={{ background: color }}
+          disabled={saving || !allAnswered}
+        >
+          {saving ? 'Submitting…' : 'Submit Survey'}
+        </button>
+        {!allAnswered && (
+          <span className="survey-required-note">
+            Please answer all required questions before submitting.
+          </span>
+        )}
+      </div>
+    </form>
   );
 }
 
