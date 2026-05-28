@@ -280,22 +280,18 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
   const qs  = q ? qStates[q.id] : null;
   const raw = q ? answers[q.id] : null;
 
-  /* Safety: qIdx briefly out of range during batched double-click */
-  if (!q || !qs) return null;
-
   const isLast   = qIdx === questions.length - 1;
   const answered = questions.filter((qi) => qStates[qi.id]?.revealed || qStates[qi.id]?.forced).length;
-
-  const locked = qs.revealed || qs.forced;
+  const locked   = qs?.revealed || qs?.forced;
 
   /* ── answer helpers ── */
   const updateAnswer = useCallback((val) => {
-    setAnswers((a) => ({ ...a, [q.id]: val }));
-  }, [q.id]);
+    setAnswers((a) => ({ ...a, [q?.id]: val }));
+  }, [q?.id]);
 
   const toggleOption = useCallback((optId) => {
-    const current = answers[q.id] ?? [];
-    if (q.payload.selectionMode === 'single') {
+    const current = answers[q?.id] ?? [];
+    if (q?.payload.selectionMode === 'single') {
       updateAnswer([optId]);
     } else {
       updateAnswer(current.includes(optId)
@@ -305,7 +301,8 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
   }, [answers, q, updateAnswer]);
 
   const hasAnswer = useCallback(() => {
-    const p = q.payload;
+    const p = q?.payload;
+    if (!p) return false;
     if (p.kind === 'multiple_choice') return (raw ?? []).length > 0;
     if (p.kind === 'true_false')      return raw !== undefined;
     if (p.kind === 'drag_match')      return Object.keys(raw ?? {}).length === p.sources.length;
@@ -316,7 +313,8 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
   /* ── hint ── */
   const handleHint = useCallback(() => {
     setQStates((s) => {
-      const cur = s[q.id];
+      const cur = s[q?.id];
+      if (!cur) return s;
       const newAvail = Math.max(0, cur.available - 1);
       return {
         ...s,
@@ -329,10 +327,11 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
         },
       };
     });
-  }, [q.id]);
+  }, [q?.id]);
 
   /* ── submit answer ── */
   const handleSubmit = useCallback(() => {
+    if (!q || !qs) return;
     const correct = isAnswerCorrect(q, raw);
 
     if (correct) {
@@ -375,7 +374,6 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
 
   /* ── advance to next / complete ── */
   const handleNext = useCallback(() => {
-    /* Guard against double-clicks batching two increments past the end */
     if (qIdx >= questions.length - 1) {
       const total    = questions.reduce((s, qi) => {
         const st = qStates[qi.id];
@@ -396,9 +394,12 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
         maxScore:   maxTotal,
       });
     } else {
-      setQIdx((i) => i + 1);
+      setQIdx((i) => Math.min(i + 1, questions.length - 1));
     }
   }, [qIdx, questions, qStates, answers, onComplete]);
+
+  /* All hooks must be called before any conditional return */
+  if (!q || !qs) return null;
 
   const totalEarned = questions.slice(0, qIdx).reduce((s, qi) => {
     const st = qStates[qi.id];

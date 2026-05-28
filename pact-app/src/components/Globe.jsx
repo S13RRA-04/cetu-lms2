@@ -16,14 +16,15 @@ const COLS    = Math.floor(BIN_W  / CHAR_W);   // 182
 const ROWS    = Math.floor(BIN_H  / CHAR_H);   // 71
 const S_TRAIL = 18;                             // columns of fade behind each spark
 const HOVER_THRESHOLD = 3.4;
-const JET_COUNT = 7;
+const JET_COUNT = 12;
 const JET_PATH_SEGS = 96;
 const JET_TRAIL_SEGS = 42;
 const CIRCUIT_BENDS = 9;
 const CIRCUIT_STUB_SEGS = 4;
+const CIRCUIT_TRACE_PIECES = 96;
 const TRACE_DASH_SEGMENTS = 4;
-const TRACE_RADIUS = 0.78;
-const STUB_RADIUS = 0.48;
+const TRACE_RADIUS = 1.15;
+const STUB_RADIUS = 0.72;
 
 /* geographic projection */
 function flatToSphere(px, py) {
@@ -53,89 +54,95 @@ function makeArc(a, b, lift = 10, segs = 60) {
   return pts;
 }
 
+function circuitPoint(lon, lat, radius = GLOBE_R + 5.5) {
+  return new THREE.Vector3(
+    Math.cos(lat) * Math.cos(lon) * radius,
+    Math.sin(lat) * radius,
+    Math.cos(lat) * Math.sin(lon) * radius,
+  );
+}
+
 function makeCircuitPath(segs = JET_PATH_SEGS) {
-  const base = rndSurface().normalize();
-  let axisA = rndSurface(1).cross(base).normalize();
-  if (axisA.lengthSq() < 0.01) axisA = new THREE.Vector3(1, 0, 0).cross(base).normalize();
-  const axisB = base.clone().cross(axisA).normalize();
-  const anchors = [];
-  const current = { a: 0, b: 0 };
-  const primaryAxis = Math.random() < 0.5 ? 'a' : 'b';
+  const coords = [];
+  const current = {
+    lon: Math.random() * Math.PI * 2 - Math.PI,
+    lat: (Math.random() * 0.78 - 0.39),
+  };
+  const primaryAxis = Math.random() < 0.5 ? 'lon' : 'lat';
   const primarySign = Math.random() < 0.5 ? -1 : 1;
   const secondarySign = Math.random() < 0.5 ? -1 : 1;
-  const primaryStep = 0.046 + Math.random() * 0.028;
-  const secondaryStep = 0.027 + Math.random() * 0.019;
+  const primaryStep = 0.15 + Math.random() * 0.08;
+  const secondaryStep = 0.07 + Math.random() * 0.045;
   const jogEvery = 3 + Math.floor(Math.random() * 2);
 
-  const pushAnchor = () => {
-    const lift = 4.5 + Math.random() * 2.5;
-    anchors.push(
-      base.clone()
-        .add(axisA.clone().multiplyScalar(current.a * GLOBE_R))
-        .add(axisB.clone().multiplyScalar(current.b * GLOBE_R))
-        .normalize()
-        .multiplyScalar(GLOBE_R + lift),
-    );
-  };
+  const pushCoord = () => coords.push({ lon: current.lon, lat: current.lat });
 
-  pushAnchor();
+  pushCoord();
 
   for (let i = 1; i <= CIRCUIT_BENDS; i++) {
     const isJog = i % jogEvery === 0;
-    const axis = isJog ? (primaryAxis === 'a' ? 'b' : 'a') : primaryAxis;
+    const axis = isJog ? (primaryAxis === 'lon' ? 'lat' : 'lon') : primaryAxis;
     const sign = isJog ? secondarySign : primarySign;
     const step = (isJog ? secondaryStep : primaryStep) * (0.78 + Math.random() * 0.36);
     current[axis] += sign * step;
 
-    if (i > 2 && !isJog && Math.random() < 0.18) {
-      current[axis === 'a' ? 'b' : 'a'] += secondarySign * secondaryStep * 0.45;
+    if (current.lat > 0.78) current.lat = 0.78;
+    if (current.lat < -0.78) current.lat = -0.78;
+    if (current.lon > Math.PI) current.lon -= Math.PI * 2;
+    if (current.lon < -Math.PI) current.lon += Math.PI * 2;
+
+    if (i > 2 && !isJog && Math.random() < 0.12) {
+      const jogAxis = axis === 'lon' ? 'lat' : 'lon';
+      current[jogAxis] += secondarySign * secondaryStep * 0.35;
+      if (current.lat > 0.78) current.lat = 0.78;
+      if (current.lat < -0.78) current.lat = -0.78;
     }
 
-    pushAnchor();
+    pushCoord();
   }
 
   const pts = [];
-  const perLeg = Math.max(3, Math.floor(segs / (anchors.length - 1)));
-  for (let i = 0; i < anchors.length - 1; i++) {
-    const from = anchors[i];
-    const to = anchors[i + 1];
+  const perLeg = Math.max(4, Math.floor(segs / (coords.length - 1)));
+  for (let i = 0; i < coords.length - 1; i++) {
+    const from = coords[i];
+    const to = coords[i + 1];
+    const axis = Math.abs(to.lon - from.lon) > Math.abs(to.lat - from.lat) ? 'lon' : 'lat';
     for (let s = 0; s < perLeg; s++) {
       const t = s / perLeg;
-      pts.push(from.clone().lerp(to, t).normalize().multiplyScalar(from.length() * (1 - t) + to.length() * t));
+      const lon = axis === 'lon' ? from.lon + (to.lon - from.lon) * t : from.lon;
+      const lat = axis === 'lat' ? from.lat + (to.lat - from.lat) * t : from.lat;
+      pts.push(circuitPoint(lon, lat));
     }
   }
-  pts.push(anchors[anchors.length - 1].clone());
+  pts.push(circuitPoint(coords[coords.length - 1].lon, coords[coords.length - 1].lat));
 
-  const bends = anchors.slice(1, -1).map((point, idx) => {
-    const before = anchors[idx];
-    const after = anchors[idx + 2];
-    const tangent = after.clone().sub(before).normalize();
-    let side = point.clone().normalize().cross(tangent).normalize();
-    if (side.lengthSq() < 0.01) side = axisB.clone();
-    if (idx % 2) side.multiplyScalar(-1);
-
-    const stubLen = (0.034 + Math.random() * 0.022) * GLOBE_R;
-    const start = point.clone();
-    const end = point.clone()
-      .add(side.multiplyScalar(stubLen))
-      .normalize()
-      .multiplyScalar(point.length() + 0.8);
+  const bends = coords.slice(1, -1).map((coord, idx) => {
+    const point = circuitPoint(coord.lon, coord.lat);
+    const next = coords[idx + 2];
+    const prev = coords[idx];
+    const nextAxis = Math.abs(next.lon - coord.lon) > Math.abs(next.lat - coord.lat) ? 'lon' : 'lat';
+    const prevAxis = Math.abs(coord.lon - prev.lon) > Math.abs(coord.lat - prev.lat) ? 'lon' : 'lat';
+    const stubAxis = nextAxis === prevAxis ? (nextAxis === 'lon' ? 'lat' : 'lon') : (idx % 2 ? 'lon' : 'lat');
+    const stubSign = idx % 2 ? -1 : 1;
+    const stubDelta = 0.055 + Math.random() * 0.035;
 
     const stub = [];
     for (let s = 0; s <= CIRCUIT_STUB_SEGS; s++) {
       const t = s / CIRCUIT_STUB_SEGS;
-      stub.push(start.clone().lerp(end, t).normalize().multiplyScalar(start.length() * (1 - t) + end.length() * t));
+      const lon = stubAxis === 'lon' ? coord.lon + stubSign * stubDelta * t : coord.lon;
+      const lat = stubAxis === 'lat' ? Math.max(-0.8, Math.min(0.8, coord.lat + stubSign * stubDelta * t)) : coord.lat;
+      stub.push(circuitPoint(lon, lat, GLOBE_R + 6.3));
     }
 
     return { point, stub };
   });
 
   const segments = [];
-  for (let i = 0; i < anchors.length - 1; i++) {
-    segments.push({ start: anchors[i], end: anchors[i + 1] });
+  for (let i = 0; i < pts.length - 1; i++) {
+    segments.push({ start: pts[i], end: pts[i + 1] });
   }
 
-  return { points: pts, anchors, segments, bends, pads: [anchors[0], anchors[anchors.length - 1]] };
+  return { points: pts, segments, bends, pads: [pts[0], pts[pts.length - 1]] };
 }
 
 function samplePoints(points, t) {
@@ -148,6 +155,14 @@ function samplePoints(points, t) {
 
 function rgbColor({ r, g, b }) {
   return new THREE.Color(r / 255, g / 255, b / 255);
+}
+
+function traceRgb({ r, g, b }) {
+  return {
+    r: Math.round(r * 0.42),
+    g: Math.round(g * 0.42),
+    b: Math.round(b * 0.42),
+  };
 }
 
 function setLinePoint(line, idx, point) {
@@ -168,6 +183,18 @@ function placeCylinderBetween(mesh, start, end, radius) {
   mesh.position.copy(mid);
   mesh.scale.set(radius, len, radius);
   mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+}
+
+function intervalOverlap(a0, a1, b0, b1) {
+  return Math.max(0, Math.min(a1, b1) - Math.max(a0, b0));
+}
+
+function wrappedOverlap(segStart, segEnd, activeStart, activeEnd) {
+  if (activeStart >= 0 && activeEnd <= 1) return intervalOverlap(segStart, segEnd, activeStart, activeEnd);
+  if (activeStart < 0) {
+    return intervalOverlap(segStart, segEnd, activeStart + 1, 1) + intervalOverlap(segStart, segEnd, 0, activeEnd);
+  }
+  return intervalOverlap(segStart, segEnd, activeStart, 1) + intervalOverlap(segStart, segEnd, 0, activeEnd - 1);
 }
 
 function hexToRgb(hex) {
@@ -432,9 +459,9 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
           jet.bends = circuit.bends;
           jet.pads = circuit.pads;
           jet.showPads = Math.random() < 0.72;
-          jet.progress = initial ? Math.random() * 1.35 - 0.25 : -Math.random() * 1.75;
-          jet.speed = 0.075 + Math.random() * 0.08;
-          jet.trail = 0.24 + Math.random() * 0.08;
+          jet.progress = initial ? Math.random() : 0;
+          jet.speed = 0.032 + Math.random() * 0.036;
+          jet.trail = 0.26 + Math.random() * 0.08;
           jet.line.material.color.copy(rgbColor(binaryColorRef.current));
           jet.head.material.color.copy(rgbColor(binaryColorRef.current));
           jet.line.material.opacity = 0;
@@ -447,7 +474,7 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
               continue;
             }
             placeCylinderBetween(piece, segment.start, segment.end, TRACE_RADIUS);
-            piece.material.color.copy(rgbColor(binaryColorRef.current));
+            piece.material.color.copy(rgbColor(traceRgb(binaryColorRef.current)));
             piece.material.opacity = 0;
             piece.visible = false;
           }
@@ -473,7 +500,7 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
               continue;
             }
             placeCylinderBetween(piece, bend.stub[0], bend.stub[bend.stub.length - 1], STUB_RADIUS);
-            piece.material.color.copy(rgbColor(binaryColorRef.current));
+            piece.material.color.copy(rgbColor(traceRgb(binaryColorRef.current)));
             piece.material.opacity = 0;
             piece.visible = false;
           }
@@ -500,15 +527,14 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
             }),
           );
 
-          const tracePieces = Array.from({ length: CIRCUIT_BENDS }, () => {
+          const tracePieces = Array.from({ length: CIRCUIT_TRACE_PIECES }, () => {
             const piece = new THREE.Mesh(
               traceGeo,
               new THREE.MeshBasicMaterial({
-                color: rgbColor(binaryColorRef.current),
+                color: rgbColor(traceRgb(binaryColorRef.current)),
                 transparent: true,
                 opacity: 0,
                 depthWrite: false,
-                blending: THREE.AdditiveBlending,
               }),
             );
             piece.visible = false;
@@ -522,11 +548,10 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
             const dash = new THREE.Line(
               dashGeo,
               new THREE.LineBasicMaterial({
-                color: rgbColor(binaryColorRef.current),
+                color: rgbColor(traceRgb(binaryColorRef.current)),
                 transparent: true,
                 opacity: 0,
                 depthWrite: false,
-                blending: THREE.AdditiveBlending,
               }),
             );
             dash.visible = false;
@@ -649,28 +674,21 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
             paintJetTexture();
             for (const jet of jets) {
               jet.line.material.color.copy(rgbColor(binaryColorRef.current));
-              for (const piece of jet.tracePieces) piece.material.color.copy(rgbColor(binaryColorRef.current));
+              for (const piece of jet.tracePieces) piece.material.color.copy(rgbColor(traceRgb(binaryColorRef.current)));
               for (const dash of jet.dashLines) dash.material.color.copy(rgbColor(binaryColorRef.current));
               jet.head.material.color.copy(rgbColor(binaryColorRef.current));
               for (const node of jet.nodes) node.material.color.copy(rgbColor(binaryColorRef.current));
               for (const stub of jet.stubs) stub.material.color.copy(rgbColor(binaryColorRef.current));
-              for (const piece of jet.stubPieces) piece.material.color.copy(rgbColor(binaryColorRef.current));
+              for (const piece of jet.stubPieces) piece.material.color.copy(rgbColor(traceRgb(binaryColorRef.current)));
               for (const pad of jet.padSprites) pad.material.color.copy(rgbColor(binaryColorRef.current));
             }
             lastJetPaint = colorKey;
           }
 
           for (const jet of jets) {
-            jet.progress += jet.speed * dt;
-            if (jet.progress > 1 + jet.trail + 0.22) {
-              respawnJet(jet);
-              continue;
-            }
-
-            const fadeIn = Math.max(0, Math.min(1, jet.progress / 0.24));
-            const fadeOut = Math.max(0, Math.min(1, (1 + jet.trail - jet.progress) / 0.42));
-            const alpha = Math.min(fadeIn, fadeOut);
-            const visible = alpha > 0.01 && jet.progress > 0;
+            jet.progress = (jet.progress + jet.speed * dt) % 1;
+            const alpha = 1;
+            const visible = true;
             jet.line.visible = false;
             jet.head.visible = visible;
             for (const piece of jet.tracePieces) piece.visible = false;
@@ -681,26 +699,26 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
             for (const pad of jet.padSprites) pad.visible = false;
             if (!visible) continue;
 
-            const activeStart = Math.max(0, jet.progress - jet.trail);
-            const activeEnd = Math.min(1, jet.progress);
+            const activeStart = jet.progress - jet.trail;
+            const activeEnd = jet.progress;
             for (let i = 0; i < jet.tracePieces.length; i++) {
               const piece = jet.tracePieces[i];
-              const segStart = i / jet.tracePieces.length;
-              const segEnd = (i + 1) / jet.tracePieces.length;
-              const overlap = Math.max(0, Math.min(segEnd, activeEnd) - Math.max(segStart, activeStart)) / (segEnd - segStart);
-              if (overlap <= 0.02) continue;
-
-              const dim = depthFade(jet.segments[i].end);
+              const segment = jet.segments[i];
+              if (!segment) continue;
+              const segStart = i / Math.max(1, jet.segments.length);
+              const segEnd = (i + 1) / Math.max(1, jet.segments.length);
+              const dim = depthFade(segment.end);
               piece.visible = true;
-              piece.material.opacity = (0.18 + overlap * 0.56) * alpha * dim;
+              const overlap = wrappedOverlap(segStart, segEnd, activeStart, activeEnd) / (segEnd - segStart);
+              piece.material.opacity = Math.min(0.95, (0.16 + overlap * 0.74) * dim);
             }
 
             if (jet.showPads) {
               for (let p = 0; p < jet.padSprites.length; p++) {
                 const pad = jet.padSprites[p];
-                const wake = p === 0 ? jet.progress : 1 + jet.trail - jet.progress;
-                const padAlpha = alpha * Math.max(0, Math.min(1, wake / 0.24));
-                if (padAlpha <= 0.02) continue;
+                const padAlpha = p === 0
+                  ? 0.42 + 0.46 * Math.max(0, 1 - Math.abs(jet.progress - 0.04) / 0.18)
+                  : 0.42 + 0.46 * Math.max(0, 1 - Math.abs(jet.progress - 0.96) / 0.18);
                 const dim = depthFade(jet.pads[p]);
                 pad.visible = true;
                 pad.position.copy(jet.pads[p]);
@@ -752,9 +770,9 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
               const stubPiece = jet.stubPieces[n];
               if (!node) continue;
               const bendProgress = (n + 1) / (jet.bends.length + 1);
-              const wake = jet.progress - bendProgress;
-              const nodeAlpha = alpha * Math.max(0, Math.min(1, 1 - Math.abs(wake) / 0.34));
-              if (nodeAlpha <= 0.03) continue;
+              let wake = Math.abs(jet.progress - bendProgress);
+              wake = Math.min(wake, 1 - wake);
+              const nodeAlpha = 0.18 + Math.max(0, 1 - wake / 0.2) * 0.72;
               const dim = depthFade(jet.bends[n].point);
               node.visible = true;
               node.position.copy(jet.bends[n].point);
@@ -776,7 +794,7 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
 
               if (stubPiece) {
                 stubPiece.visible = true;
-                stubPiece.material.opacity = nodeAlpha * 0.62 * dim;
+                stubPiece.material.opacity = Math.min(0.9, nodeAlpha * 0.82 * dim);
               }
             }
           }
