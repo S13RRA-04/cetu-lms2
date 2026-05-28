@@ -835,10 +835,10 @@ body {
 /* ── Globe full-page background ──────────────────────────────────────────────── */
 .globe-bg {
   position: fixed;
-  right: clamp(-80px, -5vw, -28px);
-  bottom: clamp(-92px, -7vw, -52px);
-  width: min(38vw, 540px);
-  height: min(38vw, 540px);
+  right: -7vw;
+  bottom: -9vw;
+  width: clamp(620px, 46vw, 980px);
+  height: clamp(620px, 46vw, 980px);
   pointer-events: none;
   z-index: 0;
   opacity: 1;
@@ -944,10 +944,10 @@ body {
 /* Globe stays fixed behind the content area */
 .app-shell .globe-bg {
   position: fixed;
-  right: clamp(-80px, -5vw, -28px);
-  bottom: clamp(-92px, -7vw, -52px);
-  width: min(38vw, 540px);
-  height: min(38vw, 540px);
+  right: -7vw;
+  bottom: -9vw;
+  width: clamp(620px, 46vw, 980px);
+  height: clamp(620px, 46vw, 980px);
   z-index: 0;
   cursor: default;
 }
@@ -1097,6 +1097,16 @@ body {
   border-color: #ef4444 !important;
   color: #ef4444 !important;
   box-shadow: 0 0 12px rgba(239,68,68,0.3) !important;
+}
+
+/* Thin separator between icon groups */
+.dock-divider {
+  width: 32px;
+  height: 1px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 1px;
+  flex-shrink: 0;
+  margin: 2px 0;
 }
 
 /* ── Missions flyout panel ── */
@@ -2256,10 +2266,10 @@ body {
   .pact-header { padding: 0 16px; }
   .globe-bg,
   .app-shell .globe-bg {
-    right: -18px;
-    bottom: -28px;
-    width: min(58vw, 260px);
-    height: min(58vw, 260px);
+    right: -42px;
+    bottom: -54px;
+    width: min(92vw, 420px);
+    height: min(92vw, 420px);
     opacity: 0.95;
   }
   .stats-banner { gap: 8px; }

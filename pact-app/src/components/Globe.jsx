@@ -1,18 +1,12 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import createGlobe from 'cobe';
+import { geoContains } from 'd3-geo';
+import { feature } from 'topojson-client';
+import landAtlas from 'world-atlas/land-110m.json';
 
-const AMERICAS_BLOBS = [
-  [-122, 54, 22, 12],
-  [-106, 47, 26, 16],
-  [-92, 38, 25, 15],
-  [-78, 45, 14, 16],
-  [-100, 23, 17, 10],
-  [-84, 15, 20, 8],
-  [-70, -8, 14, 22],
-  [-62, -22, 16, 24],
-  [-52, -12, 9, 16],
-  [-72, -38, 9, 18],
-];
+const INITIAL_PHI = -1.15;
+const ROTATION_SPEED = 0.003;
+const INITIAL_CENTER_LON = -84;
 
 function seededRandom(seed) {
   return () => {
@@ -23,29 +17,22 @@ function seededRandom(seed) {
   };
 }
 
-function landWeight(lon, lat) {
-  let weight = 0;
-  for (const [cx, cy, rx, ry] of AMERICAS_BLOBS) {
-    const dx = (lon - cx) / rx;
-    const dy = (lat - cy) / ry;
-    weight += Math.exp(-(dx * dx + dy * dy) * 1.75);
-  }
-  return weight;
-}
-
-function buildDotMap() {
-  const random = seededRandom(1307);
+function buildLandDots() {
+  const land = feature(landAtlas, landAtlas.objects.land);
+  const random = seededRandom(9137);
   const dots = [];
+  const step = 1.15;
 
-  for (let lat = -55; lat <= 72; lat += 1.35) {
-    const rowOffset = random() * 0.95;
-    for (let lon = -138 + rowOffset; lon <= -35; lon += 1.35) {
-      const weight = landWeight(lon, lat);
-      if (weight < 0.2 || random() > Math.min(0.98, weight * 1.15)) continue;
+  for (let lat = -58; lat <= 82; lat += step) {
+    const rowOffset = random() * step;
+    for (let lon = -180 + rowOffset; lon <= 180; lon += step) {
+      const jitteredLon = lon + (random() - 0.5) * 0.28;
+      const jitteredLat = lat + (random() - 0.5) * 0.28;
+      if (!geoContains(land, [jitteredLon, jitteredLat])) continue;
       dots.push({
-        lon: lon + (random() - 0.5) * 0.25,
-        lat: lat + (random() - 0.5) * 0.25,
-        alpha: 0.42 + Math.min(0.5, weight * 0.35),
+        lon: jitteredLon,
+        lat: jitteredLat,
+        alpha: 0.62 + random() * 0.28,
       });
     }
   }
@@ -53,7 +40,7 @@ function buildDotMap() {
   return dots;
 }
 
-const DOTS = buildDotMap();
+const LAND_DOTS = buildLandDots();
 
 export default function Globe({
   className = '',
@@ -69,23 +56,29 @@ export default function Globe({
 }) {
   const canvasRef = useRef(null);
   const dotsRef = useRef(null);
+  const phiRef = useRef(INITIAL_PHI);
+  const reducedMotion = useMemo(
+    () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
+    [],
+  );
 
   useEffect(() => {
-    let width = 0;
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
 
+    let width = canvas.offsetWidth;
     const onResize = () => {
-      if (canvasRef.current) width = canvasRef.current.offsetWidth;
+      width = canvas.offsetWidth;
     };
+
     window.addEventListener('resize', onResize);
     onResize();
 
-    let phi = -1.15;
-
-    const globe = createGlobe(canvasRef.current, {
+    const globe = createGlobe(canvas, {
       devicePixelRatio: 2,
       width: width * 2,
       height: width * 2,
-      phi: 0,
+      phi: phiRef.current,
       theta,
       dark,
       scale,
@@ -99,8 +92,9 @@ export default function Globe({
       offset: [0, 0],
       markers: [],
       onRender: (state) => {
-        state.phi = phi;
-        phi += 0.003;
+        state.width = width * 2;
+        state.height = width * 2;
+        state.phi = phiRef.current;
       },
     });
 
@@ -108,35 +102,46 @@ export default function Globe({
       window.removeEventListener('resize', onResize);
       globe.destroy();
     };
-  }, []);
+  }, [baseColor, dark, diffuse, glowColor, mapBrightness, mapSamples, markerColor, scale, theta]);
 
   useEffect(() => {
     const canvas = dotsRef.current;
     if (!canvas) return undefined;
 
     const context = canvas.getContext('2d');
-    const draw = () => {
-      const size = Math.max(1, canvas.offsetWidth);
-      const ratio = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = Math.round(size * ratio);
-      canvas.height = Math.round(size * ratio);
-      context.setTransform(ratio, 0, 0, ratio, 0, 0);
-      context.clearRect(0, 0, size, size);
+    let frameId = 0;
+    let currentSize = 0;
 
+    const resizeCanvas = () => {
+      const nextSize = Math.max(1, canvas.offsetWidth);
+      if (nextSize === currentSize) return;
+      currentSize = nextSize;
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(nextSize * ratio);
+      canvas.height = Math.round(nextSize * ratio);
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    };
+
+    const draw = () => {
+      resizeCanvas();
+      const size = currentSize;
       const radius = size * 0.44;
       const cx = size * 0.5;
       const cy = size * 0.5;
-      const centerLon = -84;
       const centerLat = 24;
       const centerLatRad = (centerLat * Math.PI) / 180;
+      const centerLon = INITIAL_CENTER_LON - (phiRef.current - INITIAL_PHI) * 180 / Math.PI;
 
+      context.clearRect(0, 0, size, size);
       context.save();
       context.beginPath();
       context.arc(cx, cy, radius * 0.985, 0, Math.PI * 2);
       context.clip();
 
-      for (const dot of DOTS) {
-        const lonDiff = ((dot.lon - centerLon) * Math.PI) / 180;
+      for (const dot of LAND_DOTS) {
+        let lonDiffDeg = dot.lon - centerLon;
+        lonDiffDeg = ((lonDiffDeg + 540) % 360) - 180;
+        const lonDiff = (lonDiffDeg * Math.PI) / 180;
         const lat = (dot.lat * Math.PI) / 180;
         const cosLat = Math.cos(lat);
         const visible = Math.sin(centerLatRad) * Math.sin(lat)
@@ -150,7 +155,7 @@ export default function Globe({
           - Math.sin(centerLatRad) * cosLat * Math.cos(lonDiff)
         );
         const edgeFade = Math.max(0, Math.min(1, (visible + 0.08) / 0.45));
-        const dotRadius = Math.max(0.75, size * 0.0021);
+        const dotRadius = Math.max(0.85, size * 0.00185);
 
         context.globalAlpha = dot.alpha * edgeFade;
         context.beginPath();
@@ -161,14 +166,20 @@ export default function Globe({
 
       context.restore();
       context.globalAlpha = 1;
+
+      if (!reducedMotion) phiRef.current += ROTATION_SPEED;
+      frameId = requestAnimationFrame(draw);
     };
 
-    draw();
-    const resizeObserver = new ResizeObserver(draw);
+    const resizeObserver = new ResizeObserver(resizeCanvas);
     resizeObserver.observe(canvas);
+    draw();
 
-    return () => resizeObserver.disconnect();
-  }, []);
+    return () => {
+      cancelAnimationFrame(frameId);
+      resizeObserver.disconnect();
+    };
+  }, [reducedMotion]);
 
   return (
     <div className={className} style={{ position: 'relative' }}>
