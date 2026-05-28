@@ -87,7 +87,13 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
       )}
 
       {/* ── Sidebar ── */}
-      <aside className={`app-sidebar${sidebarOpen ? ' sidebar-open' : ''}`}>
+      <aside
+        className={`app-sidebar${sidebarOpen ? ' sidebar-open' : ''}`}
+        style={squadTheme ? {
+          background:  `${squadTheme.primary}14`,
+          borderRight: `1px solid ${squadTheme.primary}28`,
+        } : {}}
+      >
         <div className="sidebar-brand">
           <span className="sidebar-brand-text">PACT</span>
           <button className="sidebar-close" onClick={() => setSidebarOpen(false)}>✕</button>
