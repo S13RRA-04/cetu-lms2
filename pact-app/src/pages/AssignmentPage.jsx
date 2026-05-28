@@ -4,6 +4,15 @@ import { getAssignment, getMySubmission, submitAssignment, updateProgress } from
 import QuizFlow       from '../components/QuizFlow.jsx';
 import ChallengeFlow  from '../components/ChallengeFlow.jsx';
 
+/* Safely render a question stem regardless of whether it's a plain string
+   or a { en: "…" } / { text: "…" } object (different question sets use different formats) */
+function tStem(stem) {
+  if (!stem) return '';
+  if (typeof stem === 'string') return stem;
+  if (typeof stem === 'object') return stem.en ?? stem.text ?? '';
+  return String(stem);
+}
+
 const TYPE_COLOR = {
   module:     '#2563eb',
   game:       '#059669',
@@ -444,7 +453,7 @@ function QuizSummary({ result, assignment, color }) {
               <ul>
                 {mustPassFailed.map((a) => {
                   const q = assignment.questions.find((qi) => qi.id === a.questionId);
-                  return <li key={a.questionId}>{q?.stem?.en}</li>;
+                  return <li key={a.questionId}>{tStem(q?.stem)}</li>;
                 })}
               </ul>
             </div>
@@ -456,7 +465,7 @@ function QuizSummary({ result, assignment, color }) {
               return (
                 <div key={a.questionId} className={`qz-summary-row ${a.isCorrect ? 'qz-sumrow-ok' : 'qz-sumrow-no'}`}>
                   <span className="qz-sumrow-num">Q{i + 1}</span>
-                  <span className="qz-sumrow-stem">{q?.stem?.en}</span>
+                  <span className="qz-sumrow-stem">{tStem(q?.stem)}</span>
                   <span className="qz-sumrow-pts">{a.points}/{q?.scoring?.points ?? '?'}</span>
                   {q?.scoring?.mustPass && <span className="qz-must-pass">Must Pass</span>}
                 </div>

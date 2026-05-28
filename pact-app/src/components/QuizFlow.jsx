@@ -2,6 +2,16 @@ import { useState, useMemo, useCallback } from 'react';
 import { updateProgress } from '../api/pact.js';
 
 /* ── helpers ── */
+
+/* Safely extract a display string from question text fields.
+   Handles plain strings, { en: "…" } objects, and { text: "…" } objects. */
+function t(field) {
+  if (!field) return '';
+  if (typeof field === 'string') return field;
+  if (typeof field === 'object') return field.en ?? field.text ?? '';
+  return String(field);
+}
+
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -80,7 +90,7 @@ function MultipleChoice({ q, shuffledOpts, selected, onToggle, revealed, forced,
             )}
             {(revealed || forced) && isCorrect         && <span className="qz-opt-marker qz-opt-filled">✓</span>}
             {(revealed || forced) && !isCorrect && isSelected && <span className="qz-opt-marker qz-opt-filled">✗</span>}
-            <span>{opt.text.en}</span>
+            <span>{t(opt.text)}</span>
           </button>
         );
       })}
@@ -176,7 +186,7 @@ function DragMatch({ q, matchState, onMatch, revealed, forced, partialFeedback }
               onDragEnd={() => setDragging(null)}
               onClick={() => isMapped ? clearSlot(src.id) : handleSourceClick(src.id)}
             >
-              {src.text.en}
+              {t(src.text)}
               {isMapped && !locked && <span className="qz-dm-clear"> ×</span>}
             </div>
           );
@@ -202,8 +212,8 @@ function DragMatch({ q, matchState, onMatch, revealed, forced, partialFeedback }
               onDrop={() => handleDrop(tgt.id)}
               onClick={() => handleTargetClick(tgt.id)}
             >
-              <span className="qz-dm-tgt-label">{tgt.text.en}</span>
-              {placedSrc && <span className="qz-dm-placed-chip">{placedSrc.text.en}</span>}
+              <span className="qz-dm-tgt-label">{t(tgt.text)}</span>
+              {placedSrc && <span className="qz-dm-placed-chip">{t(placedSrc.text)}</span>}
             </div>
           );
         })}
@@ -217,9 +227,9 @@ function DragMatch({ q, matchState, onMatch, revealed, forced, partialFeedback }
             const tgt = q.payload.targets.find((t) => t.id === m.targetId);
             return (
               <div key={m.sourceId} className="qz-dm-key-row">
-                <span>{src?.text.en}</span>
+                <span>{t(src?.text)}</span>
                 <span className="qz-dm-arrow">→</span>
-                <span>{tgt?.text.en}</span>
+                <span>{t(tgt?.text)}</span>
               </div>
             );
           })}
@@ -442,7 +452,7 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
         </div>
 
         {/* stem */}
-        <p className="qz-stem">{q.stem.en}</p>
+        <p className="qz-stem">{t(q.stem)}</p>
 
         {/* forced-reveal banner */}
         {qs.forced && (
@@ -462,7 +472,7 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
         {qs.hintVisible && (
           <div className="qz-hint-panel">
             <span className="qz-hint-label">Hint</span>
-            {q.feedback.reference}
+            {t(q.feedback?.reference)}
           </div>
         )}
 
@@ -513,10 +523,10 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
               {qs.revealed ? `✓ Correct — +${qs.available} pts` : '✗ Answer revealed — 0 pts'}
             </div>
             <p className="qz-feedback-text">
-              {qs.revealed ? q.feedback.correct.en : q.feedback.incorrect.en}
+              {qs.revealed ? t(q.feedback?.correct) : t(q.feedback?.incorrect)}
             </p>
-            {q.feedback.reference && (
-              <div className="qz-feedback-ref">↗ {q.feedback.reference}</div>
+            {q.feedback?.reference && (
+              <div className="qz-feedback-ref">↗ {t(q.feedback.reference)}</div>
             )}
           </div>
         )}
