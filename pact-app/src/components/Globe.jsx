@@ -3,6 +3,16 @@ import { useEffect, useRef } from 'react';
 const GLOBE_RADIUS = 1.56;
 const FLAT_MAP_WIDTH = 4098 / 2;
 const FLAT_MAP_HEIGHT = 1968 / 2;
+const NETWORK_ARCS = [
+  { from: [37.8, -122.4], to: [51.5, -0.1], lift: 0.25, speed: 0.0042 },
+  { from: [40.7, -74.0], to: [35.7, 139.7], lift: 0.34, speed: 0.0035 },
+  { from: [51.5, -0.1], to: [1.35, 103.8], lift: 0.28, speed: 0.0048 },
+  { from: [25.2, 55.3], to: [-33.9, 151.2], lift: 0.22, speed: 0.004 },
+  { from: [-23.5, -46.6], to: [38.9, -77.0], lift: 0.2, speed: 0.0052 },
+  { from: [52.5, 13.4], to: [-26.2, 28.0], lift: 0.18, speed: 0.0038 },
+  { from: [19.4, -99.1], to: [-34.6, -58.4], lift: 0.16, speed: 0.0045 },
+];
+const ARC_SEGMENTS = 52;
 
 export default function Globe({
   autoRotate = true,
@@ -84,10 +94,49 @@ export default function Globe({
       const lineMaterial = new THREE.LineBasicMaterial({
         color: accent,
         transparent: true,
-        opacity: 0.24,
+        opacity: 0.16,
         depthWrite: false,
       });
       globe.add(new THREE.LineSegments(lineGeometry, lineMaterial));
+
+      const arcPaths = NETWORK_ARCS.map((arc) => ({
+        ...arc,
+        points: makeArcPoints(arc.from, arc.to, arc.lift),
+        progress: Math.random(),
+      }));
+      const arcGeometry = new THREE.BufferGeometry();
+      arcGeometry.setAttribute('position', new THREE.Float32BufferAttribute(buildArcSegments(arcPaths), 3));
+      const arcMaterial = new THREE.LineBasicMaterial({
+        color: accent,
+        transparent: true,
+        opacity: 0.2,
+        depthWrite: false,
+      });
+      globe.add(new THREE.LineSegments(arcGeometry, arcMaterial));
+
+      const pulseGeometry = new THREE.BufferGeometry();
+      pulseGeometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(arcPaths.length * 3), 3));
+      const pulseMaterial = new THREE.PointsMaterial({
+        color: accent,
+        size: 0.065,
+        sizeAttenuation: true,
+        transparent: true,
+        opacity: 0.9,
+        depthWrite: false,
+      });
+      const pulses = new THREE.Points(pulseGeometry, pulseMaterial);
+      globe.add(pulses);
+
+      const scanGeometry = new THREE.BufferGeometry();
+      scanGeometry.setAttribute('position', new THREE.Float32BufferAttribute(buildLatitudeRing(0, GLOBE_RADIUS * 1.012), 3));
+      const scanMaterial = new THREE.LineBasicMaterial({
+        color: accent,
+        transparent: true,
+        opacity: 0.22,
+        depthWrite: false,
+      });
+      const scanRing = new THREE.LineSegments(scanGeometry, scanMaterial);
+      globe.add(scanRing);
 
       const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       const shouldAutoRotate = autoRotate && !prefersReducedMotion;
@@ -112,6 +161,8 @@ export default function Globe({
           globe.rotation.y += 0.0035;
           globe.rotation.x += Math.sin(Date.now() * 0.0007) * 0.0002;
         }
+
+        updateCyberEffects(arcPaths, pulseGeometry, scanRing, scanMaterial);
 
         renderer.render(scene, camera);
         animationFrame = window.requestAnimationFrame(render);
@@ -165,6 +216,12 @@ export default function Globe({
         dotMaterial.dispose();
         lineGeometry.dispose();
         lineMaterial.dispose();
+        arcGeometry.dispose();
+        arcMaterial.dispose();
+        pulseGeometry.dispose();
+        pulseMaterial.dispose();
+        scanGeometry.dispose();
+        scanMaterial.dispose();
         renderer.dispose();
       };
     });
@@ -258,6 +315,78 @@ function buildGuideLines() {
   return vertices;
 }
 
+function buildArcSegments(arcs) {
+  const vertices = [];
+  for (const arc of arcs) {
+    for (let i = 0; i < arc.points.length - 1; i += 1) {
+      vertices.push(...arc.points[i], ...arc.points[i + 1]);
+    }
+  }
+  return vertices;
+}
+
+function makeArcPoints(from, to, lift) {
+  const start = spherePoint(from[0], from[1], GLOBE_RADIUS);
+  const end = spherePoint(to[0], to[1], GLOBE_RADIUS);
+  const points = [];
+
+  for (let i = 0; i <= ARC_SEGMENTS; i += 1) {
+    const t = i / ARC_SEGMENTS;
+    const mixed = normalize3([
+      start[0] * (1 - t) + end[0] * t,
+      start[1] * (1 - t) + end[1] * t,
+      start[2] * (1 - t) + end[2] * t,
+    ]);
+    const radius = GLOBE_RADIUS + lift * Math.sin(Math.PI * t);
+    points.push([mixed[0] * radius, mixed[1] * radius, mixed[2] * radius]);
+  }
+
+  return points;
+}
+
+function buildLatitudeRing(latitude, radius) {
+  const vertices = [];
+  for (let lon = -180; lon < 180; lon += 4) {
+    vertices.push(...spherePoint(latitude, lon, radius));
+    vertices.push(...spherePoint(latitude, lon + 2.8, radius));
+  }
+  return vertices;
+}
+
+function updateCyberEffects(arcs, pulseGeometry, scanRing, scanMaterial) {
+  const time = Date.now() * 0.001;
+  const positions = pulseGeometry.attributes.position;
+
+  for (let i = 0; i < arcs.length; i += 1) {
+    const arc = arcs[i];
+    arc.progress = (arc.progress + arc.speed) % 1;
+    const point = sampleArcPoint(arc.points, arc.progress);
+    positions.setXYZ(i, point[0], point[1], point[2]);
+  }
+  positions.needsUpdate = true;
+
+  const latitude = Math.sin(time * 0.8) * 58;
+  const ringVertices = buildLatitudeRing(latitude, GLOBE_RADIUS * 1.014);
+  const ringPositions = scanRing.geometry.attributes.position;
+  for (let i = 0; i < ringVertices.length; i += 3) {
+    ringPositions.setXYZ(i / 3, ringVertices[i], ringVertices[i + 1], ringVertices[i + 2]);
+  }
+  ringPositions.needsUpdate = true;
+  scanMaterial.opacity = 0.08 + 0.16 * (0.5 + 0.5 * Math.sin(time * 2.2));
+}
+
+function sampleArcPoint(points, progress) {
+  const scaled = progress * (points.length - 1);
+  const index = Math.floor(scaled);
+  const next = Math.min(points.length - 1, index + 1);
+  const t = scaled - index;
+  return [
+    points[index][0] * (1 - t) + points[next][0] * t,
+    points[index][1] * (1 - t) + points[next][1] * t,
+    points[index][2] * (1 - t) + points[next][2] * t,
+  ];
+}
+
 function flatMapPointToSphere(x, y, radius) {
   const latitude = degToRad(((x - FLAT_MAP_WIDTH) / FLAT_MAP_WIDTH) * -180);
   const longitude = degToRad(((y - FLAT_MAP_HEIGHT) / FLAT_MAP_HEIGHT) * -90);
@@ -276,6 +405,11 @@ function spherePoint(latitude, longitude, radius) {
   const y = Math.sin(lat) * radius;
   const z = Math.cos(lat) * Math.sin(lon) * radius;
   return [x, y, z];
+}
+
+function normalize3(point) {
+  const length = Math.hypot(point[0], point[1], point[2]) || 1;
+  return [point[0] / length, point[1] / length, point[2] / length];
 }
 
 function degToRad(value) {
