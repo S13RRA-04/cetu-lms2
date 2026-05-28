@@ -13,6 +13,13 @@ import {
   deleteScenario,
   unlockScenario,
   lockScenario,
+  getCourseContent,
+  createContentLink,
+  uploadContentFile,
+  updateContentItem,
+  deleteContentItem,
+  unlockContentItem,
+  lockContentItem,
 } from '../api/pact.js';
 
 const TYPE_COLOR = {
@@ -132,12 +139,16 @@ export default function AdminPage() {
   const [selectedSub,        setSelectedSub]        = useState(null);
   const [savedGrades,        setSavedGrades]        = useState({});
 
-  // top-level admin panel: 'grading' | 'scenarios'
+  // top-level admin panel: 'grading' | 'scenarios' | 'content'
   const [adminPanel, setAdminPanel] = useState('grading');
 
   // scenarios state
   const [scenarios,    setScenarios]    = useState([]);
   const [scenariosLoaded, setScenariosLoaded] = useState(false);
+
+  // course content state
+  const [contentItems,   setContentItems]   = useState([]);
+  const [contentLoaded,  setContentLoaded]  = useState(false);
 
   // right-panel tab: 'submissions' | 'gating'
   const [rightTab, setRightTab] = useState('submissions');
@@ -163,6 +174,15 @@ export default function AdminPage() {
         .catch(() => setScenariosLoaded(true));
     }
   }, [scenariosLoaded]);
+
+  const switchToContent = useCallback(() => {
+    setAdminPanel('content');
+    if (!contentLoaded) {
+      getCourseContent()
+        .then((data) => { setContentItems(Array.isArray(data) ? data : []); setContentLoaded(true); })
+        .catch(() => setContentLoaded(true));
+    }
+  }, [contentLoaded]);
 
   const openAssignment = useCallback(async (a) => {
     setSelectedAssignment(a);
@@ -218,9 +238,22 @@ export default function AdminPage() {
         >
           Scenario Gating
         </button>
+        <button
+          className={`admin-panel-tab${adminPanel === 'content' ? ' active' : ''}`}
+          onClick={switchToContent}
+        >
+          Course Content
+        </button>
       </div>
 
-      {adminPanel === 'scenarios' ? (
+      {adminPanel === 'content' ? (
+        <CourseContentPanel
+          items={contentItems}
+          cohorts={cohorts}
+          loaded={contentLoaded}
+          onItemsChange={setContentItems}
+        />
+      ) : adminPanel === 'scenarios' ? (
         <ScenarioGatingPanel
           scenarios={scenarios}
           cohorts={cohorts}
@@ -847,6 +880,228 @@ function SubmissionDetail({ sub, assignment, existingGrade, onGradeSaved }) {
           onSaved={handleSaved}
         />
       </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   COURSE CONTENT PANEL
+═══════════════════════════════════════════════════════════ */
+
+const CONTENT_TYPES = ['slides', 'handout', 'agenda', 'form', 'resource'];
+const CONTENT_TYPE_LABELS = { slides: 'Slides', handout: 'Handout', agenda: 'Agenda', form: 'Form', resource: 'Resource' };
+
+function CourseContentPanel({ items, cohorts, loaded, onItemsChange }) {
+  const [selected, setSelected] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+
+  if (!loaded) return <div className="loading-screen"><div className="spinner" /></div>;
+
+  return (
+    <div className="admin-layout">
+      <div className="admin-left">
+        <div style={{ padding: '12px 16px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span className="section-label">Content Items</span>
+          <button className="btn-sm-primary" onClick={() => { setShowForm(true); setSelected(null); }}>+ Add</button>
+        </div>
+        <div className="admin-assignment-list">
+          {items.length === 0 && <div className="empty-state" style={{ padding: '24px 16px' }}>No content yet.</div>}
+          {items.map((item) => (
+            <div
+              key={item.id}
+              className={`admin-assignment-row${selected?.id === item.id ? ' selected' : ''}`}
+              onClick={() => { setSelected(item); setShowForm(false); }}
+            >
+              <div className="admin-a-title">{item.title}</div>
+              <div className="admin-a-meta">
+                <span className="type-badge" style={{ fontSize: 9, padding: '2px 6px' }}>{CONTENT_TYPE_LABELS[item.content_type]}</span>
+                {item.is_published
+                  ? <span style={{ fontSize: 10, color: '#10b981' }}>Published</span>
+                  : <span style={{ fontSize: 10, color: '#94a3b8' }}>Draft</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="admin-right">
+        {showForm ? (
+          <ContentItemForm
+            onSaved={(newItem) => { onItemsChange((p) => [newItem, ...p]); setShowForm(false); setSelected(newItem); }}
+            onCancel={() => setShowForm(false)}
+          />
+        ) : selected ? (
+          <ContentItemDetail
+            item={selected}
+            cohorts={cohorts}
+            onUpdated={(updated) => { onItemsChange((p) => p.map((i) => i.id === updated.id ? updated : i)); setSelected(updated); }}
+            onDeleted={(id) => { onItemsChange((p) => p.filter((i) => i.id !== id)); setSelected(null); }}
+          />
+        ) : (
+          <div className="admin-empty-right">
+            <p>Select a content item or click <strong>+ Add</strong> to create one.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ContentItemForm({ onSaved, onCancel }) {
+  const [mode,        setMode]        = useState('link');
+  const [title,       setTitle]       = useState('');
+  const [description, setDescription] = useState('');
+  const [contentType, setContentType] = useState('slides');
+  const [url,         setUrl]         = useState('');
+  const [file,        setFile]        = useState(null);
+  const [saving,      setSaving]      = useState(false);
+  const [err,         setErr]         = useState('');
+
+  const handleSave = async () => {
+    if (!title.trim()) { setErr('Title is required'); return; }
+    if (mode === 'link' && !url.trim()) { setErr('URL is required'); return; }
+    if (mode === 'upload' && !file) { setErr('Please select a file'); return; }
+    setSaving(true); setErr('');
+    try {
+      const item = mode === 'upload'
+        ? await uploadContentFile(file, { title: title.trim(), description, content_type: contentType })
+        : await createContentLink({ title: title.trim(), description, content_type: contentType, url: url.trim() });
+      onSaved(item);
+    } catch (e) { setErr(e.message ?? 'Save failed'); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="content-form">
+      <div className="section-label" style={{ marginBottom: 16 }}>New Content Item</div>
+      <div className="cc-form-mode-tabs">
+        <button className={`cc-mode-tab${mode === 'link' ? ' active' : ''}`} onClick={() => setMode('link')}>🔗 Link URL</button>
+        <button className={`cc-mode-tab${mode === 'upload' ? ' active' : ''}`} onClick={() => setMode('upload')}>📤 Upload File</button>
+      </div>
+      <div className="form-field"><label>Title *</label><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Day 1 Slides" /></div>
+      <div className="form-field"><label>Description</label><input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" /></div>
+      <div className="form-field">
+        <label>Type</label>
+        <select value={contentType} onChange={(e) => setContentType(e.target.value)}>
+          {CONTENT_TYPES.map((t) => <option key={t} value={t}>{CONTENT_TYPE_LABELS[t]}</option>)}
+        </select>
+      </div>
+      {mode === 'link' ? (
+        <div className="form-field"><label>URL *</label><input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://docs.google.com/presentation/…" /></div>
+      ) : (
+        <div className="form-field"><label>File * (PDF, PPTX, DOCX — max 20 MB)</label><input type="file" accept=".pdf,.pptx,.docx,.xlsx,.zip" onChange={(e) => setFile(e.target.files[0] ?? null)} /></div>
+      )}
+      {err && <div className="err-msg">{err}</div>}
+      <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+        <button className="btn-submit" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+        <button className="btn-secondary" onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function ContentItemDetail({ item, cohorts, onUpdated, onDeleted }) {
+  const [editing,     setEditing]     = useState(false);
+  const [title,       setTitle]       = useState(item.title);
+  const [description, setDescription] = useState(item.description ?? '');
+  const [isPublished, setIsPublished] = useState(item.is_published);
+  const [saving,      setSaving]      = useState(false);
+  const [err,         setErr]         = useState('');
+
+  useEffect(() => {
+    setTitle(item.title); setDescription(item.description ?? ''); setIsPublished(item.is_published);
+  }, [item.id]);
+
+  const handleSave = async () => {
+    setSaving(true); setErr('');
+    try {
+      const updated = await updateContentItem(item.id, { title, description, is_published: isPublished });
+      onUpdated(updated); setEditing(false);
+    } catch { setErr('Save failed'); }
+    finally { setSaving(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm(`Delete "${item.title}"?`)) return;
+    try { await deleteContentItem(item.id); onDeleted(item.id); } catch { setErr('Delete failed'); }
+  };
+
+  const unlockedIds = new Set((item.unlocks ?? []).map((u) => u.cohort_id));
+
+  const handleToggle = async (cohortId) => {
+    try {
+      if (unlockedIds.has(cohortId)) {
+        await lockContentItem(item.id, cohortId);
+        onUpdated({ ...item, unlocks: (item.unlocks ?? []).filter((u) => u.cohort_id !== cohortId) });
+      } else {
+        await unlockContentItem(item.id, cohortId);
+        const cohort = cohorts.find((c) => c.id === cohortId);
+        onUpdated({ ...item, unlocks: [...(item.unlocks ?? []), { cohort_id: cohortId, cohort }] });
+      }
+    } catch { setErr('Toggle failed'); }
+  };
+
+  return (
+    <div className="content-detail">
+      {editing ? (
+        <>
+          <div className="section-label" style={{ marginBottom: 12 }}>Edit Item</div>
+          <div className="form-field"><label>Title</label><input value={title} onChange={(e) => setTitle(e.target.value)} /></div>
+          <div className="form-field"><label>Description</label><input value={description} onChange={(e) => setDescription(e.target.value)} /></div>
+          <div className="form-field">
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <input type="checkbox" checked={isPublished} onChange={(e) => setIsPublished(e.target.checked)} /> Published
+            </label>
+          </div>
+          {err && <div className="err-msg">{err}</div>}
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <button className="btn-submit" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+            <button className="btn-secondary" onClick={() => setEditing(false)}>Cancel</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+            <div>
+              <div className="section-label" style={{ marginBottom: 4 }}>{CONTENT_TYPE_LABELS[item.content_type]}</div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--bright)' }}>{item.title}</div>
+              {item.description && <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{item.description}</div>}
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              <button className="btn-sm-primary" onClick={() => setEditing(true)}>Edit</button>
+              <button className="btn-sm-danger" onClick={handleDelete}>Delete</button>
+            </div>
+          </div>
+          {item.url && (
+            <div style={{ marginBottom: 16 }}>
+              <div className="section-label" style={{ marginBottom: 4 }}>URL</div>
+              <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--primary)', wordBreak: 'break-all' }}>{item.url}</a>
+            </div>
+          )}
+          {item.file_name && (
+            <div style={{ marginBottom: 16 }}>
+              <div className="section-label" style={{ marginBottom: 4 }}>File</div>
+              <span style={{ fontSize: 12, fontFamily: 'var(--mono)' }}>📄 {item.file_name}</span>
+            </div>
+          )}
+          <div className="section-label" style={{ marginBottom: 8 }}>Cohort Access</div>
+          <div className="scenario-gating-cohorts">
+            {cohorts.map((c) => {
+              const isUnlocked = unlockedIds.has(c.id);
+              return (
+                <div key={c.id} className="gating-cohort-row">
+                  <span className="gating-cohort-name">{c.name}</span>
+                  <button className={`gating-toggle-btn ${isUnlocked ? 'unlocked' : 'locked'}`} onClick={() => handleToggle(c.id)}>
+                    {isUnlocked ? '🔓 Released' : '🔒 Locked'}
+                  </button>
+                </div>
+              );
+            })}
+            {cohorts.length === 0 && <div className="empty-state">No cohorts found.</div>}
+          </div>
+          {err && <div className="err-msg" style={{ marginTop: 8 }}>{err}</div>}
+        </>
+      )}
     </div>
   );
 }

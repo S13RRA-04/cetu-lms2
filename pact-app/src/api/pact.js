@@ -88,3 +88,39 @@ export const unlockAssignment = (assignmentId, cohortId) =>
 
 export const lockAssignment = (assignmentId, cohortId) =>
   client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/lock`, { cohort_id: cohortId }).then((r) => r.data);
+
+/* ── Course Content ── */
+export const getCourseContent = () =>
+  client.get(`/courses/${COURSE_ID}/course-content`).then((r) => r.data);
+
+export const createContentLink = (data) =>
+  client.post(`/courses/${COURSE_ID}/course-content`, data).then((r) => r.data);
+
+export const uploadContentFile = (file, meta) => {
+  const token = localStorage.getItem('accessToken');
+  const params = new URLSearchParams(meta).toString();
+  return fetch(
+    `${client.defaults.baseURL}/courses/${COURSE_ID}/course-content/upload?${params}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': file.type || 'application/octet-stream',
+        'X-File-Name':  file.name,
+        'Authorization': `Bearer ${token}`,
+      },
+      body: file,
+    },
+  ).then((r) => { if (!r.ok) throw new Error('Upload failed'); return r.json(); });
+};
+
+export const updateContentItem = (id, data) =>
+  client.put(`/courses/${COURSE_ID}/course-content/${id}`, data).then((r) => r.data);
+
+export const deleteContentItem = (id) =>
+  client.delete(`/courses/${COURSE_ID}/course-content/${id}`);
+
+export const unlockContentItem = (id, cohortId) =>
+  client.post(`/courses/${COURSE_ID}/course-content/${id}/unlock`, { cohort_id: cohortId }).then((r) => r.data);
+
+export const lockContentItem = (id, cohortId) =>
+  client.post(`/courses/${COURSE_ID}/course-content/${id}/lock`, { cohort_id: cohortId }).then((r) => r.data);

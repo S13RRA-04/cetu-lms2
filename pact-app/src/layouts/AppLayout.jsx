@@ -101,6 +101,9 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
           <NavLink to="/scenarios" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
             <span className="sidebar-icon">⬡</span> Scenarios
           </NavLink>
+          <NavLink to="/course-content" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
+            <span className="sidebar-icon">◈</span> Course Content
+          </NavLink>
 
           {/* Mission assignments */}
           <div className="sidebar-section-label">MISSIONS</div>

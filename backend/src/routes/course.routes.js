@@ -7,7 +7,8 @@ const contentCtrl  = require('../controllers/contentItem.controller');
 const subCtrl      = require('../controllers/submission.controller');
 const cohortCtrl   = require('../controllers/cohort.controller');
 const squadCtrl    = require('../controllers/squad.controller');
-const scenarioCtrl = require('../controllers/scenario.controller');
+const scenarioCtrl     = require('../controllers/scenario.controller');
+const courseContentCtrl = require('../controllers/courseContent.controller');
 const { requireAuth, requireInstructor, requireAdmin } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
 const { auditLog } = require('../middleware/audit');
@@ -98,5 +99,15 @@ router.delete('/:id/scenarios/:sid',               requireAuth, requireInstructo
 router.get('/:id/scenarios/:sid/download',         requireAuth,                    scenarioCtrl.getDownloadUrl);
 router.post('/:id/scenarios/:sid/unlock',          requireAuth, requireInstructor, scenarioCtrl.unlockForCohort);
 router.post('/:id/scenarios/:sid/lock',            requireAuth, requireInstructor, scenarioCtrl.lockForCohort);
+
+// Course content items (slides, handouts, agendas, forms)
+const rawUpload = require('express').raw({ type: '*/*', limit: '20mb' });
+router.get('/:id/course-content',           requireAuth,                    courseContentCtrl.list);
+router.post('/:id/course-content',          requireAuth, requireInstructor, courseContentCtrl.create);
+router.post('/:id/course-content/upload',   requireAuth, requireInstructor, rawUpload, courseContentCtrl.create);
+router.put('/:id/course-content/:cid',      requireAuth, requireInstructor, courseContentCtrl.update);
+router.delete('/:id/course-content/:cid',   requireAuth, requireInstructor, courseContentCtrl.remove);
+router.post('/:id/course-content/:cid/unlock', requireAuth, requireInstructor, courseContentCtrl.unlockForCohort);
+router.post('/:id/course-content/:cid/lock',   requireAuth, requireInstructor, courseContentCtrl.lockForCohort);
 
 module.exports = router;

@@ -12,11 +12,10 @@ services:
       - key: PORT
         value: 3001
       - key: DATABASE_URL
-        sync: false   # set manually in dashboard — paste your Neon connection string
+        sync: false   # set manually in dashboard; paste your Neon connection string
       - key: JWT_SECRET
         generateValue: true
       - key: LTI_KEY
-        sync: false   # set manually in dashboard — must be exactly 32 chars
+        sync: false   # set manually in dashboard; must be exactly 32 chars
       - key: FRONTEND_URL
         sync: false   # set to your Render service URL after first deploy
-

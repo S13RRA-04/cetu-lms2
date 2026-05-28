@@ -1745,6 +1745,91 @@ body {
 .scenario-dl-btn { width: auto !important; padding: 8px 20px !important; font-size: 13px !important; }
 .scenario-locked-msg { font-size: 12px; color: var(--muted); font-style: italic; }
 
+/* ── Course Content page ─────────────────────────────────────────────────── */
+.cc-page { display: flex; flex-direction: column; gap: 20px; }
+.cc-header { margin-bottom: 4px; }
+
+.cc-filter-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.cc-filter-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: rgba(255,255,255,.7);
+  border: 1px solid rgba(0,0,0,.1);
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition: all .15s;
+  backdrop-filter: blur(8px);
+}
+.cc-filter-tab:hover  { background: rgba(255,255,255,.9); color: #1e293b; }
+.cc-filter-tab.active { background: var(--primary-md); border-color: var(--primary); color: var(--primary); }
+.cc-filter-count { background: rgba(0,0,0,.08); border-radius: 10px; padding: 1px 6px; font-size: 10px; }
+
+.cc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.cc-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 18px;
+  background: rgba(255,255,255,.78);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,.65);
+  border-left: 4px solid var(--cc-color, var(--primary));
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgba(0,0,0,.05);
+  text-decoration: none;
+  color: inherit;
+  transition: box-shadow .15s, transform .15s;
+}
+.cc-card:hover { box-shadow: 0 8px 28px rgba(0,0,0,.1); transform: translateY(-2px); }
+
+.cc-card-icon {
+  font-size: 20px;
+  color: var(--cc-color, var(--primary));
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.cc-card-body { flex: 1; min-width: 0; }
+.cc-card-type { font-size: 9px; font-family: var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--cc-color, var(--primary)); opacity: .8; margin-bottom: 3px; }
+.cc-card-title { font-size: 14px; font-weight: 600; color: var(--bright); line-height: 1.3; }
+.cc-card-desc  { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+.cc-card-action { font-size: 16px; color: var(--cc-color, var(--primary)); flex-shrink: 0; opacity: .6; }
+
+/* Admin content form */
+.content-form, .content-detail { padding: 20px 24px; }
+.cc-form-mode-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+.cc-mode-tab {
+  flex: 1; padding: 8px; background: rgba(0,0,0,.04); border: 1px solid rgba(0,0,0,.1);
+  border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; cursor: pointer; color: #64748b; transition: all .15s;
+}
+.cc-mode-tab.active { background: var(--primary-md); border-color: var(--primary); color: var(--primary); font-weight: 600; }
+
+.btn-sm-primary {
+  padding: 5px 12px; background: var(--primary); color: #fff; border: none;
+  border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.btn-sm-danger {
+  padding: 5px 12px; background: rgba(220,38,38,.1); color: #ef4444; border: 1px solid rgba(220,38,38,.2);
+  border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.btn-secondary {
+  padding: 7px 16px; background: rgba(0,0,0,.04); border: 1px solid rgba(0,0,0,.1);
+  border-radius: var(--radius-sm); font-size: 13px; cursor: pointer; color: #475569;
+}
+
 /* ── Survey form ─────────────────────────────────────────────────────────── */
 .survey-form { display: flex; flex-direction: column; gap: 0; }
 .survey-section { margin-bottom: 32px; }

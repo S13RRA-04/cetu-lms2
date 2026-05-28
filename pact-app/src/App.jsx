@@ -6,7 +6,8 @@ import AssignmentPage from './pages/AssignmentPage.jsx';
 import GradesPage     from './pages/GradesPage.jsx';
 import ScoreboardPage from './pages/ScoreboardPage.jsx';
 import AdminPage      from './pages/AdminPage.jsx';
-import ScenariosPage  from './pages/ScenariosPage.jsx';
+import ScenariosPage     from './pages/ScenariosPage.jsx';
+import CourseContentPage from './pages/CourseContentPage.jsx';
 import AppShell       from './layouts/AppShell.jsx';
 
 function Guard({ children }) {
@@ -31,6 +32,7 @@ const router = createBrowserRouter([
       { path: '/grades',           element: <GradesPage /> },
       { path: '/scoreboard',       element: <ScoreboardPage /> },
       { path: '/scenarios',        element: <ScenariosPage /> },
+      { path: '/course-content',   element: <CourseContentPage /> },
       { path: '/admin',            element: <AdminGuard><AdminPage /></AdminGuard> },
     ],
   },
