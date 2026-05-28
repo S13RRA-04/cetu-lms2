@@ -1830,6 +1830,82 @@ body {
   border-radius: var(--radius-sm); font-size: 13px; cursor: pointer; color: #475569;
 }
 
+/* ── Module intro screen ─────────────────────────────────────────────────── */
+.module-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 8px 0;
+}
+.module-intro-label {
+  font-size: 10px;
+  font-family: var(--mono);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.module-intro-stats {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.module-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 72px;
+}
+.module-stat-val {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1;
+}
+.module-stat-key {
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+.module-mustpass-warn {
+  padding: 12px 14px;
+  background: rgba(239,68,68,.07);
+  border: 1px solid rgba(239,68,68,.2);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: #dc2626;
+  line-height: 1.5;
+}
+.module-intro-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background: rgba(0,0,0,.03);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(0,0,0,.07);
+}
+.module-rule {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.4;
+}
+.module-rule-icon {
+  color: var(--primary);
+  font-size: 10px;
+  flex-shrink: 0;
+  opacity: .7;
+}
+.module-begin-btn {
+  align-self: flex-start;
+  padding: 11px 28px !important;
+  font-size: 14px !important;
+}
+
 /* ── Challenge flow ──────────────────────────────────────────────────────── */
 .challenge-flow { display: flex; flex-direction: column; gap: 20px; }
 

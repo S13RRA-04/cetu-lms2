@@ -27,6 +27,7 @@ export default function AssignmentPage() {
   const [submitted,   setSubmitted]   = useState(false);
   const [error,       setError]       = useState('');
   const [quizResult,  setQuizResult]  = useState(null);
+  const [quizStarted, setQuizStarted] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -104,12 +105,14 @@ export default function AssignmentPage() {
     );
   }
 
-  const color       = TYPE_COLOR[assignment.type] ?? TYPE_COLOR.module;
-  const isSquad     = assignment.grading_mode === 'squad';
-  const isLocked    = assignment.is_unlocked === false;
-  const isSurvey    = assignment.type === 'survey';
-  const isChallenge = assignment.type === 'challenge' || assignment.type === 'capstone';
-  const hasQuiz     = !isLocked && !isSurvey && !isChallenge && Array.isArray(assignment.questions) && assignment.questions.length > 0;
+  const color      = TYPE_COLOR[assignment.type] ?? TYPE_COLOR.module;
+  const isSquad    = assignment.grading_mode === 'squad';
+  const isLocked   = assignment.is_unlocked === false;
+  const isSurvey   = assignment.type === 'survey';
+  /* hasQuiz: any type with questions uses QuizFlow (modules, assessments, capstones with quiz banks) */
+  const hasQuiz    = !isLocked && !isSurvey && Array.isArray(assignment.questions) && assignment.questions.length > 0;
+  /* isWorkshop: challenge/capstone with no questions → ChallengeFlow */
+  const isWorkshop = !isLocked && !hasQuiz && (assignment.type === 'challenge' || assignment.type === 'capstone');
 
   return (
     <div className="assignment-page">
@@ -162,8 +165,8 @@ export default function AssignmentPage() {
               />
             </>
           )
-        ) : /* ── Challenge / Capstone flow ── */
-        isChallenge ? (
+        ) : /* ── Workshop (challenge/capstone without quiz questions) ── */
+        isWorkshop ? (
           <ChallengeFlow
             assignment={assignment}
             color={color}
@@ -176,11 +179,11 @@ export default function AssignmentPage() {
               setSubmitted(true);
             }}
           />
-        ) : /* ── Quiz flow for module-type assignments with questions ── */
+        ) : /* ── Quiz flow (modules, assessments, capstones with question banks) ── */
         hasQuiz ? (
           submitted ? (
             <QuizSummary result={quizResult} assignment={assignment} color={color} />
-          ) : (
+          ) : quizStarted ? (
             <>
               {error && <div className="err-msg" style={{ marginBottom: 16 }}>{error}</div>}
               <QuizFlow
@@ -190,6 +193,8 @@ export default function AssignmentPage() {
                 onComplete={handleQuizComplete}
               />
             </>
+          ) : (
+            <ModuleIntro assignment={assignment} color={color} onBegin={() => setQuizStarted(true)} />
           )
         ) : (
           /* ── Freeform submission for non-quiz assignments ── */
@@ -260,6 +265,66 @@ export default function AssignmentPage() {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+function ModuleIntro({ assignment, color, onBegin }) {
+  const questions  = assignment.questions ?? [];
+  const totalPts   = questions.reduce((s, q) => s + (q.scoring?.points ?? 0), 0);
+  const mustPass   = questions.filter((q) => q.scoring?.mustPass).length;
+  const typeLabel  = assignment.type === 'capstone' ? 'Capstone Assessment' : 'Module Assessment';
+
+  return (
+    <div className="module-intro">
+      <div className="module-intro-label" style={{ color }}>{typeLabel}</div>
+
+      <div className="module-intro-stats">
+        <div className="module-stat">
+          <div className="module-stat-val" style={{ color }}>{questions.length}</div>
+          <div className="module-stat-key">Questions</div>
+        </div>
+        <div className="module-stat">
+          <div className="module-stat-val" style={{ color }}>{totalPts}</div>
+          <div className="module-stat-key">Points</div>
+        </div>
+        {mustPass > 0 && (
+          <div className="module-stat">
+            <div className="module-stat-val" style={{ color: '#ef4444' }}>{mustPass}</div>
+            <div className="module-stat-key">Must-Pass</div>
+          </div>
+        )}
+      </div>
+
+      {mustPass > 0 && (
+        <div className="module-mustpass-warn">
+          ⚠ {mustPass} question{mustPass !== 1 ? 's are' : ' is'} flagged Must-Pass.
+          Wrong answers on these items reflect critical operational knowledge — review carefully before submitting.
+        </div>
+      )}
+
+      <div className="module-intro-rules">
+        <div className="module-rule">
+          <span className="module-rule-icon">◈</span>
+          Questions are answered one at a time. Correct answers earn full points.
+        </div>
+        <div className="module-rule">
+          <span className="module-rule-icon">◈</span>
+          Wrong answers reduce available points. Using a hint costs 1 point.
+        </div>
+        <div className="module-rule">
+          <span className="module-rule-icon">◈</span>
+          After three strikes, the correct answer is revealed at 0 points.
+        </div>
+      </div>
+
+      <button
+        className="btn-submit module-begin-btn"
+        style={{ background: color }}
+        onClick={onBegin}
+      >
+        Begin Assessment →
+      </button>
     </div>
   );
 }
