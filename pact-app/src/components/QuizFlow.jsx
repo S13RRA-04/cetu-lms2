@@ -276,8 +276,11 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
   );
 
   const q   = questions[qIdx];
-  const qs  = qStates[q.id];
-  const raw = answers[q.id];
+  const qs  = q ? qStates[q.id] : null;
+  const raw = q ? answers[q.id] : null;
+
+  /* Safety: qIdx briefly out of range during batched double-click */
+  if (!q || !qs) return null;
 
   const isLast   = qIdx === questions.length - 1;
   const answered = questions.filter((qi) => qStates[qi.id]?.revealed || qStates[qi.id]?.forced).length;
@@ -371,7 +374,8 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
 
   /* ── advance to next / complete ── */
   const handleNext = useCallback(() => {
-    if (isLast) {
+    /* Guard against double-clicks batching two increments past the end */
+    if (qIdx >= questions.length - 1) {
       const total    = questions.reduce((s, qi) => {
         const st = qStates[qi.id];
         return s + (st?.revealed ? st.available : 0);
@@ -393,7 +397,7 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
     } else {
       setQIdx((i) => i + 1);
     }
-  }, [isLast, questions, qStates, answers, onComplete]);
+  }, [qIdx, questions, qStates, answers, onComplete]);
 
   const totalEarned = questions.slice(0, qIdx).reduce((s, qi) => {
     const st = qStates[qi.id];

@@ -5,6 +5,13 @@ import useAuthStore from '../store/authStore.js';
 
 const Globe = lazy(() => import('../components/Globe.jsx'));
 
+const SQUAD_THEME = {
+  1: { primary: '#ff073a', binary: '#27f5ff' },
+  2: { primary: '#ffe600', binary: '#7c3cff' },
+  3: { primary: '#39ff14', binary: '#ff4fd8' },
+  4: { primary: '#00b0ff', binary: '#ffb020' },
+};
+
 const TYPE_COLOR = {
   module:     '#2563eb',
   game:       '#059669',
@@ -69,6 +76,8 @@ export default function DashboardPage() {
   const visible      = activeTab === 'all'
     ? assignments
     : assignments.filter((a) => a.type === activeTab);
+  const squadNum = enrollment?.squad?.number ? Number(enrollment.squad.number) : null;
+  const squadTheme = SQUAD_THEME[squadNum];
 
   return (
     <div className="pact-layout">
@@ -76,7 +85,11 @@ export default function DashboardPage() {
       {/* ── Globe background ── */}
       <div className="globe-bg" aria-hidden="true">
         <Suspense fallback={null}>
-          <Globe className="globe-bg-canvas" />
+          <Globe
+            className="globe-bg-canvas"
+            primaryColor={squadTheme?.primary ?? '#00b0ff'}
+            binaryAccentColor={squadTheme?.binary ?? '#ffb020'}
+          />
         </Suspense>
       </div>
 

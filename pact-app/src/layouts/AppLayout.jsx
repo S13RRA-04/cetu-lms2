@@ -4,10 +4,10 @@ import useAuthStore from '../store/authStore.js';
 import { logout } from '../api/pact.js';
 
 const SQUAD_THEME = {
-  1: { primary: '#ff073a', lt: '#fff0f3', md: 'rgba(255,7,58,0.14)'   }, // neon red
-  2: { primary: '#ffe600', lt: '#fffde6', md: 'rgba(255,230,0,0.14)'  }, // neon yellow
-  3: { primary: '#39ff14', lt: '#f0fff0', md: 'rgba(57,255,20,0.14)'  }, // neon green
-  4: { primary: '#00b0ff', lt: '#e6f7ff', md: 'rgba(0,176,255,0.14)'  }, // neon blue
+  1: { primary: '#ff073a', binary: '#27f5ff', lt: '#fff0f3', md: 'rgba(255,7,58,0.14)'   }, // neon red
+  2: { primary: '#ffe600', binary: '#7c3cff', lt: '#fffde6', md: 'rgba(255,230,0,0.14)'  }, // neon yellow
+  3: { primary: '#39ff14', binary: '#ff4fd8', lt: '#f0fff0', md: 'rgba(57,255,20,0.14)'  }, // neon green
+  4: { primary: '#00b0ff', binary: '#ffb020', lt: '#e6f7ff', md: 'rgba(0,176,255,0.14)'  }, // neon blue
 };
 
 const Globe = lazy(() => import('../components/Globe.jsx'));
@@ -31,10 +31,11 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
 
   const isAdmin   = user?.role === 'admin' || user?.role === 'instructor';
   const squadNum  = enrollment?.squad?.number ? Number(enrollment.squad.number) : null;
+  const squadTheme = SQUAD_THEME[squadNum];
 
   useEffect(() => {
     const root  = document.documentElement;
-    const theme = SQUAD_THEME[squadNum];
+    const theme = squadTheme;
     if (theme) {
       root.style.setProperty('--primary',    theme.primary);
       root.style.setProperty('--primary-lt', theme.lt);
@@ -49,7 +50,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
       root.style.removeProperty('--primary-lt');
       root.style.removeProperty('--primary-md');
     };
-  }, [squadNum]);
+  }, [squadTheme]);
 
   const handleLogout = async () => {
     try { await logout(); } catch {}
@@ -71,7 +72,11 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
       {/* Globe background — behind everything */}
       <div className="globe-bg" aria-hidden="true">
         <Suspense fallback={null}>
-          <Globe className="globe-bg-canvas" primaryColor={SQUAD_THEME[squadNum]?.primary ?? '#00b0ff'} />
+          <Globe
+            className="globe-bg-canvas"
+            primaryColor={squadTheme?.primary ?? '#00b0ff'}
+            binaryAccentColor={squadTheme?.binary ?? '#ffb020'}
+          />
         </Suspense>
       </div>
 
