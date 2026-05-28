@@ -76,11 +76,15 @@ const allowedOrigins = new Set(
     .map((o) => o.trim())
     .concat(['http://localhost:5174', 'http://localhost:5175'])
 );
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (allowedOrigins.has(origin)) return true;
+  try { return new URL(origin).hostname.endsWith('.cetu.online'); } catch { return false; }
+}
+
 app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin || allowedOrigins.has(origin)) return cb(null, true);
-    cb(new Error(`CORS: origin ${origin} not allowed`));
-  },
+  origin: (origin, cb) => cb(isAllowedOrigin(origin) ? null : new Error(`CORS: ${origin}`), isAllowedOrigin(origin)),
   credentials: true,
   methods:     ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 }));
