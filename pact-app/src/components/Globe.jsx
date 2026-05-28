@@ -19,7 +19,8 @@ const HOVER_THRESHOLD = 3.4;
 const JET_COUNT = 7;
 const JET_PATH_SEGS = 96;
 const JET_TRAIL_SEGS = 26;
-const CIRCUIT_BENDS = 5;
+const CIRCUIT_BENDS = 7;
+const CIRCUIT_STUB_SEGS = 4;
 
 /* geographic projection */
 function flatToSphere(px, py) {
@@ -50,28 +51,44 @@ function makeArc(a, b, lift = 10, segs = 60) {
 }
 
 function makeCircuitPath(segs = JET_PATH_SEGS) {
+  const base = rndSurface().normalize();
+  let axisA = rndSurface(1).cross(base).normalize();
+  if (axisA.lengthSq() < 0.01) axisA = new THREE.Vector3(1, 0, 0).cross(base).normalize();
+  const axisB = base.clone().cross(axisA).normalize();
   const anchors = [];
-  const start = rndSurface();
-  const axisA = rndSurface(1).cross(start.clone().normalize()).normalize();
-  const axisB = start.clone().normalize().cross(axisA).normalize();
-  const latStep = 0.24 + Math.random() * 0.2;
-  const lonStep = 0.18 + Math.random() * 0.18;
-  let a = 0;
-  let b = 0;
+  const current = { a: 0, b: 0 };
+  const primaryAxis = Math.random() < 0.5 ? 'a' : 'b';
+  const primarySign = Math.random() < 0.5 ? -1 : 1;
+  const secondarySign = Math.random() < 0.5 ? -1 : 1;
+  const primaryStep = 0.055 + Math.random() * 0.035;
+  const secondaryStep = 0.032 + Math.random() * 0.024;
+  const jogEvery = 3 + Math.floor(Math.random() * 2);
 
-  for (let i = 0; i <= CIRCUIT_BENDS; i++) {
-    if (i > 0) {
-      if (i % 2) a += (Math.random() < 0.5 ? -1 : 1) * latStep;
-      else b += (Math.random() < 0.5 ? -1 : 1) * lonStep;
-    }
-    const lift = 9 + (i % 2) * 5 + Math.random() * 6;
+  const pushAnchor = () => {
+    const lift = 4.5 + Math.random() * 2.5;
     anchors.push(
-      start.clone()
-        .add(axisA.clone().multiplyScalar(a * GLOBE_R))
-        .add(axisB.clone().multiplyScalar(b * GLOBE_R))
+      base.clone()
+        .add(axisA.clone().multiplyScalar(current.a * GLOBE_R))
+        .add(axisB.clone().multiplyScalar(current.b * GLOBE_R))
         .normalize()
         .multiplyScalar(GLOBE_R + lift),
     );
+  };
+
+  pushAnchor();
+
+  for (let i = 1; i <= CIRCUIT_BENDS; i++) {
+    const isJog = i % jogEvery === 0;
+    const axis = isJog ? (primaryAxis === 'a' ? 'b' : 'a') : primaryAxis;
+    const sign = isJog ? secondarySign : primarySign;
+    const step = (isJog ? secondaryStep : primaryStep) * (0.78 + Math.random() * 0.36);
+    current[axis] += sign * step;
+
+    if (i > 2 && !isJog && Math.random() < 0.28) {
+      current[axis === 'a' ? 'b' : 'a'] += secondarySign * secondaryStep * 0.45;
+    }
+
+    pushAnchor();
   }
 
   const pts = [];
@@ -86,7 +103,31 @@ function makeCircuitPath(segs = JET_PATH_SEGS) {
   }
   pts.push(anchors[anchors.length - 1].clone());
 
-  return { points: pts, bends: anchors.slice(1, -1) };
+  const bends = anchors.slice(1, -1).map((point, idx) => {
+    const before = anchors[idx];
+    const after = anchors[idx + 2];
+    const tangent = after.clone().sub(before).normalize();
+    let side = point.clone().normalize().cross(tangent).normalize();
+    if (side.lengthSq() < 0.01) side = axisB.clone();
+    if (idx % 2) side.multiplyScalar(-1);
+
+    const stubLen = (0.025 + Math.random() * 0.018) * GLOBE_R;
+    const start = point.clone();
+    const end = point.clone()
+      .add(side.multiplyScalar(stubLen))
+      .normalize()
+      .multiplyScalar(point.length() + 0.8);
+
+    const stub = [];
+    for (let s = 0; s <= CIRCUIT_STUB_SEGS; s++) {
+      const t = s / CIRCUIT_STUB_SEGS;
+      stub.push(start.clone().lerp(end, t).normalize().multiplyScalar(start.length() * (1 - t) + end.length() * t));
+    }
+
+    return { point, stub };
+  });
+
+  return { points: pts, bends, pads: [anchors[0], anchors[anchors.length - 1]] };
 }
 
 function samplePoints(points, t) {
@@ -359,9 +400,11 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
           const circuit = makeCircuitPath(JET_PATH_SEGS);
           jet.points = circuit.points;
           jet.bends = circuit.bends;
+          jet.pads = circuit.pads;
+          jet.showPads = Math.random() < 0.72;
           jet.progress = initial ? Math.random() * 1.35 - 0.25 : -Math.random() * 1.75;
-          jet.speed = 0.09 + Math.random() * 0.13;
-          jet.trail = 0.16 + Math.random() * 0.08;
+          jet.speed = 0.13 + Math.random() * 0.15;
+          jet.trail = 0.09 + Math.random() * 0.045;
           jet.line.material.color.copy(rgbColor(binaryColorRef.current));
           jet.head.material.color.copy(rgbColor(binaryColorRef.current));
           jet.line.material.opacity = 0;
@@ -369,6 +412,16 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
           for (const node of jet.nodes) {
             node.visible = false;
             node.material.color.copy(rgbColor(binaryColorRef.current));
+          }
+          for (const stub of jet.stubs) {
+            stub.visible = false;
+            stub.material.color.copy(rgbColor(binaryColorRef.current));
+            stub.material.opacity = 0;
+          }
+          for (const pad of jet.padSprites) {
+            pad.visible = false;
+            pad.material.color.copy(rgbColor(binaryColorRef.current));
+            pad.material.opacity = 0;
           }
         };
 
@@ -413,10 +466,58 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
             return node;
           });
 
+          const stubs = Array.from({ length: CIRCUIT_BENDS - 1 }, () => {
+            const positions = new Float32Array((CIRCUIT_STUB_SEGS + 1) * 3);
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const stub = new THREE.Line(
+              geo,
+              new THREE.LineBasicMaterial({
+                color: rgbColor(binaryColorRef.current),
+                transparent: true,
+                opacity: 0,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+              }),
+            );
+            stub.visible = false;
+            globeGroup.add(stub);
+            return stub;
+          });
+
+          const padSprites = Array.from({ length: 2 }, () => {
+            const pad = new THREE.Sprite(new THREE.SpriteMaterial({
+              map: jetTexture,
+              color: rgbColor(binaryColorRef.current),
+              transparent: true,
+              opacity: 0,
+              depthWrite: false,
+              blending: THREE.AdditiveBlending,
+            }));
+            pad.scale.set(4.5, 4.5, 1);
+            pad.visible = false;
+            globeGroup.add(pad);
+            return pad;
+          });
+
           globeGroup.add(line);
           globeGroup.add(head);
 
-          const jet = { line, head, nodes, positions, points: [], bends: [], progress: 0, speed: 0, trail: 0 };
+          const jet = {
+            line,
+            head,
+            nodes,
+            stubs,
+            padSprites,
+            positions,
+            points: [],
+            bends: [],
+            pads: [],
+            showPads: false,
+            progress: 0,
+            speed: 0,
+            trail: 0,
+          };
           respawnJet(jet, true);
           jets.push(jet);
         }
@@ -430,6 +531,8 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
               jet.line.material.color.copy(rgbColor(binaryColorRef.current));
               jet.head.material.color.copy(rgbColor(binaryColorRef.current));
               for (const node of jet.nodes) node.material.color.copy(rgbColor(binaryColorRef.current));
+              for (const stub of jet.stubs) stub.material.color.copy(rgbColor(binaryColorRef.current));
+              for (const pad of jet.padSprites) pad.material.color.copy(rgbColor(binaryColorRef.current));
             }
             lastJetPaint = colorKey;
           }
@@ -448,7 +551,24 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
             jet.line.visible = visible;
             jet.head.visible = visible;
             for (const node of jet.nodes) node.visible = false;
+            for (const stub of jet.stubs) stub.visible = false;
+            for (const pad of jet.padSprites) pad.visible = false;
             if (!visible) continue;
+
+            if (jet.showPads) {
+              for (let p = 0; p < jet.padSprites.length; p++) {
+                const pad = jet.padSprites[p];
+                const wake = p === 0 ? jet.progress : 1 + jet.trail - jet.progress;
+                const padAlpha = alpha * Math.max(0, Math.min(1, wake / 0.16));
+                if (padAlpha <= 0.02) continue;
+                pad.visible = true;
+                pad.position.copy(jet.pads[p]);
+                pad.material.opacity = 0.22 + padAlpha * 0.46;
+                const padPulse = 0.5 + 0.5 * Math.sin((jet.progress * 12 + p) * Math.PI);
+                const padScale = 4.2 + padAlpha * (2.6 + padPulse * 1.4);
+                pad.scale.set(padScale, padScale, 1);
+              }
+            }
 
             for (let s = 0; s <= JET_TRAIL_SEGS; s++) {
               const trailT = s / JET_TRAIL_SEGS;
@@ -460,7 +580,7 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
               jet.positions[o + 2] = p.z;
             }
             jet.line.geometry.attributes.position.needsUpdate = true;
-            jet.line.material.opacity = 0.18 + alpha * 0.44;
+            jet.line.material.opacity = 0.26 + alpha * 0.54;
 
             const headPoint = samplePoints(jet.points, jet.progress);
             jet.head.position.copy(headPoint);
@@ -471,17 +591,29 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
 
             for (let n = 0; n < jet.bends.length; n++) {
               const node = jet.nodes[n];
+              const stub = jet.stubs[n];
               if (!node) continue;
               const bendProgress = (n + 1) / (jet.bends.length + 1);
               const wake = jet.progress - bendProgress;
               const nodeAlpha = alpha * Math.max(0, Math.min(1, 1 - Math.abs(wake) / 0.22));
               if (nodeAlpha <= 0.03) continue;
               node.visible = true;
-              node.position.copy(jet.bends[n]);
+              node.position.copy(jet.bends[n].point);
               node.material.opacity = 0.22 + nodeAlpha * 0.62;
               const nodePulse = 0.5 + 0.5 * Math.sin((wake * 18 + n) * Math.PI);
               const nodeScale = 4 + nodeAlpha * (5 + nodePulse * 3);
               node.scale.set(nodeScale, nodeScale, 1);
+
+              if (stub) {
+                stub.visible = true;
+                const attr = stub.geometry.attributes.position;
+                for (let s = 0; s < jet.bends[n].stub.length; s++) {
+                  const p = jet.bends[n].stub[s];
+                  attr.setXYZ(s, p.x, p.y, p.z);
+                }
+                attr.needsUpdate = true;
+                stub.material.opacity = nodeAlpha * 0.58;
+              }
             }
           }
         };
