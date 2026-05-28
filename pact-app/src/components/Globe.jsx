@@ -18,9 +18,10 @@ const S_TRAIL = 18;                             // columns of fade behind each s
 const HOVER_THRESHOLD = 3.4;
 const JET_COUNT = 7;
 const JET_PATH_SEGS = 96;
-const JET_TRAIL_SEGS = 26;
-const CIRCUIT_BENDS = 7;
+const JET_TRAIL_SEGS = 42;
+const CIRCUIT_BENDS = 9;
 const CIRCUIT_STUB_SEGS = 4;
+const TRACE_DASH_SEGMENTS = 4;
 
 /* geographic projection */
 function flatToSphere(px, py) {
@@ -60,8 +61,8 @@ function makeCircuitPath(segs = JET_PATH_SEGS) {
   const primaryAxis = Math.random() < 0.5 ? 'a' : 'b';
   const primarySign = Math.random() < 0.5 ? -1 : 1;
   const secondarySign = Math.random() < 0.5 ? -1 : 1;
-  const primaryStep = 0.055 + Math.random() * 0.035;
-  const secondaryStep = 0.032 + Math.random() * 0.024;
+  const primaryStep = 0.046 + Math.random() * 0.028;
+  const secondaryStep = 0.027 + Math.random() * 0.019;
   const jogEvery = 3 + Math.floor(Math.random() * 2);
 
   const pushAnchor = () => {
@@ -84,7 +85,7 @@ function makeCircuitPath(segs = JET_PATH_SEGS) {
     const step = (isJog ? secondaryStep : primaryStep) * (0.78 + Math.random() * 0.36);
     current[axis] += sign * step;
 
-    if (i > 2 && !isJog && Math.random() < 0.28) {
+    if (i > 2 && !isJog && Math.random() < 0.18) {
       current[axis === 'a' ? 'b' : 'a'] += secondarySign * secondaryStep * 0.45;
     }
 
@@ -111,7 +112,7 @@ function makeCircuitPath(segs = JET_PATH_SEGS) {
     if (side.lengthSq() < 0.01) side = axisB.clone();
     if (idx % 2) side.multiplyScalar(-1);
 
-    const stubLen = (0.025 + Math.random() * 0.018) * GLOBE_R;
+    const stubLen = (0.034 + Math.random() * 0.022) * GLOBE_R;
     const start = point.clone();
     const end = point.clone()
       .add(side.multiplyScalar(stubLen))
@@ -140,6 +141,12 @@ function samplePoints(points, t) {
 
 function rgbColor({ r, g, b }) {
   return new THREE.Color(r / 255, g / 255, b / 255);
+}
+
+function setLinePoint(line, idx, point) {
+  const attr = line.geometry.attributes.position;
+  attr.setXYZ(idx, point.x, point.y, point.z);
+  attr.needsUpdate = true;
 }
 
 function hexToRgb(hex) {
@@ -403,12 +410,17 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
           jet.pads = circuit.pads;
           jet.showPads = Math.random() < 0.72;
           jet.progress = initial ? Math.random() * 1.35 - 0.25 : -Math.random() * 1.75;
-          jet.speed = 0.13 + Math.random() * 0.15;
-          jet.trail = 0.09 + Math.random() * 0.045;
+          jet.speed = 0.075 + Math.random() * 0.08;
+          jet.trail = 0.24 + Math.random() * 0.08;
           jet.line.material.color.copy(rgbColor(binaryColorRef.current));
           jet.head.material.color.copy(rgbColor(binaryColorRef.current));
           jet.line.material.opacity = 0;
           jet.head.material.opacity = 0;
+          for (const dash of jet.dashLines) {
+            dash.visible = false;
+            dash.material.color.copy(rgbColor(binaryColorRef.current));
+            dash.material.opacity = 0;
+          }
           for (const node of jet.nodes) {
             node.visible = false;
             node.material.color.copy(rgbColor(binaryColorRef.current));
@@ -440,6 +452,24 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
               blending: THREE.AdditiveBlending,
             }),
           );
+
+          const dashLines = Array.from({ length: TRACE_DASH_SEGMENTS }, () => {
+            const dashGeo = new THREE.BufferGeometry();
+            dashGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+            const dash = new THREE.Line(
+              dashGeo,
+              new THREE.LineBasicMaterial({
+                color: rgbColor(binaryColorRef.current),
+                transparent: true,
+                opacity: 0,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+              }),
+            );
+            dash.visible = false;
+            globeGroup.add(dash);
+            return dash;
+          });
 
           const head = new THREE.Sprite(new THREE.SpriteMaterial({
             map: jetTexture,
@@ -505,6 +535,7 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
 
           const jet = {
             line,
+            dashLines,
             head,
             nodes,
             stubs,
@@ -523,12 +554,20 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
         }
 
         let lastJetPaint = `${binaryColorRef.current.r},${binaryColorRef.current.g},${binaryColorRef.current.b}`;
+        const depthScratch = new THREE.Vector3();
+        const depthFade = (point) => {
+          depthScratch.copy(point).applyEuler(globeGroup.rotation);
+          const facing = depthScratch.z / GLOBE_R;
+          return Math.max(0.18, Math.min(1, 0.55 + facing * 0.45));
+        };
+
         const updateJets = (dt) => {
           const colorKey = `${binaryColorRef.current.r},${binaryColorRef.current.g},${binaryColorRef.current.b}`;
           if (colorKey !== lastJetPaint) {
             paintJetTexture();
             for (const jet of jets) {
               jet.line.material.color.copy(rgbColor(binaryColorRef.current));
+              for (const dash of jet.dashLines) dash.material.color.copy(rgbColor(binaryColorRef.current));
               jet.head.material.color.copy(rgbColor(binaryColorRef.current));
               for (const node of jet.nodes) node.material.color.copy(rgbColor(binaryColorRef.current));
               for (const stub of jet.stubs) stub.material.color.copy(rgbColor(binaryColorRef.current));
@@ -544,12 +583,13 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
               continue;
             }
 
-            const fadeIn = Math.max(0, Math.min(1, jet.progress / 0.16));
-            const fadeOut = Math.max(0, Math.min(1, (1 + jet.trail - jet.progress) / 0.22));
+            const fadeIn = Math.max(0, Math.min(1, jet.progress / 0.24));
+            const fadeOut = Math.max(0, Math.min(1, (1 + jet.trail - jet.progress) / 0.42));
             const alpha = Math.min(fadeIn, fadeOut);
             const visible = alpha > 0.01 && jet.progress > 0;
             jet.line.visible = visible;
             jet.head.visible = visible;
+            for (const dash of jet.dashLines) dash.visible = false;
             for (const node of jet.nodes) node.visible = false;
             for (const stub of jet.stubs) stub.visible = false;
             for (const pad of jet.padSprites) pad.visible = false;
@@ -559,11 +599,12 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
               for (let p = 0; p < jet.padSprites.length; p++) {
                 const pad = jet.padSprites[p];
                 const wake = p === 0 ? jet.progress : 1 + jet.trail - jet.progress;
-                const padAlpha = alpha * Math.max(0, Math.min(1, wake / 0.16));
+                const padAlpha = alpha * Math.max(0, Math.min(1, wake / 0.24));
                 if (padAlpha <= 0.02) continue;
+                const dim = depthFade(jet.pads[p]);
                 pad.visible = true;
                 pad.position.copy(jet.pads[p]);
-                pad.material.opacity = 0.22 + padAlpha * 0.46;
+                pad.material.opacity = (0.22 + padAlpha * 0.46) * dim;
                 const padPulse = 0.5 + 0.5 * Math.sin((jet.progress * 12 + p) * Math.PI);
                 const padScale = 4.2 + padAlpha * (2.6 + padPulse * 1.4);
                 pad.scale.set(padScale, padScale, 1);
@@ -580,12 +621,28 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
               jet.positions[o + 2] = p.z;
             }
             jet.line.geometry.attributes.position.needsUpdate = true;
-            jet.line.material.opacity = 0.26 + alpha * 0.54;
 
             const headPoint = samplePoints(jet.points, jet.progress);
+            const headDim = depthFade(headPoint);
+            jet.line.material.opacity = (0.12 + alpha * 0.18) * headDim;
+
+            for (let d = 0; d < jet.dashLines.length; d++) {
+              const dash = jet.dashLines[d];
+              const dashHead = jet.progress - d * jet.trail * 0.19;
+              const dashTail = dashHead - jet.trail * 0.075;
+              if (dashTail < 0 || dashHead > 1 + jet.trail) continue;
+
+              const p0 = samplePoints(jet.points, dashTail);
+              const p1 = samplePoints(jet.points, dashHead);
+              setLinePoint(dash, 0, p0);
+              setLinePoint(dash, 1, p1);
+              dash.visible = true;
+              dash.material.opacity = (0.26 + alpha * 0.46) * depthFade(p1);
+            }
+
             jet.head.position.copy(headPoint);
             const pulse = 0.5 + 0.5 * Math.sin(jet.progress * Math.PI * 20);
-            jet.head.material.opacity = 0.48 + alpha * (0.34 + pulse * 0.18);
+            jet.head.material.opacity = (0.48 + alpha * (0.34 + pulse * 0.18)) * headDim;
             const headScale = 7 + alpha * (5 + pulse * 3);
             jet.head.scale.set(headScale, headScale, 1);
 
@@ -595,11 +652,12 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
               if (!node) continue;
               const bendProgress = (n + 1) / (jet.bends.length + 1);
               const wake = jet.progress - bendProgress;
-              const nodeAlpha = alpha * Math.max(0, Math.min(1, 1 - Math.abs(wake) / 0.22));
+              const nodeAlpha = alpha * Math.max(0, Math.min(1, 1 - Math.abs(wake) / 0.34));
               if (nodeAlpha <= 0.03) continue;
+              const dim = depthFade(jet.bends[n].point);
               node.visible = true;
               node.position.copy(jet.bends[n].point);
-              node.material.opacity = 0.22 + nodeAlpha * 0.62;
+              node.material.opacity = (0.22 + nodeAlpha * 0.62) * dim;
               const nodePulse = 0.5 + 0.5 * Math.sin((wake * 18 + n) * Math.PI);
               const nodeScale = 4 + nodeAlpha * (5 + nodePulse * 3);
               node.scale.set(nodeScale, nodeScale, 1);
@@ -612,7 +670,7 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
                   attr.setXYZ(s, p.x, p.y, p.z);
                 }
                 attr.needsUpdate = true;
-                stub.material.opacity = nodeAlpha * 0.58;
+                stub.material.opacity = nodeAlpha * 0.72 * dim;
               }
             }
           }
