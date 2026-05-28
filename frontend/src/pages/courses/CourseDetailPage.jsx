@@ -14,6 +14,7 @@ import {
   listSquads, createSquad, deleteSquad, assignToSquad, removeFromSquad,
 } from '../../api/cohorts.js';
 import { getUsers } from '../../api/users.js';
+import { getLaunchUrl } from '../../api/auth.js';
 import useAuthStore from '../../store/authStore.js';
 import LoadingSpinner from '../../components/common/LoadingSpinner.jsx';
 import Modal from '../../components/common/Modal.jsx';
@@ -1141,6 +1142,17 @@ export default function CourseDetailPage() {
             </button>
           )}
           {isStudent && enrolled && <span className="badge badge-green" style={{ alignSelf: 'center' }}>Enrolled</span>}
+          {course.status === 'published' && (
+            <button
+              className="btn btn-primary"
+              onClick={async () => {
+                try { window.open(await getLaunchUrl(), '_blank', 'noopener,noreferrer'); }
+                catch { alert('Could not launch PACT. Please try again.'); }
+              }}
+            >
+              Launch PACT ↗
+            </button>
+          )}
           {canManage && <Link to={`/courses/${id}/edit`} className="btn btn-secondary">Edit Course</Link>}
         </div>
       </div>

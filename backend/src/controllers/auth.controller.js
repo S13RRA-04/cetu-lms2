@@ -1,6 +1,22 @@
 'use strict';
+const crypto      = require('crypto');
 const authService = require('../services/auth.service');
 const logger      = require('../utils/logger');
+
+/* ── Launch tokens ───────────────────────────────────────────────────────────
+   Short-lived (60 s), single-use tokens that let an LMS-authenticated user
+   start a PACT session without re-entering credentials.
+   Stored in memory — intentionally ephemeral, lost on restart.
+─────────────────────────────────────────────────────────────────────────── */
+const LAUNCH_TOKENS   = new Map(); // token → { userId, expiresAt }
+const LAUNCH_TTL_MS   = 60_000;   // 60 seconds
+const PACT_URL        = (process.env.PACT_URL ?? 'https://pact.cetu.online').replace(/\/$/, '');
+
+/* Prune expired tokens lazily on each issuance */
+function pruneExpired() {
+  const now = Date.now();
+  for (const [k, v] of LAUNCH_TOKENS) if (v.expiresAt < now) LAUNCH_TOKENS.delete(k);
+}
 
 const COOKIE_OPTS = {
   httpOnly:  true,
@@ -84,4 +100,37 @@ async function register(req, res, next) {
   }
 }
 
-module.exports = { login, register, refresh, logout };
+/* POST /auth/launch-token  (requires LMS session) */
+async function issueLaunchToken(req, res, next) {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+    pruneExpired();
+    const token = crypto.randomBytes(32).toString('hex');
+    LAUNCH_TOKENS.set(token, { userId: req.user.id, expiresAt: Date.now() + LAUNCH_TTL_MS });
+    return res.json({ launchUrl: `${PACT_URL}/?launch_token=${token}` });
+  } catch (err) { return next(err); }
+}
+
+/* POST /auth/exchange-launch-token  { token }  (public — no prior session needed) */
+async function exchangeLaunchToken(req, res, next) {
+  try {
+    const { token } = req.body ?? {};
+    const entry = token && LAUNCH_TOKENS.get(token);
+    if (!entry || entry.expiresAt < Date.now()) {
+      return res.status(401).json({ error: { message: 'Invalid or expired launch token' } });
+    }
+    LAUNCH_TOKENS.delete(token); // single-use
+
+    const { User } = require('../models');
+    const user = await User.findByPk(entry.userId);
+    if (!user || !user.is_active) return res.status(401).json({ error: { message: 'User not found or inactive' } });
+
+    const accessToken = authService.generateAccessToken(user);
+    return res.json({
+      accessToken,
+      user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name, role: user.role },
+    });
+  } catch (err) { return next(err); }
+}
+
+module.exports = { login, register, refresh, logout, issueLaunchToken, exchangeLaunchToken };

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { getCourses, deleteCourse } from '../../api/courses.js';
+import { getLaunchUrl } from '../../api/auth.js';
 import useAuthStore from '../../store/authStore.js';
 import LoadingSpinner from '../../components/common/LoadingSpinner.jsx';
 import Pagination from '../../components/common/Pagination.jsx';
@@ -9,6 +10,15 @@ import ConfirmDialog from '../../components/common/ConfirmDialog.jsx';
 function StatusBadge({ status }) {
   const cls = status === 'published' ? 'badge-green' : status === 'archived' ? 'badge-gray' : 'badge-blue';
   return <span className={`badge ${cls}`}>{status}</span>;
+}
+
+async function launchPact() {
+  try {
+    const url = await getLaunchUrl();
+    window.open(url, '_blank', 'noopener,noreferrer');
+  } catch {
+    alert('Could not launch PACT. Please try again.');
+  }
 }
 
 export default function CoursesPage() {
@@ -113,6 +123,9 @@ export default function CoursesPage() {
                   <StatusBadge status={course.status} />
                   <div style={{ display: 'flex', gap: 4 }}>
                     <Link to={`/courses/${course.id}`} className="btn btn-ghost btn-xs">View</Link>
+                    {course.status === 'published' && (
+                      <button className="btn btn-primary btn-xs" onClick={launchPact}>Launch</button>
+                    )}
                     {canManage && (
                       <>
                         <Link to={`/courses/${course.id}/edit`} className="btn btn-ghost btn-xs">Edit</Link>

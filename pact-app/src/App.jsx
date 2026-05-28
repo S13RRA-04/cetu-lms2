@@ -1,4 +1,5 @@
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import useAuthStore from './store/authStore.js';
 import LoginPage      from './pages/LoginPage.jsx';
 import DashboardHome  from './pages/DashboardHome.jsx';
@@ -40,5 +41,33 @@ const router = createBrowserRouter([
 ]);
 
 export default function App() {
+  const { setUser }   = useAuthStore();
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token  = params.get('launch_token');
+    if (!token) { setReady(true); return; }
+
+    /* Strip the param from the URL immediately so it's not bookmarked / logged */
+    params.delete('launch_token');
+    const clean = window.location.pathname + (params.toString() ? `?${params}` : '');
+    window.history.replaceState(null, '', clean);
+
+    fetch('/api/v1/auth/exchange-launch-token', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ token }),
+    })
+      .then((r) => r.ok ? r.json() : Promise.reject(r))
+      .then(({ accessToken, user }) => {
+        localStorage.setItem('accessToken', accessToken);
+        setUser(user);
+      })
+      .catch(() => { /* token expired or invalid — fall through to normal login */ })
+      .finally(() => setReady(true));
+  }, []);
+
+  if (!ready) return null;
   return <RouterProvider router={router} />;
 }
