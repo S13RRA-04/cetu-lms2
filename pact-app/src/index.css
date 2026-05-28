@@ -1830,6 +1830,89 @@ body {
   border-radius: var(--radius-sm); font-size: 13px; cursor: pointer; color: #475569;
 }
 
+/* ── Challenge flow ──────────────────────────────────────────────────────── */
+.challenge-flow { display: flex; flex-direction: column; gap: 20px; }
+
+.challenge-squad-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  background: rgba(255,255,255,.5);
+  letter-spacing: .02em;
+}
+.challenge-squad-icon { font-size: 14px; }
+
+.challenge-prompts { display: flex; flex-direction: column; gap: 18px; }
+.challenge-prompts-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.challenge-prompts-count { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+
+.challenge-prompt-item { display: flex; flex-direction: column; gap: 8px; }
+.challenge-prompt-label {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--bright);
+}
+.challenge-prompt-num {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: .08em;
+  flex-shrink: 0;
+}
+
+.challenge-textarea {
+  width: 100%;
+  padding: 12px 14px;
+  background: rgba(255,255,255,.7);
+  border: 1px solid rgba(0,0,0,.12);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--bright);
+  resize: vertical;
+  transition: border-color .15s, box-shadow .15s;
+  box-sizing: border-box;
+}
+.challenge-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-md, rgba(37,99,235,.12));
+}
+.challenge-textarea-lg { min-height: 180px; }
+
+.challenge-freeform { display: flex; flex-direction: column; gap: 8px; }
+
+.challenge-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+.challenge-confirm-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.challenge-confirm-msg { font-size: 13px; font-weight: 600; color: var(--bright); }
+.challenge-incomplete-note { font-size: 11px; color: var(--muted); font-style: italic; }
+
+.challenge-success {
+  text-align: center;
+  padding: 40px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.challenge-success-icon { font-size: 36px; font-weight: 700; line-height: 1; }
+.challenge-success-title { font-size: 18px; font-weight: 700; color: var(--bright); }
+.challenge-success-sub { font-size: 13px; color: var(--muted); max-width: 360px; line-height: 1.5; }
+
 /* ── Survey form ─────────────────────────────────────────────────────────── */
 .survey-form { display: flex; flex-direction: column; gap: 0; }
 .survey-section { margin-bottom: 32px; }

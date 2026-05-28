@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getAssignment, getMySubmission, submitAssignment, updateProgress } from '../api/pact.js';
-import QuizFlow from '../components/QuizFlow.jsx';
+import QuizFlow       from '../components/QuizFlow.jsx';
+import ChallengeFlow  from '../components/ChallengeFlow.jsx';
 
 const TYPE_COLOR = {
   module:     '#2563eb',
@@ -103,11 +104,12 @@ export default function AssignmentPage() {
     );
   }
 
-  const color     = TYPE_COLOR[assignment.type] ?? TYPE_COLOR.module;
-  const isSquad   = assignment.grading_mode === 'squad';
-  const isLocked  = assignment.is_unlocked === false;
-  const isSurvey  = assignment.type === 'survey';
-  const hasQuiz   = !isLocked && !isSurvey && Array.isArray(assignment.questions) && assignment.questions.length > 0;
+  const color       = TYPE_COLOR[assignment.type] ?? TYPE_COLOR.module;
+  const isSquad     = assignment.grading_mode === 'squad';
+  const isLocked    = assignment.is_unlocked === false;
+  const isSurvey    = assignment.type === 'survey';
+  const isChallenge = assignment.type === 'challenge' || assignment.type === 'capstone';
+  const hasQuiz     = !isLocked && !isSurvey && !isChallenge && Array.isArray(assignment.questions) && assignment.questions.length > 0;
 
   return (
     <div className="assignment-page">
@@ -160,6 +162,20 @@ export default function AssignmentPage() {
               />
             </>
           )
+        ) : /* ── Challenge / Capstone flow ── */
+        isChallenge ? (
+          <ChallengeFlow
+            assignment={assignment}
+            color={color}
+            submitted={submitted}
+            existingContent={content}
+            onComplete={async (payload) => {
+              setContent(payload);
+              setProgress(100);
+              await submitAssignment(id, payload);
+              setSubmitted(true);
+            }}
+          />
         ) : /* ── Quiz flow for module-type assignments with questions ── */
         hasQuiz ? (
           submitted ? (
