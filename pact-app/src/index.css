@@ -835,8 +835,8 @@ body {
 /* ── Globe full-page background ──────────────────────────────────────────────── */
 .globe-bg {
   position: fixed;
-  right: -7vw;
-  bottom: -9vw;
+  right: -26vw;
+  bottom: -28vw;
   width: clamp(806px, 60vw, 1274px);
   height: clamp(806px, 60vw, 1274px);
   pointer-events: none;
@@ -951,8 +951,8 @@ body {
 /* Globe stays fixed behind the content area */
 .app-shell .globe-bg {
   position: fixed;
-  right: -7vw;
-  bottom: -9vw;
+  right: -26vw;
+  bottom: -28vw;
   width: clamp(806px, 60vw, 1274px);
   height: clamp(806px, 60vw, 1274px);
   z-index: 0;
@@ -2273,8 +2273,8 @@ body {
   .pact-header { padding: 0 16px; }
   .globe-bg,
   .app-shell .globe-bg {
-    right: -42px;
-    bottom: -54px;
+    right: -92px;
+    bottom: -98px;
     width: min(120vw, 546px);
     height: min(120vw, 546px);
     opacity: 0.95;

@@ -133,7 +133,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
       {/* Globe background */}
       <div className="globe-bg" aria-hidden="true">
         <Suspense fallback={null}>
-          <Globe className="globe-bg-canvas" />
+          <Globe className="globe-bg-canvas" accentColor={accent} />
         </Suspense>
       </div>
 

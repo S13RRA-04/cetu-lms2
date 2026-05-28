@@ -15,6 +15,7 @@ const NETWORK_ARCS = [
 const ARC_SEGMENTS = 52;
 
 export default function Globe({
+  accentColor = null,
   autoRotate = true,
   className = '',
   interactive = false,
@@ -41,7 +42,7 @@ export default function Globe({
     ]).then(([THREE, pointsModule]) => {
       if (disposed) return;
 
-      const [red, green, blue] = readAccentColor(host);
+      const [red, green, blue] = accentColor ? readColorValue(accentColor) : readAccentColor(host);
       const accent = new THREE.Color(red / 255, green / 255, blue / 255);
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
@@ -80,7 +81,7 @@ export default function Globe({
       dotGeometry.setAttribute('position', new THREE.Float32BufferAttribute(pointCloud.positions, 3));
       dotGeometry.setAttribute('color', new THREE.Float32BufferAttribute(pointCloud.colors, 3));
       const dotMaterial = new THREE.PointsMaterial({
-        size: 0.022,
+        size: 0.026,
         sizeAttenuation: true,
         vertexColors: true,
         transparent: true,
@@ -230,7 +231,7 @@ export default function Globe({
       disposed = true;
       cleanup();
     };
-  }, [autoRotate, interactive]);
+  }, [accentColor, autoRotate, interactive]);
 
   return (
     <div
@@ -280,17 +281,23 @@ function buildPointCloudFromSample(points, accent) {
   const colors = [];
 
   for (const point of points) {
-    const vertex = flatMapPointToSphere(point.x, point.y, GLOBE_RADIUS);
-    const depthFade = 0.16 + 0.84 * Math.max(0, Math.min(1, (vertex[2] / GLOBE_RADIUS + 1) / 2));
-    positions.push(...vertex);
-    colors.push(
-      accent.r * depthFade,
-      accent.g * depthFade,
-      accent.b * depthFade,
-    );
+    addGlobePoint(positions, colors, point.x, point.y, accent, 1);
+    addGlobePoint(positions, colors, point.x + 1.55, point.y - 1.2, accent, 0.82);
+    addGlobePoint(positions, colors, point.x - 1.35, point.y + 1.45, accent, 0.7);
   }
 
   return { positions, colors };
+}
+
+function addGlobePoint(positions, colors, x, y, accent, intensity) {
+  const vertex = flatMapPointToSphere(x, y, GLOBE_RADIUS);
+  const depthFade = 0.18 + 0.82 * Math.max(0, Math.min(1, (vertex[2] / GLOBE_RADIUS + 1) / 2));
+  positions.push(...vertex);
+  colors.push(
+    accent.r * depthFade * intensity,
+    accent.g * depthFade * intensity,
+    accent.b * depthFade * intensity,
+  );
 }
 
 function buildGuideLines() {
