@@ -6,13 +6,18 @@ const FLAT_MAP_HEIGHT = 1968 / 2;
 const NETWORK_ARCS = [
   { from: [37.8, -122.4], to: [51.5, -0.1], lift: 0.25, speed: 0.0042 },
   { from: [40.7, -74.0], to: [35.7, 139.7], lift: 0.34, speed: 0.0035 },
-  { from: [51.5, -0.1], to: [1.35, 103.8], lift: 0.28, speed: 0.0048 },
+  { from: [33.7, -84.4], to: [1.35, 103.8], lift: 0.28, speed: 0.0048 },
   { from: [25.2, 55.3], to: [-33.9, 151.2], lift: 0.22, speed: 0.004 },
-  { from: [-23.5, -46.6], to: [38.9, -77.0], lift: 0.2, speed: 0.0052 },
+  { from: [-23.5, -46.6], to: [48.9, 2.35], lift: 0.2, speed: 0.0052 },
   { from: [52.5, 13.4], to: [-26.2, 28.0], lift: 0.18, speed: 0.0038 },
   { from: [19.4, -99.1], to: [-34.6, -58.4], lift: 0.16, speed: 0.0045 },
+  { from: [45.5, -73.6], to: [59.9, 10.8], lift: 0.21, speed: 0.0039 },
+  { from: [41.9, 12.5], to: [31.2, 121.5], lift: 0.3, speed: 0.0044 },
+  { from: [-1.3, 36.8], to: [50.1, 14.4], lift: 0.19, speed: 0.005 },
 ];
 const ARC_SEGMENTS = 52;
+const TRAIL_LAYER_COUNT = 10;
+const TRAIL_STEP = 0.018;
 
 export default function Globe({
   accentColor = null,
@@ -128,6 +133,23 @@ export default function Globe({
       const pulses = new THREE.Points(pulseGeometry, pulseMaterial);
       globe.add(pulses);
 
+      const trailLayers = Array.from({ length: TRAIL_LAYER_COUNT }, (_, index) => {
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute(
+          'position',
+          new THREE.Float32BufferAttribute(new Float32Array(arcPaths.length * 2 * 3), 3),
+        );
+        const material = new THREE.LineBasicMaterial({
+          color: accent,
+          transparent: true,
+          opacity: 0.36 * Math.pow(1 - index / TRAIL_LAYER_COUNT, 1.7),
+          depthWrite: false,
+        });
+        const line = new THREE.LineSegments(geometry, material);
+        globe.add(line);
+        return { geometry, material };
+      });
+
       const scanGeometry = new THREE.BufferGeometry();
       scanGeometry.setAttribute('position', new THREE.Float32BufferAttribute(buildLatitudeRing(0, GLOBE_RADIUS * 1.012), 3));
       const scanMaterial = new THREE.LineBasicMaterial({
@@ -163,7 +185,7 @@ export default function Globe({
           globe.rotation.x += Math.sin(Date.now() * 0.0007) * 0.0002;
         }
 
-        updateCyberEffects(arcPaths, pulseGeometry, scanRing, scanMaterial);
+        updateCyberEffects(arcPaths, pulseGeometry, trailLayers, scanRing, scanMaterial);
 
         renderer.render(scene, camera);
         animationFrame = window.requestAnimationFrame(render);
@@ -221,6 +243,10 @@ export default function Globe({
         arcMaterial.dispose();
         pulseGeometry.dispose();
         pulseMaterial.dispose();
+        for (const layer of trailLayers) {
+          layer.geometry.dispose();
+          layer.material.dispose();
+        }
         scanGeometry.dispose();
         scanMaterial.dispose();
         renderer.dispose();
@@ -360,7 +386,7 @@ function buildLatitudeRing(latitude, radius) {
   return vertices;
 }
 
-function updateCyberEffects(arcs, pulseGeometry, scanRing, scanMaterial) {
+function updateCyberEffects(arcs, pulseGeometry, trailLayers, scanRing, scanMaterial) {
   const time = Date.now() * 0.001;
   const positions = pulseGeometry.attributes.position;
 
@@ -372,6 +398,23 @@ function updateCyberEffects(arcs, pulseGeometry, scanRing, scanMaterial) {
   }
   positions.needsUpdate = true;
 
+  for (let layerIndex = 0; layerIndex < trailLayers.length; layerIndex += 1) {
+    const layer = trailLayers[layerIndex];
+    const trailPositions = layer.geometry.attributes.position;
+    const headOffset = TRAIL_STEP * layerIndex;
+    const tailOffset = TRAIL_STEP * (layerIndex + 1);
+
+    for (let arcIndex = 0; arcIndex < arcs.length; arcIndex += 1) {
+      const arc = arcs[arcIndex];
+      const head = sampleArcPoint(arc.points, wrap01(arc.progress - headOffset));
+      const tail = sampleArcPoint(arc.points, wrap01(arc.progress - tailOffset));
+      const offset = arcIndex * 2;
+      trailPositions.setXYZ(offset, tail[0], tail[1], tail[2]);
+      trailPositions.setXYZ(offset + 1, head[0], head[1], head[2]);
+    }
+    trailPositions.needsUpdate = true;
+  }
+
   const latitude = Math.sin(time * 0.8) * 58;
   const ringVertices = buildLatitudeRing(latitude, GLOBE_RADIUS * 1.014);
   const ringPositions = scanRing.geometry.attributes.position;
@@ -380,6 +423,10 @@ function updateCyberEffects(arcs, pulseGeometry, scanRing, scanMaterial) {
   }
   ringPositions.needsUpdate = true;
   scanMaterial.opacity = 0.08 + 0.16 * (0.5 + 0.5 * Math.sin(time * 2.2));
+}
+
+function wrap01(value) {
+  return ((value % 1) + 1) % 1;
 }
 
 function sampleArcPoint(points, progress) {
