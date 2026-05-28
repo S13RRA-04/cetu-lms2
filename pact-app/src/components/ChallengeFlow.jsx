@@ -9,23 +9,60 @@ import { useState } from 'react';
   All responses are combined into a JSON object for submission.
 */
 
+function splitOnCommasAnd(str) {
+  return str
+    .split(/,\s*(?:and\s+)?|\s+and\s+/i)
+    .map((s) => s.trim().replace(/\.$/, ''))
+    .filter((s) => s.length > 3);
+}
+
 function parseDeliverables(description = '') {
-  /* Try to extract items after "answers on …" or "prepare …" */
-  const afterOn = description.match(/(?:answers on|prepare (?:squad )?answers on)\s+(.+?)(?:\.|$)/i);
-  if (afterOn) {
-    const raw   = afterOn[1];
-    const parts = raw
-      .split(/,\s*|\s+and\s+/i)
-      .map((s) => s.trim().replace(/\.$/, ''))
-      .filter(Boolean);
+  if (!description) return null;
+
+  /* 1. "answers on X, Y, Z" or "prepare squad answers on X, Y, Z" */
+  const p1 = description.match(/(?:answers on|prepare (?:squad )?answers on)\s+(.+?)(?:\.|$)/i);
+  if (p1) {
+    const parts = splitOnCommasAnd(p1[1]);
     if (parts.length >= 2) return parts;
   }
 
-  /* Fallback: look for em-dash or bullet style lines */
-  const lines = description.split(/\n/).map((l) => l.replace(/^[-•*]\s*/, '').trim()).filter(Boolean);
-  if (lines.length >= 3) return lines;
+  /* 2. Numbered list  "1. X — …\n2. Y — …\n3. Z — …" */
+  const numbered = [...description.matchAll(/\d+\.\s+([^\n]+)/g)];
+  if (numbered.length >= 2) {
+    return numbered.map((m) => {
+      const text = m[1].replace(/\s*—.*/, '').trim(); // strip em-dash clause
+      return text.length > 80 ? text.slice(0, 80) + '…' : text;
+    });
+  }
 
-  return null; // no structured prompts found — use single textarea
+  /* 3. "Your job is to X, Y, Z, and W" */
+  const p3 = description.match(/your job is to\s+(.+?)(?:\.|$)/i);
+  if (p3) {
+    const parts = splitOnCommasAnd(p3[1]);
+    if (parts.length >= 2) return parts;
+  }
+
+  /* 4. "using the X, Y, and Z" (synthesis worksheets) */
+  const p4 = description.match(/\busing\s+(?:the\s+)?(.+?)(?:\blunch\b|\bbefore\b|\.|$)/i);
+  if (p4) {
+    const parts = splitOnCommasAnd(p4[1]);
+    if (parts.length >= 2) return parts;
+  }
+
+  /* 5. Verb-clause list — find the sentence with the most comma-separated
+        clauses each starting with a letter (covers "Build X, use Y, correlate Z, and state W").
+        Only split on commas (not bare "and") to avoid splitting phrases like "physical and digital". */
+  const sentences = description.split(/(?<=[.!?])\s+/);
+  for (const sent of sentences.reverse()) {
+    const clauses = sent.split(/,\s*(?:and\s+)?/i).map((s) => s.trim()).filter((s) => s.length > 5 && /^[A-Za-z]/.test(s));
+    if (clauses.length >= 3) return clauses;
+  }
+
+  /* 6. Bullet / dash style lines */
+  const bullets = description.split(/\n/).map((l) => l.replace(/^[-•*\d.]+\s*/, '').trim()).filter(Boolean);
+  if (bullets.length >= 3) return bullets;
+
+  return null;
 }
 
 export default function ChallengeFlow({ assignment, color, onComplete, submitted, existingContent }) {
