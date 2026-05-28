@@ -17,7 +17,10 @@ export default defineConfig({
     sourcemap: false,
     rollupOptions: {
       output: {
-        manualChunks: { three: ['three'] },
+        manualChunks: {
+          three: ['three'],
+          globe: ['react-globe.gl', 'three-globe'],
+        },
       },
     },
   },
