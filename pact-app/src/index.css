@@ -835,13 +835,13 @@ body {
 /* ── Globe full-page background ──────────────────────────────────────────────── */
 .globe-bg {
   position: fixed;
-  right: -26vw;
-  bottom: -28vw;
-  width: clamp(806px, 60vw, 1274px);
-  height: clamp(806px, 60vw, 1274px);
+  right: clamp(16px, 4vw, 72px);
+  bottom: clamp(16px, 4vw, 72px);
+  width: clamp(420px, min(42vw, 72vh), 760px);
+  height: clamp(420px, min(42vw, 72vh), 760px);
   pointer-events: none;
   z-index: 0;
-  opacity: 1;
+  opacity: 0.8;
 }
 
 .globe-bg-canvas {
@@ -951,10 +951,10 @@ body {
 /* Globe stays fixed behind the content area */
 .app-shell .globe-bg {
   position: fixed;
-  right: -26vw;
-  bottom: -28vw;
-  width: clamp(806px, 60vw, 1274px);
-  height: clamp(806px, 60vw, 1274px);
+  right: clamp(16px, 4vw, 72px);
+  bottom: clamp(16px, 4vw, 72px);
+  width: clamp(420px, min(42vw, 72vh), 760px);
+  height: clamp(420px, min(42vw, 72vh), 760px);
   z-index: 0;
   cursor: default;
 }
@@ -2273,11 +2273,11 @@ body {
   .pact-header { padding: 0 16px; }
   .globe-bg,
   .app-shell .globe-bg {
-    right: -92px;
-    bottom: -98px;
-    width: min(120vw, 546px);
-    height: min(120vw, 546px);
-    opacity: 0.95;
+    right: 8px;
+    bottom: 8px;
+    width: min(78vw, 360px);
+    height: min(78vw, 360px);
+    opacity: 0.8;
   }
   .stats-banner { gap: 8px; }
   .stat-glass { padding: 14px 18px; }
