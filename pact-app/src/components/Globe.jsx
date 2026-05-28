@@ -1,16 +1,9 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 
-const GLOBE_RADIUS = 100;
-const POINT_COUNT = 5200;
-const STAR_COUNT = 420;
-const ARC_COUNT = 22;
-const GLITCH_BAND_COUNT = 18;
+const GLOBE_RADIUS  = 145;
+const POINT_COUNT   = 9000;
 const LINE_SEGMENTS = 96;
-
-function hexToColor(hex, fallback = '#00b0ff') {
-  return new THREE.Color(/^#[0-9a-f]{6}$/i.test(hex ?? '') ? hex : fallback);
-}
 
 function mulberry32(seed) {
   return () => {
@@ -21,132 +14,182 @@ function mulberry32(seed) {
   };
 }
 
+function hexToColor(hex, fallback = '#00b0ff') {
+  return new THREE.Color(/^#[0-9a-f]{6}$/i.test(hex ?? '') ? hex : fallback);
+}
+
 function pointOnSphere(latDeg, lonDeg, radius = GLOBE_RADIUS) {
   const lat = THREE.MathUtils.degToRad(latDeg);
   const lon = THREE.MathUtils.degToRad(lonDeg);
-  const cosLat = Math.cos(lat);
   return new THREE.Vector3(
-    radius * cosLat * Math.cos(lon),
+    radius * Math.cos(lat) * Math.cos(lon),
     radius * Math.sin(lat),
-    radius * cosLat * Math.sin(lon),
+    radius * Math.cos(lat) * Math.sin(lon),
   );
 }
 
-function globePoint(u, v, radius = GLOBE_RADIUS) {
-  const lon = u * 360 - 180;
-  const lat = Math.asin(2 * v - 1) * THREE.MathUtils.RAD2DEG;
-  return pointOnSphere(lat, lon, radius);
-}
-
+// Detailed land blobs biased toward eastern hemisphere coasts
+// [centerLon, centerLat, radiusLon, radiusLat]
 const LAND_BLOBS = [
-  [-100, 48, 45, 22], [-75, 35, 35, 18], [-60, -15, 30, 28],
-  [-48, -22, 18, 22], [10, 52, 36, 18], [18, 5, 28, 35],
-  [45, 28, 32, 22], [78, 23, 42, 22], [105, 48, 38, 18],
-  [112, 8, 30, 24], [135, -25, 26, 18], [145, 40, 18, 16],
+  [-105, 50, 38, 16], [-80, 38, 30, 15], [-65, -8, 22, 22],
+
+  [-5,  53, 11,  8], [  5, 47, 16, 11], [ 12, 52, 13, 11],
+  [ 22, 45, 14, 13], [ 28, 57, 16, 14], [ 37, 55, 13, 11],
+  [ 15, 42, 16,  9], [ 26, 38, 12,  7],
+
+  [ 16, 10, 22, 30], [ 33,  2, 18, 24], [ 18,-28, 16, 18],
+  [ 37, 15, 18, 20], [  8, 30, 16, 26],
+
+  [ 35, 32, 16, 13], [ 42, 37, 13, 11], [ 44, 32, 12,  9],
+  [ 50, 26, 13, 13], [ 44, 16, 10,  9], [ 58, 22, 10,  9],
+
+  [ 62, 42, 18, 14], [ 70, 38, 16, 13], [ 50, 55, 20, 13],
+
+  [ 72, 22, 14,  9], [ 80, 15, 12, 11], [ 80, 28, 16, 11],
+  [ 67, 30, 14, 13],
+
+  [105, 20, 22, 18], [108,  8, 16, 14], [120, 28, 16, 18],
+  [115, 42, 20, 15], [127, 35, 10, 13], [133, 35,  9, 13],
+
+  [132,-25, 18, 13],
 ];
 
 function landWeight(lon, lat) {
-  let weight = 0;
+  let w = 0;
   for (const [cx, cy, rx, ry] of LAND_BLOBS) {
     const dx = Math.min(Math.abs(lon - cx), 360 - Math.abs(lon - cx)) / rx;
     const dy = (lat - cy) / ry;
-    weight += Math.exp(-(dx * dx + dy * dy) * 1.65);
+    w += Math.exp(-(dx * dx + dy * dy) * 1.65);
   }
-  return weight;
+  return w;
 }
 
+// Coastline-biased: bright at land/sea transition, dim and sparse inland
 function makeLandPoints(primary, accent) {
   const rng = mulberry32(4404);
-  const positions = [];
-  const colors = [];
+  const pos = [], col = [];
 
-  for (let i = 0; i < POINT_COUNT; i += 1) {
-    const u = rng();
-    const v = rng();
+  for (let i = 0; i < POINT_COUNT; i++) {
+    const u = rng(), v = rng();
     const lon = u * 360 - 180;
     const lat = Math.asin(2 * v - 1) * THREE.MathUtils.RAD2DEG;
-    const weight = landWeight(lon, lat);
-    if (weight < 0.18 && rng() > weight * 1.8) continue;
+    const w   = landWeight(lon, lat);
 
-    const p = pointOnSphere(lat, lon, GLOBE_RADIUS + rng() * 1.8);
-    positions.push(p.x, p.y, p.z);
+    if (w < 0.22) continue;
 
-    const color = primary.clone().lerp(accent, 0.18 + Math.min(weight, 1) * 0.34);
-    const intensity = 0.48 + rng() * 0.52;
-    colors.push(color.r * intensity, color.g * intensity, color.b * intensity);
+    // Density peaks at the coastline transition zone (w ≈ 0.7–1.4), falls off inland
+    const density = w < 0.8
+      ? w / 0.8
+      : w < 1.5
+        ? 1.0
+        : Math.exp(-(w - 1.5) / 0.7);
+
+    if (rng() > density * 1.9) continue;
+
+    const p = pointOnSphere(lat, lon, GLOBE_RADIUS + rng() * 1.2);
+    pos.push(p.x, p.y, p.z);
+
+    const isCoast = w < 1.5;
+    const c = primary.clone().lerp(accent, isCoast ? 0.28 + rng() * 0.44 : 0.08);
+    const k = isCoast ? 0.55 + rng() * 0.45 : 0.1 + rng() * 0.15;
+    col.push(c.r * k, c.g * k, c.b * k);
   }
 
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  return geometry;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color',    new THREE.Float32BufferAttribute(col, 3));
+  return geo;
 }
 
-function makeStars(primary) {
-  const rng = mulberry32(9917);
-  const positions = [];
-  const colors = [];
-
-  for (let i = 0; i < STAR_COUNT; i += 1) {
-    const p = globePoint(rng(), rng(), 155 + rng() * 120);
-    positions.push(p.x, p.y, p.z);
-    const intensity = 0.08 + rng() * 0.18;
-    colors.push(primary.r * intensity, primary.g * intensity, primary.b * intensity);
+function makeCirclePoints(radius, axis, value = 0, segs = LINE_SEGMENTS) {
+  const pts = [];
+  for (let i = 0; i <= segs; i++) {
+    const a = (i / segs) * Math.PI * 2;
+    if (axis === 'y') pts.push(new THREE.Vector3(Math.cos(a) * radius, value, Math.sin(a) * radius));
+    if (axis === 'x') pts.push(new THREE.Vector3(value, Math.cos(a) * radius, Math.sin(a) * radius));
   }
-
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  return geometry;
+  return pts;
 }
 
-function makeCirclePoints(radius, axis, value = 0, segments = LINE_SEGMENTS) {
-  const points = [];
-  for (let i = 0; i <= segments; i += 1) {
-    const a = (i / segments) * Math.PI * 2;
-    if (axis === 'y') points.push(new THREE.Vector3(Math.cos(a) * radius, value, Math.sin(a) * radius));
-    if (axis === 'x') points.push(new THREE.Vector3(value, Math.cos(a) * radius, Math.sin(a) * radius));
-    if (axis === 'z') points.push(new THREE.Vector3(Math.cos(a) * radius, Math.sin(a) * radius, value));
-  }
-  return points;
-}
-
-function makeGreatCircleArc(start, end, lift, segments = 72) {
-  const points = [];
+function makeArc(start, end, lift, segs = 64) {
+  const pts = [];
   const a = start.clone().normalize();
   const b = end.clone().normalize();
   const omega = Math.acos(THREE.MathUtils.clamp(a.dot(b), -1, 1));
-  const sinOmega = Math.sin(omega);
-
-  for (let i = 0; i <= segments; i += 1) {
-    const t = i / segments;
-    const p = sinOmega < 0.001
+  const sinO  = Math.sin(omega);
+  for (let i = 0; i <= segs; i++) {
+    const t = i / segs;
+    const p = sinO < 0.001
       ? a.clone().lerp(b, t).normalize()
-      : a.clone().multiplyScalar(Math.sin((1 - t) * omega) / sinOmega)
-        .add(b.clone().multiplyScalar(Math.sin(t * omega) / sinOmega))
-        .normalize();
-    points.push(p.multiplyScalar(GLOBE_RADIUS + lift * Math.sin(Math.PI * t)));
+      : a.clone().multiplyScalar(Math.sin((1 - t) * omega) / sinO)
+          .add(b.clone().multiplyScalar(Math.sin(t * omega) / sinO)).normalize();
+    pts.push(p.multiplyScalar(GLOBE_RADIUS + lift * Math.sin(Math.PI * t)));
   }
-
-  return points;
+  return pts;
 }
 
-function makeGlowTexture(primary) {
-  const size = 256;
+function makeGlowTex(color, size = 256) {
   const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
+  canvas.width = canvas.height = size;
   const ctx = canvas.getContext('2d');
-  const c = primary.clone().multiplyScalar(255);
-  const gradient = ctx.createRadialGradient(size / 2, size / 2, 8, size / 2, size / 2, size / 2);
-  gradient.addColorStop(0, `rgba(255,255,255,0.78)`);
-  gradient.addColorStop(0.18, `rgba(${c.r | 0},${c.g | 0},${c.b | 0},0.5)`);
-  gradient.addColorStop(0.62, `rgba(${c.r | 0},${c.g | 0},${c.b | 0},0.16)`);
-  gradient.addColorStop(1, `rgba(${c.r | 0},${c.g | 0},${c.b | 0},0)`);
-  ctx.fillStyle = gradient;
+  const c   = color.clone().multiplyScalar(255);
+  const g   = ctx.createRadialGradient(size/2, size/2, size*0.02, size/2, size/2, size/2);
+  g.addColorStop(0,    'rgba(255,255,255,0.95)');
+  g.addColorStop(0.12, `rgba(${c.r|0},${c.g|0},${c.b|0},0.65)`);
+  g.addColorStop(0.5,  `rgba(${c.r|0},${c.g|0},${c.b|0},0.18)`);
+  g.addColorStop(1,    `rgba(${c.r|0},${c.g|0},${c.b|0},0)`);
+  ctx.fillStyle = g;
   ctx.fillRect(0, 0, size, size);
   return new THREE.CanvasTexture(canvas);
 }
+
+// [lat, lon, isHot]
+const CITIES = [
+  [ 51.5,  -0.1, false], // London
+  [ 48.9,   2.3, false], // Paris
+  [ 52.5,  13.4, false], // Berlin
+  [ 55.8,  37.6, true ], // Moscow
+  [ 30.0,  31.2, false], // Cairo
+  [ 25.2,  55.3, true ], // Dubai
+  [ 35.7,  51.4, true ], // Tehran
+  [ 41.0,  29.0, false], // Istanbul
+  [ 28.6,  77.2, false], // Delhi
+  [  1.3, 103.8, false], // Singapore
+  [ 39.9, 116.4, true ], // Beijing
+  [ 31.2, 121.5, false], // Shanghai
+  [ 35.7, 139.7, false], // Tokyo
+  [ 37.6, 127.0, false], // Seoul
+  [ -1.3,  36.8, false], // Nairobi
+  [ 40.7, -74.0, false], // New York
+  [ 50.4,  30.5, true ], // Kyiv
+  [ 24.7,  46.7, true ], // Riyadh
+  [ 33.9,  35.5, false], // Beirut
+  [ 19.1,  72.9, false], // Mumbai
+  [-26.2,  28.0, false], // Johannesburg
+  [ 59.9,  10.7, false], // Oslo
+  [ 53.3,  -6.3, false], // Dublin
+  [ 43.7,  51.2, false], // Astana
+  [ 23.8,  90.4, false], // Dhaka
+  [ 13.5,   2.1, false], // Niamey
+];
+
+// [cityA, cityB, isWarm]
+const ARCS = [
+  [ 0,  3, false], [ 0,  4, false], [ 0, 15, false], [ 0,  1, false],
+  [ 0,  2, false], [ 0, 22, false], [ 1,  7, false], [ 2,  7, false],
+  [ 2, 16, true ], [ 3, 16, true ], [ 3, 10, true ], [ 3, 23, false],
+  [ 4,  5, false], [ 4, 14, false], [ 4, 18, false],
+  [ 5,  6, true ], [ 5,  8, false], [ 5, 17, true ], [ 5, 19, false],
+  [ 6,  7, true ], [ 6, 17, true ], [ 6,  3, true ],
+  [ 7, 16, true ], [ 7, 18, false], [ 7,  4, false],
+  [ 8,  9, false], [ 8, 19, false], [ 8, 24, false],
+  [ 9, 10, false], [ 9, 11, false], [ 9, 19, false],
+  [10, 11, false], [10, 13, false], [10, 23, false],
+  [11, 12, false], [12, 13, false], [17, 18, true ],
+  [14, 20, false], [14, 25, false], [19, 24, false],
+  [ 5,  9, false], [ 3,  7, false], [ 0,  7, false],
+  [21, 22, false], [15, 16, false],
+];
 
 export default function Globe({
   className = '',
@@ -159,237 +202,324 @@ export default function Globe({
     const mount = mountRef.current;
     if (!mount) return undefined;
 
-    const primary = hexToColor('#00b0ff').lerp(hexToColor(primaryColor), 0.18);
-    const accent = hexToColor('#27f5ff').lerp(hexToColor(binaryAccentColor, '#27f5ff'), 0.12);
-    const width = Math.max(1, mount.clientWidth);
-    const height = Math.max(1, mount.clientHeight);
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 1600);
-    camera.position.set(0, 0, 300);
+    const primary = hexToColor('#00b0ff').lerp(hexToColor(primaryColor), 0.22);
+    const accent  = hexToColor('#27f5ff').lerp(hexToColor(binaryAccentColor, '#27f5ff'), 0.15);
+    const warmClr = new THREE.Color('#ff9500');
+    const hotClr  = new THREE.Color('#ff3800');
 
-    const renderer = new THREE.WebGLRenderer({
-      alpha: true,
-      antialias: true,
-      powerPreference: 'high-performance',
-    });
+    const width  = Math.max(1, mount.clientWidth);
+    const height = Math.max(1, mount.clientHeight);
+    const scene  = new THREE.Scene();
+
+    // Camera: close, angled down — shows the curved horizon at the top of the frame
+    const camera = new THREE.PerspectiveCamera(36, width / height, 0.1, 1600);
+    camera.position.set(0, 20, 290);
+    camera.lookAt(0, -80, 0);
+
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(width, height);
     renderer.setClearColor(0x000000, 0);
     mount.appendChild(renderer.domElement);
 
+    // ── Globe group — pushed down so only the upper curved horizon is visible ──
     const globe = new THREE.Group();
-    globe.rotation.set(-0.12, -0.42, 0);
+    globe.rotation.y = -1.22; // face Europe/Middle East
+    globe.rotation.x = -0.06;
+    globe.position.y = -95;
     scene.add(globe);
 
-    const atmosphere = new THREE.Mesh(
-      new THREE.SphereGeometry(GLOBE_RADIUS * 1.04, 96, 48),
+    // Dark sphere base — the "night side" of Earth
+    globe.add(new THREE.Mesh(
+      new THREE.SphereGeometry(GLOBE_RADIUS * 0.994, 72, 36),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color('#010c16'), transparent: true, opacity: 0.92 }),
+    ));
+
+    // ── Atmosphere — three-layer glowing rim ──────────────────────────────────
+    const atmosphereMat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      uniforms: { color: { value: primary.clone() }, time: { value: 0 } },
+      vertexShader: `
+        varying vec3 vNormal; varying vec3 vWorld;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          vWorld  = (modelMatrix * vec4(position,1.0)).xyz;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+        }`,
+      fragmentShader: `
+        uniform vec3 color; uniform float time;
+        varying vec3 vNormal; varying vec3 vWorld;
+        void main() {
+          float nz   = abs(vNormal.z);
+          float wide = pow(1.0 - nz, 1.8) * 0.42;  // wide blue halo
+          float scan = smoothstep(0.88,1.0, 0.5+0.5*sin(vWorld.y*0.5+time*3.5)) * 0.03;
+          gl_FragColor = vec4(color, wide + scan);
+        }`,
+    });
+    globe.add(new THREE.Mesh(new THREE.SphereGeometry(GLOBE_RADIUS * 1.10, 96, 48), atmosphereMat));
+
+    // Mid glow layer
+    globe.add(new THREE.Mesh(
+      new THREE.SphereGeometry(GLOBE_RADIUS * 1.05, 96, 48),
       new THREE.ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        uniforms: {
-          color: { value: primary },
-          time: { value: 0 },
-        },
+        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+        uniforms: { color: { value: accent.clone() } },
         vertexShader: `
           varying vec3 vNormal;
-          varying vec3 vWorld;
           void main() {
             vNormal = normalize(normalMatrix * normal);
-            vec4 world = modelMatrix * vec4(position, 1.0);
-            vWorld = world.xyz;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          }
-        `,
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+          }`,
         fragmentShader: `
-          uniform vec3 color;
-          uniform float time;
-          varying vec3 vNormal;
-          varying vec3 vWorld;
+          uniform vec3 color; varying vec3 vNormal;
           void main() {
-            float rim = pow(1.0 - abs(vNormal.z), 2.2);
-            float scan = 0.55 + 0.45 * sin((vWorld.y * 0.55) + time * 5.2);
-            float band = smoothstep(0.92, 1.0, scan);
-            float alpha = rim * 0.28 + band * 0.035;
-            gl_FragColor = vec4(color, alpha);
-          }
-        `,
+            float rim = pow(1.0 - abs(vNormal.z), 3.2);
+            gl_FragColor = vec4(color, rim * 0.60);
+          }`,
       }),
-    );
-    globe.add(atmosphere);
+    ));
 
-    const wireMaterial = new THREE.MeshBasicMaterial({
-      color: primary,
-      transparent: true,
-      opacity: 0.09,
-      wireframe: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-    globe.add(new THREE.Mesh(new THREE.SphereGeometry(GLOBE_RADIUS, 48, 24), wireMaterial));
+    // Bright inner edge — the crisp electric-blue rim line
+    globe.add(new THREE.Mesh(
+      new THREE.SphereGeometry(GLOBE_RADIUS * 1.015, 96, 48),
+      new THREE.ShaderMaterial({
+        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+        uniforms: { color: { value: new THREE.Color(1, 1, 1).lerp(accent, 0.4) } },
+        vertexShader: `
+          varying vec3 vNormal;
+          void main() {
+            vNormal = normalize(normalMatrix * normal);
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+          }`,
+        fragmentShader: `
+          uniform vec3 color; varying vec3 vNormal;
+          void main() {
+            float rim = pow(1.0 - abs(vNormal.z), 7.5);
+            gl_FragColor = vec4(color, min(1.0, rim * 1.4));
+          }`,
+      }),
+    ));
 
-    const pointsMaterial = new THREE.PointsMaterial({
-      size: 1.35,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.82,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-    const landPoints = new THREE.Points(makeLandPoints(primary, accent), pointsMaterial);
-    globe.add(landPoints);
+    // Wireframe shell
+    globe.add(new THREE.Mesh(
+      new THREE.SphereGeometry(GLOBE_RADIUS, 48, 24),
+      new THREE.MeshBasicMaterial({
+        color: primary, transparent: true, opacity: 0.05,
+        wireframe: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      }),
+    ));
 
-    const ringMaterial = new THREE.LineBasicMaterial({
-      color: primary,
-      transparent: true,
-      opacity: 0.22,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
+    // ── Coastline-biased land points ──────────────────────────────────────────
+    globe.add(new THREE.Points(
+      makeLandPoints(primary, accent),
+      new THREE.PointsMaterial({
+        size: 1.2, vertexColors: true, transparent: true,
+        opacity: 0.92, depthWrite: false, blending: THREE.AdditiveBlending,
+      }),
+    ));
+
+    // ── Lat/lon grid (subtle) ─────────────────────────────────────────────────
+    const gridMat = () => new THREE.LineBasicMaterial({
+      color: primary, transparent: true, opacity: 0.09,
+      depthWrite: false, blending: THREE.AdditiveBlending,
     });
-    for (const lat of [-60, -35, -15, 0, 15, 35, 60]) {
+    for (const lat of [-60, -30, 0, 30, 60]) {
       const y = Math.sin(THREE.MathUtils.degToRad(lat)) * GLOBE_RADIUS;
-      const radius = Math.cos(THREE.MathUtils.degToRad(lat)) * GLOBE_RADIUS;
-      globe.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(makeCirclePoints(radius, 'y', y)), ringMaterial.clone()));
+      const r = Math.cos(THREE.MathUtils.degToRad(lat)) * GLOBE_RADIUS;
+      globe.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(makeCirclePoints(r, 'y', y)), gridMat()));
     }
-    for (let i = 0; i < 6; i += 1) {
-      const meridian = new THREE.Line(new THREE.BufferGeometry().setFromPoints(makeCirclePoints(GLOBE_RADIUS, 'x')), ringMaterial.clone());
-      meridian.rotation.y = (i / 6) * Math.PI;
-      globe.add(meridian);
+    for (let i = 0; i < 8; i++) {
+      const m = new THREE.Line(new THREE.BufferGeometry().setFromPoints(makeCirclePoints(GLOBE_RADIUS, 'x')), gridMat());
+      m.rotation.y = (i / 8) * Math.PI;
+      globe.add(m);
     }
 
+    // ── Network arcs ──────────────────────────────────────────────────────────
     const rng = mulberry32(7202);
-    const arcMaterials = [];
-    for (let i = 0; i < ARC_COUNT; i += 1) {
-      const start = globePoint(rng(), rng(), GLOBE_RADIUS + 2);
-      const end = globePoint(rng(), rng(), GLOBE_RADIUS + 2);
-      const material = new THREE.LineBasicMaterial({
-        color: i % 3 === 0 ? accent : primary,
+    const arcMats = [];
+
+    for (const [ai, bi, isWarm] of ARCS) {
+      const [latA, lonA] = CITIES[ai];
+      const [latB, lonB] = CITIES[bi];
+      const mat = new THREE.LineBasicMaterial({
+        color:       isWarm ? (rng() > 0.5 ? warmClr : hotClr) : primary.clone().lerp(accent, 0.3),
         transparent: true,
-        opacity: 0.18 + rng() * 0.22,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
+        opacity:     0.22 + rng() * 0.22,
+        depthWrite:  false,
+        blending:    THREE.AdditiveBlending,
       });
-      arcMaterials.push(material);
-      globe.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(makeGreatCircleArc(start, end, 16 + rng() * 18)), material));
+      arcMats.push({ mat, isWarm, phase: rng() * Math.PI * 2 });
+      globe.add(new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(
+          makeArc(
+            pointOnSphere(latA, lonA, GLOBE_RADIUS + 1.5),
+            pointOnSphere(latB, lonB, GLOBE_RADIUS + 1.5),
+            5 + rng() * 10,
+          ),
+        ),
+        mat,
+      ));
     }
 
-    const glowTexture = makeGlowTexture(primary);
-    const nodeMaterial = new THREE.SpriteMaterial({
-      map: glowTexture,
-      color: accent,
-      transparent: true,
-      opacity: 0.78,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-    for (let i = 0; i < 28; i += 1) {
-      const node = new THREE.Sprite(nodeMaterial.clone());
-      node.position.copy(globePoint(rng(), rng(), GLOBE_RADIUS + 5));
-      const scale = 5 + rng() * 9;
-      node.scale.set(scale, scale, 1);
-      globe.add(node);
+    // ── City nodes: target-ring markers + pulse rings ─────────────────────────
+    const texCyan = makeGlowTex(accent);
+    const texWarm = makeGlowTex(warmClr);
+    const pulseRings = [];
+
+    for (let ci = 0; ci < CITIES.length; ci++) {
+      const [lat, lon, isHot] = CITIES[ci];
+      const pos    = pointOnSphere(lat, lon, GLOBE_RADIUS + 2);
+      const normal = pos.clone().normalize();
+      const color  = isHot ? warmClr : accent;
+
+      // Glow sprite
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: isHot ? texWarm : texCyan, color,
+        transparent: true, opacity: isHot ? 1.0 : 0.85,
+        depthWrite: false, blending: THREE.AdditiveBlending,
+      }));
+      sprite.position.copy(pos);
+      sprite.scale.setScalar(isHot ? 18 : 11);
+      globe.add(sprite);
+
+      // Target ring (static small circle at each city)
+      const targetRingGeo = new THREE.RingGeometry(2.2, 3.2, 24);
+      const targetRingMat = new THREE.MeshBasicMaterial({
+        color, transparent: true, opacity: isHot ? 0.7 : 0.45,
+        side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending,
+      });
+      const targetRing = new THREE.Mesh(targetRingGeo, targetRingMat);
+      targetRing.position.copy(pos);
+      targetRing.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+      globe.add(targetRing);
+
+      // Pulse ring (animated expanding)
+      const pulseRingGeo = new THREE.RingGeometry(0.5, 2.0, 28);
+      const pulseRingMat = new THREE.MeshBasicMaterial({
+        color, transparent: true, opacity: 0,
+        side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending,
+      });
+      const pulseRing = new THREE.Mesh(pulseRingGeo, pulseRingMat);
+      pulseRing.position.copy(pos);
+      pulseRing.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+      globe.add(pulseRing);
+      pulseRings.push({
+        mesh:  pulseRing,
+        phase: (ci / CITIES.length) * Math.PI * 2,
+        speed: isHot ? 1.2 : 0.7,
+        maxOp: isHot ? 0.6 : 0.35,
+      });
     }
 
-    const starMaterial = new THREE.PointsMaterial({
-      size: 1.15,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.65,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-    const stars = new THREE.Points(makeStars(primary), starMaterial);
-    scene.add(stars);
-
-    const glitchGroup = new THREE.Group();
-    const glitchMaterial = new THREE.LineBasicMaterial({
-      color: accent,
-      transparent: true,
-      opacity: 0.42,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-    const glitchBands = [];
-    for (let i = 0; i < GLITCH_BAND_COUNT; i += 1) {
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3));
-      const line = new THREE.Line(geometry, glitchMaterial.clone());
-      glitchGroup.add(line);
-      glitchBands.push(line);
-    }
-    scene.add(glitchGroup);
-
+    // ── Scene halo ────────────────────────────────────────────────────────────
+    const haloTex = makeGlowTex(primary);
     const halo = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: makeGlowTexture(primary),
-      transparent: true,
-      opacity: 0.55,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      map: haloTex, transparent: true, opacity: 0.52,
+      depthWrite: false, blending: THREE.AdditiveBlending,
     }));
-    halo.scale.set(GLOBE_RADIUS * 3.1, GLOBE_RADIUS * 3.1, 1);
+    halo.position.y = -95;
+    halo.scale.setScalar(GLOBE_RADIUS * 4.0);
     scene.add(halo);
 
-    const clock = new THREE.Clock();
+    // ── Background: vertical light streaks ────────────────────────────────────
+    const rngBg = mulberry32(3311);
+    for (let i = 0; i < 32; i++) {
+      const x = (rngBg() - 0.5) * 620;
+      const z = -100 - rngBg() * 150;
+      const y = (rngBg() - 0.5) * 380;
+      const h = 60 + rngBg() * 180;
+      scene.add(new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(x, y - h / 2, z),
+          new THREE.Vector3(x, y + h / 2, z),
+        ]),
+        new THREE.LineBasicMaterial({
+          color: primary, transparent: true,
+          opacity: 0.018 + rngBg() * 0.034,
+          depthWrite: false, blending: THREE.AdditiveBlending,
+        }),
+      ));
+    }
+
+    // Background: floating particles
+    const bgPos = [], bgCol = [];
+    for (let i = 0; i < 320; i++) {
+      bgPos.push((rngBg() - 0.5) * 560, (rngBg() - 0.5) * 480, -70 - rngBg() * 180);
+      const k = 0.035 + rngBg() * 0.1;
+      bgCol.push(primary.r * k, primary.g * k, primary.b * k);
+    }
+    const bgGeo = new THREE.BufferGeometry();
+    bgGeo.setAttribute('position', new THREE.Float32BufferAttribute(bgPos, 3));
+    bgGeo.setAttribute('color',    new THREE.Float32BufferAttribute(bgCol, 3));
+    scene.add(new THREE.Points(bgGeo, new THREE.PointsMaterial({
+      size: 1.9, vertexColors: true, transparent: true,
+      opacity: 0.72, depthWrite: false, blending: THREE.AdditiveBlending,
+    })));
+
+    // Background: bokeh blobs
+    const bokehTex = makeGlowTex(primary, 128);
+    for (let i = 0; i < 14; i++) {
+      const bk = new THREE.Sprite(new THREE.SpriteMaterial({
+        map:         bokehTex,
+        color:       rngBg() > 0.65 ? new THREE.Color('#ff8c00') : primary,
+        transparent: true,
+        opacity:     0.022 + rngBg() * 0.038,
+        depthWrite:  false,
+        blending:    THREE.AdditiveBlending,
+      }));
+      bk.position.set((rngBg() - 0.5) * 440, (rngBg() - 0.5) * 380, -80 - rngBg() * 90);
+      bk.scale.setScalar(60 + rngBg() * 95);
+      scene.add(bk);
+    }
+
+    // ── Animate ───────────────────────────────────────────────────────────────
+    const t0 = performance.now();
     let frameId = 0;
     const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
     const animate = () => {
       frameId = requestAnimationFrame(animate);
-      const elapsed = clock.getElapsedTime();
-      const speed = prefersReducedMotion ? 0.2 : 1;
+      const elapsed = (performance.now() - t0) / 1000;
+      const speed   = prefersReducedMotion ? 0.15 : 1;
 
-      globe.rotation.y += 0.0028 * speed;
-      globe.rotation.x = -0.12 + Math.sin(elapsed * 0.2) * 0.025;
-      stars.rotation.y -= 0.00035 * speed;
-      atmosphere.material.uniforms.time.value = elapsed;
-      halo.material.opacity = 0.46 + Math.sin(elapsed * 1.5) * 0.08;
+      globe.rotation.y += 0.002 * speed;
+      globe.rotation.x  = -0.06 + Math.sin(elapsed * 0.16) * 0.012;
+      atmosphereMat.uniforms.time.value = elapsed;
+      halo.material.opacity = 0.44 + Math.sin(elapsed * 1.0) * 0.08;
 
-      for (let i = 0; i < arcMaterials.length; i += 1) {
-        arcMaterials[i].opacity = 0.14 + Math.max(0, Math.sin(elapsed * 1.8 + i * 0.7)) * 0.28;
+      for (const { mat, isWarm, phase } of arcMats) {
+        const pulse = Math.max(0, Math.sin(elapsed * (isWarm ? 2.8 : 1.8) + phase));
+        mat.opacity = (isWarm ? 0.18 : 0.12) + pulse * (isWarm ? 0.34 : 0.24);
       }
 
-      const glitchBurst = Math.sin(elapsed * 5.7) > 0.7 || Math.sin(elapsed * 13.1) > 0.92;
-      glitchGroup.visible = glitchBurst;
-      if (glitchBurst) {
-        for (let i = 0; i < glitchBands.length; i += 1) {
-          const y = -86 + ((i * 19 + elapsed * 42) % 172);
-          const half = Math.sqrt(Math.max(0, GLOBE_RADIUS * GLOBE_RADIUS - y * y));
-          const offset = Math.sin(elapsed * 18 + i) * 14 + (rng() - 0.5) * 18;
-          const z = 12 + i * 0.12;
-          const attr = glitchBands[i].geometry.attributes.position;
-          attr.setXYZ(0, -half * (0.45 + rng() * 0.5) + offset, y, z);
-          attr.setXYZ(1, half * (0.45 + rng() * 0.5) + offset, y + (rng() - 0.5) * 2.5, z);
-          attr.needsUpdate = true;
-          glitchBands[i].material.opacity = 0.18 + rng() * 0.46;
-        }
+      for (const { mesh, phase, speed: s, maxOp } of pulseRings) {
+        const t = ((elapsed * s + phase) % (Math.PI * 2)) / (Math.PI * 2);
+        mesh.scale.setScalar(1 + t * 10);
+        mesh.material.opacity = maxOp * (1 - t) * (1 - t);
       }
 
       renderer.render(scene, camera);
     };
     animate();
 
-    const resizeObserver = new ResizeObserver(() => {
-      const nextWidth = Math.max(1, mount.clientWidth);
-      const nextHeight = Math.max(1, mount.clientHeight);
-      camera.aspect = nextWidth / nextHeight;
+    const obs = new ResizeObserver(() => {
+      const w = Math.max(1, mount.clientWidth);
+      const h = Math.max(1, mount.clientHeight);
+      camera.aspect = w / h;
       camera.updateProjectionMatrix();
-      renderer.setSize(nextWidth, nextHeight);
+      renderer.setSize(w, h);
     });
-    resizeObserver.observe(mount);
+    obs.observe(mount);
 
     return () => {
       cancelAnimationFrame(frameId);
-      resizeObserver.disconnect();
+      obs.disconnect();
       if (mount.contains(renderer.domElement)) mount.removeChild(renderer.domElement);
-      scene.traverse((object) => {
-        if (object.geometry) object.geometry.dispose();
-        const material = object.material;
-        if (Array.isArray(material)) {
-          material.forEach((item) => item.dispose());
-        } else if (material) {
-          if (material.map) material.map.dispose();
-          material.dispose();
-        }
+      scene.traverse((obj) => {
+        if (obj.geometry) obj.geometry.dispose();
+        const mat = obj.material;
+        if (Array.isArray(mat)) mat.forEach((m) => { if (m.map) m.map.dispose(); m.dispose(); });
+        else if (mat) { if (mat.map) mat.map.dispose(); mat.dispose(); }
       });
       renderer.dispose();
     };
