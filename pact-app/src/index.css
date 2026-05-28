@@ -835,13 +835,13 @@ body {
 /* ── Globe full-page background ──────────────────────────────────────────────── */
 .globe-bg {
   position: fixed;
-  top: -5%;
-  right: -12%;
-  width: 75vw;
-  height: 110vh;
+  right: clamp(-80px, -5vw, -28px);
+  bottom: clamp(-92px, -7vw, -52px);
+  width: min(38vw, 540px);
+  height: min(38vw, 540px);
   pointer-events: none;
   z-index: 0;
-  opacity: 0.35;
+  opacity: 1;
 }
 
 .globe-bg-canvas {
@@ -944,12 +944,12 @@ body {
 /* Globe stays fixed behind the content area */
 .app-shell .globe-bg {
   position: fixed;
-  top: -5%;
-  right: -12%;
-  width: 75vw;
-  height: 110vh;
+  right: clamp(-80px, -5vw, -28px);
+  bottom: clamp(-92px, -7vw, -52px);
+  width: min(38vw, 540px);
+  height: min(38vw, 540px);
   z-index: 0;
-  cursor: grab;
+  cursor: default;
 }
 
 /* ══════════════════════════════════════════════════
@@ -2254,7 +2254,14 @@ body {
   .pact-main, .assignment-body { padding: 20px 16px; }
   .login-card { width: calc(100% - 32px); padding: 36px 28px; }
   .pact-header { padding: 0 16px; }
-  .globe-bg { right: -40%; width: 130vw; opacity: 0.25; }
+  .globe-bg,
+  .app-shell .globe-bg {
+    right: -18px;
+    bottom: -28px;
+    width: min(58vw, 260px);
+    height: min(58vw, 260px);
+    opacity: 0.95;
+  }
   .stats-banner { gap: 8px; }
   .stat-glass { padding: 14px 18px; }
   .stat-glass-value { font-size: 28px; }

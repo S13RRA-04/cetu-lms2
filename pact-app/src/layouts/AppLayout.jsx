@@ -133,7 +133,13 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
       {/* Globe background */}
       <div className="globe-bg" aria-hidden="true">
         <Suspense fallback={null}>
-          <Globe className="globe-bg-canvas" />
+          <Globe
+            mapBrightness={6}
+            dark={0}
+            baseColor={[1, 1, 1]}
+            glowColor={[1, 1, 1]}
+            className="globe-bg-canvas"
+          />
         </Suspense>
       </div>
 
