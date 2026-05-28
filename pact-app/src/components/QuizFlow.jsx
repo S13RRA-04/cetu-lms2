@@ -3,15 +3,6 @@ import { updateProgress } from '../api/pact.js';
 
 /* ── helpers ── */
 
-/* Safely extract a display string from question text fields.
-   Handles plain strings, { en: "…" } objects, and { text: "…" } objects. */
-function t(field) {
-  if (!field) return '';
-  if (typeof field === 'string') return field;
-  if (typeof field === 'object') return field.en ?? field.text ?? '';
-  return String(field);
-}
-
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -90,7 +81,7 @@ function MultipleChoice({ q, shuffledOpts, selected, onToggle, revealed, forced,
             )}
             {(revealed || forced) && isCorrect         && <span className="qz-opt-marker qz-opt-filled">✓</span>}
             {(revealed || forced) && !isCorrect && isSelected && <span className="qz-opt-marker qz-opt-filled">✗</span>}
-            <span>{t(opt.text)}</span>
+            <span>{opt.text}</span>
           </button>
         );
       })}
@@ -186,7 +177,7 @@ function DragMatch({ q, matchState, onMatch, revealed, forced, partialFeedback }
               onDragEnd={() => setDragging(null)}
               onClick={() => isMapped ? clearSlot(src.id) : handleSourceClick(src.id)}
             >
-              {t(src.text)}
+              {src.text}
               {isMapped && !locked && <span className="qz-dm-clear"> ×</span>}
             </div>
           );
@@ -212,8 +203,8 @@ function DragMatch({ q, matchState, onMatch, revealed, forced, partialFeedback }
               onDrop={() => handleDrop(tgt.id)}
               onClick={() => handleTargetClick(tgt.id)}
             >
-              <span className="qz-dm-tgt-label">{t(tgt.text)}</span>
-              {placedSrc && <span className="qz-dm-placed-chip">{t(placedSrc.text)}</span>}
+              <span className="qz-dm-tgt-label">{tgt.text}</span>
+              {placedSrc && <span className="qz-dm-placed-chip">{placedSrc.text}</span>}
             </div>
           );
         })}
@@ -227,9 +218,9 @@ function DragMatch({ q, matchState, onMatch, revealed, forced, partialFeedback }
             const tgt = q.payload.targets.find((t) => t.id === m.targetId);
             return (
               <div key={m.sourceId} className="qz-dm-key-row">
-                <span>{t(src?.text)}</span>
+                <span>{src?.text}</span>
                 <span className="qz-dm-arrow">→</span>
-                <span>{t(tgt?.text)}</span>
+                <span>{tgt?.text}</span>
               </div>
             );
           })}
@@ -452,7 +443,7 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
         </div>
 
         {/* stem */}
-        <p className="qz-stem">{t(q.stem)}</p>
+        <p className="qz-stem">{q.stem}</p>
 
         {/* forced-reveal banner */}
         {qs.forced && (
@@ -472,7 +463,7 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
         {qs.hintVisible && (
           <div className="qz-hint-panel">
             <span className="qz-hint-label">Hint</span>
-            {t(q.feedback?.reference)}
+            {q.feedback?.reference}
           </div>
         )}
 
@@ -523,10 +514,10 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
               {qs.revealed ? `✓ Correct — +${qs.available} pts` : '✗ Answer revealed — 0 pts'}
             </div>
             <p className="qz-feedback-text">
-              {qs.revealed ? t(q.feedback?.correct) : t(q.feedback?.incorrect)}
+              {qs.revealed ? q.feedback?.correct : q.feedback?.incorrect}
             </p>
             {q.feedback?.reference && (
-              <div className="qz-feedback-ref">↗ {t(q.feedback.reference)}</div>
+              <div className="qz-feedback-ref">↗ {q.feedback.reference}</div>
             )}
           </div>
         )}
