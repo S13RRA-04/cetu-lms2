@@ -25,6 +25,28 @@ const CIRCUIT_TRACE_PIECES = 96;
 const TRACE_DASH_SEGMENTS = 4;
 const TRACE_RADIUS = 1.15;
 const STUB_RADIUS = 0.72;
+const NETWORK_PULSE_COUNT = 18;
+
+const NETWORK_NODES = [
+  { name: 'washington', lat: 38.9, lon: -77.0, size: 1.45 },
+  { name: 'san-diego', lat: 32.7, lon: -117.2, size: 1.05 },
+  { name: 'london', lat: 51.5, lon: -0.1, size: 1.35 },
+  { name: 'brussels', lat: 50.8, lon: 4.4, size: 0.95 },
+  { name: 'kyiv', lat: 50.4, lon: 30.5, size: 1.0 },
+  { name: 'dubai', lat: 25.2, lon: 55.3, size: 1.05 },
+  { name: 'singapore', lat: 1.35, lon: 103.8, size: 1.25 },
+  { name: 'tokyo', lat: 35.7, lon: 139.7, size: 1.2 },
+  { name: 'sydney', lat: -33.9, lon: 151.2, size: 0.95 },
+  { name: 'sao-paulo', lat: -23.5, lon: -46.6, size: 1.0 },
+  { name: 'johannesburg', lat: -26.2, lon: 28.0, size: 0.9 },
+  { name: 'nairobi', lat: -1.3, lon: 36.8, size: 0.85 },
+];
+
+const NETWORK_LINKS = [
+  [0, 2], [0, 9], [0, 1], [2, 3], [2, 4], [2, 5],
+  [5, 6], [6, 7], [6, 8], [5, 10], [10, 11], [11, 5],
+  [7, 0], [3, 6], [9, 10],
+];
 
 /* geographic projection */
 function flatToSphere(px, py) {
@@ -60,6 +82,35 @@ function circuitPoint(lon, lat, radius = GLOBE_R + 5.5) {
     Math.sin(lat) * radius,
     Math.cos(lat) * Math.sin(lon) * radius,
   );
+}
+
+function geoPoint(latDeg, lonDeg, radius = GLOBE_R + 4.5) {
+  const lat = (latDeg * Math.PI) / 180;
+  const lon = (lonDeg * Math.PI) / 180;
+  return circuitPoint(lon, lat, radius);
+}
+
+function makeGreatCircleArc(a, b, lift = 10, segs = 72) {
+  const pts = [];
+  const na = a.clone().normalize();
+  const nb = b.clone().normalize();
+  const omega = Math.acos(Math.max(-1, Math.min(1, na.dot(nb))));
+  const sinOmega = Math.sin(omega);
+
+  for (let i = 0; i <= segs; i++) {
+    const t = i / segs;
+    let p;
+    if (sinOmega < 0.001) {
+      p = na.clone().lerp(nb, t).normalize();
+    } else {
+      const s0 = Math.sin((1 - t) * omega) / sinOmega;
+      const s1 = Math.sin(t * omega) / sinOmega;
+      p = na.clone().multiplyScalar(s0).add(nb.clone().multiplyScalar(s1)).normalize();
+    }
+    pts.push(p.multiplyScalar(GLOBE_R + 3 + lift * Math.sin(Math.PI * t)));
+  }
+
+  return pts;
 }
 
 function makeCircuitPath(segs = JET_PATH_SEGS) {
@@ -660,6 +711,115 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
           jets.push(jet);
         }
 
+        const networkGroup = new THREE.Group();
+        globeGroup.add(networkGroup);
+
+        const networkNodes = NETWORK_NODES.map((node) => {
+          const position = geoPoint(node.lat, node.lon);
+          const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: jetTexture,
+            color: rgbColor(binaryColorRef.current),
+            transparent: true,
+            opacity: 0.74,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+          }));
+          sprite.position.copy(position);
+          sprite.scale.set(10 * node.size, 10 * node.size, 1);
+          networkGroup.add(sprite);
+
+          const core = new THREE.Mesh(
+            new THREE.SphereGeometry(0.95 * node.size, 12, 12),
+            new THREE.MeshBasicMaterial({
+              color: rgbColor(traceRgb(binaryColorRef.current)),
+              transparent: true,
+              opacity: 0.82,
+              depthWrite: false,
+            }),
+          );
+          core.position.copy(position);
+          networkGroup.add(core);
+
+          return { ...node, position, sprite, core };
+        });
+
+        const networkLinks = NETWORK_LINKS.map(([from, to], index) => {
+          const start = networkNodes[from].position;
+          const end = networkNodes[to].position;
+          const points = makeGreatCircleArc(start, end, 7 + (index % 4) * 1.8, 80);
+          const line = new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints(points),
+            new THREE.LineBasicMaterial({
+              color: rgbColor(traceRgb(binaryColorRef.current)),
+              transparent: true,
+              opacity: 0.22,
+              depthWrite: false,
+            }),
+          );
+          networkGroup.add(line);
+          return { from, to, points, line };
+        });
+
+        const networkPulses = Array.from({ length: NETWORK_PULSE_COUNT }, (_, index) => {
+          const link = networkLinks[index % networkLinks.length];
+          const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: jetTexture,
+            color: rgbColor(binaryColorRef.current),
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+          }));
+          sprite.scale.set(7.5, 7.5, 1);
+          networkGroup.add(sprite);
+          return {
+            sprite,
+            linkIndex: index % networkLinks.length,
+            progress: Math.random(),
+            speed: 0.045 + Math.random() * 0.055,
+          };
+        });
+
+        const updateNetwork = (elapsed, dt) => {
+          const accentColor = rgbColor(binaryColorRef.current);
+          const traceColor = rgbColor(traceRgb(binaryColorRef.current));
+
+          for (const node of networkNodes) {
+            const dim = depthFade(node.position);
+            const pulse = 0.5 + 0.5 * Math.sin(elapsed * 2.1 + node.lon * 0.07);
+            node.sprite.material.color.copy(accentColor);
+            node.sprite.material.opacity = (0.32 + pulse * 0.42) * dim;
+            node.core.material.color.copy(traceColor);
+            node.core.material.opacity = (0.42 + pulse * 0.24) * dim;
+          }
+
+          for (const link of networkLinks) {
+            const mid = link.points[Math.floor(link.points.length / 2)];
+            const dim = depthFade(mid);
+            link.line.material.color.copy(traceColor);
+            link.line.material.opacity = 0.11 + dim * 0.18;
+          }
+
+          for (const pulse of networkPulses) {
+            pulse.progress += pulse.speed * dt;
+            if (pulse.progress > 1) {
+              pulse.progress = 0;
+              pulse.linkIndex = Math.floor(Math.random() * networkLinks.length);
+              pulse.speed = 0.045 + Math.random() * 0.055;
+            }
+
+            const link = networkLinks[pulse.linkIndex];
+            const p = samplePoints(link.points, pulse.progress);
+            const dim = depthFade(p);
+            const flash = 0.72 + 0.28 * Math.sin(elapsed * 8 + pulse.linkIndex);
+            pulse.sprite.position.copy(p);
+            pulse.sprite.material.color.copy(accentColor);
+            pulse.sprite.material.opacity = flash * dim;
+            const scale = 6.5 + flash * 4;
+            pulse.sprite.scale.set(scale, scale, 1);
+          }
+        };
+
         let lastJetPaint = `${binaryColorRef.current.r},${binaryColorRef.current.g},${binaryColorRef.current.b}`;
         const depthScratch = new THREE.Vector3();
         const depthFade = (point) => {
@@ -686,6 +846,18 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
           }
 
           for (const jet of jets) {
+            if (networkLinks.length) {
+              jet.line.visible = false;
+              jet.head.visible = false;
+              for (const piece of jet.tracePieces) piece.visible = false;
+              for (const dash of jet.dashLines) dash.visible = false;
+              for (const node of jet.nodes) node.visible = false;
+              for (const stub of jet.stubs) stub.visible = false;
+              for (const piece of jet.stubPieces) piece.visible = false;
+              for (const pad of jet.padSprites) pad.visible = false;
+              continue;
+            }
+
             jet.progress = (jet.progress + jet.speed * dt) % 1;
             const alpha = 1;
             const visible = true;
@@ -1014,6 +1186,7 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
             globeGroup.rotation.x = Math.max(-1.2, Math.min(1.2, globeGroup.rotation.x + velY));
           }
 
+          updateNetwork(elapsed, dt);
           updateJets(dt);
           drawBinary(dt);
 
