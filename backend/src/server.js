@@ -70,8 +70,17 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
   contentSecurityPolicy: false,
 }));
+const allowedOrigins = new Set(
+  (process.env.FRONTEND_URL || 'http://localhost:5173')
+    .split(',')
+    .map((o) => o.trim())
+    .concat(['http://localhost:5174', 'http://localhost:5175'])
+);
 app.use(cors({
-  origin:      process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, cb) => {
+    if (!origin || allowedOrigins.has(origin)) return cb(null, true);
+    cb(new Error(`CORS: origin ${origin} not allowed`));
+  },
   credentials: true,
   methods:     ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 }));
@@ -96,14 +105,18 @@ app.get('/api/v1/health', (req, res) => res.json({ status: 'ok', timestamp: new 
 if (process.env.NODE_ENV === 'production') {
   const lmsDir  = path.join(__dirname, '../public');
   const pactDir = path.join(__dirname, '../public-pact');
+  const lairDir = path.join(__dirname, '../public-lair');
 
   const isPact = (req) => req.hostname === 'pact.cetu.online';
+  const isLair = (req) => req.hostname === 'lair.cetu.online';
 
   const serveLms  = express.static(lmsDir);
   const servePact = express.static(pactDir);
+  const serveLair = express.static(lairDir);
 
   app.use((req, res, next) => {
     if (isPact(req)) return servePact(req, res, next);
+    if (isLair(req)) return serveLair(req, res, next);
     return serveLms(req, res, next);
   });
 
@@ -112,6 +125,7 @@ if (process.env.NODE_ENV === 'production') {
     if (req.path.startsWith('/api') || req.path.startsWith('/lti')) return next();
     if (path.extname(req.path)) return next();
     if (isPact(req)) return res.sendFile(path.join(pactDir, 'index.html'));
+    if (isLair(req)) return res.sendFile(path.join(lairDir, 'index.html'));
     return res.sendFile(path.join(lmsDir, 'index.html'));
   });
 }
