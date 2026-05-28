@@ -22,6 +22,8 @@ const JET_TRAIL_SEGS = 42;
 const CIRCUIT_BENDS = 9;
 const CIRCUIT_STUB_SEGS = 4;
 const TRACE_DASH_SEGMENTS = 4;
+const TRACE_RADIUS = 0.78;
+const STUB_RADIUS = 0.48;
 
 /* geographic projection */
 function flatToSphere(px, py) {
@@ -128,7 +130,12 @@ function makeCircuitPath(segs = JET_PATH_SEGS) {
     return { point, stub };
   });
 
-  return { points: pts, bends, pads: [anchors[0], anchors[anchors.length - 1]] };
+  const segments = [];
+  for (let i = 0; i < anchors.length - 1; i++) {
+    segments.push({ start: anchors[i], end: anchors[i + 1] });
+  }
+
+  return { points: pts, anchors, segments, bends, pads: [anchors[0], anchors[anchors.length - 1]] };
 }
 
 function samplePoints(points, t) {
@@ -147,6 +154,20 @@ function setLinePoint(line, idx, point) {
   const attr = line.geometry.attributes.position;
   attr.setXYZ(idx, point.x, point.y, point.z);
   attr.needsUpdate = true;
+}
+
+function placeCylinderBetween(mesh, start, end, radius) {
+  const mid = start.clone().lerp(end, 0.5);
+  const dir = end.clone().sub(start);
+  const len = dir.length();
+  if (len <= 0.001) {
+    mesh.visible = false;
+    return;
+  }
+
+  mesh.position.copy(mid);
+  mesh.scale.set(radius, len, radius);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
 }
 
 function hexToRgb(hex) {
@@ -376,10 +397,10 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
 
         /* ══ 2. CIRCUIT ARCS (static, no traveling dots) ════════════════════ */
         arcMatsRef.current = [];
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 5; i++) {
           const a = rndSurface(), b = rndSurface();
           const arcPts = makeArc(a, b, 6 + Math.random() * 10);
-          const mat = new THREE.LineBasicMaterial({ color: liveColor(), transparent: true, opacity: 0.12 });
+          const mat = new THREE.LineBasicMaterial({ color: liveColor(), transparent: true, opacity: 0.035 });
           arcMatsRef.current.push(mat);
           globeGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(arcPts), mat));
         }
@@ -403,9 +424,11 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
         paintJetTexture();
 
         const jets = [];
+        const traceGeo = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true);
         const respawnJet = (jet, initial = false) => {
           const circuit = makeCircuitPath(JET_PATH_SEGS);
           jet.points = circuit.points;
+          jet.segments = circuit.segments;
           jet.bends = circuit.bends;
           jet.pads = circuit.pads;
           jet.showPads = Math.random() < 0.72;
@@ -416,6 +439,18 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
           jet.head.material.color.copy(rgbColor(binaryColorRef.current));
           jet.line.material.opacity = 0;
           jet.head.material.opacity = 0;
+          for (let i = 0; i < jet.tracePieces.length; i++) {
+            const piece = jet.tracePieces[i];
+            const segment = jet.segments[i];
+            if (!segment) {
+              piece.visible = false;
+              continue;
+            }
+            placeCylinderBetween(piece, segment.start, segment.end, TRACE_RADIUS);
+            piece.material.color.copy(rgbColor(binaryColorRef.current));
+            piece.material.opacity = 0;
+            piece.visible = false;
+          }
           for (const dash of jet.dashLines) {
             dash.visible = false;
             dash.material.color.copy(rgbColor(binaryColorRef.current));
@@ -429,6 +464,18 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
             stub.visible = false;
             stub.material.color.copy(rgbColor(binaryColorRef.current));
             stub.material.opacity = 0;
+          }
+          for (let i = 0; i < jet.stubPieces.length; i++) {
+            const piece = jet.stubPieces[i];
+            const bend = jet.bends[i];
+            if (!bend) {
+              piece.visible = false;
+              continue;
+            }
+            placeCylinderBetween(piece, bend.stub[0], bend.stub[bend.stub.length - 1], STUB_RADIUS);
+            piece.material.color.copy(rgbColor(binaryColorRef.current));
+            piece.material.opacity = 0;
+            piece.visible = false;
           }
           for (const pad of jet.padSprites) {
             pad.visible = false;
@@ -452,6 +499,22 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
               blending: THREE.AdditiveBlending,
             }),
           );
+
+          const tracePieces = Array.from({ length: CIRCUIT_BENDS }, () => {
+            const piece = new THREE.Mesh(
+              traceGeo,
+              new THREE.MeshBasicMaterial({
+                color: rgbColor(binaryColorRef.current),
+                transparent: true,
+                opacity: 0,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+              }),
+            );
+            piece.visible = false;
+            globeGroup.add(piece);
+            return piece;
+          });
 
           const dashLines = Array.from({ length: TRACE_DASH_SEGMENTS }, () => {
             const dashGeo = new THREE.BufferGeometry();
@@ -515,6 +578,22 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
             return stub;
           });
 
+          const stubPieces = Array.from({ length: CIRCUIT_BENDS - 1 }, () => {
+            const piece = new THREE.Mesh(
+              traceGeo,
+              new THREE.MeshBasicMaterial({
+                color: rgbColor(binaryColorRef.current),
+                transparent: true,
+                opacity: 0,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+              }),
+            );
+            piece.visible = false;
+            globeGroup.add(piece);
+            return piece;
+          });
+
           const padSprites = Array.from({ length: 2 }, () => {
             const pad = new THREE.Sprite(new THREE.SpriteMaterial({
               map: jetTexture,
@@ -535,13 +614,16 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
 
           const jet = {
             line,
+            tracePieces,
             dashLines,
             head,
             nodes,
             stubs,
+            stubPieces,
             padSprites,
             positions,
             points: [],
+            segments: [],
             bends: [],
             pads: [],
             showPads: false,
@@ -567,10 +649,12 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
             paintJetTexture();
             for (const jet of jets) {
               jet.line.material.color.copy(rgbColor(binaryColorRef.current));
+              for (const piece of jet.tracePieces) piece.material.color.copy(rgbColor(binaryColorRef.current));
               for (const dash of jet.dashLines) dash.material.color.copy(rgbColor(binaryColorRef.current));
               jet.head.material.color.copy(rgbColor(binaryColorRef.current));
               for (const node of jet.nodes) node.material.color.copy(rgbColor(binaryColorRef.current));
               for (const stub of jet.stubs) stub.material.color.copy(rgbColor(binaryColorRef.current));
+              for (const piece of jet.stubPieces) piece.material.color.copy(rgbColor(binaryColorRef.current));
               for (const pad of jet.padSprites) pad.material.color.copy(rgbColor(binaryColorRef.current));
             }
             lastJetPaint = colorKey;
@@ -587,13 +671,29 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
             const fadeOut = Math.max(0, Math.min(1, (1 + jet.trail - jet.progress) / 0.42));
             const alpha = Math.min(fadeIn, fadeOut);
             const visible = alpha > 0.01 && jet.progress > 0;
-            jet.line.visible = visible;
+            jet.line.visible = false;
             jet.head.visible = visible;
+            for (const piece of jet.tracePieces) piece.visible = false;
             for (const dash of jet.dashLines) dash.visible = false;
             for (const node of jet.nodes) node.visible = false;
             for (const stub of jet.stubs) stub.visible = false;
+            for (const piece of jet.stubPieces) piece.visible = false;
             for (const pad of jet.padSprites) pad.visible = false;
             if (!visible) continue;
+
+            const activeStart = Math.max(0, jet.progress - jet.trail);
+            const activeEnd = Math.min(1, jet.progress);
+            for (let i = 0; i < jet.tracePieces.length; i++) {
+              const piece = jet.tracePieces[i];
+              const segStart = i / jet.tracePieces.length;
+              const segEnd = (i + 1) / jet.tracePieces.length;
+              const overlap = Math.max(0, Math.min(segEnd, activeEnd) - Math.max(segStart, activeStart)) / (segEnd - segStart);
+              if (overlap <= 0.02) continue;
+
+              const dim = depthFade(jet.segments[i].end);
+              piece.visible = true;
+              piece.material.opacity = (0.18 + overlap * 0.56) * alpha * dim;
+            }
 
             if (jet.showPads) {
               for (let p = 0; p < jet.padSprites.length; p++) {
@@ -649,6 +749,7 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
             for (let n = 0; n < jet.bends.length; n++) {
               const node = jet.nodes[n];
               const stub = jet.stubs[n];
+              const stubPiece = jet.stubPieces[n];
               if (!node) continue;
               const bendProgress = (n + 1) / (jet.bends.length + 1);
               const wake = jet.progress - bendProgress;
@@ -663,7 +764,7 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
               node.scale.set(nodeScale, nodeScale, 1);
 
               if (stub) {
-                stub.visible = true;
+                stub.visible = false;
                 const attr = stub.geometry.attributes.position;
                 for (let s = 0; s < jet.bends[n].stub.length; s++) {
                   const p = jet.bends[n].stub[s];
@@ -671,6 +772,11 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
                 }
                 attr.needsUpdate = true;
                 stub.material.opacity = nodeAlpha * 0.72 * dim;
+              }
+
+              if (stubPiece) {
+                stubPiece.visible = true;
+                stubPiece.material.opacity = nodeAlpha * 0.62 * dim;
               }
             }
           }
@@ -791,7 +897,7 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
 
                 if (behind < 1.5) {
                   /* head — brightened toward white with a tint of the squad color */
-                  const a   = 1.0 - behind * 0.4;
+                  const a   = (1.0 - behind * 0.4) * 0.58;
                   const mix = 0.55 + a * 0.3;
                   const hR  = Math.min(255, Math.round(cr + (255 - cr) * mix));
                   const hG  = Math.min(255, Math.round(cg + (255 - cg) * mix));
@@ -802,7 +908,7 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
                   /* trail — squad primary color with fade */
                   const trailIdx = Math.floor(behind) - 1;
                   const ch = s.charHistory[trailIdx] ?? s.headChar;
-                  const a  = Math.pow(1 - behind / S_TRAIL, 1.8) * 0.95;
+                  const a  = Math.pow(1 - behind / S_TRAIL, 1.8) * 0.36;
                   bCtx.fillStyle = `rgba(${cr},${cg},${cb},${a.toFixed(3)})`;
                   bCtx.fillText(ch, c * CHAR_W, r * CHAR_H);
                 }
@@ -812,7 +918,7 @@ export default function Globe({ className = '', primaryColor = '#00b0ff', binary
 
               if (!drawn) {
                 /* ambient wave glow — dim squad color */
-                const ambientA = cInfl[c] * 0.10;
+                const ambientA = cInfl[c] * 0.045;
                 if (ambientA > 0.008) {
                   const primaryWash = 0.25;
                   const aR = Math.round(cr * (1 - primaryWash) + pr * primaryWash);
