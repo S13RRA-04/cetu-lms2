@@ -183,7 +183,9 @@ export default function AssignmentPage() {
         hasQuiz ? (
           submitted ? (
             <QuizSummary result={quizResult} assignment={assignment} color={color} />
-          ) : quizStarted ? (
+          ) : assignment.type === 'assessment' && !quizStarted ? (
+            <ModuleIntro assignment={assignment} color={color} onBegin={() => setQuizStarted(true)} />
+          ) : (
             <>
               {error && <div className="err-msg" style={{ marginBottom: 16 }}>{error}</div>}
               <QuizFlow
@@ -193,8 +195,6 @@ export default function AssignmentPage() {
                 onComplete={handleQuizComplete}
               />
             </>
-          ) : (
-            <ModuleIntro assignment={assignment} color={color} onBegin={() => setQuizStarted(true)} />
           )
         ) : (
           /* ── Freeform submission for non-quiz assignments ── */
