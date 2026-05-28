@@ -837,8 +837,8 @@ body {
   position: fixed;
   right: -7vw;
   bottom: -9vw;
-  width: clamp(620px, 46vw, 980px);
-  height: clamp(620px, 46vw, 980px);
+  width: clamp(806px, 60vw, 1274px);
+  height: clamp(806px, 60vw, 1274px);
   pointer-events: none;
   z-index: 0;
   opacity: 1;
@@ -946,8 +946,8 @@ body {
   position: fixed;
   right: -7vw;
   bottom: -9vw;
-  width: clamp(620px, 46vw, 980px);
-  height: clamp(620px, 46vw, 980px);
+  width: clamp(806px, 60vw, 1274px);
+  height: clamp(806px, 60vw, 1274px);
   z-index: 0;
   cursor: default;
 }
@@ -2268,8 +2268,8 @@ body {
   .app-shell .globe-bg {
     right: -42px;
     bottom: -54px;
-    width: min(92vw, 420px);
-    height: min(92vw, 420px);
+    width: min(120vw, 546px);
+    height: min(120vw, 546px);
     opacity: 0.95;
   }
   .stats-banner { gap: 8px; }

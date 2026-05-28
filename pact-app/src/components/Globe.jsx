@@ -53,6 +53,7 @@ export default function Globe({
   baseColor = [1, 1, 1],
   markerColor = [1, 0, 0],
   glowColor = [1, 1, 1],
+  opacity = 0.6,
 }) {
   const canvasRef = useRef(null);
   const dotsRef = useRef(null);
@@ -88,7 +89,7 @@ export default function Globe({
       baseColor,
       markerColor,
       glowColor,
-      opacity: 1,
+      opacity,
       offset: [0, 0],
       markers: [],
       onRender: (state) => {
@@ -102,7 +103,7 @@ export default function Globe({
       window.removeEventListener('resize', onResize);
       globe.destroy();
     };
-  }, [baseColor, dark, diffuse, glowColor, mapBrightness, mapSamples, markerColor, scale, theta]);
+  }, [baseColor, dark, diffuse, glowColor, mapBrightness, mapSamples, markerColor, opacity, scale, theta]);
 
   useEffect(() => {
     const canvas = dotsRef.current;
