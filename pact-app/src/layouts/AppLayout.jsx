@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
-import { NavLink, useNavigate, Outlet } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import useAuthStore from '../store/authStore.js';
 import { logout } from '../api/pact.js';
 
@@ -26,6 +26,7 @@ const TYPE_ORDER = ['module', 'challenge', 'capstone', 'assessment', 'survey', '
 export default function AppLayout({ assignments = [], enrollment = null }) {
   const { user, setUser } = useAuthStore();
   const navigate          = useNavigate();
+  const location          = useLocation();
   const [collapsed, setCollapsed]       = useState({});
   const [sidebarOpen, setSidebarOpen]   = useState(false);
 
@@ -115,16 +116,16 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
           {groups.map(({ type, items }) => (
             <div key={type}>
               <button
-                className="sidebar-group-btn"
+                className={`sidebar-group-btn${collapsed[type] ? ' collapsed' : ''}`}
                 onClick={() => toggleGroup(type)}
               >
-                <span className="sidebar-group-dot" style={{ background: TYPE_COLOR[type] }} />
+                <span className="sidebar-group-dot" style={{ background: TYPE_COLOR[type], boxShadow: `0 0 6px ${TYPE_COLOR[type]}` }} />
                 <span className="sidebar-group-name">{type.toUpperCase()}</span>
                 <span className="sidebar-group-count">{items.length}</span>
-                <span className="sidebar-chevron">{collapsed[type] ? '›' : '⌄'}</span>
+                <span className="sidebar-chevron">›</span>
               </button>
-              {!collapsed[type] && (
-                <div className="sidebar-group-items">
+              <div className={`sidebar-group-items${collapsed[type] ? '' : ' expanded'}`}>
+                <div className="sidebar-group-items-inner">
                   {items.map((a) => (
                     <NavLink
                       key={a.id}
@@ -142,7 +143,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
                     </NavLink>
                   ))}
                 </div>
-              )}
+              </div>
             </div>
           ))}
 
@@ -160,7 +161,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
         {/* User + logout */}
         <div className="sidebar-footer">
           <div className="sidebar-user">
-            <div className="sidebar-avatar">
+            <div className="sidebar-avatar" style={squadTheme ? { borderColor: squadTheme.primary, boxShadow: `0 0 10px ${squadTheme.primary}55` } : {}}>
               {user?.first_name?.[0]}{user?.last_name?.[0]}
             </div>
             <div className="sidebar-user-info">
@@ -181,7 +182,9 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
         </div>
 
         <main className="app-main">
-          <Outlet />
+          <div key={location.pathname} className="page-transition">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>
