@@ -31,6 +31,16 @@ export default function AssignmentPage() {
   const [quizStarted, setQuizStarted] = useState(false);
 
   useEffect(() => {
+    setAssignment(null);
+    setSubmission(null);
+    setContent('');
+    setProgress(0);
+    setLoading(true);
+    setSubmitted(false);
+    setError('');
+    setQuizResult(null);
+    setQuizStarted(false);
+
     Promise.all([
       getAssignment(id),
       getMySubmission(id).catch(() => null),
@@ -190,6 +200,7 @@ export default function AssignmentPage() {
             <>
               {error && <div className="err-msg" style={{ marginBottom: 16 }}>{error}</div>}
               <QuizFlow
+                key={id}
                 questions={assignment.questions}
                 assignmentId={id}
                 color={color}
