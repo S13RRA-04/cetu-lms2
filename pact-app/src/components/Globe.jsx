@@ -60,20 +60,19 @@ export default function Globe({
       const glowMaterial = new THREE.MeshBasicMaterial({
         color: accent,
         transparent: true,
-        opacity: 0.11,
+        opacity: 0.025,
         depthWrite: false,
       });
       globe.add(new THREE.Mesh(glowGeometry, glowMaterial));
 
+      const pointCloud = buildPointCloudFromSample(pointsModule.default.points, accent);
       const dotGeometry = new THREE.BufferGeometry();
-      dotGeometry.setAttribute(
-        'position',
-        new THREE.Float32BufferAttribute(buildPointCloudFromSample(pointsModule.default.points), 3),
-      );
+      dotGeometry.setAttribute('position', new THREE.Float32BufferAttribute(pointCloud.positions, 3));
+      dotGeometry.setAttribute('color', new THREE.Float32BufferAttribute(pointCloud.colors, 3));
       const dotMaterial = new THREE.PointsMaterial({
-        color: accent,
         size: 0.022,
         sizeAttenuation: true,
+        vertexColors: true,
         transparent: true,
         opacity: 0.96,
         depthWrite: false,
@@ -219,12 +218,22 @@ function readColorValue(value) {
   return [42, 157, 143];
 }
 
-function buildPointCloudFromSample(points) {
-  const vertices = [];
+function buildPointCloudFromSample(points, accent) {
+  const positions = [];
+  const colors = [];
+
   for (const point of points) {
-    vertices.push(...flatMapPointToSphere(point.x, point.y, GLOBE_RADIUS));
+    const vertex = flatMapPointToSphere(point.x, point.y, GLOBE_RADIUS);
+    const depthFade = 0.16 + 0.84 * Math.max(0, Math.min(1, (vertex[2] / GLOBE_RADIUS + 1) / 2));
+    positions.push(...vertex);
+    colors.push(
+      accent.r * depthFade,
+      accent.g * depthFade,
+      accent.b * depthFade,
+    );
   }
-  return vertices;
+
+  return { positions, colors };
 }
 
 function buildGuideLines() {
