@@ -82,6 +82,15 @@ export const unlockScenario = (packageId, cohortId) =>
 export const lockScenario = (packageId, cohortId) =>
   client.post(`/courses/${COURSE_ID}/scenarios/${packageId}/lock`, { cohort_id: cohortId });
 
+export const browseScenarioR2 = (prefix) =>
+  client.get(`/courses/${COURSE_ID}/scenarios/browse`, { params: { prefix } }).then((r) => r.data);
+
+export const presignScenarioUpload = (key, contentType) =>
+  client.post(`/courses/${COURSE_ID}/scenarios/presign`, { key, content_type: contentType }).then((r) => r.data);
+
+export const deleteScenarioR2Object = (key) =>
+  client.delete(`/courses/${COURSE_ID}/scenarios/r2-object`, { data: { key } });
+
 /* ── Assignment gating ── */
 export const unlockAssignment = (assignmentId, cohortId) =>
   client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/unlock`, { cohort_id: cohortId }).then((r) => r.data);

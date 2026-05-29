@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   getAdminAssignments,
   getSubmissions,
@@ -13,6 +13,9 @@ import {
   deleteScenario,
   unlockScenario,
   lockScenario,
+  browseScenarioR2,
+  presignScenarioUpload,
+  deleteScenarioR2Object,
   getCourseContent,
   createContentLink,
   uploadContentFile,
@@ -512,6 +515,158 @@ function SquadSubmissions({ groups, grades, savedGrades, assignment, onSelect, o
   );
 }
 
+/* ── R2 File Browser ── */
+
+function R2FileBrowser({ rootPrefix }) {
+  const [prefix,  setPrefix]  = useState(rootPrefix);
+  const [data,    setData]    = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState('');
+
+  const load = useCallback((p) => {
+    setLoading(true);
+    setError('');
+    browseScenarioR2(p)
+      .then((d) => { setData(d); setPrefix(p); })
+      .catch(() => setError('Failed to load R2 contents.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(rootPrefix); }, [rootPrefix, load]);
+
+  /* breadcrumb segments from rootPrefix to current prefix */
+  const crumbs = (() => {
+    const rel   = prefix.slice(rootPrefix.length);
+    const parts = rel.split('/').filter(Boolean);
+    return [{ label: rootPrefix.split('/').filter(Boolean).pop() ?? 'root', prefix: rootPrefix }]
+      .concat(parts.map((p, i) => ({
+        label:  p,
+        prefix: rootPrefix + parts.slice(0, i + 1).join('/') + '/',
+      })));
+  })();
+
+  const handleDelete = async (key, name) => {
+    if (!window.confirm(`Delete "${name}"?`)) return;
+    try {
+      await deleteScenarioR2Object(key);
+      load(prefix);
+    } catch { setError('Delete failed.'); }
+  };
+
+  return (
+    <div className="r2-browser">
+      {/* breadcrumb */}
+      <div className="r2-breadcrumb">
+        {crumbs.map((c, i) => (
+          <span key={c.prefix}>
+            {i > 0 && <span className="r2-crumb-sep">/</span>}
+            <button
+              className={`r2-crumb${i === crumbs.length - 1 ? ' r2-crumb-active' : ''}`}
+              onClick={() => load(c.prefix)}
+              disabled={i === crumbs.length - 1}
+            >{c.label}</button>
+          </span>
+        ))}
+      </div>
+
+      {error && <div className="err-msg" style={{ marginBottom: 8 }}>{error}</div>}
+
+      {loading ? (
+        <div style={{ padding: 16, textAlign: 'center' }}><div className="spinner" /></div>
+      ) : data && (
+        <div className="r2-listing">
+          {data.folders.length === 0 && data.files.length === 0 && (
+            <p style={{ color: 'var(--muted)', fontSize: 13, padding: '8px 0' }}>Empty folder.</p>
+          )}
+          {data.folders.map((f) => (
+            <button key={f.prefix} className="r2-row r2-folder" onClick={() => load(f.prefix)}>
+              <span className="r2-icon">📁</span>
+              <span className="r2-name">{f.name}/</span>
+            </button>
+          ))}
+          {data.files.map((f) => (
+            <div key={f.key} className="r2-row r2-file">
+              <span className="r2-icon">📄</span>
+              <a href={f.url} target="_blank" rel="noopener noreferrer" className="r2-name r2-file-link">{f.name}</a>
+              {f.size != null && <span className="r2-size">{formatR2Size(f.size)}</span>}
+              <button className="r2-del-btn" onClick={() => handleDelete(f.key, f.name)} title="Delete">✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <ScenarioUploadZone prefix={prefix} onUploaded={() => load(prefix)} />
+    </div>
+  );
+}
+
+function ScenarioUploadZone({ prefix, onUploaded }) {
+  const inputRef   = useRef();
+  const [uploading, setUploading] = useState(false);
+  const [progress,  setProgress]  = useState(null);
+  const [error,     setError]     = useState('');
+
+  const upload = async (file) => {
+    setUploading(true);
+    setProgress(0);
+    setError('');
+    try {
+      const key = prefix + file.name;
+      const { uploadUrl } = await presignScenarioUpload(key, file.type || 'application/octet-stream');
+
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', uploadUrl);
+        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+        xhr.upload.onprogress = (e) => { if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100)); };
+        xhr.onload  = () => (xhr.status < 300 ? resolve() : reject(new Error(`Upload failed: ${xhr.status}`)));
+        xhr.onerror = () => reject(new Error('Upload failed'));
+        xhr.send(file);
+      });
+
+      setProgress(null);
+      onUploaded();
+    } catch (e) {
+      setError(e.message ?? 'Upload failed.');
+      setProgress(null);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const onDrop = (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) upload(file);
+  };
+
+  return (
+    <div
+      className={`r2-upload-zone${uploading ? ' r2-uploading' : ''}`}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={onDrop}
+      onClick={() => !uploading && inputRef.current?.click()}
+    >
+      <input ref={inputRef} type="file" style={{ display: 'none' }} onChange={(e) => { if (e.target.files[0]) upload(e.target.files[0]); }} />
+      {uploading ? (
+        <div className="r2-upload-progress">
+          <div className="r2-progress-bar"><div className="r2-progress-fill" style={{ width: `${progress ?? 0}%` }} /></div>
+          <span className="r2-progress-label">{progress != null ? `${progress}%` : 'Uploading…'}</span>
+        </div>
+      ) : (
+        <span>↑ Drop file here or click to upload into <code>{prefix}</code></span>
+      )}
+      {error && <div className="err-msg" style={{ marginTop: 6 }}>{error}</div>}
+    </div>
+  );
+}
+
+function formatR2Size(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 /* ── Scenario Gating Panel ── */
 
 function ScenarioPackageForm({ initial, onSave, onCancel }) {
@@ -581,6 +736,7 @@ function ScenarioGatingPanel({ scenarios, cohorts, loaded, onScenariosChange }) 
   const [selected,   setSelected]   = useState(null);
   const [editTarget, setEditTarget] = useState(null);
   const [deleting,   setDeleting]   = useState({});
+  const [rightTab,   setRightTab]   = useState('files'); // 'files' | 'access'
 
   const handleUpdate = async (data) => {
     const pkg = await updateScenario(editTarget.id, data);
@@ -608,7 +764,7 @@ function ScenarioGatingPanel({ scenarios, cohorts, loaded, onScenariosChange }) 
       {/* Left: package list */}
       <div className="admin-left">
         <div className="scenario-sync-note">
-          Packages auto-populate from R2. Upload files to the <code>decks/</code> bucket prefix and re-open this panel.
+          Packages auto-populate from R2. Use the Files tab to upload and manage scenario files directly.
         </div>
 
         <div className="admin-assignment-list">
@@ -674,16 +830,29 @@ function ScenarioGatingPanel({ scenarios, cohorts, loaded, onScenariosChange }) 
               </div>
             </div>
 
-            <ScenarioGatingCohorts
-              key={selected.id}
-              pkg={selected}
-              cohorts={cohorts}
-              onUnlocksChange={(unlocks) => {
-                const updated = { ...selected, unlocks };
-                setSelected(updated);
-                onScenariosChange((prev) => prev.map((p) => p.id === selected.id ? updated : p));
-              }}
-            />
+            <div className="scenario-tabs">
+              <button className={`scenario-tab${rightTab === 'files' ? ' active' : ''}`} onClick={() => setRightTab('files')}>Files</button>
+              <button className={`scenario-tab${rightTab === 'access' ? ' active' : ''}`} onClick={() => setRightTab('access')}>Cohort Access</button>
+            </div>
+
+            {rightTab === 'files' && (
+              <div style={{ padding: '12px 16px', overflowY: 'auto', flex: 1 }}>
+                <R2FileBrowser key={selected.id} rootPrefix={selected.r2_key} />
+              </div>
+            )}
+
+            {rightTab === 'access' && (
+              <ScenarioGatingCohorts
+                key={selected.id}
+                pkg={selected}
+                cohorts={cohorts}
+                onUnlocksChange={(unlocks) => {
+                  const updated = { ...selected, unlocks };
+                  setSelected(updated);
+                  onScenariosChange((prev) => prev.map((p) => p.id === selected.id ? updated : p));
+                }}
+              />
+            )}
           </>
         )}
       </div>

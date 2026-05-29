@@ -1,5 +1,6 @@
 'use strict';
-const { ListObjectsV2Command } = require('@aws-sdk/client-s3');
+const { ListObjectsV2Command, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { r2Client, R2_BUCKET, R2_DECKS_PREFIX } = require('../config/r2');
 const { ScenarioPackage, ScenarioPackageUnlock, Course, Cohort, Enrollment } = require('../models');
 const { NotFoundError, ForbiddenError } = require('../utils/errors');
@@ -181,7 +182,50 @@ async function lockForCohort(packageId, cohortId) {
   await ScenarioPackageUnlock.destroy({ where: { package_id: packageId, cohort_id: cohortId } });
 }
 
+/* Browse one level of R2 at the given prefix (delimiter = '/') */
+async function browseR2(prefix) {
+  const cmd = new ListObjectsV2Command({
+    Bucket:    R2_BUCKET,
+    Prefix:    prefix,
+    Delimiter: '/',
+  });
+  const resp = await r2Client.send(cmd);
+  return {
+    prefix,
+    folders: (resp.CommonPrefixes ?? []).map((cp) => ({
+      prefix: cp.Prefix,
+      name:   cp.Prefix.slice(prefix.length).replace(/\/$/, ''),
+    })),
+    files: (resp.Contents ?? [])
+      .filter((obj) => obj.Key !== prefix)
+      .map((obj) => ({
+        key:  obj.Key,
+        name: obj.Key.slice(prefix.length),
+        url:  `${R2_PUBLIC_BASE_URL}/${obj.Key}`,
+        size: obj.Size,
+        lastModified: obj.LastModified,
+      })),
+  };
+}
+
+/* Return a presigned PUT URL for direct browser-to-R2 upload */
+async function getPresignedUploadUrl(key, contentType) {
+  const cmd = new PutObjectCommand({
+    Bucket:      R2_BUCKET,
+    Key:         key,
+    ContentType: contentType || 'application/octet-stream',
+  });
+  const uploadUrl = await getSignedUrl(r2Client, cmd, { expiresIn: 3600 });
+  return { uploadUrl, key };
+}
+
+/* Delete a single object from R2 */
+async function deleteR2Object(key) {
+  await r2Client.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
+}
+
 module.exports = {
   listForStudent, listForAdmin, getDownloadUrl, getFilesAdmin,
   create, update, remove, unlockForCohort, lockForCohort,
+  browseR2, getPresignedUploadUrl, deleteR2Object,
 };

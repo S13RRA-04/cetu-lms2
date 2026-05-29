@@ -49,4 +49,36 @@ async function lockForCohort(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { list, getDownloadUrl, create, update, remove, unlockForCohort, lockForCohort };
+/* GET /:id/scenarios/browse?prefix=scenarios/my-scenario/ */
+async function browse(req, res, next) {
+  try {
+    const { r2Client, R2_BUCKET, R2_DECKS_PREFIX } = require('../config/r2');
+    const prefix = req.query.prefix ?? R2_DECKS_PREFIX;
+    return res.json(await scenarioService.browseR2(prefix));
+  } catch (err) { return next(err); }
+}
+
+/* POST /:id/scenarios/presign  { key, content_type } */
+async function presignUpload(req, res, next) {
+  try {
+    const { key, content_type } = req.body ?? {};
+    if (!key) return res.status(400).json({ error: 'key is required' });
+    return res.json(await scenarioService.getPresignedUploadUrl(key, content_type));
+  } catch (err) { return next(err); }
+}
+
+/* DELETE /:id/scenarios/r2-object  { key } */
+async function deleteR2Object(req, res, next) {
+  try {
+    const { key } = req.body ?? {};
+    if (!key) return res.status(400).json({ error: 'key is required' });
+    await scenarioService.deleteR2Object(key);
+    return res.status(204).end();
+  } catch (err) { return next(err); }
+}
+
+module.exports = {
+  list, getDownloadUrl, create, update, remove,
+  unlockForCohort, lockForCohort,
+  browse, presignUpload, deleteR2Object,
+};
