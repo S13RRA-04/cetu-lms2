@@ -12,12 +12,12 @@ function StatusBadge({ status }) {
   return <span className={`badge ${cls}`}>{status}</span>;
 }
 
-async function launchPact() {
+async function launchApp(platform = 'pact') {
   try {
-    const url = await getLaunchUrl();
+    const url = await getLaunchUrl(platform);
     window.open(url, '_blank', 'noopener,noreferrer');
   } catch {
-    alert('Could not launch PACT. Please try again.');
+    alert(`Could not launch ${platform.toUpperCase()}. Please try again.`);
   }
 }
 
@@ -124,7 +124,7 @@ export default function CoursesPage() {
                   <div style={{ display: 'flex', gap: 4 }}>
                     <Link to={`/courses/${course.id}`} className="btn btn-ghost btn-xs">View</Link>
                     {course.status === 'published' && (
-                      <button className="btn btn-primary btn-xs" onClick={launchPact}>Launch</button>
+                      <button className="btn btn-primary btn-xs" onClick={() => launchApp(course.platform ?? 'pact')}>Launch</button>
                     )}
                     {canManage && (
                       <>

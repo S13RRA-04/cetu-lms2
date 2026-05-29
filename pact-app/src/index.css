@@ -835,10 +835,10 @@ body {
 /* ── Globe full-page background ──────────────────────────────────────────────── */
 .globe-bg {
   position: fixed;
-  right: clamp(16px, 4vw, 72px);
-  bottom: clamp(16px, 4vw, 72px);
-  width: clamp(420px, min(42vw, 72vh), 760px);
-  height: clamp(420px, min(42vw, 72vh), 760px);
+  right: clamp(40px, 5vw, 112px);
+  bottom: clamp(32px, 5vw, 96px);
+  width: clamp(480px, min(48vw, 82vh), 866px);
+  height: clamp(480px, min(48vw, 82vh), 866px);
   pointer-events: none;
   z-index: 0;
   opacity: 0.8;
@@ -951,10 +951,10 @@ body {
 /* Globe stays fixed behind the content area */
 .app-shell .globe-bg {
   position: fixed;
-  right: clamp(16px, 4vw, 72px);
-  bottom: clamp(16px, 4vw, 72px);
-  width: clamp(420px, min(42vw, 72vh), 760px);
-  height: clamp(420px, min(42vw, 72vh), 760px);
+  right: clamp(40px, 5vw, 112px);
+  bottom: clamp(32px, 5vw, 96px);
+  width: clamp(480px, min(48vw, 82vh), 866px);
+  height: clamp(480px, min(48vw, 82vh), 866px);
   z-index: 0;
   cursor: default;
 }
@@ -2273,10 +2273,10 @@ body {
   .pact-header { padding: 0 16px; }
   .globe-bg,
   .app-shell .globe-bg {
-    right: 8px;
-    bottom: 8px;
-    width: min(78vw, 360px);
-    height: min(78vw, 360px);
+    right: 12px;
+    bottom: 12px;
+    width: min(88vw, 410px);
+    height: min(88vw, 410px);
     opacity: 0.8;
   }
   .stats-banner { gap: 8px; }

@@ -112,7 +112,7 @@ if (process.env.NODE_ENV === 'production') {
   const lairDir = path.join(__dirname, '../public-lair');
 
   const isPact = (req) => req.hostname === 'pact.cetu.online';
-  const isLair = (req) => req.hostname === 'lair.cetu.online';
+  const isLair = (req) => req.hostname === 'lair.cetu.online' || req.headers['x-app-target'] === 'lair';
 
   const serveLms  = express.static(lmsDir);
   const servePact = express.static(pactDir);

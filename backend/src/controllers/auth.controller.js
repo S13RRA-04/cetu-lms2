@@ -11,6 +11,7 @@ const logger      = require('../utils/logger');
 const LAUNCH_TOKENS   = new Map(); // token → { userId, expiresAt }
 const LAUNCH_TTL_MS   = 60_000;   // 60 seconds
 const PACT_URL        = (process.env.PACT_URL ?? 'https://pact.cetu.online').replace(/\/$/, '');
+const LAIR_URL        = (process.env.LAIR_URL ?? 'https://lair.cetu.online').replace(/\/$/, '');
 
 /* Prune expired tokens lazily on each issuance */
 function pruneExpired() {
@@ -100,14 +101,16 @@ async function register(req, res, next) {
   }
 }
 
-/* POST /auth/launch-token  (requires LMS session) */
+/* POST /auth/launch-token  (requires LMS session)
+   Body: { target: 'pact' | 'lair' }  — defaults to 'pact' */
 async function issueLaunchToken(req, res, next) {
   try {
     if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
     pruneExpired();
     const token = crypto.randomBytes(32).toString('hex');
     LAUNCH_TOKENS.set(token, { userId: req.user.id, expiresAt: Date.now() + LAUNCH_TTL_MS });
-    return res.json({ launchUrl: `${PACT_URL}/?launch_token=${token}` });
+    const baseUrl = req.body?.target === 'lair' ? LAIR_URL : PACT_URL;
+    return res.json({ launchUrl: `${baseUrl}/?launch_token=${token}` });
   } catch (err) { return next(err); }
 }
 

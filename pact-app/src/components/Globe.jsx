@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 
 const GLOBE_RADIUS = 1.56;
+const GLOBE_RENDER_SCALE = 0.88;
 const FLAT_MAP_WIDTH = 4098 / 2;
 const FLAT_MAP_HEIGHT = 1968 / 2;
 const NETWORK_ARCS = [
@@ -70,6 +71,7 @@ export default function Globe({
 
       const globe = new THREE.Group();
       globe.rotation.set(-0.18, -0.58, 0.08);
+      globe.scale.setScalar(GLOBE_RENDER_SCALE);
       scene.add(globe);
 
       const glowGeometry = new THREE.SphereGeometry(GLOBE_RADIUS * 1.01, 48, 32);

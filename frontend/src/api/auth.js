@@ -12,5 +12,5 @@ export const logout = () =>
 export const refresh = () =>
   client.post('/auth/refresh').then((r) => r.data);
 
-export const getLaunchUrl = () =>
-  client.post('/auth/launch-token').then((r) => r.data.launchUrl);
+export const getLaunchUrl = (target = 'pact') =>
+  client.post('/auth/launch-token', { target }).then((r) => r.data.launchUrl);

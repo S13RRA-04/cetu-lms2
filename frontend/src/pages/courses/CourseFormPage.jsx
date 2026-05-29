@@ -14,7 +14,7 @@ export default function CourseFormPage() {
 
   const [form, setForm] = useState({
     title: '', description: '', course_code: '', instructor_id: '',
-    status: 'draft', thumbnail_url: '', start_date: '', end_date: '',
+    status: 'draft', platform: 'pact', thumbnail_url: '', start_date: '', end_date: '',
   });
   const [instructors, setInstructors] = useState([]);
   const [loading, setLoading]         = useState(isEdit);
@@ -33,6 +33,7 @@ export default function CourseFormPage() {
           course_code:   c.course_code ?? '',
           instructor_id: c.instructor_id ?? '',
           status:        c.status ?? 'draft',
+          platform:      c.platform ?? 'pact',
           thumbnail_url: c.thumbnail_url ?? '',
           start_date:    c.start_date ? c.start_date.slice(0, 10) : '',
           end_date:      c.end_date   ? c.end_date.slice(0, 10)   : '',
@@ -55,6 +56,7 @@ export default function CourseFormPage() {
         course_code:   form.course_code,
         instructor_id: form.instructor_id || undefined,
         status:        form.status,
+        platform:      form.platform,
         thumbnail_url: form.thumbnail_url || undefined,
         start_date:    form.start_date    || undefined,
         end_date:      form.end_date      || undefined,
@@ -113,6 +115,16 @@ export default function CourseFormPage() {
                   <option value="archived">Archived</option>
                 </select>
               </div>
+              <div className="form-group">
+                <label>Platform</label>
+                <select value={form.platform} onChange={set('platform')}>
+                  <option value="pact">PACT</option>
+                  <option value="lair">LAIR</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid-2">
               {isAdmin && instructors.length > 0 && (
                 <div className="form-group">
                   <label>Instructor</label>

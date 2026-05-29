@@ -1,0 +1,12 @@
+name = "cetu-app-proxy"
+main = "src/index.js"
+compatibility_date = "2025-05-29"
+
+# Add one route per subdomain that isn't registered on Render.
+# Each new course platform needs:
+#   1. A route entry here
+#   2. An entry in src/apps.js
+#   3. A DNS CNAME in Cloudflare: <subdomain>.cetu.online → cetu-lms.onrender.com (Proxied)
+routes = [
+  { pattern = "lair.cetu.online/*", zone_name = "cetu.online" },
+]

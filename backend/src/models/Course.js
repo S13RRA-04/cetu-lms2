@@ -15,6 +15,11 @@ module.exports = (sequelize) => {
         allowNull:    false,
         defaultValue: 'draft',
       },
+      platform: {
+        type:         DataTypes.ENUM('pact', 'lair'),
+        allowNull:    false,
+        defaultValue: 'pact',
+      },
       thumbnail_url: { type: DataTypes.STRING(512), allowNull: true },
       start_date:    { type: DataTypes.DATEONLY,    allowNull: true },
       end_date:      { type: DataTypes.DATEONLY,    allowNull: true },
