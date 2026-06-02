@@ -2713,3 +2713,21 @@ body {
 .r2-progress-bar { width: 100%; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
 .r2-progress-fill { height: 100%; background: var(--primary); border-radius: 3px; transition: width .2s; }
 .r2-progress-label { font-family: var(--mono); font-size: 12px; color: var(--primary); }
+
+/* ── File Library / R2 Publish Browser ── */
+.r2-file-block { display: flex; flex-direction: column; }
+.publish-form {
+  margin: 4px 0 8px 28px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.publish-form .form-field { display: flex; flex-direction: column; gap: 4px; }
+.publish-form .form-field label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.publish-form .form-field input,
+.publish-form .form-field select {
+  padding: 6px 10px; background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font-size: 13px; color: var(--text); width: 100%;
+}

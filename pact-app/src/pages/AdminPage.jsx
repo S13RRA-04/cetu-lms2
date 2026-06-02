@@ -142,7 +142,7 @@ export default function AdminPage() {
   const [selectedSub,        setSelectedSub]        = useState(null);
   const [savedGrades,        setSavedGrades]        = useState({});
 
-  // top-level admin panel: 'grading' | 'scenarios' | 'content'
+  // top-level admin panel: 'grading' | 'scenarios' | 'content' | 'library'
   const [adminPanel, setAdminPanel] = useState('grading');
 
   // scenarios state
@@ -186,6 +186,8 @@ export default function AdminPage() {
         .catch(() => setContentLoaded(true));
     }
   }, [contentLoaded]);
+
+  const switchToLibrary = useCallback(() => setAdminPanel('library'), []);
 
   const openAssignment = useCallback(async (a) => {
     setSelectedAssignment(a);
@@ -247,9 +249,19 @@ export default function AdminPage() {
         >
           Course Content
         </button>
+        <button
+          className={`admin-panel-tab${adminPanel === 'library' ? ' active' : ''}`}
+          onClick={switchToLibrary}
+        >
+          File Library
+        </button>
       </div>
 
-      {adminPanel === 'content' ? (
+      {adminPanel === 'library' ? (
+        <FileLibraryPanel
+          onContentPublished={() => setContentLoaded(false)}
+        />
+      ) : adminPanel === 'content' ? (
         <CourseContentPanel
           items={contentItems}
           cohorts={cohorts}
@@ -665,6 +677,187 @@ function formatR2Size(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/* ── File Library Panel ── */
+
+function FileLibraryPanel({ onContentPublished }) {
+  return (
+    <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
+      <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 16 }}>
+        Browse all files in R2 and publish them directly to the Course Content library for learners.
+      </p>
+      <R2PublishBrowser rootPrefix="" onPublished={onContentPublished} />
+    </div>
+  );
+}
+
+function R2PublishBrowser({ rootPrefix, onPublished }) {
+  const [prefix,        setPrefix]        = useState(rootPrefix);
+  const [data,          setData]          = useState(null);
+  const [loading,       setLoading]       = useState(false);
+  const [error,         setError]         = useState('');
+  const [publishingKey, setPublishingKey] = useState(null);
+
+  const load = useCallback((p) => {
+    setLoading(true);
+    setError('');
+    setPublishingKey(null);
+    browseScenarioR2(p)
+      .then((d) => { setData(d); setPrefix(p); })
+      .catch(() => setError('Failed to load R2 contents.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(rootPrefix); }, [rootPrefix, load]);
+
+  const crumbs = (() => {
+    if (!prefix) return [{ label: 'root', prefix: '' }];
+    const parts = prefix.split('/').filter(Boolean);
+    return [{ label: 'root', prefix: '' }].concat(
+      parts.map((p, i) => ({
+        label:  p,
+        prefix: parts.slice(0, i + 1).join('/') + '/',
+      })),
+    );
+  })();
+
+  return (
+    <div className="r2-browser">
+      <div className="r2-breadcrumb">
+        {crumbs.map((c, i) => (
+          <span key={c.prefix}>
+            {i > 0 && <span className="r2-crumb-sep">/</span>}
+            <button
+              className={`r2-crumb${i === crumbs.length - 1 ? ' r2-crumb-active' : ''}`}
+              onClick={() => load(c.prefix)}
+              disabled={i === crumbs.length - 1}
+            >{c.label}</button>
+          </span>
+        ))}
+      </div>
+
+      {error && <div className="err-msg" style={{ marginBottom: 8 }}>{error}</div>}
+
+      {loading ? (
+        <div style={{ padding: 16, textAlign: 'center' }}><div className="spinner" /></div>
+      ) : data && (
+        <div className="r2-listing">
+          {data.folders.length === 0 && data.files.length === 0 && (
+            <p style={{ color: 'var(--muted)', fontSize: 13, padding: '8px 0' }}>Empty folder.</p>
+          )}
+          {data.folders.map((f) => (
+            <button key={f.prefix} className="r2-row r2-folder" onClick={() => load(f.prefix)}>
+              <span className="r2-icon">📁</span>
+              <span className="r2-name">{f.name}/</span>
+            </button>
+          ))}
+          {data.files.map((f) => (
+            <div key={f.key} className="r2-file-block">
+              <div className="r2-row r2-file">
+                <span className="r2-icon">📄</span>
+                <a href={f.url} target="_blank" rel="noopener noreferrer" className="r2-name r2-file-link">{f.name}</a>
+                {f.size != null && <span className="r2-size">{formatR2Size(f.size)}</span>}
+                <button
+                  className={`btn-sm-primary${publishingKey === f.key ? ' active' : ''}`}
+                  style={{ marginLeft: 8, flexShrink: 0, fontSize: 11 }}
+                  onClick={() => setPublishingKey(publishingKey === f.key ? null : f.key)}
+                >
+                  {publishingKey === f.key ? 'Cancel' : '↑ Publish'}
+                </button>
+              </div>
+              {publishingKey === f.key && (
+                <PublishFileForm
+                  file={f}
+                  onPublished={() => { setPublishingKey(null); onPublished?.(); }}
+                  onCancel={() => setPublishingKey(null)}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function guessContentType(filename) {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  if (['pptx', 'ppt'].includes(ext)) return 'slides';
+  if (['pdf', 'docx', 'doc'].includes(ext)) return 'handout';
+  if (['xlsx', 'xls', 'csv'].includes(ext)) return 'form';
+  return 'resource';
+}
+
+function PublishFileForm({ file, onPublished, onCancel }) {
+  const [title,       setTitle]       = useState(() => file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '));
+  const [contentType, setContentType] = useState(() => guessContentType(file.name));
+  const [description, setDescription] = useState('');
+  const [isPublished, setIsPublished] = useState(true);
+  const [saving,      setSaving]      = useState(false);
+  const [err,         setErr]         = useState('');
+  const [done,        setDone]        = useState(false);
+
+  const handlePublish = async () => {
+    if (!title.trim()) { setErr('Title is required'); return; }
+    setSaving(true);
+    setErr('');
+    try {
+      await createContentLink({
+        title:        title.trim(),
+        description:  description.trim() || undefined,
+        content_type: contentType,
+        url:          file.url,
+        is_published: isPublished,
+      });
+      setDone(true);
+      setTimeout(onPublished, 1000);
+    } catch (e) {
+      setErr(e.response?.data?.error?.message ?? 'Publish failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <div style={{ padding: '8px 16px', color: '#10b981', fontSize: 13 }}>
+        ✓ Added to Course Content
+      </div>
+    );
+  }
+
+  return (
+    <div className="publish-form">
+      <div className="form-field">
+        <label>Title *</label>
+        <input value={title} onChange={(e) => setTitle(e.target.value)} />
+      </div>
+      <div className="form-field" style={{ display: 'flex', gap: 12 }}>
+        <div style={{ flex: 1 }}>
+          <label>Type</label>
+          <select value={contentType} onChange={(e) => setContentType(e.target.value)}>
+            {CONTENT_TYPES.map((t) => <option key={t} value={t}>{CONTENT_TYPE_LABELS[t]}</option>)}
+          </select>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, paddingBottom: 2 }}>
+          <input type="checkbox" id="pub-now" checked={isPublished} onChange={(e) => setIsPublished(e.target.checked)} />
+          <label htmlFor="pub-now" style={{ fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}>Publish now</label>
+        </div>
+      </div>
+      <div className="form-field">
+        <label>Description</label>
+        <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" />
+      </div>
+      {err && <div className="err-msg">{err}</div>}
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <button className="btn-submit" style={{ width: 'auto' }} onClick={handlePublish} disabled={saving}>
+          {saving ? 'Publishing…' : 'Add to Course Content'}
+        </button>
+        <button className="btn-secondary" onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
 }
 
 /* ── Scenario Gating Panel ── */
