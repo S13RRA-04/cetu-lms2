@@ -227,20 +227,6 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
             </svg>
           </DockIcon>
 
-          {/* LAIR — external lab environment */}
-          <div className="dock-divider" />
-          <DockIcon mouseY={mouseY} accent={accent}
-            label="LAIR ↗"
-            isActive={false}
-            onClick={() => window.open('https://lair.cetu.online', '_blank', 'noopener,noreferrer')}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
-              <path d="M2 12h20"/>
-              <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
-            </svg>
-          </DockIcon>
-          <div className="dock-divider" />
 
           {/* Missions */}
           {groups.length > 0 && (

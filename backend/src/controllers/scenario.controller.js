@@ -52,10 +52,14 @@ async function lockForCohort(req, res, next) {
 /* GET /:id/scenarios/browse?prefix=scenarios/my-scenario/ */
 async function browse(req, res, next) {
   try {
-    const { r2Client, R2_BUCKET, R2_DECKS_PREFIX } = require('../config/r2');
-    const prefix = req.query.prefix ?? R2_DECKS_PREFIX;
+    const { R2_DECKS_PREFIX } = require('../config/r2');
+    const rawPrefix = req.query.prefix;
+    const prefix    = (rawPrefix != null) ? rawPrefix : R2_DECKS_PREFIX;
     return res.json(await scenarioService.browseR2(prefix));
-  } catch (err) { return next(err); }
+  } catch (err) {
+    console.error('[R2 browse] prefix=%s error=%s', req.query.prefix ?? '(none)', err.message);
+    return next(err);
+  }
 }
 
 /* POST /:id/scenarios/presign  { key, content_type } */

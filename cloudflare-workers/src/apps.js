@@ -8,6 +8,4 @@
  *   3. Ensure the Express server in backend/src/server.js has a matching
  *      isMyApp() check and serves the corresponding /public-myapp directory.
  */
-export const APP_TARGETS = {
-  'lair.cetu.online': 'lair',
-};
+export const APP_TARGETS = {};

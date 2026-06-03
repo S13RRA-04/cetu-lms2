@@ -2731,3 +2731,41 @@ body {
   padding: 6px 10px; background: var(--surface-2); border: 1px solid var(--border);
   border-radius: var(--radius-sm); font-size: 13px; color: var(--text); width: 100%;
 }
+
+/* ── Session Timeout Warning ── */
+.session-timeout-backdrop {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,.55); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+}
+.session-timeout-modal {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 40px 36px; max-width: 420px; width: 90%;
+  text-align: center; box-shadow: 0 24px 64px rgba(0,0,0,.5);
+}
+.session-timeout-icon  { font-size: 40px; margin-bottom: 16px; }
+.session-timeout-title { font-size: 20px; font-weight: 700; color: var(--bright); margin: 0 0 12px; }
+.session-timeout-body  { font-size: 14px; color: var(--muted); line-height: 1.6; margin: 0 0 28px; }
+.session-timeout-countdown { font-family: var(--mono); font-size: 18px; font-weight: 700; color: #f59e0b; }
+.session-timeout-actions { display: flex; flex-direction: column; gap: 10px; }
+.session-timeout-stay { width: 100%; }
+.session-timeout-signout {
+  background: none; border: none; color: var(--muted); font-size: 13px;
+  cursor: pointer; padding: 6px; border-radius: var(--radius-sm);
+}
+.session-timeout-signout:hover { color: #ef4444; }
+
+/* ── Logged Out Page ── */
+.logged-out-page {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  background: var(--bg);
+}
+.logged-out-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 48px 40px; max-width: 400px; width: 90%;
+  text-align: center; box-shadow: 0 16px 48px rgba(0,0,0,.3);
+}
+.logged-out-icon  { font-size: 48px; margin-bottom: 20px; }
+.logged-out-title { font-size: 22px; font-weight: 700; color: var(--bright); margin: 0 0 12px; }
+.logged-out-body  { font-size: 14px; color: var(--muted); line-height: 1.6; margin: 0 0 32px; }
+.logged-out-btn   { width: 100%; }

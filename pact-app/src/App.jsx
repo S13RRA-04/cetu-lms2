@@ -10,6 +10,7 @@ import AdminPage      from './pages/AdminPage.jsx';
 import ScenariosPage     from './pages/ScenariosPage.jsx';
 import CourseContentPage from './pages/CourseContentPage.jsx';
 import AppShell       from './layouts/AppShell.jsx';
+import LoggedOutPage  from './pages/LoggedOutPage.jsx';
 
 function Guard({ children }) {
   const { user } = useAuthStore();
@@ -24,7 +25,8 @@ function AdminGuard({ children }) {
 }
 
 const router = createBrowserRouter([
-  { path: '/login', element: <LoginPage /> },
+  { path: '/login',      element: <LoginPage /> },
+  { path: '/logged-out', element: <LoggedOutPage /> },
   {
     element: <Guard><AppShell /></Guard>,
     children: [
