@@ -186,7 +186,7 @@ async function lockForCohort(packageId, cohortId) {
 async function browseR2(prefix) {
   const cmd = new ListObjectsV2Command({
     Bucket:    R2_BUCKET,
-    Prefix:    prefix,
+    Prefix:    prefix || undefined,
     Delimiter: '/',
   });
   const resp = await r2Client.send(cmd);
