@@ -58,6 +58,9 @@ async function browse(req, res, next) {
     return res.json(await scenarioService.browseR2(prefix));
   } catch (err) {
     console.error('[R2 browse] prefix=%s error=%s', req.query.prefix ?? '(none)', err.message);
+    if (err.message?.includes('credential') || err.name === 'CredentialsProviderError') {
+      return res.status(503).json({ error: 'R2 credentials are not configured. Set R2_ENDPOINT, R2_ACCESS_KEY_ID, and R2_SECRET_ACCESS_KEY in the server environment.' });
+    }
     return next(err);
   }
 }

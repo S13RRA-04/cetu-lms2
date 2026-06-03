@@ -2684,6 +2684,12 @@ body {
   color: var(--text);
 }
 .r2-folder:hover { background: var(--surface-2); }
+.r2-folder-nav {
+  display: flex; align-items: center; gap: 8px; flex: 1;
+  background: none; border: none; cursor: pointer; text-align: left; padding: 0;
+  color: var(--text); font-size: inherit;
+}
+.r2-folder-nav:hover .r2-name { text-decoration: underline; }
 .r2-file { background: var(--surface); }
 .r2-icon { font-size: 14px; flex-shrink: 0; }
 .r2-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

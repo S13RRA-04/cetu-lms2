@@ -16,6 +16,7 @@ import {
   browseScenarioR2,
   presignScenarioUpload,
   deleteScenarioR2Object,
+  createScenario,
   getCourseContent,
   createContentLink,
   uploadContentFile,
@@ -698,14 +699,16 @@ function R2PublishBrowser({ rootPrefix, onPublished }) {
   const [loading,       setLoading]       = useState(false);
   const [error,         setError]         = useState('');
   const [publishingKey, setPublishingKey] = useState(null);
+  const [releasingKey,  setReleasingKey]  = useState(null);
 
   const load = useCallback((p) => {
     setLoading(true);
     setError('');
     setPublishingKey(null);
+    setReleasingKey(null);
     browseScenarioR2(p)
       .then((d) => { setData(d); setPrefix(p); })
-      .catch(() => setError('Failed to load R2 contents.'))
+      .catch((e) => setError(e.response?.data?.error ?? 'Failed to load R2 contents.'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -747,10 +750,28 @@ function R2PublishBrowser({ rootPrefix, onPublished }) {
             <p style={{ color: 'var(--muted)', fontSize: 13, padding: '8px 0' }}>Empty folder.</p>
           )}
           {data.folders.map((f) => (
-            <button key={f.prefix} className="r2-row r2-folder" onClick={() => load(f.prefix)}>
-              <span className="r2-icon">📁</span>
-              <span className="r2-name">{f.name}/</span>
-            </button>
+            <div key={f.prefix} className="r2-file-block">
+              <div className="r2-row r2-folder">
+                <button className="r2-folder-nav" onClick={() => load(f.prefix)}>
+                  <span className="r2-icon">📁</span>
+                  <span className="r2-name">{f.name}/</span>
+                </button>
+                <button
+                  className={`btn-sm-primary${releasingKey === f.prefix ? ' active' : ''}`}
+                  style={{ marginLeft: 8, flexShrink: 0, fontSize: 11 }}
+                  onClick={() => setReleasingKey(releasingKey === f.prefix ? null : f.prefix)}
+                >
+                  {releasingKey === f.prefix ? 'Cancel' : '↑ Release'}
+                </button>
+              </div>
+              {releasingKey === f.prefix && (
+                <FolderReleaseForm
+                  folder={f}
+                  onReleased={() => { setReleasingKey(null); onPublished?.(); }}
+                  onCancel={() => setReleasingKey(null)}
+                />
+              )}
+            </div>
           ))}
           {data.files.map((f) => (
             <div key={f.key} className="r2-file-block">
@@ -777,6 +798,73 @@ function R2PublishBrowser({ rootPrefix, onPublished }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function FolderReleaseForm({ folder, onReleased, onCancel }) {
+  const defaultTitle = folder.name.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  const [title,       setTitle]       = useState(defaultTitle);
+  const [description, setDescription] = useState('');
+  const [isPublished, setIsPublished] = useState(true);
+  const [saving,      setSaving]      = useState(false);
+  const [err,         setErr]         = useState('');
+  const [done,        setDone]        = useState(false);
+
+  const handleRelease = async () => {
+    if (!title.trim()) { setErr('Title is required'); return; }
+    setSaving(true);
+    setErr('');
+    try {
+      await createScenario({
+        title:          title.trim(),
+        description:    description.trim() || undefined,
+        r2_key:         folder.prefix,
+        file_name:      folder.name,
+        release_number: 1,
+        is_published:   isPublished,
+      });
+      setDone(true);
+      setTimeout(onReleased, 1000);
+    } catch (e) {
+      setErr(e.response?.data?.error?.message ?? 'Release failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <div style={{ padding: '8px 16px', color: '#10b981', fontSize: 13 }}>
+        ✓ Added to Scenario Gating
+      </div>
+    );
+  }
+
+  return (
+    <div className="publish-form">
+      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6, fontFamily: 'var(--mono)' }}>
+        📁 {folder.prefix}
+      </div>
+      <div className="form-field">
+        <label>Title *</label>
+        <input value={title} onChange={(e) => setTitle(e.target.value)} />
+      </div>
+      <div className="form-field">
+        <label>Description</label>
+        <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+        <input type="checkbox" id="folder-pub" checked={isPublished} onChange={(e) => setIsPublished(e.target.checked)} />
+        <label htmlFor="folder-pub" style={{ fontSize: 13, cursor: 'pointer' }}>Publish now</label>
+      </div>
+      {err && <div className="err-msg">{err}</div>}
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <button className="btn-submit" style={{ width: 'auto' }} onClick={handleRelease} disabled={saving}>
+          {saving ? 'Releasing…' : 'Add to Scenario Gating'}
+        </button>
+        <button className="btn-secondary" onClick={onCancel}>Cancel</button>
+      </div>
     </div>
   );
 }

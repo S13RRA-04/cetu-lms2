@@ -19,7 +19,6 @@ export default defineConfig({
       output: {
         manualChunks: {
           three: ['three'],
-          globe: ['react-globe.gl', 'three-globe'],
         },
       },
     },
