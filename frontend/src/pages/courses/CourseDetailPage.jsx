@@ -8,6 +8,7 @@ import {
   getContentItems, createContentItem, updateContentItem, deleteContentItem,
   getSubmissions, getMySubmission, submitAssignment,
   getProgress, unlockAssignment, lockAssignment,
+  getCourseGrades,
 } from '../../api/courses.js';
 import {
   listCohorts, createCohort, updateCohort, deleteCohort, addMember, removeMember,
@@ -1066,6 +1067,145 @@ function CohortsTab({ courseId }) {
   );
 }
 
+// ── Course Gradebook ──────────────────────────────────────────────────────────
+function GradesTab({ courseId }) {
+  const [cohorts,    setCohorts]    = useState([]);
+  const [cohortId,   setCohortId]   = useState('');
+  const [rows,       setRows]       = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState('');
+
+  useEffect(() => {
+    listCohorts(courseId)
+      .then((data) => { setCohorts(data); })
+      .catch(() => {});
+  }, [courseId]);
+
+  useEffect(() => {
+    setLoading(true);
+    setError('');
+    getCourseGrades(courseId, cohortId || null)
+      .then(setRows)
+      .catch(() => setError('Failed to load grades.'))
+      .finally(() => setLoading(false));
+  }, [courseId, cohortId]);
+
+  if (loading) return <LoadingSpinner />;
+  if (error)   return <div className="alert alert-error">{error}</div>;
+  if (rows.length === 0) return (
+    <div className="empty-state">
+      <p>{cohortId ? 'No students or grades found for this cohort.' : 'No enrolled students or grades yet.'}</p>
+    </div>
+  );
+
+  /* pivot flat rows → { student: {...}, grades: { assignmentId: row } } */
+  const assignmentMap = new Map();
+  const studentMap    = new Map();
+  rows.forEach((r) => {
+    if (!assignmentMap.has(r.assignmentId)) {
+      assignmentMap.set(r.assignmentId, {
+        id: r.assignmentId, title: r.assignmentTitle, max: parseFloat(r.assignmentMax ?? 0), order: r.orderIndex,
+      });
+    }
+    if (!studentMap.has(r.userId)) {
+      studentMap.set(r.userId, { id: r.userId, firstName: r.firstName, lastName: r.lastName, email: r.email, cohortName: r.cohortName, grades: {} });
+    }
+    if (r.score !== null && r.score !== undefined) {
+      studentMap.get(r.userId).grades[r.assignmentId] = {
+        score: parseFloat(r.score), max: parseFloat(r.assignmentMax ?? 0),
+        feedback: r.feedback, gradedAt: r.gradedAt,
+        submissionStatus: r.submissionStatus,
+      };
+    } else if (r.submissionStatus) {
+      studentMap.get(r.userId).grades[r.assignmentId] = { score: null, submissionStatus: r.submissionStatus };
+    }
+  });
+
+  const assignments = [...assignmentMap.values()].sort((a, b) => a.order - b.order || a.title.localeCompare(b.title));
+  const students    = [...studentMap.values()].sort((a, b) => `${a.lastName}${a.firstName}`.localeCompare(`${b.lastName}${b.firstName}`));
+
+  const pctColor = (pct) => pct >= 80 ? 'var(--success)' : pct >= 60 ? '#f59e0b' : 'var(--danger)';
+
+  return (
+    <div>
+      {/* Cohort filter */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+        <label className="text-sm fw-600">Cohort</label>
+        <select
+          value={cohortId}
+          onChange={(e) => setCohortId(e.target.value)}
+          style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 14, background: 'white' }}
+        >
+          <option value="">All cohorts</option>
+          {cohorts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <span className="text-xs text-muted">{students.length} student{students.length !== 1 ? 's' : ''}</span>
+      </div>
+
+      <div className="card">
+        <div className="table-wrap" style={{ overflowX: 'auto' }}>
+          <table style={{ minWidth: 600 }}>
+            <thead>
+              <tr>
+                <th style={{ whiteSpace: 'nowrap', minWidth: 160 }}>Student</th>
+                {!cohortId && <th style={{ whiteSpace: 'nowrap' }}>Cohort</th>}
+                {assignments.map((a) => (
+                  <th key={a.id} style={{ whiteSpace: 'nowrap', minWidth: 90, textAlign: 'center', fontSize: 12 }}
+                    title={`Max: ${a.max}`}>
+                    {a.title.length > 20 ? a.title.slice(0, 18) + '…' : a.title}
+                    <div className="text-xs text-muted" style={{ fontWeight: 400 }}>/{a.max}</div>
+                  </th>
+                ))}
+                <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((stu) => {
+                const totalEarned = assignments.reduce((s, a) => s + (stu.grades[a.id]?.score ?? 0), 0);
+                const totalMax    = assignments.reduce((s, a) => s + a.max, 0);
+                const totalPct    = totalMax > 0 ? Math.round((totalEarned / totalMax) * 100) : null;
+                return (
+                  <tr key={stu.id}>
+                    <td>
+                      <div className="fw-600" style={{ fontSize: 14 }}>{stu.firstName} {stu.lastName}</div>
+                      <div className="text-xs text-muted">{stu.email}</div>
+                    </td>
+                    {!cohortId && <td className="text-sm text-muted">{stu.cohortName ?? '—'}</td>}
+                    {assignments.map((a) => {
+                      const g = stu.grades[a.id];
+                      if (!g) return <td key={a.id} style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>—</td>;
+                      if (g.score === null) return (
+                        <td key={a.id} style={{ textAlign: 'center' }}>
+                          <span className="badge badge-blue" style={{ fontSize: 10 }}>{g.submissionStatus}</span>
+                        </td>
+                      );
+                      const pct = a.max > 0 ? Math.round((g.score / a.max) * 100) : 0;
+                      return (
+                        <td key={a.id} style={{ textAlign: 'center' }} title={g.feedback ? `Feedback: ${g.feedback}` : undefined}>
+                          <span className="fw-600" style={{ color: pctColor(pct), fontSize: 14 }}>{g.score}</span>
+                          <span className="text-xs text-muted"> ({pct}%)</span>
+                        </td>
+                      );
+                    })}
+                    <td style={{ textAlign: 'center' }}>
+                      {totalPct !== null ? (
+                        <>
+                          <span className="fw-600" style={{ color: pctColor(totalPct), fontSize: 14 }}>{Math.round(totalEarned)}</span>
+                          <span className="text-xs text-muted"> / {Math.round(totalMax)} ({totalPct}%)</span>
+                        </>
+                      ) : '—'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function CourseDetailPage() {
   const { id }    = useParams();
@@ -1174,7 +1314,7 @@ export default function CourseDetailPage() {
       )}
 
       <div className="tabs">
-        {['modules', 'assignments', ...(canManage ? ['cohorts', 'enrollments'] : [])].map((t) => (
+        {['modules', 'assignments', ...(canManage ? ['grades', 'cohorts', 'enrollments'] : [])].map((t) => (
           <button key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
             {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
@@ -1282,6 +1422,9 @@ export default function CourseDetailPage() {
           }
         </div>
       )}
+
+      {/* ── Grades ── */}
+      {tab === 'grades' && canManage && <GradesTab courseId={id} />}
 
       {/* ── Cohorts ── */}
       {tab === 'cohorts' && canManage && <CohortsTab courseId={id} />}

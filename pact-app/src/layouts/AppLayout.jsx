@@ -10,7 +10,7 @@ import { logout } from '../api/pact.js';
 const SQUAD_THEME = {
   1: { primary: '#ff073a', binary: '#27f5ff', lt: '#fff0f3', md: 'rgba(255,7,58,0.14)'   },
   2: { primary: '#ffe600', binary: '#7c3cff', lt: '#fffde6', md: 'rgba(255,230,0,0.14)'  },
-  3: { primary: '#39ff14', binary: '#ff4fd8', lt: '#f0fff0', md: 'rgba(57,255,20,0.14)'  },
+  3: { primary: '#00c244', binary: '#ff4fd8', lt: '#d1fae5', md: 'rgba(0,194,68,0.14)'   },
   4: { primary: '#00b0ff', binary: '#ffb020', lt: '#e6f7ff', md: 'rgba(0,176,255,0.14)'  },
 };
 

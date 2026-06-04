@@ -13,6 +13,11 @@ async function getScoreboard(req, res, next) {
   catch (err) { return next(err); }
 }
 
+async function getCourseGrades(req, res, next) {
+  try { return res.json(await gradeService.getCourseGrades(req.params.id, req.query.cohort_id ?? null)); }
+  catch (err) { return next(err); }
+}
+
 async function listByCourse(req, res, next) {
   try {
     const isStudent = req.user.role === 'student';
@@ -85,4 +90,4 @@ async function gradeSquad(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { listByCourse, getOne, create, update, remove, getGrades, upsertGrade, unlockForCohort, lockForCohort, getProgress, gradeSquad, getMyGrades, getScoreboard };
+module.exports = { listByCourse, getOne, create, update, remove, getGrades, upsertGrade, unlockForCohort, lockForCohort, getProgress, gradeSquad, getMyGrades, getScoreboard, getCourseGrades };

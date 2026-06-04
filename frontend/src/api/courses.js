@@ -94,3 +94,6 @@ export const lockAssignment = (courseId, assignmentId, cohortId) =>
 
 export const gradeSquad = (courseId, assignmentId, squadId, data) =>
   client.put(`/courses/${courseId}/assignments/${assignmentId}/grades/squad/${squadId}`, data).then((r) => r.data);
+
+export const getCourseGrades = (courseId, cohortId) =>
+  client.get(`/courses/${courseId}/grades`, { params: cohortId ? { cohort_id: cohortId } : {} }).then((r) => r.data);

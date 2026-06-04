@@ -122,4 +122,37 @@ async function getScoreboard(courseId) {
   }));
 }
 
-module.exports = { getGradesForAssignment, getGradesForUser, upsertGrade, gradeSquad, getScoreboard };
+async function getCourseGrades(courseId, cohortId) {
+  const { sequelize } = require('../config/database');
+  const [rows] = await sequelize.query(
+    `SELECT
+       u.id           AS "userId",
+       u.first_name   AS "firstName",
+       u.last_name    AS "lastName",
+       u.email,
+       e.cohort_id    AS "cohortId",
+       co.name        AS "cohortName",
+       a.id           AS "assignmentId",
+       a.title        AS "assignmentTitle",
+       a.max_score    AS "assignmentMax",
+       a.order_index  AS "orderIndex",
+       g.score,
+       g.feedback,
+       g.graded_at    AS "gradedAt",
+       s.status       AS "submissionStatus",
+       s.progress     AS "submissionProgress"
+     FROM enrollments e
+     JOIN users u ON u.id = e.user_id AND u.role = 'student'
+     JOIN assignments a ON a.course_id = :courseId AND a.is_published = true
+     LEFT JOIN cohorts co ON co.id = e.cohort_id
+     LEFT JOIN grades g ON g.user_id = e.user_id AND g.assignment_id = a.id
+     LEFT JOIN submissions s ON s.user_id = e.user_id AND s.assignment_id = a.id
+     WHERE e.course_id = :courseId
+       AND (:cohortId IS NULL OR e.cohort_id = :cohortId::uuid)
+     ORDER BY co.name NULLS LAST, u.last_name, u.first_name, a.order_index, a.created_at`,
+    { replacements: { courseId, cohortId: cohortId ?? null } }
+  );
+  return rows;
+}
+
+module.exports = { getGradesForAssignment, getGradesForUser, upsertGrade, gradeSquad, getScoreboard, getCourseGrades };
