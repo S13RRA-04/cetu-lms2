@@ -16,9 +16,27 @@ const NETWORK_ARCS = [
   { from: [41.9, 12.5],   to: [31.2, 121.5],  lift: 0.3,  speed: 0.0044 },
   { from: [-1.3, 36.8],   to: [50.1, 14.4],   lift: 0.19, speed: 0.005  },
 ];
-const ARC_SEGMENTS   = 52;
+const ARC_SEGMENTS      = 52;
 const TRAIL_LAYER_COUNT = 10;
 const TRAIL_STEP        = 0.018;
+
+/* Satellite constellation */
+const SAT_R          = GLOBE_RADIUS * GLOBE_RENDER_SCALE * 1.14; // orbit radius
+const MESH_LINK_DIST = 1.55;                                      // max dist to draw link
+const MAX_SAT_VERTS  = 45 * 2;                                    // C(10,2) pairs × 2 endpoints
+
+const SATELLITES = [
+  { id: 'KH-09',    inc: 97.4, raan:   0, speed: 0.00285, phase: 0.0 },
+  { id: 'NRO-14',   inc: 63.4, raan:  58, speed: 0.00242, phase: 0.8 },
+  { id: 'USA-336',  inc: 74.0, raan: 118, speed: 0.00308, phase: 1.6 },
+  { id: 'OPS-7742', inc: 51.6, raan: 178, speed: 0.00254, phase: 2.4 },
+  { id: 'KH-11',    inc: 97.4, raan:  42, speed: 0.00277, phase: 3.2 },
+  { id: 'LACROSSE', inc: 57.0, raan:  95, speed: 0.00228, phase: 0.4 },
+  { id: 'SV-22',    inc: 82.6, raan: 152, speed: 0.00316, phase: 1.2 },
+  { id: 'WGS-11',   inc: 35.5, raan: 215, speed: 0.00261, phase: 2.0 },
+  { id: 'AEHF-6',   inc: 97.4, raan: 272, speed: 0.00292, phase: 2.8 },
+  { id: 'GEO-3',    inc: 45.0, raan: 318, speed: 0.00235, phase: 3.6 },
+];
 
 /* Soft radial-gradient canvas texture → round points instead of squares */
 function makeCircleTexture(THREE) {
@@ -36,6 +54,61 @@ function makeCircleTexture(THREE) {
   ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
   ctx.fill();
   return new THREE.CanvasTexture(canvas);
+}
+
+/* Compute 3-D position of a satellite given orbital elements + current angle */
+function satPos(inc, raan, theta, r) {
+  const i = degToRad(inc), n = degToRad(raan);
+  const ox = Math.cos(theta), oz = Math.sin(theta);
+  const x1 = ox, y1 = -oz * Math.sin(i), z1 = oz * Math.cos(i);
+  return [
+    (x1 * Math.cos(n) + z1 * Math.sin(n)) * r,
+    y1 * r,
+    (-x1 * Math.sin(n) + z1 * Math.cos(n)) * r,
+  ];
+}
+
+/* Faint ring tracing a satellite's orbital path */
+function buildOrbitRing(inc, raan, r, steps = 96) {
+  const v = []; let prev = null;
+  for (let i = 0; i <= steps; i++) {
+    const pos = satPos(inc, raan, (i / steps) * Math.PI * 2, r);
+    if (prev) v.push(...prev, ...pos);
+    prev = pos;
+  }
+  return new Float32Array(v);
+}
+
+/* Canvas sprite: satellite ID + live coordinate line */
+function makeLabelSprite(THREE, id, accent) {
+  const W = 200, H = 52;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  const rgb = `${Math.round(accent.r * 255)},${Math.round(accent.g * 255)},${Math.round(accent.b * 255)}`;
+  ctx.font = 'bold 17px monospace';
+  ctx.fillStyle = `rgb(${rgb})`;
+  ctx.fillText(id, 2, 20);
+  ctx.font = '11px monospace';
+  ctx.fillStyle = `rgba(${rgb},0.65)`;
+  ctx.fillText('— — —', 2, 38);
+  const tex = new THREE.CanvasTexture(cv);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0.88, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(0.52, 0.14, 1);
+  return { sprite, tex, mat, cv, ctx, rgb };
+}
+
+/* Redraw the coordinate line of an existing label */
+function updateLabelCoords(label, lat, lon) {
+  const { cv, ctx, rgb } = label;
+  ctx.clearRect(0, 26, cv.width, 26);
+  ctx.font = '11px monospace';
+  ctx.fillStyle = `rgba(${rgb},0.65)`;
+  const latStr = (lat >= 0 ? '+' : '') + lat.toFixed(1) + '°';
+  const lonStr = (lon >= 0 ? '+' : '') + lon.toFixed(1) + '°';
+  ctx.fillText(`${latStr}  ${lonStr}`, 2, 38);
+  label.tex.needsUpdate = true;
 }
 
 export default function Globe({
@@ -102,18 +175,17 @@ export default function Globe({
         globe.scale.setScalar(GLOBE_RENDER_SCALE);
         scene.add(globe);
 
-        /* Inner glow (subtle fill) */
+        /* Inner fill — barely-there tint, not a blob */
         const glowGeometry = new THREE.SphereGeometry(GLOBE_RADIUS * 1.01, 48, 32);
         const glowMaterial = new THREE.MeshBasicMaterial({
-          color: accent, transparent: true, opacity: 0.045, depthWrite: false,
+          color: accent, transparent: true, opacity: 0.012, depthWrite: false,
         });
         globe.add(new THREE.Mesh(glowGeometry, glowMaterial));
 
-        /* Atmospheric halo — three nested BackSide shells with additive blending */
+        /* Rim atmosphere — single tight shell, barely visible */
         const atmoShells = [
-          { rMult: 1.055, opacity: 0.07  },
-          { rMult: 1.095, opacity: 0.045 },
-          { rMult: 1.16,  opacity: 0.025 },
+          { rMult: 1.04, opacity: 0.018 },
+          { rMult: 1.09, opacity: 0.01  },
         ].map(({ rMult, opacity }) => {
           const geo = new THREE.SphereGeometry(GLOBE_RADIUS * rMult, 48, 32);
           const mat = new THREE.MeshBasicMaterial({
@@ -213,6 +285,58 @@ export default function Globe({
         });
         globe.add(new THREE.LineSegments(eqGeometry, eqMaterial));
 
+        /* ── Satellite constellation (independent of globe rotation) ── */
+        const satGroup = new THREE.Group();
+        scene.add(satGroup);
+
+        /* Orbit path rings */
+        const orbitMat = new THREE.LineBasicMaterial({
+          color: accent, transparent: true, opacity: 0.09, depthWrite: false,
+        });
+        const orbitGeos = SATELLITES.map((s) => {
+          const geo = new THREE.BufferGeometry();
+          geo.setAttribute('position', new THREE.Float32BufferAttribute(buildOrbitRing(s.inc, s.raan, SAT_R), 3));
+          satGroup.add(new THREE.LineSegments(geo, orbitMat));
+          return geo;
+        });
+
+        /* Single shared geometry for all satellite dots */
+        const satTex = makeCircleTexture(THREE);
+        const satDotGeo = new THREE.BufferGeometry();
+        satDotGeo.setAttribute(
+          'position',
+          new THREE.Float32BufferAttribute(new Float32Array(SATELLITES.length * 3), 3),
+        );
+        const satDotMat = new THREE.PointsMaterial({
+          color: accent, size: 0.07, sizeAttenuation: true,
+          map: satTex, transparent: true, opacity: 0.95,
+          depthWrite: false, alphaTest: 0.01,
+        });
+        satGroup.add(new THREE.Points(satDotGeo, satDotMat));
+
+        /* Mesh network connecting nearby satellites */
+        const meshGeo = new THREE.BufferGeometry();
+        meshGeo.setAttribute(
+          'position',
+          new THREE.Float32BufferAttribute(new Float32Array(MAX_SAT_VERTS * 3), 3),
+        );
+        const meshMat = new THREE.LineBasicMaterial({
+          color: accent, transparent: true, opacity: 0.22, depthWrite: false,
+        });
+        satGroup.add(new THREE.LineSegments(meshGeo, meshMat));
+
+        /* Labels: canvas sprite per satellite */
+        const satLabels = SATELLITES.map((s) => {
+          const label = makeLabelSprite(THREE, s.id, accent);
+          satGroup.add(label.sprite);
+          return label;
+        });
+
+        /* Satellite state: current orbital angle */
+        const satTheta = SATELLITES.map((s) => s.phase);
+
+        let frame = 0;
+
         const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         const shouldAutoRotate     = autoRotate && !prefersReducedMotion;
         const pointer = { active: false, x: 0, y: 0 };
@@ -231,11 +355,53 @@ export default function Globe({
         resize();
 
         const render = () => {
+          frame += 1;
           if (shouldAutoRotate && !pointer.active) {
             globe.rotation.y += 0.0035;
             globe.rotation.x += Math.sin(Date.now() * 0.0007) * 0.0002;
           }
           updateCyberEffects(arcPaths, pulseGeometry, pulseMaterial, trailLayers, scanRing, scanMaterial);
+
+          /* Update satellite positions */
+          const satPos3 = SATELLITES.map((s, i) => {
+            satTheta[i] = (satTheta[i] + s.speed) % (Math.PI * 2);
+            return satPos(s.inc, s.raan, satTheta[i], SAT_R);
+          });
+
+          /* Update dot geometry */
+          const dp = satDotGeo.attributes.position;
+          satPos3.forEach((p, i) => dp.setXYZ(i, p[0], p[1], p[2]));
+          dp.needsUpdate = true;
+
+          /* Update label positions + periodic coordinate refresh */
+          satPos3.forEach((p, i) => {
+            const label = satLabels[i];
+            label.sprite.position.set(p[0] * 1.02 + 0.14, p[1] + 0.13, p[2] * 1.02);
+            const facingCam = p[2] > -0.1;
+            label.mat.opacity = facingCam ? 0.88 : 0;
+            if (frame % 62 === i % 62 && facingCam) {
+              const lat = Math.asin(clamp(p[1] / SAT_R, -1, 1)) * 180 / Math.PI;
+              const lon = Math.atan2(p[2], p[0]) * 180 / Math.PI;
+              updateLabelCoords(label, lat, lon);
+            }
+          });
+
+          /* Update mesh network connections */
+          const mp = meshGeo.attributes.position;
+          let vi = 0;
+          for (let i = 0; i < satPos3.length; i++) {
+            for (let j = i + 1; j < satPos3.length; j++) {
+              const a = satPos3[i], b = satPos3[j];
+              const dx = a[0]-b[0], dy = a[1]-b[1], dz = a[2]-b[2];
+              if (dx*dx + dy*dy + dz*dz < MESH_LINK_DIST * MESH_LINK_DIST) {
+                mp.setXYZ(vi++, a[0], a[1], a[2]);
+                mp.setXYZ(vi++, b[0], b[1], b[2]);
+              }
+            }
+          }
+          while (vi < MAX_SAT_VERTS) { mp.setXYZ(vi++, 0, 0, 0); }
+          mp.needsUpdate = true;
+
           renderer.render(scene, camera);
           animationFrame = window.requestAnimationFrame(render);
         };
@@ -271,6 +437,10 @@ export default function Globe({
           for (const l of trailLayers) { l.geometry.dispose(); l.material.dispose(); }
           scanGeometry.dispose(); scanMaterial.dispose();
           eqGeometry.dispose(); eqMaterial.dispose();
+          orbitGeos.forEach((g) => g.dispose()); orbitMat.dispose();
+          satDotGeo.dispose(); satTex.dispose(); satDotMat.dispose();
+          meshGeo.dispose(); meshMat.dispose();
+          satLabels.forEach(({ tex, mat }) => { tex.dispose(); mat.dispose(); });
           renderer.dispose();
         };
       });
@@ -328,7 +498,7 @@ function buildPointCloudFromSample(points, accent) {
 
 function addGlobePoint(positions, colors, x, y, accent, intensity) {
   const vertex   = flatMapPointToSphere(x, y, GLOBE_RADIUS);
-  const depthFade = 0.18 + 0.82 * Math.max(0, Math.min(1, (vertex[2] / GLOBE_RADIUS + 1) / 2));
+  const depthFade = Math.pow(Math.max(0, Math.min(1, (vertex[2] / GLOBE_RADIUS + 1) / 2)), 2.2);
   positions.push(...vertex);
   colors.push(
     accent.r * depthFade * intensity,

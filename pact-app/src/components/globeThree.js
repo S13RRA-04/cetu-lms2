@@ -8,6 +8,8 @@ export { LineSegments } from 'three/src/objects/LineSegments.js';
 export { Mesh } from 'three/src/objects/Mesh.js';
 export { MeshBasicMaterial } from 'three/src/materials/MeshBasicMaterial.js';
 export { AdditiveBlending, BackSide } from 'three/src/constants.js';
+export { Sprite } from 'three/src/objects/Sprite.js';
+export { SpriteMaterial } from 'three/src/materials/SpriteMaterial.js';
 export { PerspectiveCamera } from 'three/src/cameras/PerspectiveCamera.js';
 export { Points } from 'three/src/objects/Points.js';
 export { PointsMaterial } from 'three/src/materials/PointsMaterial.js';
