@@ -274,152 +274,360 @@ function CohortComparison({ cohorts }) {
 
 /* ── Course Effectiveness sub-components ── */
 
-function EffectivenessKpi({ label, value, sub, color, warn }) {
+/* Narrative insight callout — distinct from KPI cards */
+function Insight({ status, headline, detail, action }) {
+  const cfg = {
+    ok:   { icon: '✓', border: 'var(--success)',  bg: 'var(--success-bg)',  text: 'var(--success)'  },
+    warn: { icon: '⚠', border: 'var(--warning)',  bg: 'var(--warning-bg)', text: 'var(--warning)'  },
+    bad:  { icon: '✕', border: 'var(--danger)',   bg: 'var(--danger-bg)',  text: 'var(--danger)'   },
+    info: { icon: '→', border: 'var(--accent)',   bg: 'var(--accent-light)', text: 'var(--accent)' },
+  }[status] ?? { icon: '·', border: 'var(--border)', bg: 'white', text: 'var(--text-muted)' };
   return (
-    <div className="card" style={{ flex: 1, minWidth: 140, borderTop: warn ? '3px solid var(--warning)' : undefined }}>
-      <div className="card-body" style={{ textAlign: 'center', padding: '18px 14px' }}>
-        <div style={{ fontSize: 28, fontWeight: 700, color: color ?? 'var(--text)', lineHeight: 1 }}>{value ?? '—'}</div>
-        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginTop: 5, textTransform: 'uppercase', letterSpacing: '.05em' }}>{label}</div>
-        {sub && <div style={{ fontSize: 11, color: warn ? 'var(--warning)' : 'var(--text-muted)', marginTop: 3 }}>{sub}</div>}
-      </div>
-    </div>
-  );
-}
-
-function EngagementFunnel({ assignments }) {
-  const maxEnrolled = Math.max(...assignments.map((a) => a.enrolledCount), 1);
-  return (
-    <div className="card">
-      <div className="card-body">
-        <p className="text-xs text-muted" style={{ marginBottom: 12 }}>
-          Shows how many enrolled students submitted each assignment in sequence. A sharp drop signals a sticking point.
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {assignments.map((a, i) => {
-            const engColor = a.engagementRate >= 80 ? 'var(--success)'
-              : a.engagementRate >= 50 ? 'var(--warning)' : 'var(--danger)';
-            return (
-              <div key={a.assignmentId} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--border)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 10, fontWeight: 700, flexShrink: 0, color: 'var(--text-muted)' }}>
-                  {i + 1}
-                </div>
-                <div style={{ fontSize: 12, width: 180, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                  title={a.title}>{a.title}</div>
-                <Bar value={a.submittedCount} max={maxEnrolled} color={engColor} height={12} />
-                <span style={{ fontSize: 12, fontWeight: 700, color: engColor, width: 40, textAlign: 'right', flexShrink: 0 }}>
-                  {a.engagementRate}%
-                </span>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', width: 60, flexShrink: 0 }}>
-                  {a.submittedCount}/{a.enrolledCount}
-                </span>
-              </div>
-            );
-          })}
+    <div style={{
+      border: `1px solid ${cfg.border}`, borderLeft: `4px solid ${cfg.border}`,
+      background: cfg.bg, borderRadius: 8, padding: '14px 16px', flex: 1, minWidth: 220,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <span style={{ fontSize: 16, color: cfg.text, flexShrink: 0, marginTop: 1 }}>{cfg.icon}</span>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', lineHeight: 1.3 }}>{headline}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.4 }}>{detail}</div>
+          {action && <div style={{ fontSize: 12, color: cfg.text, marginTop: 6, fontWeight: 600 }}>{action}</div>}
         </div>
       </div>
     </div>
   );
 }
 
-function ScoreProgression({ assignments }) {
+/* Difficulty calibration timeline — each assignment is a block colored by how far it deviates from target */
+function DifficultyTimeline({ assignments }) {
   const ordered = [...assignments].sort((a, b) => a.orderIndex - b.orderIndex);
-  const hasPcts = ordered.some((a) => a.avgPct !== null);
-  if (!hasPcts) return <div className="card"><div className="card-body"><p className="text-muted text-sm">No graded data yet.</p></div></div>;
+  const TARGET_LO = 65, TARGET_HI = 80;
+
+  const blockColor = (pct) => {
+    if (pct == null) return '#e2e8f0';
+    if (pct > 95)    return '#a3e635'; // trivially easy
+    if (pct >= TARGET_LO && pct <= TARGET_HI) return '#16a34a'; // target zone
+    if (pct >= 55 && pct < TARGET_LO)  return '#f59e0b'; // slightly hard
+    if (pct > TARGET_HI && pct <= 95)  return '#22c55e'; // slightly easy
+    if (pct >= 40 && pct < 55)  return '#f97316'; // hard
+    return '#dc2626'; // very hard (<40%)
+  };
 
   return (
     <div className="card">
       <div className="card-body">
-        <p className="text-xs text-muted" style={{ marginBottom: 12 }}>
-          Average score % per assignment in order. Rising trend = students improving; falling = course getting harder or students disengaging.
-        </p>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 100 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <p className="text-xs text-muted" style={{ margin: 0 }}>
+            Each block = one assignment in course order. Height = submission rate. Color = how close to the ideal difficulty zone (65–80% avg score).
+          </p>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0, marginLeft: 16 }}>
+            {[
+              { color: '#dc2626', label: 'Very hard' },
+              { color: '#f97316', label: 'Hard' },
+              { color: '#f59e0b', label: 'Slightly hard' },
+              { color: '#16a34a', label: '✓ Target (65–80%)' },
+              { color: '#22c55e', label: 'Slightly easy' },
+              { color: '#a3e635', label: 'Too easy' },
+            ].map((l) => (
+              <span key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                <span style={{ display: 'inline-block', width: 10, height: 10, background: l.color, borderRadius: 2 }} />
+                {l.label}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Timeline strip */}
+        <div style={{ display: 'flex', gap: 3, alignItems: 'flex-end', height: 80, padding: '0 0 4px' }}>
           {ordered.map((a, i) => {
-            const h   = a.avgPct != null ? Math.max(4, Math.round(a.avgPct)) : 0;
-            const col = a.avgPct == null ? 'var(--border)' : gradeColor(a.avgPct);
+            const h   = Math.max(12, Math.round((a.engagementRate / 100) * 72));
+            const col = blockColor(a.avgPct);
+            const tip = [
+              a.title,
+              a.avgPct != null ? `Avg score: ${a.avgPct}%` : 'No grade data',
+              `Submission rate: ${a.engagementRate}%`,
+              a.passRate != null ? `Pass rate: ${a.passRate}%` : null,
+            ].filter(Boolean).join('\n');
             return (
-              <div key={a.assignmentId} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, gap: 3 }}
-                title={`${a.title}: ${a.avgPct != null ? a.avgPct + '%' : 'no data'}`}>
-                <span style={{ fontSize: 10, color: col, fontWeight: 600 }}>
-                  {a.avgPct != null ? `${a.avgPct}%` : ''}
-                </span>
-                <div style={{ width: '100%', maxWidth: 32, height: h, background: col, borderRadius: '3px 3px 0 0', minHeight: 4 }} />
+              <div key={a.assignmentId} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}
+                title={tip}>
+                <div style={{ width: '100%', maxWidth: 32, height: h, background: col, borderRadius: '3px 3px 0 0', opacity: 0.9 }} />
                 <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{i + 1}</span>
               </div>
             );
           })}
         </div>
-        <p className="text-xs text-muted" style={{ marginTop: 6 }}>Assignment # (in course order)</p>
+        <p className="text-xs text-muted" style={{ marginTop: 2 }}>
+          Assignment # in course order · Hover for details
+        </p>
       </div>
     </div>
   );
 }
 
-function PassRateTable({ assignments }) {
-  const sorted = [...assignments].sort((a, b) => (a.passRate ?? -1) - (b.passRate ?? -1));
+/* Score trend: connected dot chart with target-zone band */
+function ScoreTrend({ assignments }) {
+  const ordered = [...assignments].sort((a, b) => a.orderIndex - b.orderIndex);
+  const withData = ordered.filter((a) => a.avgPct !== null);
+  if (withData.length === 0) return <div className="card"><div className="card-body"><p className="text-muted text-sm">No graded data yet.</p></div></div>;
+
+  /* Determine overall trend direction */
+  const half     = Math.ceil(withData.length / 2);
+  const firstAvg = withData.slice(0, half).reduce((s, a) => s + a.avgPct, 0) / half;
+  const lastAvg  = withData.slice(-half).reduce((s, a) => s + a.avgPct, 0) / half;
+  const delta    = Math.round(lastAvg - firstAvg);
+  const trendLabel = delta > 3 ? `↗ Improving (+${delta}%)` : delta < -3 ? `↘ Declining (${delta}%)` : '→ Stable';
+  const trendColor = delta > 3 ? 'var(--success)' : delta < -3 ? 'var(--danger)' : 'var(--text-muted)';
+
+  const CHART_H = 120; // px
+  const toY = (pct) => CHART_H - Math.round((pct / 100) * CHART_H); // px from top
+
   return (
     <div className="card">
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Assignment</th>
-              <th style={{ width: 90, textAlign: 'center' }}>Graded</th>
-              <th style={{ width: 160 }}>Pass Rate (≥ 60%)</th>
-              <th style={{ width: 80, textAlign: 'center' }}>Grading %</th>
-              <th style={{ width: 110, textAlign: 'right' }}>Turnaround</th>
-              <th style={{ width: 80, textAlign: 'center' }}>Backlog</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((a) => {
-              const prColor  = gradeColor(a.passRate);
-              const grColor  = a.gradingRate != null ? (a.gradingRate >= 80 ? 'var(--success)' : a.gradingRate >= 50 ? 'var(--warning)' : 'var(--danger)') : 'var(--text-muted)';
-              const daysSince = a.oldestUngradedAt
-                ? Math.floor((Date.now() - new Date(a.oldestUngradedAt).getTime()) / 86400000)
-                : null;
-              return (
-                <tr key={a.assignmentId}>
-                  <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{a.orderIndex + 1}</td>
-                  <td className="fw-600" style={{ fontSize: 13 }}>{a.title}</td>
-                  <td style={{ textAlign: 'center', fontSize: 13 }}>{a.gradedCount}</td>
-                  <td>
-                    {a.passRate != null ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <Bar value={a.passRate} max={100} color={prColor} height={10} />
-                        <span style={{ fontWeight: 700, color: prColor, fontSize: 13, flexShrink: 0 }}>{a.passRate}%</span>
-                      </div>
-                    ) : <span className="text-muted text-xs">No data</span>}
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    {a.gradingRate != null
-                      ? <span style={{ fontWeight: 600, color: grColor, fontSize: 13 }}>{a.gradingRate}%</span>
-                      : <span className="text-muted">—</span>}
-                  </td>
-                  <td style={{ textAlign: 'right', fontSize: 12 }}>
-                    {a.avgTurnaroundHours != null
-                      ? <span style={{ color: a.avgTurnaroundHours > 48 ? 'var(--warning)' : 'inherit' }}>
-                          {a.avgTurnaroundHours < 24
-                            ? `${a.avgTurnaroundHours}h`
-                            : `${(a.avgTurnaroundHours / 24).toFixed(1)}d`}
-                        </span>
-                      : <span className="text-muted">auto</span>}
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    {a.ungradedCount > 0
-                      ? <span style={{ fontWeight: 700, color: daysSince != null && daysSince > 7 ? 'var(--danger)' : 'var(--warning)', fontSize: 13 }}
-                          title={daysSince != null ? `Oldest: ${daysSince}d ago` : undefined}>
-                          {a.ungradedCount}
-                        </span>
-                      : <span style={{ color: 'var(--success)', fontSize: 13 }}>✓</span>}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="card-body">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <p className="text-xs text-muted" style={{ margin: 0 }}>
+            Average score % per assignment. Target zone (65–80%) shaded green.
+          </p>
+          <span style={{ fontWeight: 700, fontSize: 13, color: trendColor }}>{trendLabel}</span>
+        </div>
+
+        {/* Chart area */}
+        <div style={{ position: 'relative', height: CHART_H, marginBottom: 8 }}>
+          {/* Target zone band (65–80%) */}
+          <div style={{
+            position: 'absolute',
+            top:    toY(80), left: 0, right: 0,
+            height: toY(65) - toY(80),
+            background: 'rgba(22,163,74,.10)',
+            borderTop:    '1px dashed rgba(22,163,74,.4)',
+            borderBottom: '1px dashed rgba(22,163,74,.4)',
+          }} />
+
+          {/* Connecting line segments */}
+          {ordered.map((a, i) => {
+            if (i === 0 || a.avgPct == null) return null;
+            const prev = ordered[i - 1];
+            if (prev.avgPct == null) return null;
+            const x1 = ((i - 1) / (ordered.length - 1)) * 100;
+            const x2 = (i       / (ordered.length - 1)) * 100;
+            const y1 = toY(prev.avgPct);
+            const y2 = toY(a.avgPct);
+            // CSS triangle/line approximation: use a thin div rotated
+            const dx  = x2 - x1; // in %
+            const dy  = y2 - y1; // in px
+            const len = Math.sqrt((dx / 100 * 600) ** 2 + dy ** 2); // rough px length
+            const ang = Math.atan2(dy, (dx / 100) * 600) * (180 / Math.PI);
+            return (
+              <div key={a.assignmentId} style={{
+                position: 'absolute',
+                top: y1, left: `${x1}%`,
+                width: len, height: 2,
+                background: 'rgba(37,99,235,.4)',
+                transformOrigin: '0 50%',
+                transform: `rotate(${ang}deg)`,
+                pointerEvents: 'none',
+              }} />
+            );
+          })}
+
+          {/* Dots */}
+          {ordered.map((a, i) => {
+            if (a.avgPct == null) return null;
+            const x   = (ordered.length > 1 ? i / (ordered.length - 1) : 0.5) * 100;
+            const y   = toY(a.avgPct);
+            const col = a.avgPct >= 65 && a.avgPct <= 80 ? '#16a34a'
+              : a.avgPct < 50 ? '#dc2626'
+              : a.avgPct < 65 ? '#f59e0b' : '#2563eb';
+            const tip = `${a.title}\nAvg: ${a.avgPct}%\nPass rate: ${a.passRate != null ? a.passRate + '%' : 'N/A'}`;
+            return (
+              <div key={a.assignmentId} title={tip} style={{
+                position: 'absolute',
+                left: `calc(${x}% - 6px)`, top: y - 6,
+                width: 12, height: 12, borderRadius: '50%',
+                background: col, border: '2px solid white',
+                boxShadow: `0 0 0 1px ${col}`,
+                cursor: 'default',
+              }} />
+            );
+          })}
+
+          {/* Y-axis labels */}
+          {[100, 80, 65, 50, 0].map((v) => (
+            <span key={v} style={{
+              position: 'absolute', right: '100%', top: toY(v) - 6,
+              fontSize: 9, color: 'var(--text-muted)', width: 24, textAlign: 'right',
+              marginRight: 4,
+            }}>{v}%</span>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', gap: 12, fontSize: 10, color: 'var(--text-muted)' }}>
+          <span style={{ flex: 1, textAlign: 'left' }}>Assignment 1</span>
+          <span style={{ flex: 1, textAlign: 'right' }}>Assignment {ordered.length}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Grading feedback loop — per-assignment turnaround visualized as a heat strip */
+function GradingFeedbackLoop({ assignments, summary }) {
+  const ordered = [...assignments].sort((a, b) => a.orderIndex - b.orderIndex);
+  const maxHours = Math.max(...ordered.map((a) => a.avgTurnaroundHours ?? 0), 1);
+
+  const turnaroundColor = (h) => {
+    if (h == null) return '#e2e8f0'; // auto-graded
+    if (h <= 24)   return '#16a34a'; // same day
+    if (h <= 72)   return '#22c55e'; // 1–3 days
+    if (h <= 168)  return '#f59e0b'; // up to 1 week
+    return '#dc2626';                // > 1 week
+  };
+
+  const fmt = (h) => h == null ? 'auto' : h < 24 ? `${h}h` : `${(h / 24).toFixed(1)}d`;
+
+  return (
+    <div className="card">
+      <div className="card-body">
+        <p className="text-xs text-muted" style={{ marginBottom: 12 }}>
+          How long students wait for feedback after submitting. Slow feedback breaks the learning loop — students proceed to the next assignment without knowing if they understood the previous one.
+          Auto-graded (quiz) assignments are shown in gray.
+        </p>
+
+        <div style={{ display: 'flex', gap: 3, marginBottom: 8 }}>
+          {ordered.map((a, i) => {
+            const h   = a.avgTurnaroundHours;
+            const col = turnaroundColor(h);
+            const tip = [
+              a.title,
+              h != null ? `Avg turnaround: ${fmt(h)}` : 'Auto-graded',
+              a.ungradedCount > 0 ? `${a.ungradedCount} still awaiting grade` : null,
+            ].filter(Boolean).join('\n');
+            return (
+              <div key={a.assignmentId} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}
+                title={tip}>
+                <span style={{ fontSize: 9, color: 'var(--text-muted)', height: 12, lineHeight: '12px' }}>
+                  {h != null ? fmt(h) : ''}
+                </span>
+                <div style={{ width: '100%', maxWidth: 36, height: 28, background: col, borderRadius: 4, opacity: .85,
+                  position: 'relative', overflow: 'hidden' }}>
+                  {a.ungradedCount > 0 && (
+                    <div style={{
+                      position: 'absolute', top: 2, right: 2,
+                      width: 6, height: 6, borderRadius: '50%', background: 'white', opacity: .9,
+                    }} title={`${a.ungradedCount} ungraded`} />
+                  )}
+                </div>
+                <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{i + 1}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Legend */}
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
+          {[
+            { color: '#16a34a', label: '≤ 24h' },
+            { color: '#22c55e', label: '1–3 days' },
+            { color: '#f59e0b', label: '4–7 days' },
+            { color: '#dc2626', label: '> 7 days' },
+            { color: '#e2e8f0', label: 'Auto-graded' },
+          ].map((l) => (
+            <span key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--text-muted)' }}>
+              <span style={{ display: 'inline-block', width: 10, height: 10, background: l.color, borderRadius: 2 }} />
+              {l.label}
+            </span>
+          ))}
+          {summary.totalUngraded > 0 && (
+            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+              · White dot = has ungraded submissions
+            </span>
+          )}
+        </div>
+
+        {/* Backlog callout */}
+        {summary.totalUngraded > 0 && summary.oldestUngradedAt && (
+          <div style={{
+            marginTop: 12, padding: '10px 14px', background: 'var(--warning-bg)',
+            border: '1px solid var(--warning)', borderRadius: 6, fontSize: 13,
+          }}>
+            <strong style={{ color: 'var(--warning)' }}>⚠ Active backlog:</strong>{' '}
+            {summary.totalUngraded} submission{summary.totalUngraded !== 1 ? 's' : ''} awaiting a grade.
+            Oldest submitted{' '}
+            {Math.floor((Date.now() - new Date(summary.oldestUngradedAt).getTime()) / 86400000)} days ago.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* Drop-off analysis: where does the biggest engagement cliff happen? */
+function DropOffAnalysis({ assignments }) {
+  const ordered = [...assignments].sort((a, b) => a.orderIndex - b.orderIndex);
+  if (ordered.length < 2) return null;
+
+  /* Find the single biggest consecutive drop */
+  let worstDrop = { drop: 0, idx: -1 };
+  for (let i = 1; i < ordered.length; i++) {
+    const drop = ordered[i - 1].engagementRate - ordered[i].engagementRate;
+    if (drop > worstDrop.drop) worstDrop = { drop, idx: i };
+  }
+
+  /* Total funnel: from first to last */
+  const first = ordered[0]?.engagementRate ?? 100;
+  const last  = ordered[ordered.length - 1]?.engagementRate ?? 0;
+  const totalDrop = first - last;
+
+  return (
+    <div className="card">
+      <div className="card-body">
+        <p className="text-xs text-muted" style={{ marginBottom: 14 }}>
+          Funnel showing the % of enrolled students who submitted each assignment. Overall drop = {totalDrop}%.
+        </p>
+
+        {/* Funnel rows — width represents engagement rate */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {ordered.map((a, i) => {
+            const w   = a.engagementRate;
+            const isCliff = i === worstDrop.idx;
+            const col = a.engagementRate >= 80 ? '#16a34a'
+              : a.engagementRate >= 60 ? '#22c55e'
+              : a.engagementRate >= 40 ? '#f59e0b' : '#dc2626';
+            return (
+              <div key={a.assignmentId}>
+                {isCliff && worstDrop.drop >= 10 && (
+                  <div style={{
+                    fontSize: 10, color: 'var(--danger)', fontWeight: 600,
+                    padding: '3px 6px', background: 'var(--danger-bg)',
+                    borderRadius: 4, marginBottom: 2, display: 'inline-block',
+                  }}>
+                    ↓ Biggest drop here (−{worstDrop.drop}%)
+                  </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', width: 16, flexShrink: 0 }}>{i + 1}</span>
+                  <div style={{
+                    height: 20,
+                    width: `${Math.max(w, 4)}%`,
+                    background: col,
+                    borderRadius: '0 4px 4px 0',
+                    display: 'flex', alignItems: 'center',
+                    paddingLeft: 6, transition: 'width .4s',
+                  }}>
+                    <span style={{ fontSize: 10, color: 'white', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                      {w >= 20 ? `${w}%` : ''}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: 10, color: col, fontWeight: 600 }}>{w < 20 ? `${w}%` : ''}</span>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}
+                    title={a.title}>{a.title}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -614,68 +822,115 @@ export default function AdminAnalyticsPage() {
           {loadingEffect && <LoadingSpinner />}
           {!loadingEffect && effectData && (() => {
             const { summary: es, assignments: ea } = effectData;
-            const backlogColor = es.totalUngraded > 10 ? 'var(--danger)'
-              : es.totalUngraded > 0 ? 'var(--warning)' : 'var(--success)';
-            const turnaroundWarn = es.avgTurnaroundHours != null && es.avgTurnaroundHours > 48;
+            const ordered = [...ea].sort((a, b) => a.orderIndex - b.orderIndex);
+
+            /* ── Derive insight signals ── */
+            const withGrades   = ordered.filter((a) => a.avgPct !== null);
+            const halfLen      = Math.ceil(withGrades.length / 2);
+            const firstHalfAvg = halfLen > 0
+              ? withGrades.slice(0, halfLen).reduce((s, a) => s + a.avgPct, 0) / halfLen : null;
+            const lastHalfAvg  = halfLen > 0
+              ? withGrades.slice(-halfLen).reduce((s, a) => s + a.avgPct, 0) / halfLen : null;
+            const scoreDelta = firstHalfAvg != null && lastHalfAvg != null
+              ? Math.round(lastHalfAvg - firstHalfAvg) : null;
+
+            const tooHard    = ea.filter((a) => a.avgPct !== null && a.avgPct < 50);
+            const tooEasy    = ea.filter((a) => a.avgPct !== null && a.avgPct > 90);
+            const inTarget   = ea.filter((a) => a.avgPct !== null && a.avgPct >= 65 && a.avgPct <= 80);
+
+            /* Biggest engagement drop */
+            let cliffDrop = 0, cliffName = '';
+            for (let i = 1; i < ordered.length; i++) {
+              const drop = ordered[i - 1].engagementRate - ordered[i].engagementRate;
+              if (drop > cliffDrop) { cliffDrop = drop; cliffName = ordered[i].title; }
+            }
+
             const oldestDays = es.oldestUngradedAt
               ? Math.floor((Date.now() - new Date(es.oldestUngradedAt).getTime()) / 86400000)
               : null;
 
+            /* Difficulty calibration signal */
+            const diffStatus = tooHard.length > 2 ? 'bad'
+              : tooHard.length > 0 ? 'warn'
+              : tooEasy.length > ea.length / 2 ? 'warn' : 'ok';
+            const diffHeadline = tooHard.length > 0
+              ? `${tooHard.length} assignment${tooHard.length > 1 ? 's are' : ' is'} too hard (avg < 50%)`
+              : tooEasy.length > 2
+                ? `${tooEasy.length} assignments may be too easy (avg > 90%)`
+                : `${inTarget.length} of ${ea.filter(a => a.avgPct !== null).length} assignments are well-calibrated`;
+            const diffDetail = tooHard.length > 0
+              ? `Consider revising: ${tooHard.map(a => a.title).slice(0, 2).join(', ')}${tooHard.length > 2 ? '…' : ''}`
+              : `Target difficulty range is 65–80% average score.`;
+
+            /* Score trend signal */
+            const trendStatus = scoreDelta == null ? 'info'
+              : scoreDelta > 5 ? 'ok' : scoreDelta < -10 ? 'bad' : scoreDelta < -3 ? 'warn' : 'ok';
+            const trendHeadline = scoreDelta == null ? 'No graded data yet'
+              : scoreDelta > 3 ? `Scores improving across the course (+${scoreDelta}%)`
+              : scoreDelta < -3 ? `Scores declining as the course progresses (${scoreDelta}%)`
+              : 'Scores are consistent across the course';
+            const trendDetail = scoreDelta != null && scoreDelta < -3
+              ? 'Students may struggle with later content — review scaffolding and prerequisites.'
+              : 'Earlier vs. later assignment averages are comparable, indicating good pacing.';
+
+            /* Delivery signal */
+            const deliveryStatus = es.totalUngraded > 0 && oldestDays != null && oldestDays > 14 ? 'bad'
+              : es.totalUngraded > 0 && oldestDays != null && oldestDays > 7 ? 'warn'
+              : es.avgTurnaroundHours != null && es.avgTurnaroundHours > 120 ? 'warn'
+              : 'ok';
+            const deliveryHeadline = es.totalUngraded > 0
+              ? `${es.totalUngraded} submission${es.totalUngraded > 1 ? 's' : ''} awaiting a grade`
+              : es.avgTurnaroundHours != null
+                ? `Avg grading turnaround: ${es.avgTurnaroundHours < 24 ? es.avgTurnaroundHours + 'h' : (es.avgTurnaroundHours / 24).toFixed(1) + 'd'}`
+                : 'All grading up to date';
+            const deliveryDetail = es.totalUngraded > 0 && oldestDays != null
+              ? `Oldest ungraded submission is ${oldestDays} days old. Delayed feedback disrupts learning.`
+              : 'Students are receiving timely feedback on their work.';
+
+            /* Drop-off signal */
+            const dropStatus = cliffDrop > 30 ? 'bad' : cliffDrop > 15 ? 'warn' : 'ok';
+            const dropHeadline = cliffDrop > 10
+              ? `Largest engagement drop: −${cliffDrop}% at "${cliffName.length > 30 ? cliffName.slice(0, 28) + '…' : cliffName}"`
+              : 'Engagement is consistent across assignments';
+            const dropDetail = cliffDrop > 10
+              ? 'A sharp drop often signals a spike in difficulty, unclear instructions, or a missing prerequisite.'
+              : 'No single assignment shows an unusually large submission drop-off.';
+
             return (
               <>
-                {/* ── Grading health KPIs ── */}
-                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 28 }}>
-                  <EffectivenessKpi
-                    label="Grading Backlog"
-                    value={es.totalUngraded}
-                    color={backlogColor}
-                    sub={es.totalUngraded > 0 && oldestDays != null ? `Oldest: ${oldestDays}d ago` : 'All submissions graded'}
-                    warn={es.totalUngraded > 0 && oldestDays != null && oldestDays > 7}
-                  />
-                  <EffectivenessKpi
-                    label="Grading Completion"
-                    value={es.gradingCompletion != null ? `${es.gradingCompletion}%` : '—'}
-                    color={es.gradingCompletion != null ? gradeColor(es.gradingCompletion) : undefined}
-                    sub="of submitted work graded"
-                  />
-                  <EffectivenessKpi
-                    label="Avg Turnaround"
-                    value={es.avgTurnaroundHours != null
-                      ? es.avgTurnaroundHours < 24
-                        ? `${es.avgTurnaroundHours}h`
-                        : `${(es.avgTurnaroundHours / 24).toFixed(1)}d`
-                      : '—'}
-                    sub="manual grading only"
-                    warn={turnaroundWarn}
-                    color={turnaroundWarn ? 'var(--warning)' : es.avgTurnaroundHours != null ? 'var(--success)' : undefined}
-                  />
-                  <EffectivenessKpi
-                    label="Assignments"
-                    value={ea.length}
-                    sub={`${ea.filter((a) => a.passRate != null && a.passRate < 60).length} with pass rate < 60%`}
-                  />
+                {/* ── Row 1: Insight callouts (course-design lens, not grade readouts) ── */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 28 }}>
+                  <Insight status={diffStatus}     headline={diffHeadline}     detail={diffDetail}
+                    action={tooHard.length > 0 ? 'Review assignment design →' : undefined} />
+                  <Insight status={trendStatus}    headline={trendHeadline}    detail={trendDetail} />
+                  <Insight status={deliveryStatus} headline={deliveryHeadline} detail={deliveryDetail}
+                    action={es.totalUngraded > 0 ? 'Grade pending submissions →' : undefined} />
+                  <Insight status={dropStatus}     headline={dropHeadline}     detail={dropDetail} />
                 </div>
 
-                {/* ── Pass rates + grading detail ── */}
-                {ea.length > 0 && (
-                  <Section title="Assignment Grading & Pass Rates" action={<span className="text-xs text-muted">Sorted lowest pass rate first</span>}>
-                    <PassRateTable assignments={ea} />
-                  </Section>
-                )}
+                {/* ── Difficulty calibration map ── */}
+                <Section title="Difficulty Calibration" action={<span className="text-xs text-muted">Block height = submission rate</span>}>
+                  <DifficultyTimeline assignments={ea} />
+                </Section>
 
-                {/* ── Two-column: funnel + progression ── */}
+                {/* ── Two-column: score trend + drop-off funnel ── */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 24, marginBottom: 28 }}>
-                  <Section title="Student Engagement Funnel">
-                    <EngagementFunnel assignments={[...ea].sort((a, b) => a.orderIndex - b.orderIndex)} />
+                  <Section title="Score Trend Across Course">
+                    <ScoreTrend assignments={ea} />
                   </Section>
-                  <Section title="Score Progression" action={<span className="text-xs text-muted">Avg grade % by assignment order</span>}>
-                    <ScoreProgression assignments={ea} />
+                  <Section title="Engagement Drop-Off">
+                    <DropOffAnalysis assignments={ea} />
                   </Section>
                 </div>
+
+                {/* ── Grading feedback loop ── */}
+                <Section title="Grading Feedback Loop" action={<span className="text-xs text-muted">How quickly do students get feedback?</span>}>
+                  <GradingFeedbackLoop assignments={ea} summary={es} />
+                </Section>
 
                 <p className="text-xs text-muted">
-                  Turnaround excludes auto-graded (quiz) submissions. Backlog = submitted with no grade record yet.
-                  Pass rate = % of graded students scoring ≥ 60% of max.
+                  Difficulty target: 65–80% avg score. Turnaround excludes auto-graded quiz submissions.
+                  Pass rate = % of graded students scoring ≥ 60% of max score.
                 </p>
               </>
             );

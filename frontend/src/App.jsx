@@ -11,7 +11,8 @@ import UsersPage from './pages/users/UsersPage.jsx';
 import LtiPage        from './pages/admin/LtiPage.jsx';
 import AdminGradesPage    from './pages/admin/AdminGradesPage.jsx';
 import AdminAnalyticsPage      from './pages/admin/AdminAnalyticsPage.jsx';
-import AdminProgramOverviewPage from './pages/admin/AdminProgramOverviewPage.jsx';
+import AdminProgramOverviewPage  from './pages/admin/AdminProgramOverviewPage.jsx';
+import AdminProgramManagersPage from './pages/admin/AdminProgramManagersPage.jsx';
 import GradesPage from './pages/GradesPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
@@ -36,7 +37,8 @@ export default function App() {
               <Route path="users" element={<UsersPage />} />
               <Route path="admin/grades"     element={<AdminGradesPage />} />
               <Route path="admin/analytics" element={<AdminAnalyticsPage />} />
-              <Route path="admin/program"   element={<AdminProgramOverviewPage />} />
+              <Route path="admin/program"    element={<AdminProgramOverviewPage />} />
+              <Route path="admin/program-managers" element={<AdminProgramManagersPage />} />
               <Route path="admin/lti"       element={<LtiPage />} />
             </Route>
           </Route>
