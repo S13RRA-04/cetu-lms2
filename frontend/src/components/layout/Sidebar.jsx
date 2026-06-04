@@ -70,6 +70,9 @@ export default function Sidebar() {
             <NavLink to="/users" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
               {ICONS.users} Users
             </NavLink>
+            <NavLink to="/admin/grades" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+              {ICONS.grades} Grade Center
+            </NavLink>
             <NavLink to="/admin/lti" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
               {ICONS.lti} LTI Platforms
             </NavLink>

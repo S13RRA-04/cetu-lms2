@@ -1069,16 +1069,14 @@ function CohortsTab({ courseId }) {
 
 // ── Course Gradebook ──────────────────────────────────────────────────────────
 function GradesTab({ courseId }) {
-  const [cohorts,    setCohorts]    = useState([]);
-  const [cohortId,   setCohortId]   = useState('');
-  const [rows,       setRows]       = useState([]);
-  const [loading,    setLoading]    = useState(true);
-  const [error,      setError]      = useState('');
+  const [cohorts,  setCohorts]  = useState([]);
+  const [cohortId, setCohortId] = useState('');
+  const [rows,     setRows]     = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState('');
 
   useEffect(() => {
-    listCohorts(courseId)
-      .then((data) => { setCohorts(data); })
-      .catch(() => {});
+    listCohorts(courseId).then(setCohorts).catch(() => {});
   }, [courseId]);
 
   useEffect(() => {
@@ -1092,29 +1090,27 @@ function GradesTab({ courseId }) {
 
   if (loading) return <LoadingSpinner />;
   if (error)   return <div className="alert alert-error">{error}</div>;
-  if (rows.length === 0) return (
-    <div className="empty-state">
-      <p>{cohortId ? 'No students or grades found for this cohort.' : 'No enrolled students or grades yet.'}</p>
-    </div>
-  );
 
-  /* pivot flat rows → { student: {...}, grades: { assignmentId: row } } */
+  /* pivot flat rows → assignments list + students map */
   const assignmentMap = new Map();
   const studentMap    = new Map();
   rows.forEach((r) => {
     if (!assignmentMap.has(r.assignmentId)) {
       assignmentMap.set(r.assignmentId, {
-        id: r.assignmentId, title: r.assignmentTitle, max: parseFloat(r.assignmentMax ?? 0), order: r.orderIndex,
+        id: r.assignmentId, title: r.assignmentTitle,
+        max: parseFloat(r.assignmentMax ?? 0), order: r.orderIndex,
       });
     }
     if (!studentMap.has(r.userId)) {
-      studentMap.set(r.userId, { id: r.userId, firstName: r.firstName, lastName: r.lastName, email: r.email, cohortName: r.cohortName, grades: {} });
+      studentMap.set(r.userId, {
+        id: r.userId, firstName: r.firstName, lastName: r.lastName,
+        email: r.email, cohortName: r.cohortName, grades: {},
+      });
     }
     if (r.score !== null && r.score !== undefined) {
       studentMap.get(r.userId).grades[r.assignmentId] = {
         score: parseFloat(r.score), max: parseFloat(r.assignmentMax ?? 0),
-        feedback: r.feedback, gradedAt: r.gradedAt,
-        submissionStatus: r.submissionStatus,
+        feedback: r.feedback, gradedAt: r.gradedAt, submissionStatus: r.submissionStatus,
       };
     } else if (r.submissionStatus) {
       studentMap.get(r.userId).grades[r.assignmentId] = { score: null, submissionStatus: r.submissionStatus };
@@ -1124,7 +1120,14 @@ function GradesTab({ courseId }) {
   const assignments = [...assignmentMap.values()].sort((a, b) => a.order - b.order || a.title.localeCompare(b.title));
   const students    = [...studentMap.values()].sort((a, b) => `${a.lastName}${a.firstName}`.localeCompare(`${b.lastName}${b.firstName}`));
 
+  if (students.length === 0) return (
+    <div className="empty-state">
+      <p>{cohortId ? 'No students or grades found for this cohort.' : 'No enrolled students or grades yet.'}</p>
+    </div>
+  );
+
   const pctColor = (pct) => pct >= 80 ? 'var(--success)' : pct >= 60 ? '#f59e0b' : 'var(--danger)';
+  const COL = 44; // px per assignment column
 
   return (
     <div>
@@ -1139,69 +1142,154 @@ function GradesTab({ courseId }) {
           <option value="">All cohorts</option>
           {cohorts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        <span className="text-xs text-muted">{students.length} student{students.length !== 1 ? 's' : ''}</span>
+        <span className="text-xs text-muted">{students.length} student{students.length !== 1 ? 's' : ''} · {assignments.length} assignment{assignments.length !== 1 ? 's' : ''}</span>
       </div>
 
-      <div className="card">
-        <div className="table-wrap" style={{ overflowX: 'auto' }}>
-          <table style={{ minWidth: 600 }}>
-            <thead>
-              <tr>
-                <th style={{ whiteSpace: 'nowrap', minWidth: 160 }}>Student</th>
-                {!cohortId && <th style={{ whiteSpace: 'nowrap' }}>Cohort</th>}
-                {assignments.map((a) => (
-                  <th key={a.id} style={{ whiteSpace: 'nowrap', minWidth: 90, textAlign: 'center', fontSize: 12 }}
-                    title={`Max: ${a.max}`}>
-                    {a.title.length > 20 ? a.title.slice(0, 18) + '…' : a.title}
-                    <div className="text-xs text-muted" style={{ fontWeight: 400 }}>/{a.max}</div>
-                  </th>
-                ))}
-                <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {students.map((stu) => {
-                const totalEarned = assignments.reduce((s, a) => s + (stu.grades[a.id]?.score ?? 0), 0);
-                const totalMax    = assignments.reduce((s, a) => s + a.max, 0);
-                const totalPct    = totalMax > 0 ? Math.round((totalEarned / totalMax) * 100) : null;
-                return (
-                  <tr key={stu.id}>
-                    <td>
-                      <div className="fw-600" style={{ fontSize: 14 }}>{stu.firstName} {stu.lastName}</div>
-                      <div className="text-xs text-muted">{stu.email}</div>
-                    </td>
-                    {!cohortId && <td className="text-sm text-muted">{stu.cohortName ?? '—'}</td>}
-                    {assignments.map((a) => {
-                      const g = stu.grades[a.id];
-                      if (!g) return <td key={a.id} style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>—</td>;
-                      if (g.score === null) return (
-                        <td key={a.id} style={{ textAlign: 'center' }}>
-                          <span className="badge badge-blue" style={{ fontSize: 10 }}>{g.submissionStatus}</span>
-                        </td>
-                      );
-                      const pct = a.max > 0 ? Math.round((g.score / a.max) * 100) : 0;
-                      return (
-                        <td key={a.id} style={{ textAlign: 'center' }} title={g.feedback ? `Feedback: ${g.feedback}` : undefined}>
-                          <span className="fw-600" style={{ color: pctColor(pct), fontSize: 14 }}>{g.score}</span>
-                          <span className="text-xs text-muted"> ({pct}%)</span>
-                        </td>
-                      );
-                    })}
-                    <td style={{ textAlign: 'center' }}>
-                      {totalPct !== null ? (
-                        <>
-                          <span className="fw-600" style={{ color: pctColor(totalPct), fontSize: 14 }}>{Math.round(totalEarned)}</span>
-                          <span className="text-xs text-muted"> / {Math.round(totalMax)} ({totalPct}%)</span>
-                        </>
-                      ) : '—'}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      <div className="card" style={{ overflowX: 'auto' }}>
+        <table style={{ borderCollapse: 'collapse', tableLayout: 'fixed', width: 'max-content', minWidth: '100%' }}>
+          <thead>
+            <tr style={{ verticalAlign: 'bottom' }}>
+              {/* Student name — fixed width */}
+              <th style={{
+                position: 'sticky', left: 0, zIndex: 2,
+                background: 'var(--surface, #f8fafc)',
+                width: 180, minWidth: 180, padding: '0 10px 6px',
+                borderBottom: '2px solid var(--border)', textAlign: 'left',
+                fontSize: 12, fontWeight: 600, color: 'var(--muted)',
+                textTransform: 'uppercase', letterSpacing: '.04em',
+              }}>Student</th>
+
+              {/* Cohort column when not filtered */}
+              {!cohortId && (
+                <th style={{
+                  position: 'sticky', left: 180, zIndex: 2,
+                  background: 'var(--surface, #f8fafc)',
+                  width: 110, minWidth: 110, padding: '0 10px 6px',
+                  borderBottom: '2px solid var(--border)', textAlign: 'left',
+                  fontSize: 12, fontWeight: 600, color: 'var(--muted)',
+                  textTransform: 'uppercase', letterSpacing: '.04em',
+                }}>Cohort</th>
+              )}
+
+              {/* Rotated assignment headers */}
+              {assignments.map((a) => (
+                <th key={a.id} style={{
+                  width: COL, minWidth: COL, maxWidth: COL,
+                  height: 100, padding: 0,
+                  verticalAlign: 'bottom',
+                  borderBottom: '2px solid var(--border)',
+                  position: 'relative',
+                }}>
+                  <div style={{
+                    position: 'absolute', bottom: 6, left: '50%',
+                    transform: 'translateX(-50%) rotate(-60deg)',
+                    transformOrigin: 'center bottom',
+                    whiteSpace: 'nowrap',
+                    fontSize: 11, fontWeight: 600,
+                    color: 'var(--text)',
+                    maxWidth: 130,
+                    overflow: 'hidden', textOverflow: 'ellipsis',
+                  }} title={`${a.title} (max ${a.max})`}>
+                    {a.title}
+                  </div>
+                </th>
+              ))}
+
+              {/* Total column */}
+              <th style={{
+                width: 90, minWidth: 90, padding: '0 10px 6px',
+                borderBottom: '2px solid var(--border)',
+                textAlign: 'center',
+                fontSize: 12, fontWeight: 600, color: 'var(--muted)',
+                textTransform: 'uppercase', letterSpacing: '.04em',
+              }}>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {students.map((stu, si) => {
+              const totalEarned = assignments.reduce((s, a) => s + (stu.grades[a.id]?.score ?? 0), 0);
+              const totalMax    = assignments.reduce((s, a) => s + a.max, 0);
+              const totalPct    = totalMax > 0 ? Math.round((totalEarned / totalMax) * 100) : null;
+              const rowBg       = si % 2 === 0 ? 'white' : 'var(--surface, #f8fafc)';
+              return (
+                <tr key={stu.id} style={{ background: rowBg }}>
+                  {/* Student name — sticky */}
+                  <td style={{
+                    position: 'sticky', left: 0, zIndex: 1,
+                    background: rowBg,
+                    padding: '7px 10px',
+                    borderBottom: '1px solid var(--border)',
+                    minWidth: 180,
+                  }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>
+                      {stu.lastName}, {stu.firstName}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{stu.email}</div>
+                  </td>
+
+                  {/* Cohort */}
+                  {!cohortId && (
+                    <td style={{
+                      position: 'sticky', left: 180, zIndex: 1,
+                      background: rowBg,
+                      padding: '7px 10px',
+                      borderBottom: '1px solid var(--border)',
+                      fontSize: 12, color: 'var(--muted)',
+                      whiteSpace: 'nowrap',
+                    }}>{stu.cohortName ?? '—'}</td>
+                  )}
+
+                  {/* Grade cells */}
+                  {assignments.map((a) => {
+                    const g = stu.grades[a.id];
+                    const borderStyle = '1px solid var(--border)';
+                    const cellBase = { width: COL, minWidth: COL, maxWidth: COL, padding: '7px 2px', textAlign: 'center', borderBottom: borderStyle, fontSize: 12 };
+
+                    if (!g) return <td key={a.id} style={{ ...cellBase, color: 'var(--muted)' }}>·</td>;
+
+                    if (g.score === null) return (
+                      <td key={a.id} style={cellBase}
+                        title={`${a.title} — ${g.submissionStatus}`}>
+                        <span style={{ fontSize: 10, background: '#dbeafe', color: '#1d4ed8', borderRadius: 4, padding: '1px 4px' }}>
+                          sub
+                        </span>
+                      </td>
+                    );
+
+                    const pct = a.max > 0 ? Math.round((g.score / a.max) * 100) : 0;
+                    const tip = [
+                      `${a.title}`,
+                      `Score: ${g.score}/${a.max} (${pct}%)`,
+                      g.feedback ? `Feedback: ${g.feedback}` : null,
+                      g.gradedAt ? `Graded: ${new Date(g.gradedAt).toLocaleDateString()}` : null,
+                    ].filter(Boolean).join('\n');
+                    return (
+                      <td key={a.id} style={cellBase} title={tip}>
+                        <span style={{ fontWeight: 700, color: pctColor(pct), fontSize: 13 }}>{g.score}</span>
+                      </td>
+                    );
+                  })}
+
+                  {/* Total */}
+                  <td style={{ padding: '7px 10px', textAlign: 'center', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>
+                    {totalPct !== null ? (
+                      <>
+                        <span style={{ fontWeight: 700, color: pctColor(totalPct), fontSize: 13 }}>{Math.round(totalEarned)}</span>
+                        <span style={{ fontSize: 11, color: 'var(--muted)' }}> /{Math.round(totalMax)}</span>
+                        <div style={{ fontSize: 10, color: pctColor(totalPct) }}>{totalPct}%</div>
+                      </>
+                    ) : <span style={{ color: 'var(--muted)' }}>—</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
+
+      <p className="text-xs text-muted" style={{ marginTop: 8 }}>
+        Hover a cell to see full assignment name, score, and feedback. <strong>sub</strong> = submitted, not yet graded. · = no submission.
+      </p>
     </div>
   );
 }

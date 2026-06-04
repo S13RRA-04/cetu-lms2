@@ -8,7 +8,8 @@ import CoursesPage from './pages/courses/CoursesPage.jsx';
 import CourseDetailPage from './pages/courses/CourseDetailPage.jsx';
 import CourseFormPage from './pages/courses/CourseFormPage.jsx';
 import UsersPage from './pages/users/UsersPage.jsx';
-import LtiPage from './pages/admin/LtiPage.jsx';
+import LtiPage        from './pages/admin/LtiPage.jsx';
+import AdminGradesPage from './pages/admin/AdminGradesPage.jsx';
 import GradesPage from './pages/GradesPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
@@ -31,6 +32,7 @@ export default function App() {
             <Route path="profile" element={<ProfilePage />} />
             <Route element={<ProtectedRoute roles={['admin', 'superadmin']} />}>
               <Route path="users" element={<UsersPage />} />
+              <Route path="admin/grades" element={<AdminGradesPage />} />
               <Route path="admin/lti" element={<LtiPage />} />
             </Route>
           </Route>
