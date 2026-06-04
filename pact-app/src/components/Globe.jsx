@@ -38,9 +38,6 @@ const SATELLITES = [
   { id: 'GEO-3',    inc: 45.0, raan: 318, speed: 0.00235, phase: 3.6 },
 ];
 
-/* Warm amber — used for arcs/pulses to contrast the cool globe accent */
-const ARC_COLOR = new Float32Array([1.0, 0.42, 0.08]); // baked as floats, applied after THREE loads
-
 /* Soft radial-gradient canvas texture → round points instead of squares */
 function makeCircleTexture(THREE) {
   const size = 64;
@@ -114,30 +111,6 @@ function updateLabelCoords(label, lat, lon) {
   label.tex.needsUpdate = true;
 }
 
-/* Canvas crosshair/target sprite */
-function makeCrosshairSprite(THREE, color) {
-  const S = 72;
-  const cv = document.createElement('canvas');
-  cv.width = S; cv.height = S;
-  const ctx = cv.getContext('2d');
-  const rgb = `${Math.round(color.r * 255)},${Math.round(color.g * 255)},${Math.round(color.b * 255)}`;
-  ctx.strokeStyle = `rgba(${rgb},0.85)`;
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.arc(S / 2, S / 2, S / 2 - 5, 0, Math.PI * 2);
-  ctx.stroke();
-  const arm = 9;
-  [[S/2, 3, S/2, S/2-arm], [S/2, S/2+arm, S/2, S-3],
-   [3, S/2, S/2-arm, S/2], [S/2+arm, S/2, S-3, S/2]].forEach(([x0,y0,x1,y1]) => {
-    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
-  });
-  const tex = new THREE.CanvasTexture(cv);
-  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
-  const sprite = new THREE.Sprite(mat);
-  sprite.scale.set(0.22, 0.22, 1);
-  return { sprite, tex, mat };
-}
-
 export default function Globe({
   accentColor = null,
   autoRotate  = true,
@@ -202,25 +175,19 @@ export default function Globe({
         globe.scale.setScalar(GLOBE_RENDER_SCALE);
         scene.add(globe);
 
-        /* Warm arc color independent of squad accent */
-        const arcColor = new THREE.Color(ARC_COLOR[0], ARC_COLOR[1], ARC_COLOR[2]);
-
-        /* Very faint inner fill */
+        /* Inner fill — barely-there tint, not a blob */
         const glowGeometry = new THREE.SphereGeometry(GLOBE_RADIUS * 1.01, 48, 32);
         const glowMaterial = new THREE.MeshBasicMaterial({
-          color: accent, transparent: true, opacity: 0.008, depthWrite: false,
+          color: accent, transparent: true, opacity: 0.012, depthWrite: false,
         });
         globe.add(new THREE.Mesh(glowGeometry, glowMaterial));
 
-        /* Dramatic rim glow — tight BackSide shells concentrate light at the limb */
+        /* Rim atmosphere — single tight shell, barely visible */
         const atmoShells = [
-          { rMult: 1.002, opacity: 0.60 },
-          { rMult: 1.010, opacity: 0.38 },
-          { rMult: 1.025, opacity: 0.20 },
-          { rMult: 1.055, opacity: 0.09 },
-          { rMult: 1.12,  opacity: 0.04 },
+          { rMult: 1.04, opacity: 0.018 },
+          { rMult: 1.09, opacity: 0.01  },
         ].map(({ rMult, opacity }) => {
-          const geo = new THREE.SphereGeometry(GLOBE_RADIUS * rMult, 64, 40);
+          const geo = new THREE.SphereGeometry(GLOBE_RADIUS * rMult, 48, 32);
           const mat = new THREE.MeshBasicMaterial({
             color: accent, transparent: true, opacity,
             depthWrite: false, blending: THREE.AdditiveBlending,
@@ -260,7 +227,7 @@ export default function Globe({
         const arcGeometry = new THREE.BufferGeometry();
         arcGeometry.setAttribute('position', new THREE.Float32BufferAttribute(buildArcSegments(arcPaths), 3));
         const arcMaterial = new THREE.LineBasicMaterial({
-          color: arcColor, transparent: true, opacity: 0.45, depthWrite: false,
+          color: accent, transparent: true, opacity: 0.28, depthWrite: false,
         });
         globe.add(new THREE.LineSegments(arcGeometry, arcMaterial));
 
@@ -272,8 +239,8 @@ export default function Globe({
         );
         const pulseTex  = makeCircleTexture(THREE);
         const pulseMaterial = new THREE.PointsMaterial({
-          color: arcColor, size: 0.075, sizeAttenuation: true,
-          map: pulseTex, transparent: true, opacity: 0.95,
+          color: accent, size: 0.075, sizeAttenuation: true,
+          map: pulseTex, transparent: true, opacity: 0.92,
           depthWrite: false, alphaTest: 0.01,
         });
         const pulses = new THREE.Points(pulseGeometry, pulseMaterial);
@@ -287,7 +254,7 @@ export default function Globe({
             new THREE.Float32BufferAttribute(new Float32Array(arcPaths.length * 2 * 3), 3),
           );
           const material = new THREE.LineBasicMaterial({
-            color: arcColor, transparent: true,
+            color: accent, transparent: true,
             opacity: 0.42 * Math.pow(1 - index / TRAIL_LAYER_COUNT, 1.7),
             depthWrite: false,
           });
@@ -368,50 +335,6 @@ export default function Globe({
         /* Satellite state: current orbital angle */
         const satTheta = SATELLITES.map((s) => s.phase);
 
-        /* ── Space particles ── */
-        const N_SP = 90;
-        const spPosBuf = new Float32Array(N_SP * 3);
-        const spVelBuf = new Float32Array(N_SP * 3);
-        const spPhase  = new Float32Array(N_SP);
-        for (let i = 0; i < N_SP; i++) {
-          const theta = Math.random() * Math.PI * 2;
-          const phi   = Math.acos(2 * Math.random() - 1);
-          const r     = 2.1 + Math.random() * 2.6;
-          spPosBuf[i*3]   = Math.sin(phi) * Math.cos(theta) * r;
-          spPosBuf[i*3+1] = Math.cos(phi) * r;
-          spPosBuf[i*3+2] = Math.sin(phi) * Math.sin(theta) * r;
-          spVelBuf[i*3]   = (Math.random() - 0.5) * 0.00055;
-          spVelBuf[i*3+1] = (Math.random() - 0.5) * 0.00055;
-          spVelBuf[i*3+2] = (Math.random() - 0.5) * 0.00055;
-          spPhase[i]      = Math.random() * Math.PI * 2;
-        }
-        const spAttr = new THREE.Float32BufferAttribute(spPosBuf, 3);
-        const spGeo  = new THREE.BufferGeometry();
-        spGeo.setAttribute('position', spAttr);
-        const spMat = new THREE.PointsMaterial({
-          color: accent, size: 0.042, sizeAttenuation: true,
-          map: circleTex, transparent: true, opacity: 0.7,
-          depthWrite: false, alphaTest: 0.01,
-        });
-        scene.add(new THREE.Points(spGeo, spMat));
-
-        /* Crosshair/target markers drifting in space */
-        const crosshairs = Array.from({ length: 10 }, () => {
-          const ch = makeCrosshairSprite(THREE, accent);
-          const theta = Math.random() * Math.PI * 2;
-          const phi   = Math.acos(2 * Math.random() - 1);
-          const r     = 1.85 + Math.random() * 2.5;
-          ch.sprite.position.set(
-            Math.sin(phi) * Math.cos(theta) * r,
-            Math.cos(phi) * r,
-            Math.sin(phi) * Math.sin(theta) * r,
-          );
-          ch.phase = Math.random() * Math.PI * 2;
-          ch.vel   = [(Math.random()-0.5)*0.0004, (Math.random()-0.5)*0.0004, (Math.random()-0.5)*0.0004];
-          scene.add(ch.sprite);
-          return ch;
-        });
-
         let frame = 0;
 
         const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -479,20 +402,6 @@ export default function Globe({
           while (vi < MAX_SAT_VERTS) { mp.setXYZ(vi++, 0, 0, 0); }
           mp.needsUpdate = true;
 
-          /* Animate space particles — drift + individual blink */
-          const t = Date.now() * 0.001;
-          for (let i = 0; i < N_SP * 3; i++) spPosBuf[i] += spVelBuf[i];
-          spAttr.needsUpdate = true;
-          spMat.opacity = 0.45 + 0.35 * Math.abs(Math.sin(t * 0.7));
-
-          /* Animate crosshairs — drift + individual blink */
-          crosshairs.forEach((ch) => {
-            ch.sprite.position.x += ch.vel[0];
-            ch.sprite.position.y += ch.vel[1];
-            ch.sprite.position.z += ch.vel[2];
-            ch.mat.opacity = 0.2 + 0.65 * (0.5 + 0.5 * Math.sin(t * 1.6 + ch.phase));
-          });
-
           renderer.render(scene, camera);
           animationFrame = window.requestAnimationFrame(render);
         };
@@ -532,8 +441,6 @@ export default function Globe({
           satDotGeo.dispose(); satTex.dispose(); satDotMat.dispose();
           meshGeo.dispose(); meshMat.dispose();
           satLabels.forEach(({ tex, mat }) => { tex.dispose(); mat.dispose(); });
-          spGeo.dispose(); spMat.dispose();
-          crosshairs.forEach(({ tex, mat }) => { tex.dispose(); mat.dispose(); });
           renderer.dispose();
         };
       });
