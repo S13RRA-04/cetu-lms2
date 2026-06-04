@@ -138,10 +138,11 @@ export default function AssignmentPage() {
   const isSquad    = assignment.grading_mode === 'squad';
   const isLocked   = assignment.is_unlocked === false;
   const isSurvey   = assignment.type === 'survey';
-  /* hasQuiz: any type with questions uses QuizFlow (modules, assessments, capstones with quiz banks) */
-  const hasQuiz    = !isLocked && !isSurvey && Array.isArray(assignment.questions) && assignment.questions.length > 0;
-  /* isWorkshop: challenge/capstone with no questions → ChallengeFlow */
-  const isWorkshop = !isLocked && !hasQuiz && (assignment.type === 'challenge' || assignment.type === 'capstone');
+  /* hasQuiz: quiz questions always carry a `payload` field; prompt objects (kind:'prompt') do not */
+  const hasQuiz    = !isLocked && !isSurvey && Array.isArray(assignment.questions) &&
+    assignment.questions.some((q) => q.payload != null);
+  /* isWorkshop: challenge/capstone — always uses ChallengeFlow regardless of prompt objects in questions */
+  const isWorkshop = !isLocked && (assignment.type === 'challenge' || assignment.type === 'capstone');
 
   return (
     <div className="assignment-page">

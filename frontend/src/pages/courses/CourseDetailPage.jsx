@@ -141,9 +141,11 @@ function AssignmentForm({ courseId, initial, onSave, onClose }) {
     grading_mode: initial?.grading_mode ?? 'individual',
     order_index:  initial?.order_index  ?? 0,
   });
-  /* Prompts — array of { text } objects; only used for challenge/capstone */
+  /* Prompts — stored as { kind:'prompt', text } inside the questions JSONB column */
   const [prompts, setPrompts] = useState(
-    () => (initial?.prompts ?? []).map((p) => (typeof p === 'string' ? { text: p } : p))
+    () => (initial?.questions ?? [])
+      .filter((q) => q.kind === 'prompt' && q.text)
+      .map((q) => ({ text: q.text }))
   );
   const [saving, setSaving] = useState(false);
   const set = (k) => (e) => {
@@ -159,14 +161,18 @@ function AssignmentForm({ courseId, initial, onSave, onClose }) {
     e.preventDefault();
     setSaving(true);
     try {
+      /* Preserve any existing non-prompt questions (quiz banks on capstones, etc.)
+         and merge in the prompt objects under the questions column. */
+      const nonPromptQuestions = (initial?.questions ?? []).filter((q) => q.kind !== 'prompt');
+      const promptQuestions    = WORKSHOP_TYPES.has(form.type)
+        ? prompts.filter((p) => p.text.trim()).map((p) => ({ kind: 'prompt', text: p.text.trim() }))
+        : [];
       const payload = {
         ...form,
         max_score:   Number(form.max_score),
         order_index: Number(form.order_index),
         due_date:    form.due_date || undefined,
-        prompts:     WORKSHOP_TYPES.has(form.type)
-          ? prompts.filter((p) => p.text.trim())
-          : [],
+        questions:   [...nonPromptQuestions, ...promptQuestions],
       };
       if (initial) await updateAssignment(courseId, initial.id, payload);
       else         await createAssignment(courseId, payload);

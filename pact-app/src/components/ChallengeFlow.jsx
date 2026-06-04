@@ -67,11 +67,11 @@ function parseDeliverables(description = '') {
 }
 
 export default function ChallengeFlow({ assignment, color, onComplete, submitted, existingContent }) {
-  /* Prefer explicit prompts set by the instructor; fall back to parsing the
-     description only when no prompts have been defined. */
-  const explicitPrompts = (assignment.prompts ?? [])
-    .map((p) => (typeof p === 'string' ? p : p.text))
-    .filter(Boolean);
+  /* Prefer explicit prompts stored in assignment.questions as { kind:'prompt', text }.
+     Fall back to parsing the description only when none are defined. */
+  const explicitPrompts = (assignment.questions ?? [])
+    .filter((q) => q.kind === 'prompt' && q.text)
+    .map((q) => q.text);
 
   const deliverables = explicitPrompts.length > 0
     ? explicitPrompts
