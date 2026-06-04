@@ -338,22 +338,31 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
 
                     <div className={`missions-group-items${collapsed[type] ? '' : ' expanded'}`}>
                       <div className="missions-group-items-inner">
-                        {items.map((a) => (
-                          <NavLink
-                            key={a.id}
-                            to={`/assignment/${a.id}`}
-                            className={({ isActive }) => `missions-assignment${isActive ? ' active' : ''}`}
-                            onClick={() => setMissionsOpen(false)}
-                          >
-                            <span className="missions-a-title">{a.title}</span>
-                            {(a.progress ?? 0) > 0 && (
-                              <span
-                                className="missions-a-progress"
-                                style={{ width: `${a.progress}%`, background: TYPE_COLOR[a.type] }}
-                              />
-                            )}
-                          </NavLink>
-                        ))}
+                        {items.map((a) => {
+                          const done = (a.progress ?? 0) >= 100;
+                          return (
+                            <NavLink
+                              key={a.id}
+                              to={`/assignment/${a.id}`}
+                              className={({ isActive }) =>
+                                `missions-assignment${isActive ? ' active' : ''}${done ? ' missions-assignment-done' : ''}`
+                              }
+                              onClick={() => setMissionsOpen(false)}
+                            >
+                              <span className="missions-a-title">{a.title}</span>
+                              {done ? (
+                                <span className="missions-a-check">✓</span>
+                              ) : (
+                                (a.progress ?? 0) > 0 && (
+                                  <span
+                                    className="missions-a-progress"
+                                    style={{ width: `${a.progress}%`, background: TYPE_COLOR[a.type] }}
+                                  />
+                                )
+                              )}
+                            </NavLink>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>

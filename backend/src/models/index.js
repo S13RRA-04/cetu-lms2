@@ -72,7 +72,7 @@ Assignment.belongsTo(Course,                     { foreignKey: 'course_id' });
 // ── Assignment ↔ Submission ────────────────────────────────────────────────
 Assignment.hasMany(Submission, { foreignKey: 'assignment_id', onDelete: 'CASCADE' });
 Submission.belongsTo(Assignment,               { foreignKey: 'assignment_id' });
-Submission.belongsTo(User,                     { foreignKey: 'user_id' });
+Submission.belongsTo(User, { foreignKey: 'user_id', as: 'student' });
 User.hasMany(Submission,                       { foreignKey: 'user_id' });
 
 // ── Assignment ↔ Grade ─────────────────────────────────────────────────────

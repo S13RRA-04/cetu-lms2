@@ -1,6 +1,8 @@
 'use strict';
-const { Submission, Assignment, AssignmentUnlock, Enrollment, Squad, User } = require('../models');
+const { Submission, Assignment, AssignmentUnlock, Enrollment, Squad, User, Grade } = require('../models');
 const { NotFoundError, AppError } = require('../utils/errors');
+const ltiService = require('./lti.service');
+const logger     = require('../utils/logger');
 
 async function listByAssignment(assignmentId) {
   const assignment = await Assignment.findByPk(assignmentId);
@@ -88,12 +90,34 @@ async function submit(assignmentId, userId, content) {
 
   // For squad assignments: upsert on (assignment_id, user_id) — any member can submit
   const existing = await Submission.findOne({ where: { assignment_id: assignmentId, user_id: userId } });
+  let submission;
   if (existing) {
     await existing.update({ content, submitted_at: new Date(), status: 'submitted', progress: 100, squad_id: squadId });
-    return existing;
+    submission = existing;
+  } else {
+    submission = await Submission.create({ assignment_id: assignmentId, user_id: userId, squad_id: squadId, content, submitted_at: new Date(), status: 'submitted', progress: 100 });
   }
 
-  return Submission.create({ assignment_id: assignmentId, user_id: userId, squad_id: squadId, content, submitted_at: new Date(), status: 'submitted', progress: 100 });
+  // Auto-grade quiz submissions: QuizFlow embeds totalScore + maxScore in the content JSON
+  try {
+    const parsed = typeof content === 'string' ? JSON.parse(content) : null;
+    if (parsed?.totalScore !== undefined && parsed?.maxScore !== undefined) {
+      const [grade, created] = await Grade.findOrCreate({
+        where:    { assignment_id: assignmentId, user_id: userId },
+        defaults: { score: parsed.totalScore, max_score: parsed.maxScore, graded_at: new Date(), graded_by: null },
+      });
+      if (!created) {
+        await grade.update({ score: parsed.totalScore, max_score: parsed.maxScore, graded_at: new Date() });
+      }
+      if (assignment.lineitem_url) {
+        ltiService.publishGradeAsync(assignment, userId, parsed.totalScore).catch((err) => {
+          logger.error('Background AGS passback failed for quiz auto-grade', { error: err.message });
+        });
+      }
+    }
+  } catch {}
+
+  return submission;
 }
 
 async function updateStatus(submissionId, status) {
