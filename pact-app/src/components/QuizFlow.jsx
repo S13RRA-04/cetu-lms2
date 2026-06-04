@@ -420,7 +420,9 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
   /* All hooks must be called before any conditional return */
   if (!q || !qs) return null;
 
-  const totalEarned = questions.slice(0, qIdx).reduce((s, qi) => {
+  /* Count ALL answered questions so score updates immediately on correct answer,
+     not again when advancing — avoids the "double-count" perception. */
+  const totalEarned = questions.reduce((s, qi) => {
     const st = qStates[qi.id];
     return s + (st?.revealed ? st.available : 0);
   }, 0);
