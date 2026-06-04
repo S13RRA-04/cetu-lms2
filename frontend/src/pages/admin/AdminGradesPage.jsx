@@ -167,149 +167,265 @@ export default function AdminGradesPage() {
         </div>
       )}
 
-      {!loadingGrades && students.length > 0 && (
-        <>
-          <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span className="text-sm fw-600" style={{ color: 'var(--muted)' }}>
-              {selectedCourse?.title}{selectedCohort ? ` · ${selectedCohort.name}` : ' · All Cohorts'}
-            </span>
-            <span className="text-xs text-muted">Hover a cell for details</span>
-          </div>
+      {!loadingGrades && students.length > 0 && (() => {
+        /* ── visual constants ── */
+        const STICKY_W   = cohortId ? 200 : 310; // px reserved for frozen left columns
+        const stickyEnd  = cohortId ? 200 : 310;
 
-          <div className="card" style={{ overflowX: 'auto' }}>
-            <table style={{ borderCollapse: 'collapse', tableLayout: 'fixed', width: 'max-content', minWidth: '100%' }}>
-              <thead>
-                <tr style={{ verticalAlign: 'bottom' }}>
-                  <th style={{
-                    position: 'sticky', left: 0, zIndex: 2,
-                    background: 'var(--surface, #f8fafc)',
-                    width: 180, minWidth: 180, padding: '0 10px 6px',
-                    borderBottom: '2px solid var(--border)', textAlign: 'left',
-                    fontSize: 12, fontWeight: 600, color: 'var(--muted)',
-                    textTransform: 'uppercase', letterSpacing: '.04em',
-                  }}>Student</th>
+        /* cell background tint by grade band */
+        const cellBg = (p) =>
+          p >= 80 ? 'rgba(22,163,74,.08)'
+          : p >= 60 ? 'rgba(217,119,6,.08)'
+          : 'rgba(220,38,38,.08)';
 
-                  {!cohortId && (
+        return (
+          <>
+            {/* ── breadcrumb label ── */}
+            <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span className="fw-600" style={{ fontSize: 13 }}>
+                {selectedCourse?.title}
+                <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>
+                  {selectedCohort ? ` · ${selectedCohort.name}` : ' · All Cohorts'}
+                </span>
+              </span>
+              <span className="text-xs text-muted">Hover a cell for details</span>
+            </div>
+
+            <div style={{ background: 'white', border: '1px solid var(--border)', borderRadius: 8, overflowX: 'auto', boxShadow: 'var(--shadow)' }}>
+              <table style={{ borderCollapse: 'collapse', tableLayout: 'fixed', width: 'max-content', minWidth: '100%' }}>
+                <thead>
+                  <tr style={{ verticalAlign: 'bottom' }}>
+
+                    {/* ── Student (sticky) ── */}
                     <th style={{
-                      position: 'sticky', left: 180, zIndex: 2,
-                      background: 'var(--surface, #f8fafc)',
-                      width: 110, minWidth: 110, padding: '0 10px 6px',
-                      borderBottom: '2px solid var(--border)', textAlign: 'left',
-                      fontSize: 12, fontWeight: 600, color: 'var(--muted)',
-                      textTransform: 'uppercase', letterSpacing: '.04em',
-                    }}>Cohort</th>
-                  )}
-
-                  {assignments.map((a) => (
-                    <th key={a.id} style={{
-                      width: COL, minWidth: COL, maxWidth: COL,
-                      height: 100, padding: 0,
-                      verticalAlign: 'bottom',
+                      position: 'sticky', left: 0, zIndex: 3,
+                      background: '#f8fafc',
+                      width: 200, minWidth: 200,
+                      padding: '0 12px 8px',
                       borderBottom: '2px solid var(--border)',
-                      position: 'relative',
-                    }}>
-                      <div style={{
-                        position: 'absolute', bottom: 6, left: '50%',
-                        transform: 'translateX(-50%) rotate(-60deg)',
-                        transformOrigin: 'center bottom',
-                        whiteSpace: 'nowrap',
-                        fontSize: 11, fontWeight: 600, color: 'var(--text)',
-                      }} title={`${a.title} (max ${a.max})`}>
-                        {a.title}
-                      </div>
-                    </th>
-                  ))}
+                      textAlign: 'left',
+                      fontSize: 11, fontWeight: 700, color: 'var(--text-muted)',
+                      textTransform: 'uppercase', letterSpacing: '.06em',
+                    }}>Student</th>
 
-                  <th style={{
-                    width: 90, minWidth: 90, padding: '0 10px 6px',
-                    borderBottom: '2px solid var(--border)',
-                    textAlign: 'center',
-                    fontSize: 12, fontWeight: 600, color: 'var(--muted)',
-                    textTransform: 'uppercase', letterSpacing: '.04em',
-                  }}>Total</th>
-                </tr>
-              </thead>
+                    {/* ── Cohort (sticky, only when showing all cohorts) ── */}
+                    {!cohortId && (
+                      <th style={{
+                        position: 'sticky', left: 200, zIndex: 3,
+                        background: '#f8fafc',
+                        width: 110, minWidth: 110,
+                        padding: '0 12px 8px',
+                        borderBottom: '2px solid var(--border)',
+                        textAlign: 'left',
+                        fontSize: 11, fontWeight: 700, color: 'var(--text-muted)',
+                        textTransform: 'uppercase', letterSpacing: '.06em',
+                        /* right shadow marks end of frozen zone */
+                        boxShadow: '3px 0 6px -2px rgba(0,0,0,.12)',
+                      }}>Cohort</th>
+                    )}
 
-              <tbody>
-                {students.map((stu, si) => {
-                  const totalEarned = assignments.reduce((s, a) => s + (stu.grades[a.id]?.score ?? 0), 0);
-                  const totalMax    = assignments.reduce((s, a) => s + a.max, 0);
-                  const totalPct    = totalMax > 0 ? Math.round((totalEarned / totalMax) * 100) : null;
-                  const rowBg       = si % 2 === 0 ? 'white' : 'var(--surface, #f8fafc)';
+                    {/* shadow on student header when showing single cohort */}
+                    {cohortId && (
+                      <th aria-hidden style={{
+                        position: 'sticky', left: 200, zIndex: 3,
+                        width: 0, padding: 0, border: 'none',
+                        background: 'transparent',
+                        boxShadow: '3px 0 6px -2px rgba(0,0,0,.12)',
+                      }} />
+                    )}
 
-                  return (
-                    <tr key={stu.id} style={{ background: rowBg }}>
-                      <td style={{
-                        position: 'sticky', left: 0, zIndex: 1,
-                        background: rowBg,
-                        padding: '7px 10px',
-                        borderBottom: '1px solid var(--border)',
-                        minWidth: 180,
+                    {/* ── Assignment headers (rotated) ── */}
+                    {assignments.map((a) => (
+                      <th key={a.id} style={{
+                        width: COL, minWidth: COL, maxWidth: COL,
+                        height: 120, padding: 0,
+                        verticalAlign: 'bottom',
+                        borderBottom: '2px solid var(--border)',
+                        borderLeft: '1px solid var(--border)',
+                        position: 'relative',
+                        background: '#f8fafc',
                       }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>
-                          {stu.lastName}, {stu.firstName}
+                        <div style={{
+                          position: 'absolute',
+                          bottom: 8,
+                          left: '50%',
+                          transform: 'translateX(-50%) rotate(-55deg)',
+                          transformOrigin: 'center bottom',
+                          whiteSpace: 'nowrap',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: 'var(--text)',
+                          maxWidth: 140,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }} title={`${a.title} · max ${a.max} pts`}>
+                          {a.title}
                         </div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{stu.email}</div>
-                      </td>
+                      </th>
+                    ))}
 
-                      {!cohortId && (
+                    {/* ── Total (sticky right — not implemented, but fixed width) ── */}
+                    <th style={{
+                      width: 100, minWidth: 100,
+                      padding: '0 12px 8px',
+                      borderBottom: '2px solid var(--border)',
+                      borderLeft: '2px solid var(--border)',
+                      textAlign: 'center',
+                      fontSize: 11, fontWeight: 700, color: 'var(--text-muted)',
+                      textTransform: 'uppercase', letterSpacing: '.06em',
+                      background: '#f8fafc',
+                    }}>Total</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {students.map((stu, si) => {
+                    const totalEarned = assignments.reduce((s, a) => s + (stu.grades[a.id]?.score ?? 0), 0);
+                    const totalMax    = assignments.reduce((s, a) => s + a.max, 0);
+                    const totalPct    = totalMax > 0 ? Math.round((totalEarned / totalMax) * 100) : null;
+                    const rowBg       = si % 2 === 0 ? '#ffffff' : '#fafbfc';
+
+                    return (
+                      <tr key={stu.id} style={{ background: rowBg }}>
+
+                        {/* Student name (sticky) */}
                         <td style={{
-                          position: 'sticky', left: 180, zIndex: 1,
+                          position: 'sticky', left: 0, zIndex: 1,
                           background: rowBg,
-                          padding: '7px 10px',
+                          padding: '9px 12px',
                           borderBottom: '1px solid var(--border)',
-                          fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap',
-                        }}>{stu.cohortName ?? '—'}</td>
-                      )}
+                          minWidth: 200,
+                        }}>
+                          <div style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', lineHeight: 1.3 }}>
+                            {stu.lastName}, {stu.firstName}
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap', marginTop: 1 }}>{stu.email}</div>
+                        </td>
 
-                      {assignments.map((a) => {
-                        const g = stu.grades[a.id];
-                        const cellBase = {
-                          width: COL, minWidth: COL, maxWidth: COL,
-                          padding: '7px 2px', textAlign: 'center',
-                          borderBottom: '1px solid var(--border)', fontSize: 12,
-                        };
-                        if (!g) return <td key={a.id} style={{ ...cellBase, color: 'var(--muted)' }}>·</td>;
-                        if (g.score === null) return (
-                          <td key={a.id} style={cellBase} title={`${a.title} — ${g.submissionStatus}`}>
-                            <span style={{ fontSize: 10, background: '#dbeafe', color: '#1d4ed8', borderRadius: 4, padding: '1px 4px' }}>
-                              sub
-                            </span>
-                          </td>
-                        );
-                        const pct = a.max > 0 ? Math.round((g.score / a.max) * 100) : 0;
-                        const tip = [`${a.title}`, `Score: ${g.score}/${a.max} (${pct}%)`,
-                          g.feedback ? `Feedback: ${g.feedback}` : null,
-                          g.gradedAt ? `Graded: ${new Date(g.gradedAt).toLocaleDateString()}` : null,
-                        ].filter(Boolean).join('\n');
-                        return (
-                          <td key={a.id} style={cellBase} title={tip}>
-                            <span style={{ fontWeight: 700, color: pctColor(pct), fontSize: 13 }}>{g.score}</span>
-                          </td>
-                        );
-                      })}
+                        {/* Cohort (sticky) */}
+                        {!cohortId && (
+                          <td style={{
+                            position: 'sticky', left: 200, zIndex: 1,
+                            background: rowBg,
+                            padding: '9px 12px',
+                            borderBottom: '1px solid var(--border)',
+                            fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap',
+                            boxShadow: '3px 0 6px -2px rgba(0,0,0,.12)',
+                          }}>{stu.cohortName ?? '—'}</td>
+                        )}
 
-                      <td style={{ padding: '7px 10px', textAlign: 'center', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>
-                        {totalPct !== null ? (
-                          <>
-                            <span style={{ fontWeight: 700, color: pctColor(totalPct), fontSize: 13 }}>{Math.round(totalEarned)}</span>
-                            <span style={{ fontSize: 11, color: 'var(--muted)' }}> /{Math.round(totalMax)}</span>
-                            <div style={{ fontSize: 10, color: pctColor(totalPct) }}>{totalPct}%</div>
-                          </>
-                        ) : <span style={{ color: 'var(--muted)' }}>—</span>}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        {/* shadow placeholder for single-cohort view */}
+                        {cohortId && (
+                          <td aria-hidden style={{
+                            position: 'sticky', left: 200, zIndex: 1,
+                            width: 0, padding: 0, border: 'none',
+                            background: 'transparent',
+                            boxShadow: '3px 0 6px -2px rgba(0,0,0,.12)',
+                          }} />
+                        )}
 
-          <p className="text-xs text-muted" style={{ marginTop: 8 }}>
-            <strong>sub</strong> = submitted, awaiting grade · <strong>·</strong> = no submission · Hover a cell for full details
-          </p>
-        </>
-      )}
+                        {/* Grade cells */}
+                        {assignments.map((a) => {
+                          const g = stu.grades[a.id];
+                          const base = {
+                            width: COL, minWidth: COL, maxWidth: COL,
+                            height: 38,
+                            padding: '0 2px',
+                            textAlign: 'center',
+                            verticalAlign: 'middle',
+                            borderBottom: '1px solid var(--border)',
+                            borderLeft: '1px solid var(--border)',
+                          };
+
+                          if (!g) {
+                            return (
+                              <td key={a.id} style={{ ...base, color: '#d1d5db' }} title="No submission">
+                                ·
+                              </td>
+                            );
+                          }
+                          if (g.score === null) {
+                            return (
+                              <td key={a.id} style={{ ...base, background: '#eff6ff' }}
+                                title={`${a.title} — submitted, awaiting grade`}>
+                                <span style={{
+                                  display: 'inline-block',
+                                  fontSize: 10, fontWeight: 600,
+                                  color: '#2563eb',
+                                  background: '#dbeafe',
+                                  borderRadius: 4,
+                                  padding: '2px 5px',
+                                  letterSpacing: '.02em',
+                                }}>sub</span>
+                              </td>
+                            );
+                          }
+
+                          const p   = a.max > 0 ? Math.round((g.score / a.max) * 100) : 0;
+                          const tip = [
+                            `${a.title}`,
+                            `Score: ${g.score} / ${a.max}  (${p}%)`,
+                            g.feedback   ? `Feedback: ${g.feedback}` : null,
+                            g.gradedAt   ? `Graded: ${new Date(g.gradedAt).toLocaleDateString()}` : null,
+                          ].filter(Boolean).join('\n');
+
+                          return (
+                            <td key={a.id} style={{ ...base, background: cellBg(p) }} title={tip}>
+                              <span style={{ fontWeight: 700, color: pctColor(p), fontSize: 13 }}>{g.score}</span>
+                            </td>
+                          );
+                        })}
+
+                        {/* Total */}
+                        <td style={{
+                          padding: '9px 12px',
+                          textAlign: 'center',
+                          borderBottom: '1px solid var(--border)',
+                          borderLeft: '2px solid var(--border)',
+                          background: totalPct != null ? cellBg(totalPct) : rowBg,
+                          whiteSpace: 'nowrap',
+                        }}>
+                          {totalPct !== null ? (
+                            <>
+                              <div style={{ fontWeight: 800, color: pctColor(totalPct), fontSize: 15, lineHeight: 1.2 }}>
+                                {totalPct}%
+                              </div>
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
+                                {Math.round(totalEarned)}/{Math.round(totalMax)}
+                              </div>
+                            </>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)' }}>—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Legend */}
+            <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap' }}>
+              <span className="text-xs text-muted" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ display: 'inline-block', width: 10, height: 10, background: 'rgba(22,163,74,.2)', borderRadius: 2 }} /> ≥ 80%
+              </span>
+              <span className="text-xs text-muted" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ display: 'inline-block', width: 10, height: 10, background: 'rgba(217,119,6,.2)', borderRadius: 2 }} /> 60–79%
+              </span>
+              <span className="text-xs text-muted" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ display: 'inline-block', width: 10, height: 10, background: 'rgba(220,38,38,.2)', borderRadius: 2 }} /> &lt; 60%
+              </span>
+              <span className="text-xs text-muted" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ display: 'inline-block', background: '#dbeafe', color: '#2563eb', borderRadius: 3, padding: '0 4px', fontSize: 10, fontWeight: 600 }}>sub</span> Submitted, awaiting grade
+              </span>
+              <span className="text-xs text-muted" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ color: '#d1d5db', fontSize: 16, lineHeight: 1 }}>·</span> No submission
+              </span>
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 }

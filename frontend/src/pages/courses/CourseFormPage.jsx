@@ -117,10 +117,7 @@ export default function CourseFormPage() {
               </div>
               <div className="form-group">
                 <label>Platform</label>
-                <select value={form.platform} onChange={set('platform')}>
-                  <option value="pact">PACT</option>
-                  <option value="lair">LAIR</option>
-                </select>
+                <input value="CETU LMS" readOnly disabled style={{ background: 'var(--bg)', color: 'var(--text-muted)', cursor: 'not-allowed' }} />
               </div>
             </div>
 
