@@ -128,6 +128,8 @@ function ModuleForm({ courseId, initial, onSave, onClose }) {
 }
 
 // ── Assignment Form ───────────────────────────────────────────────────────────
+const WORKSHOP_TYPES = new Set(['challenge', 'capstone']);
+
 function AssignmentForm({ courseId, initial, onSave, onClose }) {
   const [form, setForm] = useState({
     title:        initial?.title        ?? '',
@@ -139,11 +141,19 @@ function AssignmentForm({ courseId, initial, onSave, onClose }) {
     grading_mode: initial?.grading_mode ?? 'individual',
     order_index:  initial?.order_index  ?? 0,
   });
+  /* Prompts — array of { text } objects; only used for challenge/capstone */
+  const [prompts, setPrompts] = useState(
+    () => (initial?.prompts ?? []).map((p) => (typeof p === 'string' ? { text: p } : p))
+  );
   const [saving, setSaving] = useState(false);
   const set = (k) => (e) => {
     const v = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
     setForm((f) => ({ ...f, [k]: v }));
   };
+
+  const addPrompt    = () => setPrompts((p) => [...p, { text: '' }]);
+  const removePrompt = (i) => setPrompts((p) => p.filter((_, j) => j !== i));
+  const setPromptText = (i, text) => setPrompts((p) => p.map((item, j) => j === i ? { text } : item));
 
   const submit = async (e) => {
     e.preventDefault();
@@ -154,12 +164,17 @@ function AssignmentForm({ courseId, initial, onSave, onClose }) {
         max_score:   Number(form.max_score),
         order_index: Number(form.order_index),
         due_date:    form.due_date || undefined,
+        prompts:     WORKSHOP_TYPES.has(form.type)
+          ? prompts.filter((p) => p.text.trim())
+          : [],
       };
       if (initial) await updateAssignment(courseId, initial.id, payload);
       else         await createAssignment(courseId, payload);
       onSave();
     } finally { setSaving(false); }
   };
+
+  const isWorkshop = WORKSHOP_TYPES.has(form.type);
 
   return (
     <form onSubmit={submit}>
@@ -187,7 +202,53 @@ function AssignmentForm({ courseId, initial, onSave, onClose }) {
         <div className="form-group"><label>Order</label><input type="number" value={form.order_index} onChange={set('order_index')} min={0} /></div>
       </div>
       <div className="form-group"><label>Due Date</label><input type="datetime-local" value={form.due_date} onChange={set('due_date')} /></div>
-      <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+
+      {/* ── Prompts editor — only for challenge / capstone types ── */}
+      {isWorkshop && (
+        <div className="form-group" style={{ flexDirection: 'column', gap: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <label style={{ marginBottom: 0 }}>
+              Response Prompts
+              <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6, fontSize: 12 }}>
+                — what students must address in their submission
+              </span>
+            </label>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={addPrompt}>+ Add Prompt</button>
+          </div>
+          {prompts.length === 0 ? (
+            <p className="text-xs text-muted" style={{ margin: '4px 0 0' }}>
+              No prompts defined. Students will see a single open-ended textarea. Add at least one prompt to structure their response.
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {prompts.map((p, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                  <span style={{
+                    flexShrink: 0, width: 22, height: 22, borderRadius: '50%',
+                    background: 'var(--primary)', color: 'white',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 11, fontWeight: 700, marginTop: 7,
+                  }}>{i + 1}</span>
+                  <input
+                    style={{ flex: 1 }}
+                    value={p.text}
+                    onChange={(e) => setPromptText(i, e.target.value)}
+                    placeholder={`Prompt ${i + 1}…`}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-xs"
+                    style={{ color: 'var(--danger)', marginTop: 4, flexShrink: 0 }}
+                    onClick={() => removePrompt(i)}
+                  >✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
         <input type="checkbox" id="apub" checked={form.is_published} onChange={set('is_published')} style={{ width: 'auto' }} />
         <label htmlFor="apub" style={{ marginBottom: 0 }}>Published</label>
       </div>

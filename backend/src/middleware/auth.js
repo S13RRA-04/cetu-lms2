@@ -22,12 +22,13 @@ const requireRole = (...roles) => (req, res, next) => {
 const requireAdmin      = requireRole(ROLES.ADMIN, ROLES.SUPERADMIN);
 const requireInstructor = requireRole(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.INSTRUCTOR);
 
-// Allow access if user is the target user OR has admin/superadmin role
+/* Allow access if the requesting user is the target OR has management-level role
+   (admin, superadmin, or instructor / Program Manager). */
 const requireSelfOrAdmin = (paramName = 'id') => (req, res, next) => {
   if (!req.user) return next(new AppError('Unauthorized', 401, 'UNAUTHORIZED'));
-  const isSelf  = req.user.id === req.params[paramName];
-  const isAdmin = [ROLES.ADMIN, ROLES.SUPERADMIN].includes(req.user.role);
-  if (!isSelf && !isAdmin) return next(new ForbiddenError());
+  const isSelf    = req.user.id === req.params[paramName];
+  const isManager = [ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.INSTRUCTOR].includes(req.user.role);
+  if (!isSelf && !isManager) return next(new ForbiddenError());
   return next();
 };
 

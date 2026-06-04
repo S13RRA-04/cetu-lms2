@@ -3,6 +3,10 @@ const Joi = require('joi');
 
 const TYPES = ['module', 'game', 'assessment', 'survey', 'challenge', 'capstone'];
 
+const promptSchema = Joi.array().items(
+  Joi.object({ text: Joi.string().max(500).required() })
+).default([]);
+
 const createAssignmentSchema = Joi.object({
   title:        Joi.string().max(255).required(),
   description:  Joi.string().allow('', null),
@@ -12,6 +16,7 @@ const createAssignmentSchema = Joi.object({
   type:         Joi.string().valid(...TYPES).default('module'),
   grading_mode: Joi.string().valid('individual', 'squad').default('individual'),
   order_index:  Joi.number().integer().min(0).default(0),
+  prompts:      promptSchema,
 });
 
 const updateAssignmentSchema = Joi.object({
@@ -23,6 +28,7 @@ const updateAssignmentSchema = Joi.object({
   type:         Joi.string().valid(...TYPES),
   grading_mode: Joi.string().valid('individual', 'squad'),
   order_index:  Joi.number().integer().min(0),
+  prompts:      promptSchema,
 }).min(1);
 
 const gradeSchema = Joi.object({

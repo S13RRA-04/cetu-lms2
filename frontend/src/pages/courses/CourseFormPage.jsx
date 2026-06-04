@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getCourse, createCourse, updateCourse } from '../../api/courses.js';
 import { getUsers } from '../../api/users.js';
-import useAuthStore from '../../store/authStore.js';
+import useAuthStore, { isAdminRole } from '../../store/authStore.js';
 import LoadingSpinner from '../../components/common/LoadingSpinner.jsx';
 
 export default function CourseFormPage() {
@@ -10,7 +10,7 @@ export default function CourseFormPage() {
   const isEdit      = Boolean(id);
   const navigate    = useNavigate();
   const { user }    = useAuthStore();
-  const isAdmin     = user && ['admin', 'superadmin'].includes(user.role);
+  const isAdmin     = user && isAdminRole(user.role);
 
   const [form, setForm] = useState({
     title: '', description: '', course_code: '', instructor_id: '',

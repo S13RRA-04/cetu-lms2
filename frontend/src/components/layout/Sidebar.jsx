@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import useAuthStore from '../../store/authStore.js';
+import useAuthStore, { isAdminRole } from '../../store/authStore.js';
 
 const ICONS = {
   dashboard: (
@@ -39,7 +39,7 @@ const ICONS = {
 export default function Sidebar() {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
-  const isAdmin = user && ['admin', 'superadmin'].includes(user.role);
+  const isAdmin = user && isAdminRole(user.role);
 
   const handleLogout = async () => {
     await logout();

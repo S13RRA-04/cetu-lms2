@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import ProtectedRoute from './components/common/ProtectedRoute.jsx';
+import ProtectedRoute, { AdminRoute } from './components/common/ProtectedRoute.jsx';
 import Layout from './components/layout/Layout.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
@@ -33,13 +33,13 @@ export default function App() {
             <Route path="courses/:id/edit" element={<CourseFormPage />} />
             <Route path="grades" element={<GradesPage />} />
             <Route path="profile" element={<ProfilePage />} />
-            <Route element={<ProtectedRoute roles={['admin', 'superadmin']} />}>
+            <Route element={<AdminRoute />}>
               <Route path="users" element={<UsersPage />} />
-              <Route path="admin/grades"     element={<AdminGradesPage />} />
-              <Route path="admin/analytics" element={<AdminAnalyticsPage />} />
-              <Route path="admin/program"    element={<AdminProgramOverviewPage />} />
+              <Route path="admin/grades"           element={<AdminGradesPage />} />
+              <Route path="admin/analytics"        element={<AdminAnalyticsPage />} />
+              <Route path="admin/program"          element={<AdminProgramOverviewPage />} />
               <Route path="admin/program-managers" element={<AdminProgramManagersPage />} />
-              <Route path="admin/lti"       element={<LtiPage />} />
+              <Route path="admin/lti"              element={<LtiPage />} />
             </Route>
           </Route>
         </Route>

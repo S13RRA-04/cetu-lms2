@@ -20,15 +20,15 @@ const { createAssignmentSchema, updateAssignmentSchema, gradeSchema, unlockSchem
 
 const router = Router();
 
-// Program overview (admin — all courses)
-router.get('/program-overview', requireAuth, requireAdmin, ctrl.getProgramOverview);
+// Program overview (admin + instructors)
+router.get('/program-overview', requireAuth, requireInstructor, ctrl.getProgramOverview);
 
 // Courses
 router.get('/',    requireAuth,                    ctrl.list);
 router.post('/',   requireAuth, requireInstructor, validate(createCourseSchema), auditLog('create', 'course'), ctrl.create);
 router.get('/:id', requireAuth,                    ctrl.getOne);
 router.put('/:id', requireAuth, requireInstructor, validate(updateCourseSchema), auditLog('update', 'course'), ctrl.update);
-router.delete('/:id', requireAuth, requireAdmin,   auditLog('delete', 'course'), ctrl.remove);
+router.delete('/:id', requireAuth, requireInstructor, auditLog('delete', 'course'), ctrl.remove);
 
 // Modules (nested under course)
 router.get('/:id/modules',          requireAuth,                    ctrl.listModules);

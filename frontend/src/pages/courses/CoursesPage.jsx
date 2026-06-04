@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { getCourses, deleteCourse } from '../../api/courses.js';
 import { getLaunchUrl } from '../../api/auth.js';
-import useAuthStore from '../../store/authStore.js';
+import useAuthStore, { isAdminRole } from '../../store/authStore.js';
 import LoadingSpinner from '../../components/common/LoadingSpinner.jsx';
 import Pagination from '../../components/common/Pagination.jsx';
 import ConfirmDialog from '../../components/common/ConfirmDialog.jsx';
@@ -23,7 +23,7 @@ async function launchApp(platform = 'pact') {
 
 export default function CoursesPage() {
   const { user }                  = useAuthStore();
-  const isAdmin                   = user && ['admin', 'superadmin'].includes(user.role);
+  const isAdmin                   = user && isAdminRole(user.role);
   const canManage                 = isAdmin || user?.role === 'instructor';
   const [courses, setCourses]     = useState([]);
   const [meta, setMeta]           = useState({});

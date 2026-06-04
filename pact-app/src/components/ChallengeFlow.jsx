@@ -67,7 +67,15 @@ function parseDeliverables(description = '') {
 }
 
 export default function ChallengeFlow({ assignment, color, onComplete, submitted, existingContent }) {
-  const deliverables = parseDeliverables(assignment.description);
+  /* Prefer explicit prompts set by the instructor; fall back to parsing the
+     description only when no prompts have been defined. */
+  const explicitPrompts = (assignment.prompts ?? [])
+    .map((p) => (typeof p === 'string' ? p : p.text))
+    .filter(Boolean);
+
+  const deliverables = explicitPrompts.length > 0
+    ? explicitPrompts
+    : parseDeliverables(assignment.description);
   const saveTimer    = useRef(null);
 
   /* Prefer a newer local draft over existingContent from the server */

@@ -2,7 +2,7 @@
 const { Router }    = require('express');
 const ctrl          = require('../controllers/user.controller');
 const gradeService  = require('../services/grade.service');
-const { requireAuth, requireAdmin, requireSelfOrAdmin } = require('../middleware/auth');
+const { requireAuth, requireAdmin, requireInstructor, requireSelfOrAdmin } = require('../middleware/auth');
 const { validate }  = require('../middleware/validate');
 const { auditLog }  = require('../middleware/audit');
 const { createUserSchema, updateUserSchema, changePasswordSchema } = require('../validators/user.validator');
@@ -33,12 +33,12 @@ router.get('/me/grades', requireAuth, async (req, res, next) => {
   catch (err) { return next(err); }
 });
 
-router.get('/',    requireAuth, requireAdmin, ctrl.list);
-router.post('/',   requireAuth, requireAdmin, validate(createUserSchema), auditLog('create', 'user'), ctrl.create);
+router.get('/',    requireAuth, requireInstructor, ctrl.list);
+router.post('/',   requireAuth, requireInstructor, validate(createUserSchema), auditLog('create', 'user'), ctrl.create);
 
 router.get('/:id',    requireAuth, requireSelfOrAdmin(), ctrl.getOne);
 router.put('/:id',    requireAuth, requireSelfOrAdmin(), validate(updateUserSchema),    auditLog('update', 'user'), ctrl.update);
-router.delete('/:id', requireAuth, requireAdmin,         auditLog('delete', 'user'),    ctrl.remove);
+router.delete('/:id', requireAuth, requireInstructor,    auditLog('delete', 'user'),    ctrl.remove);
 
 router.put('/:id/password', requireAuth, requireSelfOrAdmin(), validate(changePasswordSchema), ctrl.changePassword);
 

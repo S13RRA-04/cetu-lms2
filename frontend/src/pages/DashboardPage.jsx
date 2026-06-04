@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import useAuthStore from '../store/authStore.js';
+import useAuthStore, { isAdminRole } from '../store/authStore.js';
 import { getCourses } from '../api/courses.js';
 import { getUsers } from '../api/users.js';
 import LoadingSpinner from '../components/common/LoadingSpinner.jsx';
@@ -16,7 +16,7 @@ function statusColor(status) {
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
-  const isAdmin  = user && ['admin', 'superadmin'].includes(user.role);
+  const isAdmin  = user && isAdminRole(user.role);
   const canManage = isAdmin || user?.role === 'instructor';
 
   const [courses,    setCourses]    = useState([]);
