@@ -11,11 +11,21 @@ const loggerTransports = [
   }),
 ];
 
-if (process.env.LOGTAIL_SOURCE_TOKEN) {
-  const { Logtail }       = require('@logtail/node');
-  const { LogtailTransport } = require('@logtail/winston');
-  const logtail = new Logtail(process.env.LOGTAIL_SOURCE_TOKEN);
-  loggerTransports.push(new LogtailTransport(logtail));
+if (process.env.LOKI_URL) {
+  try {
+    const LokiTransport = require('winston-loki');
+    loggerTransports.push(new LokiTransport({
+      host:             process.env.LOKI_URL,
+      basicAuth:        process.env.LOKI_BASIC_AUTH || undefined,
+      labels:           { app: 'cetu-lms', env: process.env.NODE_ENV ?? 'production' },
+      json:             true,
+      batching:         true,
+      interval:         5,
+      onConnectionError: () => {},
+    }));
+  } catch {
+    // Loki unavailable — console only
+  }
 }
 
 const logger = createLogger({
