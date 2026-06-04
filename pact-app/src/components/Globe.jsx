@@ -154,7 +154,7 @@ export default function Globe({
           : readAccentColor(host);
         const accent = new THREE.Color(red / 255, green / 255, blue / 255);
         const scene  = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+        const camera = new THREE.PerspectiveCamera(52, 1, 0.1, 100);
         camera.position.set(0, 0, 4.7);
 
         let renderer;

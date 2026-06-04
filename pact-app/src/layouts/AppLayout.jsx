@@ -131,9 +131,9 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
   return (
     <div className="app-shell">
       {/* Globe background */}
-      <div className="globe-bg" aria-hidden="true">
+      <div className="globe-bg">
         <Suspense fallback={null}>
-          <Globe className="globe-bg-canvas" accentColor={accent} />
+          <Globe className="globe-bg-canvas" accentColor={accent} interactive={true} />
         </Suspense>
       </div>
 
