@@ -1,5 +1,6 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { updateProgress } from '../api/pact.js';
+import { loadDraftSync, clearDraftSync } from '../hooks/useDraft.js';
 
 /* ── helpers ── */
 
@@ -260,21 +261,38 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
         : (q.payload.options ?? [])
     ), [questions]);
 
-  const [qIdx,    setQIdx]    = useState(0);
-  const [answers, setAnswers] = useState({});  // questionId → raw answer
+  /* Restore draft on mount — load synchronously inside initializers */
+  const draft = useMemo(() => {
+    const d = loadDraftSync(assignmentId);
+    if (!d?.qStates) return null;
+    /* Discard draft if question set has changed */
+    const draftIds   = Object.keys(d.qStates).sort().join(',');
+    const currentIds = questions.map((q) => q.id).sort().join(',');
+    return draftIds === currentIds ? d : null;
+  }, []); // intentionally run once on mount
 
-  /* Per-question state */
+  const [qIdx,    setQIdx]    = useState(draft?.qIdx    ?? 0);
+  const [answers, setAnswers] = useState(draft?.answers ?? {});
+
   const [qStates, setQStates] = useState(() =>
-    Object.fromEntries(questions.map((q) => [q.id, {
-      available:   q.scoring.points, // points currently available
-      hintUsed:    false,
-      hintVisible: false,
-      revealed:    false,            // correct answer submitted
-      forced:      false,            // ran out of points
-      lastWrong:   false,            // show "wrong, try again" banner
-      partialFeedback: null,         // drag_match wrong-placement hints
+    draft?.qStates ?? Object.fromEntries(questions.map((q) => [q.id, {
+      available:       q.scoring.points,
+      hintUsed:        false,
+      hintVisible:     false,
+      revealed:        false,
+      forced:          false,
+      lastWrong:       false,
+      partialFeedback: null,
     }]))
   );
+
+  /* Persist quiz state after every change */
+  useEffect(() => {
+    try {
+      const data = JSON.stringify({ qIdx, answers, qStates, _ts: Date.now() });
+      localStorage.setItem(`pact_draft_${assignmentId}`, data);
+    } catch {}
+  }, [qIdx, answers, qStates, assignmentId]);
 
   const q   = questions[qIdx];
   const qs  = q ? qStates[q.id] : null;
@@ -375,6 +393,7 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
   /* ── advance to next / complete ── */
   const handleNext = useCallback(() => {
     if (qIdx >= questions.length - 1) {
+      clearDraftSync(assignmentId);
       const total    = questions.reduce((s, qi) => {
         const st = qStates[qi.id];
         return s + (st?.revealed ? st.available : 0);

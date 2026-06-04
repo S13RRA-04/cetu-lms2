@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { getAssignment, getMySubmission, submitAssignment, updateProgress } from '../api/pact.js';
 import QuizFlow       from '../components/QuizFlow.jsx';
 import ChallengeFlow  from '../components/ChallengeFlow.jsx';
+import useDraft       from '../hooks/useDraft.js';
 
 
 const TYPE_COLOR = {
@@ -30,6 +31,8 @@ export default function AssignmentPage() {
   const [quizResult,  setQuizResult]  = useState(null);
   const [quizStarted, setQuizStarted] = useState(false);
 
+  const { saveDebounced, load: loadDraft, clear: clearDraft } = useDraft(id);
+
   useEffect(() => {
     setAssignment(null);
     setSubmission(null);
@@ -46,11 +49,12 @@ export default function AssignmentPage() {
       getMySubmission(id).catch(() => null),
     ]).then(([a, sub]) => {
       setAssignment(a);
+      const alreadySubmitted = sub?.status === 'submitted' || sub?.status === 'graded';
       if (sub) {
         setSubmission(sub);
         setContent(sub.content ?? '');
         setProgress(sub.progress ?? 0);
-        if (sub.status === 'submitted' || sub.status === 'graded') {
+        if (alreadySubmitted) {
           setSubmitted(true);
           try {
             const parsed = JSON.parse(sub.content ?? 'null');
@@ -58,13 +62,25 @@ export default function AssignmentPage() {
           } catch {}
         }
       }
+      /* Restore freeform draft if not yet submitted */
+      if (!alreadySubmitted) {
+        const draft = loadDraft();
+        if (draft?.content !== undefined) {
+          const serverTs = sub?.updated_at ? new Date(sub.updated_at).getTime() : 0;
+          if ((draft._ts ?? 0) > serverTs) {
+            setContent(draft.content);
+            setProgress(draft.progress ?? sub?.progress ?? 0);
+          }
+        }
+      }
     }).finally(() => setLoading(false));
   }, [id]);
 
   const handleProgressStep = useCallback(async (pct) => {
     setProgress(pct);
+    saveDebounced({ content, progress: pct }, 0);
     try { await updateProgress(id, pct); } catch {}
-  }, [id]);
+  }, [id, content, saveDebounced]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -72,6 +88,7 @@ export default function AssignmentPage() {
     setError('');
     try {
       await submitAssignment(id, content);
+      clearDraft();
       setProgress(100);
       setSubmitted(true);
     } catch (err) {
@@ -93,6 +110,7 @@ export default function AssignmentPage() {
     const json = JSON.stringify(result);
     setContent(json);
     setProgress(100);
+    clearDraft();
     try {
       await submitAssignment(id, json);
       setSubmitted(true);
@@ -100,7 +118,7 @@ export default function AssignmentPage() {
       const msg = err.response?.data?.error?.message ?? '';
       setError(msg || 'Submission failed. Please try again.');
     }
-  }, [id]);
+  }, [id, clearDraft]);
 
   if (loading) {
     return <div className="loading-screen"><div className="spinner" /></div>;
@@ -261,7 +279,10 @@ export default function AssignmentPage() {
                   <textarea
                     className="response-textarea"
                     value={content}
-                    onChange={(e) => setContent(e.target.value)}
+                    onChange={(e) => {
+                      setContent(e.target.value);
+                      saveDebounced({ content: e.target.value, progress });
+                    }}
                     placeholder="Enter your mission response…"
                     required
                   />

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { loadDraftSync, clearDraftSync } from '../hooks/useDraft.js';
 
 /*
   ChallengeFlow — squad workshop submission UI.
@@ -67,18 +68,38 @@ function parseDeliverables(description = '') {
 
 export default function ChallengeFlow({ assignment, color, onComplete, submitted, existingContent }) {
   const deliverables = parseDeliverables(assignment.description);
+  const saveTimer    = useRef(null);
+
+  /* Prefer a newer local draft over existingContent from the server */
+  const draft = loadDraftSync(assignment.id);
+  const useDraft = draft && (!existingContent || (draft._ts ?? 0) > 0);
 
   const [answers,   setAnswers]   = useState(() => {
+    if (useDraft && draft.answers) return draft.answers;
     if (!existingContent) return {};
     try { return JSON.parse(existingContent)?.responses ?? {}; } catch { return {}; }
   });
   const [freetext,  setFreetext]  = useState(() => {
+    if (useDraft && draft.freetext !== undefined) return draft.freetext;
     if (!existingContent) return '';
     try { const p = JSON.parse(existingContent); return p?.response ?? existingContent; } catch { return existingContent; }
   });
   const [saving,    setSaving]    = useState(false);
   const [error,     setError]     = useState('');
   const [confirmed, setConfirmed] = useState(false);
+
+  /* Auto-save draft on every change */
+  useEffect(() => {
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      try {
+        localStorage.setItem(
+          `pact_draft_${assignment.id}`,
+          JSON.stringify({ answers, freetext, _ts: Date.now() }),
+        );
+      } catch {}
+    }, 700);
+  }, [answers, freetext, assignment.id]);
 
   const isSquad = assignment.grading_mode === 'squad';
 
@@ -95,6 +116,7 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
       const payload = deliverables
         ? JSON.stringify({ responses: answers, deliverables })
         : JSON.stringify({ response: freetext });
+      clearDraftSync(assignment.id);
       await onComplete(payload);
     } catch (err) {
       setError(err?.message ?? 'Submission failed');
