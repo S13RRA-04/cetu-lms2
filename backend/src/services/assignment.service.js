@@ -1,6 +1,6 @@
 'use strict';
 const { Op }             = require('sequelize');
-const { Assignment, AssignmentUnlock, Course, Cohort, Enrollment, User } = require('../models');
+const { Assignment, AssignmentUnlock, Course, Cohort, Enrollment, User, Submission } = require('../models');
 const { NotFoundError, AppError } = require('../utils/errors');
 const { paginate, paginatedResponse } = require('../utils/pagination');
 
@@ -30,7 +30,17 @@ async function listForStudent(courseId, userId) {
     order: [['order_index', 'ASC'], ['created_at', 'ASC']],
   });
 
-  return assignments.map((a) => ({ ...a.toJSON(), is_unlocked: unlockedIds.has(a.id) }));
+  const submissions = await Submission.findAll({
+    where: { assignment_id: assignments.map((a) => a.id), user_id: userId },
+    attributes: ['assignment_id', 'progress', 'status'],
+  });
+  const progressMap = Object.fromEntries(submissions.map((s) => [s.assignment_id, s.progress ?? 0]));
+
+  return assignments.map((a) => ({
+    ...a.toJSON(),
+    is_unlocked: unlockedIds.has(a.id),
+    progress:    progressMap[a.id] ?? 0,
+  }));
 }
 
 async function unlockForCohort(assignmentId, cohortId, unlockerId) {
