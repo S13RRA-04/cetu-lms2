@@ -1,4 +1,5 @@
 export { BufferGeometry } from 'three/src/core/BufferGeometry.js';
+export { CanvasTexture } from 'three/src/textures/CanvasTexture.js';
 export { Color } from 'three/src/math/Color.js';
 export { Float32BufferAttribute } from 'three/src/core/BufferAttribute.js';
 export { Group } from 'three/src/objects/Group.js';
@@ -6,6 +7,7 @@ export { LineBasicMaterial } from 'three/src/materials/LineBasicMaterial.js';
 export { LineSegments } from 'three/src/objects/LineSegments.js';
 export { Mesh } from 'three/src/objects/Mesh.js';
 export { MeshBasicMaterial } from 'three/src/materials/MeshBasicMaterial.js';
+export { AdditiveBlending, BackSide } from 'three/src/constants.js';
 export { PerspectiveCamera } from 'three/src/cameras/PerspectiveCamera.js';
 export { Points } from 'three/src/objects/Points.js';
 export { PointsMaterial } from 'three/src/materials/PointsMaterial.js';
