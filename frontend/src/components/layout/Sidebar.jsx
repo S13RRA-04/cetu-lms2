@@ -73,6 +73,12 @@ export default function Sidebar() {
             <NavLink to="/admin/grades" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
               {ICONS.grades} Grade Center
             </NavLink>
+            <NavLink to="/admin/analytics" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+              <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/>
+              </svg>
+              Analytics
+            </NavLink>
             <NavLink to="/admin/lti" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
               {ICONS.lti} LTI Platforms
             </NavLink>

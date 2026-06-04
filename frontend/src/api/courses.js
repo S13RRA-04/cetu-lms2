@@ -97,3 +97,6 @@ export const gradeSquad = (courseId, assignmentId, squadId, data) =>
 
 export const getCourseGrades = (courseId, cohortId) =>
   client.get(`/courses/${courseId}/grades`, { params: cohortId ? { cohort_id: cohortId } : {} }).then((r) => r.data);
+
+export const getCourseAnalytics = (courseId, cohortId) =>
+  client.get(`/courses/${courseId}/analytics`, { params: cohortId ? { cohort_id: cohortId } : {} }).then((r) => r.data);

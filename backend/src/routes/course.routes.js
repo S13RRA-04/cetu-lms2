@@ -49,6 +49,7 @@ router.delete('/:id/modules/:mid/content/:cid', requireAuth, requireInstructor, 
 // Student grade summary + scoreboard
 router.get('/:id/grades/me',  requireAuth,                    assignCtrl.getMyGrades);
 router.get('/:id/grades',     requireAuth, requireInstructor, assignCtrl.getCourseGrades);
+router.get('/:id/analytics',  requireAuth, requireInstructor, assignCtrl.getCourseAnalytics);
 router.get('/:id/scoreboard', requireAuth,                    assignCtrl.getScoreboard);
 
 // Assignments (nested under course)

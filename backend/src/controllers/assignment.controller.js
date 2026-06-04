@@ -1,7 +1,8 @@
 'use strict';
-const assignmentService = require('../services/assignment.service');
-const gradeService      = require('../services/grade.service');
-const submissionService = require('../services/submission.service');
+const assignmentService  = require('../services/assignment.service');
+const gradeService       = require('../services/grade.service');
+const submissionService  = require('../services/submission.service');
+const analyticsService   = require('../services/analytics.service');
 
 async function getMyGrades(req, res, next) {
   try { return res.json(await gradeService.getGradesForUser(req.user.id)); }
@@ -15,6 +16,11 @@ async function getScoreboard(req, res, next) {
 
 async function getCourseGrades(req, res, next) {
   try { return res.json(await gradeService.getCourseGrades(req.params.id, req.query.cohort_id ?? null)); }
+  catch (err) { return next(err); }
+}
+
+async function getCourseAnalytics(req, res, next) {
+  try { return res.json(await analyticsService.getCourseAnalytics(req.params.id, req.query.cohort_id ?? null)); }
   catch (err) { return next(err); }
 }
 
@@ -90,4 +96,4 @@ async function gradeSquad(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { listByCourse, getOne, create, update, remove, getGrades, upsertGrade, unlockForCohort, lockForCohort, getProgress, gradeSquad, getMyGrades, getScoreboard, getCourseGrades };
+module.exports = { listByCourse, getOne, create, update, remove, getGrades, upsertGrade, unlockForCohort, lockForCohort, getProgress, gradeSquad, getMyGrades, getScoreboard, getCourseGrades, getCourseAnalytics };
