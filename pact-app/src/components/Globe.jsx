@@ -117,8 +117,9 @@ export default function Globe({
   className   = '',
   interactive = false,
 }) {
-  const canvasRef = useRef(null);
-  const hostRef   = useRef(null);
+  const canvasRef  = useRef(null);
+  const overlayRef = useRef(null);
+  const hostRef    = useRef(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -342,6 +343,68 @@ export default function Globe({
         const pointer = { active: false, x: 0, y: 0 };
         let animationFrame = 0;
 
+        /* ── Binary character overlay ── */
+        const overlay   = overlayRef.current;
+        const overlayCtx = overlay ? overlay.getContext('2d') : null;
+        const aR = Math.round(accent.r * 255);
+        const aG = Math.round(accent.g * 255);
+        const aB = Math.round(accent.b * 255);
+
+        const binParticles = []; // { x, y, char, vx, vy, age, lifetime, size }
+        const mouse = { x: 0, y: 0, over: false };
+        let lastHoverSpawn = 0;
+
+        const spawnHover = (x, y) => {
+          for (let i = 0; i < 2; i++) {
+            binParticles.push({
+              x: x + (Math.random() - 0.5) * 24,
+              y: y + (Math.random() - 0.5) * 24,
+              char: Math.random() < 0.5 ? '0' : '1',
+              vx: (Math.random() - 0.5) * 14,
+              vy: (Math.random() - 0.5) * 14 - 4,
+              age: 0, lifetime: 0.55 + Math.random() * 0.3,
+              size: 9 + Math.floor(Math.random() * 3),
+            });
+          }
+        };
+
+        const spawnRipple = (x, y) => {
+          const N = 22;
+          for (let i = 0; i < N; i++) {
+            const angle  = (i / N) * Math.PI * 2 + Math.random() * 0.4;
+            const speed  = 30 + Math.random() * 50;
+            binParticles.push({
+              x, y,
+              char: Math.random() < 0.5 ? '0' : '1',
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              age: 0, lifetime: 0.7 + Math.random() * 0.4,
+              size: 8 + Math.floor(Math.random() * 4),
+            });
+          }
+        };
+
+        const onMouseMove = (e) => {
+          const r = host.getBoundingClientRect();
+          mouse.x = e.clientX - r.left;
+          mouse.y = e.clientY - r.top;
+          mouse.over = true;
+        };
+        const onMouseLeave = () => { mouse.over = false; };
+
+        let pdx = 0, pdy = 0;
+        const onPD = (e) => { pdx = e.clientX; pdy = e.clientY; };
+        const onClick = (e) => {
+          if (Math.hypot(e.clientX - pdx, e.clientY - pdy) > 6) return;
+          const r = host.getBoundingClientRect();
+          spawnRipple(e.clientX - r.left, e.clientY - r.top);
+        };
+
+        host.addEventListener('mousemove', onMouseMove);
+        host.addEventListener('mouseleave', onMouseLeave);
+        host.addEventListener('pointerdown', onPD);
+        host.addEventListener('click', onClick);
+
         const resize = () => {
           const rect   = host.getBoundingClientRect();
           const width  = Math.max(1, Math.floor(rect.width));
@@ -349,6 +412,7 @@ export default function Globe({
           renderer.setSize(width, height, false);
           camera.aspect = width / height;
           camera.updateProjectionMatrix();
+          if (overlay) { overlay.width = width; overlay.height = height; }
         };
         const resizeObserver = new ResizeObserver(resize);
         resizeObserver.observe(host);
@@ -403,6 +467,33 @@ export default function Globe({
           mp.needsUpdate = true;
 
           renderer.render(scene, camera);
+
+          /* Draw binary character overlay */
+          if (overlayCtx) {
+            const dt = 0.016; // ~60fps estimate; fine for this effect
+            overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+
+            const now = Date.now();
+            if (mouse.over && now - lastHoverSpawn > 90) {
+              lastHoverSpawn = now;
+              spawnHover(mouse.x, mouse.y);
+            }
+
+            overlayCtx.textAlign = 'left';
+            for (let i = binParticles.length - 1; i >= 0; i--) {
+              const p = binParticles[i];
+              p.age += dt;
+              if (p.age >= p.lifetime) { binParticles.splice(i, 1); continue; }
+              p.x += p.vx * dt;
+              p.y += p.vy * dt;
+              p.vx *= 0.96; p.vy *= 0.96;
+              const alpha = (1 - p.age / p.lifetime) * 0.82;
+              overlayCtx.font = `${p.size}px monospace`;
+              overlayCtx.fillStyle = `rgba(${aR},${aG},${aB},${alpha.toFixed(2)})`;
+              overlayCtx.fillText(p.char, p.x, p.y);
+            }
+          }
+
           animationFrame = window.requestAnimationFrame(render);
         };
 
@@ -421,6 +512,10 @@ export default function Globe({
         cleanup = () => {
           window.cancelAnimationFrame(animationFrame);
           resizeObserver.disconnect();
+          host.removeEventListener('mousemove',   onMouseMove);
+          host.removeEventListener('mouseleave',  onMouseLeave);
+          host.removeEventListener('pointerdown', onPD);
+          host.removeEventListener('click',       onClick);
           if (interactive) {
             host.removeEventListener('pointerdown',  onPointerDown);
             host.removeEventListener('pointermove',  onPointerMove);
@@ -457,6 +552,7 @@ export default function Globe({
       data-interactive={interactive ? 'true' : 'false'}
     >
       <canvas className="interactive-globe-canvas" ref={canvasRef} />
+      <canvas className="globe-overlay-canvas"     ref={overlayRef} />
     </div>
   );
 }
