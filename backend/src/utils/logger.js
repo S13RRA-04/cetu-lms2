@@ -21,7 +21,7 @@ if (process.env.LOKI_URL) {
       json:             true,
       batching:         true,
       interval:         5,
-      onConnectionError: () => {},
+      onConnectionError: (err) => console.error('[Loki] connection error:', err.message),
     }));
   } catch {
     // Loki unavailable — console only

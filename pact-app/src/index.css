@@ -839,11 +839,10 @@ body {
   bottom: clamp(16px, 3vw, 64px);
   width: clamp(560px, min(58vw, 96vh), 1020px);
   height: clamp(560px, min(58vw, 96vh), 1020px);
-  z-index: 0;
+  z-index: 10;        /* above content so canvas receives events */
   opacity: 0.85;
-  cursor: grab;
+  pointer-events: none; /* wrapper is click-through — content still works */
 }
-.globe-bg:active { cursor: grabbing; }
 
 .globe-bg-canvas {
   width: 100% !important;
@@ -851,7 +850,13 @@ body {
   display: block;
 }
 
-.interactive-globe { position: relative; }
+.interactive-globe {
+  position: relative;
+  pointer-events: auto;           /* only the globe element captures events */
+  clip-path: circle(45% at 50% 50%); /* circular hit area — corners pass through to content */
+  cursor: grab;
+}
+.interactive-globe:active { cursor: grabbing; }
 .interactive-globe-canvas {
   width: 100%;
   height: 100%;
@@ -964,7 +969,8 @@ body {
   bottom: clamp(16px, 3vw, 64px);
   width: clamp(560px, min(58vw, 96vh), 1020px);
   height: clamp(560px, min(58vw, 96vh), 1020px);
-  z-index: 0;
+  z-index: 10;
+  pointer-events: none;
 }
 
 /* ══════════════════════════════════════════════════
