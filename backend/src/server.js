@@ -20,6 +20,7 @@ const authRoutes        = require('./routes/auth.routes');
 const courseRoutes      = require('./routes/course.routes');
 const userRoutes        = require('./routes/user.routes');
 const ltiRoutes         = require('./routes/lti.routes');
+const kcrRoutes         = require('./routes/kcr.routes');
 const ltiService        = require('./services/lti.service');
 
 const PORT = parseInt(process.env.PORT, 10) || 3001;
@@ -74,7 +75,7 @@ const allowedOrigins = new Set(
   (process.env.FRONTEND_URL || 'http://localhost:5173')
     .split(',')
     .map((o) => o.trim())
-    .concat(['http://localhost:5174', 'http://localhost:5175'])
+    .concat(['http://localhost:5174', 'http://localhost:5175', 'http://localhost:5176'])
 );
 
 function isAllowedOrigin(origin) {
@@ -102,6 +103,7 @@ app.use('/api/v1/auth',    authRoutes);
 app.use('/api/v1/courses', courseRoutes);
 app.use('/api/v1/users',   userRoutes);
 app.use('/api/v1/lti',     ltiRoutes);
+app.use('/api/v1/kcr',     kcrRoutes);
 
 app.get('/api/v1/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
@@ -110,17 +112,21 @@ if (process.env.NODE_ENV === 'production') {
   const lmsDir  = path.join(__dirname, '../public');
   const pactDir = path.join(__dirname, '../public-pact');
   const lairDir = path.join(__dirname, '../public-lair');
+  const kcrDir  = path.join(__dirname, '../public-kcr');
 
   const isPact = (req) => req.hostname === 'pact.cetu.online';
   const isLair = (req) => req.hostname === 'lair.cetu.online' || req.headers['x-app-target'] === 'lair';
+  const isKcr  = (req) => req.hostname === 'kcr.cetu.online'  || req.headers['x-app-target'] === 'kcr';
 
   const serveLms  = express.static(lmsDir);
   const servePact = express.static(pactDir);
   const serveLair = express.static(lairDir);
+  const serveKcr  = express.static(kcrDir);
 
   app.use((req, res, next) => {
     if (isPact(req)) return servePact(req, res, next);
     if (isLair(req)) return serveLair(req, res, next);
+    if (isKcr(req))  return serveKcr(req, res, next);
     return serveLms(req, res, next);
   });
 
@@ -130,6 +136,7 @@ if (process.env.NODE_ENV === 'production') {
     if (path.extname(req.path)) return next();
     if (isPact(req)) return res.sendFile(path.join(pactDir, 'index.html'));
     if (isLair(req)) return res.sendFile(path.join(lairDir, 'index.html'));
+    if (isKcr(req))  return res.sendFile(path.join(kcrDir,  'index.html'));
     return res.sendFile(path.join(lmsDir, 'index.html'));
   });
 }

@@ -19,6 +19,11 @@ const ScenarioPackage       = require('./ScenarioPackage')(sequelize);
 const ScenarioPackageUnlock = require('./ScenarioPackageUnlock')(sequelize);
 const CourseContentItem     = require('./CourseContentItem')(sequelize);
 const CourseContentUnlock   = require('./CourseContentUnlock')(sequelize);
+const KcrEnvironment        = require('./KcrEnvironment')(sequelize);
+const KcrVenue              = require('./KcrVenue')(sequelize);
+const KcrRoom               = require('./KcrRoom')(sequelize);
+const KcrArtifact           = require('./KcrArtifact')(sequelize);
+const KcrPlacement          = require('./KcrPlacement')(sequelize);
 
 // ── User ↔ Course (instructor relationship) ────────────────────────────────
 Course.belongsTo(User, { as: 'instructor', foreignKey: 'instructor_id' });
@@ -98,6 +103,25 @@ ScenarioPackageUnlock.belongsTo(User, { as: 'unlocker', foreignKey: 'unlocked_by
 Course.hasMany(ScenarioPackage, { as: 'scenarioPackages', foreignKey: 'course_id', onDelete: 'CASCADE' });
 ScenarioPackage.belongsTo(Course,               { foreignKey: 'course_id' });
 
+// ── KCR associations ──────────────────────────────────────────────────────────
+KcrEnvironment.hasMany(KcrVenue,    { as: 'venues',    foreignKey: 'environment_id', onDelete: 'CASCADE' });
+KcrVenue.belongsTo(KcrEnvironment,                    { foreignKey: 'environment_id' });
+
+KcrVenue.hasMany(KcrRoom,           { as: 'rooms',     foreignKey: 'venue_id', onDelete: 'CASCADE' });
+KcrRoom.belongsTo(KcrVenue,                           { foreignKey: 'venue_id' });
+
+KcrEnvironment.hasMany(KcrArtifact, { as: 'artifacts', foreignKey: 'environment_id', onDelete: 'CASCADE' });
+KcrArtifact.belongsTo(KcrEnvironment,                 { foreignKey: 'environment_id' });
+
+KcrRoom.hasMany(KcrPlacement,       { as: 'placements', foreignKey: 'room_id', onDelete: 'CASCADE' });
+KcrPlacement.belongsTo(KcrRoom,                        { foreignKey: 'room_id' });
+
+KcrArtifact.hasMany(KcrPlacement,   { as: 'placements', foreignKey: 'artifact_id', onDelete: 'CASCADE' });
+KcrPlacement.belongsTo(KcrArtifact, { as: 'artifact',   foreignKey: 'artifact_id' });
+
+Course.hasMany(KcrEnvironment,      { as: 'kcrEnvironments', foreignKey: 'course_id' });
+KcrEnvironment.belongsTo(Course,                             { foreignKey: 'course_id' });
+
 // ── CourseContentItem ↔ CourseContentUnlock ────────────────────────────────
 Course.hasMany(CourseContentItem, { as: 'contentItems', foreignKey: 'course_id', onDelete: 'CASCADE' });
 CourseContentItem.belongsTo(Course, { foreignKey: 'course_id' });
@@ -126,4 +150,9 @@ module.exports = {
   ScenarioPackageUnlock,
   CourseContentItem,
   CourseContentUnlock,
+  KcrEnvironment,
+  KcrVenue,
+  KcrRoom,
+  KcrArtifact,
+  KcrPlacement,
 };

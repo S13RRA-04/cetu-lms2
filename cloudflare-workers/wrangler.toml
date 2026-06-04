@@ -9,4 +9,5 @@ compatibility_date = "2025-05-29"
 #   3. A DNS CNAME in Cloudflare: <subdomain>.cetu.online → cetu-lms.onrender.com (Proxied)
 routes = [
   { pattern = "lair.cetu.online/*", zone_name = "cetu.online" },
+  { pattern = "kcr.cetu.online/*",  zone_name = "cetu.online" },
 ]

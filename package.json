@@ -6,7 +6,10 @@
   "directories": {
     "doc": "docs"
   },
-  "scripts": {},
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/S13RRA-04/cetu-lms2.git"
@@ -21,6 +24,7 @@
   "homepage": "https://github.com/S13RRA-04/cetu-lms2#readme",
   "devDependencies": {
     "@playwright/test": "^1.60.0",
-    "@types/node": "^25.9.1"
+    "@types/node": "^25.9.1",
+    "wrangler": "^4.98.0"
   }
 }
