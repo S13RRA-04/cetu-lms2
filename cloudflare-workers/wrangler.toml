@@ -1,4 +1,4 @@
-name = "cetu-app-proxy"
+name = "lair-proxy"
 main = "src/index.js"
 compatibility_date = "2025-05-29"
 
