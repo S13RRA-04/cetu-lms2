@@ -100,3 +100,9 @@ export const getCourseGrades = (courseId, cohortId) =>
 
 export const getCourseAnalytics = (courseId, cohortId) =>
   client.get(`/courses/${courseId}/analytics`, { params: cohortId ? { cohort_id: cohortId } : {} }).then((r) => r.data);
+
+export const getCourseEffectiveness = (courseId, cohortId) =>
+  client.get(`/courses/${courseId}/effectiveness`, { params: cohortId ? { cohort_id: cohortId } : {} }).then((r) => r.data);
+
+export const getProgramOverview = () =>
+  client.get('/courses/program-overview').then((r) => r.data);

@@ -20,6 +20,9 @@ const { createAssignmentSchema, updateAssignmentSchema, gradeSchema, unlockSchem
 
 const router = Router();
 
+// Program overview (admin — all courses)
+router.get('/program-overview', requireAuth, requireAdmin, ctrl.getProgramOverview);
+
 // Courses
 router.get('/',    requireAuth,                    ctrl.list);
 router.post('/',   requireAuth, requireInstructor, validate(createCourseSchema), auditLog('create', 'course'), ctrl.create);
@@ -49,7 +52,8 @@ router.delete('/:id/modules/:mid/content/:cid', requireAuth, requireInstructor, 
 // Student grade summary + scoreboard
 router.get('/:id/grades/me',  requireAuth,                    assignCtrl.getMyGrades);
 router.get('/:id/grades',     requireAuth, requireInstructor, assignCtrl.getCourseGrades);
-router.get('/:id/analytics',  requireAuth, requireInstructor, assignCtrl.getCourseAnalytics);
+router.get('/:id/analytics',     requireAuth, requireInstructor, assignCtrl.getCourseAnalytics);
+router.get('/:id/effectiveness', requireAuth, requireInstructor, assignCtrl.getCourseEffectiveness);
 router.get('/:id/scoreboard', requireAuth,                    assignCtrl.getScoreboard);
 
 // Assignments (nested under course)

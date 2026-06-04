@@ -1,5 +1,6 @@
 'use strict';
-const courseService = require('../services/course.service');
+const courseService     = require('../services/course.service');
+const analyticsService  = require('../services/analytics.service');
 
 async function list(req, res, next) {
   try { return res.json(await courseService.listCourses(req.query, req.user)); }
@@ -46,4 +47,9 @@ async function removeModule(req, res, next) {
   catch (err) { return next(err); }
 }
 
-module.exports = { list, getOne, create, update, remove, listModules, createModule, updateModule, removeModule };
+async function getProgramOverview(req, res, next) {
+  try { return res.json(await analyticsService.getProgramOverview()); }
+  catch (err) { return next(err); }
+}
+
+module.exports = { list, getOne, create, update, remove, listModules, createModule, updateModule, removeModule, getProgramOverview };
