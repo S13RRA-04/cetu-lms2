@@ -24,6 +24,12 @@ import {
   deleteContentItem,
   unlockContentItem,
   lockContentItem,
+  getCampaignDrops,
+  createCampaignDrop,
+  updateCampaignDrop,
+  deleteCampaignDrop,
+  releaseCampaignDrop,
+  lockCampaignDrop,
 } from '../api/pact.js';
 
 const TYPE_COLOR = {
@@ -143,7 +149,7 @@ export default function AdminPage() {
   const [selectedSub,        setSelectedSub]        = useState(null);
   const [savedGrades,        setSavedGrades]        = useState({});
 
-  // top-level admin panel: 'grading' | 'scenarios' | 'content' | 'library'
+  // top-level admin panel: 'grading' | 'scenarios' | 'content' | 'library' | 'campaign'
   const [adminPanel, setAdminPanel] = useState('grading');
 
   // scenarios state
@@ -256,9 +262,17 @@ export default function AdminPage() {
         >
           File Library
         </button>
+        <button
+          className={`admin-panel-tab${adminPanel === 'campaign' ? ' active' : ''}`}
+          onClick={() => setAdminPanel('campaign')}
+        >
+          Campaign Drops
+        </button>
       </div>
 
-      {adminPanel === 'library' ? (
+      {adminPanel === 'campaign' ? (
+        <CampaignDropsPanel cohorts={cohorts} />
+      ) : adminPanel === 'library' ? (
         <FileLibraryPanel
           onContentPublished={() => setContentLoaded(false)}
         />
@@ -1352,6 +1366,320 @@ function SubmissionDetail({ sub, assignment, existingGrade, onGradeSaved }) {
           onSaved={handleSaved}
         />
       </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CAMPAIGN DROPS PANEL
+═══════════════════════════════════════════════════════════ */
+
+const VICTIM_NAMES = { 1: 'Redstone Memorial Hospital', 2: 'Dogwood Hotel', 3: 'CyberDyne Data Center', 4: 'Pixel Play Arcade' };
+const VICTIM_COLORS = { 1: '#ef4444', 2: '#f59e0b', 3: '#3b82f6', 4: '#8b5cf6' };
+
+function DropFormInline({ initial, onSave, onCancel }) {
+  const [form, setForm] = useState({
+    number:          initial?.number          ?? '',
+    title:           initial?.title           ?? '',
+    narrative_intro: initial?.narrative_intro ?? '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [err,    setErr]    = useState('');
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const handleSave = async () => {
+    if (!form.number || !form.title.trim()) { setErr('Drop number and title are required.'); return; }
+    setSaving(true);
+    setErr('');
+    try {
+      const payload = { ...form, number: Number(form.number) };
+      if (initial) await updateCampaignDrop(initial.id, payload);
+      else         await createCampaignDrop(payload);
+      onSave();
+    } catch (e) {
+      setErr(e.response?.data?.error?.message ?? 'Save failed');
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="publish-form" style={{ marginTop: 8 }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
+        <div style={{ flex: '0 0 80px' }}>
+          <label className="admin-grade-label">Drop #</label>
+          <input
+            type="number" min={1} max={6}
+            value={form.number}
+            onChange={set('number')}
+            style={{ width: '100%' }}
+          />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label className="admin-grade-label">Title *</label>
+          <input
+            value={form.title}
+            onChange={set('title')}
+            placeholder="e.g. Initial Breach"
+            style={{ width: '100%' }}
+          />
+        </div>
+      </div>
+      <div style={{ marginBottom: 8 }}>
+        <label className="admin-grade-label">Command Post Bulletin (shown to students when released)</label>
+        <textarea
+          value={form.narrative_intro}
+          onChange={set('narrative_intro')}
+          rows={4}
+          placeholder="Intel brief, narrative context, tasking orders…"
+          style={{ width: '100%', resize: 'vertical' }}
+        />
+      </div>
+      {err && <div className="err-msg">{err}</div>}
+      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+        <button className="btn-submit" style={{ width: 'auto' }} onClick={handleSave} disabled={saving}>
+          {saving ? 'Saving…' : initial ? 'Update Drop' : 'Create Drop'}
+        </button>
+        <button className="btn-secondary" onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function CampaignDropsPanel({ cohorts }) {
+  const [drops,     setDrops]    = useState([]);
+  const [loading,   setLoading]  = useState(true);
+  const [cohortId,  setCohortId] = useState(() => cohorts[0]?.id ?? '');
+  const [addOpen,   setAddOpen]  = useState(false);
+  const [editDrop,  setEditDrop] = useState(null);
+  const [delDrop,   setDelDrop]  = useState(null);
+  const [working,   setWorking]  = useState(null);
+  const [err,       setErr]      = useState('');
+
+  const load = useCallback(() => {
+    setLoading(true);
+    setErr('');
+    getCampaignDrops(cohortId || undefined)
+      .then((d) => setDrops(Array.isArray(d) ? d : []))
+      .catch(() => setErr('Failed to load campaign drops.'))
+      .finally(() => setLoading(false));
+  }, [cohortId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleRelease = async (drop) => {
+    if (!cohortId) { setErr('Select a cohort first.'); return; }
+    setWorking(drop.id + ':release');
+    setErr('');
+    try { await releaseCampaignDrop(drop.id, cohortId); load(); }
+    catch (e) { setErr(e.response?.data?.error?.message ?? 'Release failed'); }
+    finally { setWorking(null); }
+  };
+
+  const handleLock = async (drop) => {
+    if (!cohortId) { setErr('Select a cohort first.'); return; }
+    setWorking(drop.id + ':lock');
+    setErr('');
+    try { await lockCampaignDrop(drop.id, cohortId); load(); }
+    catch (e) { setErr(e.response?.data?.error?.message ?? 'Lock failed'); }
+    finally { setWorking(null); }
+  };
+
+  const handleDelete = async (drop) => {
+    setWorking(drop.id + ':delete');
+    try { await deleteCampaignDrop(drop.id); setDelDrop(null); load(); }
+    catch (e) { setErr(e.response?.data?.error?.message ?? 'Delete failed'); }
+    finally { setWorking(null); }
+  };
+
+  return (
+    <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
+      {/* Header row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '.1em', color: 'var(--primary)', marginBottom: 4 }}>
+            OPERATION BRKR — DROP CONTROL
+          </div>
+          <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>
+            Create drops, write Command Post bulletins, and release to cohorts. Files tagged with a drop number unlock automatically when the drop is released.
+          </p>
+        </div>
+        <button
+          className="btn-submit"
+          style={{ width: 'auto', flexShrink: 0 }}
+          onClick={() => { setAddOpen((v) => !v); setEditDrop(null); }}
+        >
+          {addOpen ? 'Cancel' : '+ New Drop'}
+        </button>
+      </div>
+
+      {addOpen && (
+        <div style={{ marginBottom: 16, padding: '12px 16px', background: 'var(--surface-2, #f8fafc)', borderRadius: 8, border: '1px solid var(--border)' }}>
+          <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>NEW DROP</div>
+          <DropFormInline
+            onSave={() => { setAddOpen(false); load(); }}
+            onCancel={() => setAddOpen(false)}
+          />
+        </div>
+      )}
+
+      {/* Cohort selector */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, padding: '10px 14px', background: 'var(--surface-2, #f8fafc)', borderRadius: 8, border: '1px solid var(--border)' }}>
+        <span style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>Release to:</span>
+        {cohorts.length === 0 ? (
+          <span style={{ color: 'var(--muted)', fontSize: 13 }}>No cohorts found</span>
+        ) : (
+          <select
+            value={cohortId}
+            onChange={(e) => setCohortId(e.target.value)}
+            style={{ flex: 1, padding: '5px 8px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13, background: 'white' }}
+          >
+            <option value="">— pick cohort —</option>
+            {cohorts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
+        <button
+          className="btn-secondary"
+          style={{ fontSize: 12, padding: '4px 10px', flexShrink: 0 }}
+          onClick={load}
+          disabled={loading}
+        >
+          {loading ? '…' : 'Refresh'}
+        </button>
+      </div>
+
+      {err && <div className="err-msg" style={{ marginBottom: 10 }}>{err}</div>}
+
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 32 }}><div className="spinner" /></div>
+      ) : drops.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 32, color: 'var(--muted)', fontSize: 13 }}>
+          No drops yet. Create the first one above.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {[...drops].sort((a, b) => a.number - b.number).map((drop) => {
+            const isUnlocked = drop.is_unlocked;
+            const isWorking  = !!working?.startsWith(drop.id);
+            const isEditing  = editDrop?.id === drop.id;
+            return (
+              <div
+                key={drop.id}
+                style={{
+                  border: `1px solid ${isUnlocked ? 'var(--primary)' : 'var(--border)'}`,
+                  borderLeft: `4px solid ${isUnlocked ? 'var(--primary)' : 'var(--border)'}`,
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                  background: 'var(--surface, #fff)',
+                }}
+              >
+                {/* Drop header */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px' }}>
+                  <span style={{
+                    fontFamily: 'var(--mono)', fontSize: 11, fontWeight: 700,
+                    padding: '2px 8px', borderRadius: 4, flexShrink: 0,
+                    background: isUnlocked ? 'var(--primary)' : 'var(--surface-2, #f1f5f9)',
+                    color:      isUnlocked ? '#fff' : 'var(--muted)',
+                  }}>
+                    DROP {drop.number}
+                  </span>
+                  <span style={{ fontWeight: 600, fontSize: 14, flex: 1 }}>{drop.title}</span>
+                  {isUnlocked && cohortId && (
+                    <span style={{ fontSize: 11, color: '#10b981', fontWeight: 600, flexShrink: 0 }}>● RELEASED</span>
+                  )}
+
+                  {/* Action buttons */}
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    {cohortId && (
+                      isUnlocked ? (
+                        <button
+                          className="btn-secondary"
+                          style={{ fontSize: 12, padding: '4px 12px' }}
+                          disabled={isWorking}
+                          onClick={() => handleLock(drop)}
+                        >
+                          {working === drop.id + ':lock' ? '…' : 'Lock'}
+                        </button>
+                      ) : (
+                        <button
+                          className="btn-submit"
+                          style={{ fontSize: 12, padding: '4px 12px', width: 'auto' }}
+                          disabled={isWorking}
+                          onClick={() => handleRelease(drop)}
+                        >
+                          {working === drop.id + ':release' ? '…' : 'Release'}
+                        </button>
+                      )
+                    )}
+                    <button
+                      className="btn-secondary"
+                      style={{ fontSize: 12, padding: '4px 10px' }}
+                      onClick={() => setEditDrop(isEditing ? null : drop)}
+                    >
+                      {isEditing ? 'Cancel' : 'Edit'}
+                    </button>
+                    <button
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: 16, lineHeight: 1, padding: '4px 6px' }}
+                      disabled={isWorking}
+                      onClick={() => setDelDrop(drop)}
+                      title="Delete drop"
+                    >✕</button>
+                  </div>
+                </div>
+
+                {/* Bulletin preview */}
+                {drop.narrative_intro && !isEditing && (
+                  <div style={{
+                    padding: '8px 14px 10px',
+                    borderTop: '1px solid var(--border)',
+                    fontSize: 12, color: 'var(--muted)', lineHeight: 1.6,
+                    whiteSpace: 'pre-wrap',
+                    maxHeight: 80, overflow: 'hidden',
+                    background: isUnlocked ? 'rgba(var(--primary-rgb, 0,176,255), 0.04)' : undefined,
+                  }}>
+                    {drop.narrative_intro}
+                  </div>
+                )}
+
+                {/* Inline edit form */}
+                {isEditing && (
+                  <div style={{ padding: '0 14px 14px', borderTop: '1px solid var(--border)' }}>
+                    <DropFormInline
+                      initial={drop}
+                      onSave={() => { setEditDrop(null); load(); }}
+                      onCancel={() => setEditDrop(null)}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Delete confirm */}
+      {delDrop && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+        }}>
+          <div style={{ background: '#fff', borderRadius: 10, padding: 24, maxWidth: 380, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,.2)' }}>
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>Delete Drop {delDrop.number}?</div>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
+              "{delDrop.title}" will be removed. Files tagged to this drop won't be deleted, but they'll no longer auto-release with it.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className="btn-secondary" onClick={() => setDelDrop(null)}>Cancel</button>
+              <button
+                className="btn-submit"
+                style={{ width: 'auto', background: 'var(--danger, #ef4444)' }}
+                disabled={!!working}
+                onClick={() => handleDelete(delDrop)}
+              >
+                {working ? '…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
