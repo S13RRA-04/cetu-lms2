@@ -6,7 +6,8 @@ const assignCtrl   = require('../controllers/assignment.controller');
 const contentCtrl  = require('../controllers/contentItem.controller');
 const subCtrl      = require('../controllers/submission.controller');
 const cohortCtrl   = require('../controllers/cohort.controller');
-const squadCtrl    = require('../controllers/squad.controller');
+const cellCtrl         = require('../controllers/cell.controller');
+const campaignCtrl     = require('../controllers/campaign.controller');
 const scenarioCtrl     = require('../controllers/scenario.controller');
 const courseContentCtrl = require('../controllers/courseContent.controller');
 const { requireAuth, requireInstructor, requireAdmin } = require('../middleware/auth');
@@ -77,16 +78,16 @@ router.get('/:id/assignments/:aid/progress',               requireAuth, requireI
 router.post('/:id/assignments/:aid/unlock',  requireAuth, requireInstructor, validate(unlockSchema), auditLog('unlock', 'assignment'), assignCtrl.unlockForCohort);
 router.post('/:id/assignments/:aid/lock',    requireAuth, requireInstructor, validate(unlockSchema), auditLog('lock',   'assignment'), assignCtrl.lockForCohort);
 
-// Squad grading
-router.put('/:id/assignments/:aid/grades/squad/:squadId', requireAuth, requireInstructor, validate(gradeSchema), assignCtrl.gradeSquad);
+// Cell grading
+router.put('/:id/assignments/:aid/grades/cell/:squadId',  requireAuth, requireInstructor, validate(gradeSchema), assignCtrl.gradeSquad);
 
-// Squads (nested under cohort)
-router.get('/:id/cohorts/:cid/squads',                    requireAuth, requireInstructor, squadCtrl.listByCohort);
-router.post('/:id/cohorts/:cid/squads',                   requireAuth, requireInstructor, squadCtrl.create);
-router.put('/:id/cohorts/:cid/squads/:sid',               requireAuth, requireInstructor, squadCtrl.update);
-router.delete('/:id/cohorts/:cid/squads/:sid',            requireAuth, requireInstructor, squadCtrl.remove);
-router.post('/:id/cohorts/:cid/squads/:sid/members',      requireAuth, requireInstructor, squadCtrl.assignMember);
-router.delete('/:id/cohorts/:cid/squads/:sid/members/:uid', requireAuth, requireInstructor, squadCtrl.removeMember);
+// Cells (nested under cohort)
+router.get('/:id/cohorts/:cid/cells',                     requireAuth, requireInstructor, cellCtrl.listByCohort);
+router.post('/:id/cohorts/:cid/cells',                    requireAuth, requireInstructor, cellCtrl.create);
+router.put('/:id/cohorts/:cid/cells/:sid',                requireAuth, requireInstructor, cellCtrl.update);
+router.delete('/:id/cohorts/:cid/cells/:sid',             requireAuth, requireInstructor, cellCtrl.remove);
+router.post('/:id/cohorts/:cid/cells/:sid/members',       requireAuth, requireInstructor, cellCtrl.assignMember);
+router.delete('/:id/cohorts/:cid/cells/:sid/members/:uid', requireAuth, requireInstructor, cellCtrl.removeMember);
 
 // Cohorts (nested under course)
 router.get('/:id/cohorts',                    requireAuth, requireInstructor, cohortCtrl.listByCourse);
@@ -120,5 +121,13 @@ router.put('/:id/course-content/:cid',      requireAuth, requireInstructor, cour
 router.delete('/:id/course-content/:cid',   requireAuth, requireInstructor, courseContentCtrl.remove);
 router.post('/:id/course-content/:cid/unlock', requireAuth, requireInstructor, courseContentCtrl.unlockForCohort);
 router.post('/:id/course-content/:cid/lock',   requireAuth, requireInstructor, courseContentCtrl.lockForCohort);
+
+// Campaign drops
+router.get('/:id/campaign/drops',              requireAuth,                    campaignCtrl.listDrops);
+router.post('/:id/campaign/drops',             requireAuth, requireInstructor, campaignCtrl.createDrop);
+router.put('/:id/campaign/drops/:did',         requireAuth, requireInstructor, campaignCtrl.updateDrop);
+router.delete('/:id/campaign/drops/:did',      requireAuth, requireInstructor, campaignCtrl.deleteDrop);
+router.post('/:id/campaign/drops/:did/release',requireAuth, requireInstructor, campaignCtrl.releaseDrop);
+router.post('/:id/campaign/drops/:did/lock',   requireAuth, requireInstructor, campaignCtrl.lockDrop);
 
 module.exports = router;

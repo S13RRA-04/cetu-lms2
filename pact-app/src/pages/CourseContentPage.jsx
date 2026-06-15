@@ -2,14 +2,21 @@ import { useEffect, useState } from 'react';
 import { getCourseContent } from '../api/pact.js';
 
 const TYPE_META = {
-  slides:   { label: 'Slides',   icon: '◈', color: '#6366f1' },
-  handout:  { label: 'Handout',  icon: '◇', color: '#0ea5e9' },
-  agenda:   { label: 'Agenda',   icon: '⬡', color: '#10b981' },
-  form:     { label: 'Form',     icon: '◉', color: '#f59e0b' },
-  resource: { label: 'Resource', icon: '◆', color: '#8b5cf6' },
+  // Standard course materials
+  slides:      { label: 'Slides',       icon: '◈', color: '#6366f1', group: 'materials' },
+  handout:     { label: 'Handout',      icon: '◇', color: '#0ea5e9', group: 'materials' },
+  agenda:      { label: 'Agenda',       icon: '⬡', color: '#10b981', group: 'materials' },
+  form:        { label: 'Form',         icon: '◉', color: '#f59e0b', group: 'materials' },
+  resource:    { label: 'Resource',     icon: '◆', color: '#8b5cf6', group: 'materials' },
+  // Campaign content types
+  briefing:    { label: 'CP Briefing',  icon: '▣', color: '#ef4444', group: 'campaign' },
+  evidence:    { label: 'Evidence',     icon: '◑', color: '#22c55e', group: 'campaign' },
+  intel_report:{ label: 'Intel Report', icon: '◐', color: '#f97316', group: 'campaign' },
 };
 
-const TYPE_ORDER = ['slides', 'handout', 'agenda', 'form', 'resource'];
+const CAMPAIGN_TYPES = ['briefing', 'evidence', 'intel_report'];
+const MATERIAL_TYPES = ['slides', 'handout', 'agenda', 'form', 'resource'];
+const TYPE_ORDER = [...CAMPAIGN_TYPES, ...MATERIAL_TYPES];
 
 export default function CourseContentPage() {
   const [items,   setItems]   = useState([]);
@@ -30,13 +37,35 @@ export default function CourseContentPage() {
 
   const visible = filter === 'all'
     ? unlocked
+    : filter === 'campaign'
+    ? unlocked.filter((i) => CAMPAIGN_TYPES.includes(i.content_type))
+    : filter === 'materials'
+    ? unlocked.filter((i) => MATERIAL_TYPES.includes(i.content_type))
     : unlocked.filter((i) => i.content_type === filter);
+
+  // Group visible campaign items by drop_number, then append untagged items
+  const hasCampaignItems = unlocked.some((i) => CAMPAIGN_TYPES.includes(i.content_type));
+
+  // Split campaign items by drop for grouped display
+  const campaignByDrop = (() => {
+    const campaignItems = visible.filter((i) => CAMPAIGN_TYPES.includes(i.content_type));
+    if (campaignItems.length === 0) return [];
+    const dropNums = [...new Set(campaignItems.map((i) => i.drop_number))].sort((a, b) => {
+      if (a === null) return 1; if (b === null) return -1; return a - b;
+    });
+    return dropNums.map((num) => ({
+      drop: num,
+      items: campaignItems.filter((i) => i.drop_number === num),
+    }));
+  })();
+
+  const materialItems = visible.filter((i) => MATERIAL_TYPES.includes(i.content_type));
 
   return (
     <div className="cc-page">
       <div className="cc-header">
-        <h1 className="page-title">Course Content</h1>
-        <p className="page-subtitle">Slides, handouts, agendas, and resources released for your cohort.</p>
+        <h1 className="page-title">Case File</h1>
+        <p className="page-subtitle">Evidence, briefings, intelligence reports, and course materials released for your cohort.</p>
       </div>
 
       {unlocked.length === 0 ? (
@@ -54,6 +83,16 @@ export default function CourseContentPage() {
             >
               All <span className="cc-filter-count">{unlocked.length}</span>
             </button>
+            {hasCampaignItems && (
+              <button
+                className={`cc-filter-tab${filter === 'campaign' ? ' active' : ''}`}
+                style={filter === 'campaign' ? { borderColor: '#ef4444', color: '#ef4444' } : {}}
+                onClick={() => setFilter('campaign')}
+              >
+                ◑ Case Materials
+                <span className="cc-filter-count">{unlocked.filter((i) => CAMPAIGN_TYPES.includes(i.content_type)).length}</span>
+              </button>
+            )}
             {TYPE_ORDER.filter((t) => typesUsed.includes(t)).map((t) => (
               <button
                 key={t}
@@ -67,38 +106,74 @@ export default function CourseContentPage() {
             ))}
           </div>
 
-          <div className="cc-grid">
-            {visible.map((item) => (
-              <ContentCard key={item.id} item={item} />
-            ))}
-          </div>
+          {/* Campaign materials grouped by drop */}
+          {campaignByDrop.map(({ drop, items: dropItems }) => (
+            <div key={drop ?? 'none'} style={{ marginBottom: 28 }}>
+              {drop != null && (
+                <div style={{
+                  fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', color: 'var(--primary)',
+                  marginBottom: 10, paddingBottom: 6, borderBottom: '1px solid var(--border)',
+                  textTransform: 'uppercase',
+                }}>
+                  DROP {drop} — RELEASED MATERIALS
+                </div>
+              )}
+              <div className="cc-grid">
+                {dropItems.map((item) => <CaseCard key={item.id} item={item} />)}
+              </div>
+            </div>
+          ))}
+
+          {/* Standard materials */}
+          {materialItems.length > 0 && (
+            <>
+              {hasCampaignItems && (
+                <div style={{
+                  fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', color: 'var(--muted)',
+                  marginBottom: 10, paddingBottom: 6, borderBottom: '1px solid var(--border)',
+                  textTransform: 'uppercase',
+                }}>
+                  COURSE MATERIALS
+                </div>
+              )}
+              <div className="cc-grid">
+                {materialItems.map((item) => <CaseCard key={item.id} item={item} />)}
+              </div>
+            </>
+          )}
         </>
       )}
     </div>
   );
 }
 
-function ContentCard({ item }) {
-  const meta = TYPE_META[item.content_type] ?? TYPE_META.resource;
-  const url  = item.download_url ?? item.url;
+function CaseCard({ item }) {
+  const meta    = TYPE_META[item.content_type] ?? TYPE_META.resource;
+  const isCampaign = CAMPAIGN_TYPES.includes(item.content_type);
+
+  const handleOpen = () => {
+    if (item.url) window.open(item.url, '_blank', 'noopener');
+  };
 
   return (
-    <a
+    <div
       className="cc-card"
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      style={{ '--cc-color': meta.color }}
+      onClick={handleOpen}
+      style={{
+        cursor: item.url ? 'pointer' : 'default',
+        borderLeft: isCampaign ? `3px solid ${meta.color}` : undefined,
+      }}
     >
-      <div className="cc-card-icon">{meta.icon}</div>
+      <div className="cc-card-icon" style={{ color: meta.color }}>{meta.icon}</div>
       <div className="cc-card-body">
-        <div className="cc-card-type">{meta.label}</div>
+        <div className="cc-card-type" style={{ color: meta.color }}>{meta.label}</div>
         <div className="cc-card-title">{item.title}</div>
         {item.description && <div className="cc-card-desc">{item.description}</div>}
+        {item.file_name && <div className="cc-card-file">{item.file_name}</div>}
       </div>
-      <div className="cc-card-action">
-        {item.r2_key ? '↓' : '↗'}
-      </div>
-    </a>
+      {item.url && (
+        <div className="cc-card-arrow" style={{ color: meta.color }}>→</div>
+      )}
+    </div>
   );
 }

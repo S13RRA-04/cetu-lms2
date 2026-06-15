@@ -6,11 +6,15 @@ module.exports = (sequelize) => sequelize.define('CourseContentItem', {
   course_id:    { type: DataTypes.UUID, allowNull: false },
   title:        { type: DataTypes.STRING(255), allowNull: false },
   description:  { type: DataTypes.TEXT },
-  content_type: { type: DataTypes.ENUM('slides', 'handout', 'agenda', 'form', 'resource'), defaultValue: 'resource' },
+  content_type: {
+    type: DataTypes.ENUM('slides', 'handout', 'agenda', 'form', 'resource', 'briefing', 'evidence', 'intel_report'),
+    defaultValue: 'resource',
+  },
   url:          { type: DataTypes.TEXT },
   r2_key:       { type: DataTypes.STRING(512) },
   file_name:    { type: DataTypes.STRING(255) },
   file_size:    { type: DataTypes.BIGINT },
+  drop_number:  { type: DataTypes.SMALLINT, allowNull: true, defaultValue: null },
   order_index:  { type: DataTypes.INTEGER, defaultValue: 0 },
   is_published: { type: DataTypes.BOOLEAN, defaultValue: false },
 }, { tableName: 'course_content_items', underscored: true });

@@ -12,8 +12,12 @@ import {
 } from '../../api/courses.js';
 import {
   listCohorts, createCohort, updateCohort, deleteCohort, addMember, removeMember,
-  listSquads, createSquad, deleteSquad, assignToSquad, removeFromSquad,
+  listCells, createCell, deleteCell, assignToCell, removeFromCell,
 } from '../../api/cohorts.js';
+import {
+  getCampaignDrops, createCampaignDrop, updateCampaignDrop, deleteCampaignDrop,
+  releaseCampaignDrop, lockCampaignDrop,
+} from '../../api/courses.js';
 import { getUsers } from '../../api/users.js';
 import { getLaunchUrl } from '../../api/auth.js';
 import useAuthStore from '../../store/authStore.js';
@@ -199,7 +203,7 @@ function AssignmentForm({ courseId, initial, onSave, onClose }) {
           <label>Grading Mode</label>
           <select value={form.grading_mode} onChange={set('grading_mode')}>
             <option value="individual">Individual</option>
-            <option value="squad">Squad</option>
+            <option value="squad">Cell (squad)</option>
           </select>
         </div>
       </div>
@@ -266,8 +270,8 @@ function AssignmentForm({ courseId, initial, onSave, onClose }) {
   );
 }
 
-// ── Add Squad Form ────────────────────────────────────────────────────────────
-function AddSquadForm({ courseId, cohortId, onSave, onClose }) {
+// ── Add Cell Form ─────────────────────────────────────────────────────────────
+function AddCellForm({ courseId, cohortId, onSave, onClose }) {
   const [number, setNumber] = useState(1);
   const [name,   setName]   = useState('');
   const [saving, setSaving] = useState(false);
@@ -276,7 +280,7 @@ function AddSquadForm({ courseId, cohortId, onSave, onClose }) {
     e.preventDefault();
     setSaving(true);
     try {
-      await createSquad(courseId, cohortId, { number: Number(number), name: name || null });
+      await createCell(courseId, cohortId, { number: Number(number), name: name || null });
       onSave();
     } finally { setSaving(false); }
   };
@@ -285,86 +289,98 @@ function AddSquadForm({ courseId, cohortId, onSave, onClose }) {
     <form onSubmit={submit}>
       <div className="grid-2">
         <div className="form-group">
-          <label>Number (1–4) *</label>
-          <input type="number" value={number} onChange={(e) => setNumber(e.target.value)} min={1} max={4} required />
+          <label>Number *</label>
+          <input type="number" value={number} onChange={(e) => setNumber(e.target.value)} min={1} required />
         </div>
         <div className="form-group">
           <label>Name (optional)</label>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Alpha" />
         </div>
       </div>
+      <p className="text-xs text-muted" style={{ marginTop: 4 }}>
+        Cell number determines investigation target (1→Redstone, 2→Dogwood, 3→CyberDyne, 4→PixelPlay, then cycles).
+      </p>
       <div className="flex-end" style={{ marginTop: 16, gap: 8 }}>
         <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-        <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Add Squad'}</button>
+        <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Add Cell'}</button>
       </div>
     </form>
   );
 }
 
-// ── Squads Panel ──────────────────────────────────────────────────────────────
-function SquadsPanel({ courseId, cohortId, cohortMembers }) {
-  const [squads,    setSquads]    = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [addModal,  setAddModal]  = useState(false);
-  const [delSquad,  setDelSquad]  = useState(null);
+// ── Cells Panel ───────────────────────────────────────────────────────────────
+const VICTIM_COLORS = { 1: '#ef4444', 2: '#f59e0b', 3: '#3b82f6', 4: '#8b5cf6' };
+const VICTIM_NAMES  = { 1: 'Redstone', 2: 'Dogwood', 3: 'CyberDyne', 4: 'PixelPlay' };
+
+function CellsPanel({ courseId, cohortId, cohortMembers }) {
+  const [cells,    setCells]   = useState([]);
+  const [loading,  setLoading] = useState(true);
+  const [addModal, setAddModal] = useState(false);
+  const [delCell,  setDelCell] = useState(null);
 
   const load = useCallback(() =>
-    listSquads(courseId, cohortId).then(setSquads).finally(() => setLoading(false)),
+    listCells(courseId, cohortId).then(setCells).finally(() => setLoading(false)),
   [courseId, cohortId]);
 
   useEffect(() => { load(); }, [load]);
 
   if (loading) return <LoadingSpinner />;
 
-  const assignedIds = new Set(squads.flatMap((s) => (s.students ?? []).map((u) => u.id)));
+  const assignedIds = new Set(cells.flatMap((c) => (c.students ?? []).map((u) => u.id)));
   const unassigned  = (cohortMembers ?? []).filter((m) => !assignedIds.has(m.id));
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <span className="fw-600">Squads ({squads.length})</span>
-        <button className="btn btn-primary btn-sm" onClick={() => setAddModal(true)}>+ Add Squad</button>
+        <span className="fw-600">Task Force Cells ({cells.length})</span>
+        <button className="btn btn-primary btn-sm" onClick={() => setAddModal(true)}>+ Add Cell</button>
       </div>
 
-      {squads.length === 0 ? (
-        <p className="text-muted text-sm">No squads yet. Add up to 4 squads for this cohort.</p>
-      ) : squads.map((squad) => (
-        <div key={squad.id} style={{ border: '1px solid var(--border)', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--surface)' }}>
-            <span className="fw-600" style={{ fontSize: 14 }}>
-              Squad {squad.number}{squad.name ? ` — ${squad.name}` : ''}
-              <span className="text-muted" style={{ fontWeight: 400, marginLeft: 8, fontSize: 12 }}>
-                {(squad.students ?? []).length} member{(squad.students ?? []).length !== 1 ? 's' : ''}
+      {cells.length === 0 ? (
+        <p className="text-muted text-sm">No cells yet. Add cells to assign students to investigation targets.</p>
+      ) : cells.map((cell) => {
+        const victimKey   = ((Number(cell.number) - 1) % 4) + 1;
+        const victimColor = VICTIM_COLORS[victimKey];
+        const victimName  = VICTIM_NAMES[victimKey];
+        return (
+          <div key={cell.id} style={{ border: `1px solid ${victimColor}40`, borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: `${victimColor}0d` }}>
+              <span className="fw-600" style={{ fontSize: 14 }}>
+                <span style={{ color: victimColor, marginRight: 6 }}>■</span>
+                Cell {cell.number}{cell.name ? ` — ${cell.name}` : ''}
+                <span className="text-muted" style={{ fontWeight: 400, marginLeft: 8, fontSize: 12 }}>
+                  {(cell.students ?? []).length} operator{(cell.students ?? []).length !== 1 ? 's' : ''} · {victimName}
+                </span>
               </span>
-            </span>
-            <button className="btn btn-ghost btn-xs" style={{ color: 'var(--danger)' }} onClick={() => setDelSquad(squad)}>Delete</button>
+              <button className="btn btn-ghost btn-xs" style={{ color: 'var(--danger)' }} onClick={() => setDelCell(cell)}>Delete</button>
+            </div>
+            <div style={{ padding: '8px 12px' }}>
+              {(cell.students ?? []).length === 0 ? (
+                <p className="text-xs text-muted">No members assigned.</p>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {cell.students.map((u) => (
+                    <div key={u.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 4,
+                      background: '#f8fafc', border: '1px solid var(--border)',
+                      borderRadius: 20, padding: '2px 6px 2px 10px', fontSize: 13,
+                    }}>
+                      {u.first_name} {u.last_name}
+                      <button
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: '0 2px', lineHeight: 1, fontSize: 14 }}
+                        title="Remove from cell"
+                        onClick={async () => { await removeFromCell(courseId, cohortId, cell.id, u.id); load(); }}
+                      >×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-          <div style={{ padding: '8px 12px' }}>
-            {(squad.students ?? []).length === 0 ? (
-              <p className="text-xs text-muted">No members assigned.</p>
-            ) : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {squad.students.map((u) => (
-                  <div key={u.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 4,
-                    background: '#f8fafc', border: '1px solid var(--border)',
-                    borderRadius: 20, padding: '2px 6px 2px 10px', fontSize: 13,
-                  }}>
-                    {u.first_name} {u.last_name}
-                    <button
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: '0 2px', lineHeight: 1, fontSize: 14 }}
-                      title="Remove from squad"
-                      onClick={async () => { await removeFromSquad(courseId, cohortId, squad.id, u.id); load(); }}
-                    >×</button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      ))}
+        );
+      })}
 
-      {unassigned.length > 0 && squads.length > 0 && (
+      {unassigned.length > 0 && cells.length > 0 && (
         <div style={{ marginTop: 16 }}>
           <p className="text-xs text-muted fw-600" style={{ marginBottom: 8 }}>
             Unassigned cohort members ({unassigned.length})
@@ -382,12 +398,12 @@ function SquadsPanel({ courseId, cohortId, cohortMembers }) {
                   defaultValue=""
                   onChange={async (e) => {
                     if (!e.target.value) return;
-                    await assignToSquad(courseId, cohortId, e.target.value, m.id);
+                    await assignToCell(courseId, cohortId, e.target.value, m.id);
                     load();
                   }}
                 >
                   <option value="">→ assign</option>
-                  {squads.map((s) => <option key={s.id} value={s.id}>Squad {s.number}</option>)}
+                  {cells.map((c) => <option key={c.id} value={c.id}>Cell {c.number}{c.name ? ` (${c.name})` : ''}</option>)}
                 </select>
               </div>
             ))}
@@ -395,15 +411,15 @@ function SquadsPanel({ courseId, cohortId, cohortMembers }) {
         </div>
       )}
 
-      {unassigned.length > 0 && squads.length === 0 && (
+      {unassigned.length > 0 && cells.length === 0 && (
         <p className="text-xs text-muted" style={{ marginTop: 8 }}>
-          Add squads above to start assigning {unassigned.length} cohort member{unassigned.length !== 1 ? 's' : ''}.
+          Add cells above to start assigning {unassigned.length} cohort member{unassigned.length !== 1 ? 's' : ''}.
         </p>
       )}
 
       {addModal && (
-        <Modal title="Add Squad" onClose={() => setAddModal(false)}>
-          <AddSquadForm
+        <Modal title="Add Cell" onClose={() => setAddModal(false)}>
+          <AddCellForm
             courseId={courseId}
             cohortId={cohortId}
             onSave={() => { setAddModal(false); load(); }}
@@ -411,12 +427,208 @@ function SquadsPanel({ courseId, cohortId, cohortMembers }) {
           />
         </Modal>
       )}
-      {delSquad && (
+      {delCell && (
         <ConfirmDialog
-          title="Delete Squad"
-          message={`Delete Squad ${delSquad.number}${delSquad.name ? ` (${delSquad.name})` : ''}? Members will be unassigned.`}
-          onConfirm={async () => { await deleteSquad(courseId, cohortId, delSquad.id); setDelSquad(null); load(); }}
-          onCancel={() => setDelSquad(null)}
+          title="Delete Cell"
+          message={`Delete Cell ${delCell.number}${delCell.name ? ` (${delCell.name})` : ''}? Members will be unassigned.`}
+          onConfirm={async () => { await deleteCell(courseId, cohortId, delCell.id); setDelCell(null); load(); }}
+          onCancel={() => setDelCell(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Campaign Drop Form ────────────────────────────────────────────────────────
+function DropForm({ courseId, initial, onSave, onClose }) {
+  const [form, setForm] = useState({
+    number:          initial?.number          ?? '',
+    title:           initial?.title           ?? '',
+    narrative_intro: initial?.narrative_intro ?? '',
+  });
+  const [saving, setSaving] = useState(false);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const payload = { ...form, number: Number(form.number) };
+      if (initial) await updateCampaignDrop(courseId, initial.id, payload);
+      else         await createCampaignDrop(courseId, payload);
+      onSave();
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <form onSubmit={submit}>
+      <div className="grid-2">
+        <div className="form-group">
+          <label>Drop # *</label>
+          <input type="number" value={form.number} onChange={set('number')} min={1} max={6} required />
+        </div>
+        <div className="form-group">
+          <label>Title *</label>
+          <input value={form.title} onChange={set('title')} placeholder="e.g. Initial Contact" required />
+        </div>
+      </div>
+      <div className="form-group">
+        <label>Narrative Intro (Command Post bulletin)</label>
+        <textarea
+          value={form.narrative_intro}
+          onChange={set('narrative_intro')}
+          rows={5}
+          placeholder="Briefing text shown to students when this drop is released…"
+        />
+      </div>
+      <div className="flex-end" style={{ marginTop: 16, gap: 8 }}>
+        <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+        <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+      </div>
+    </form>
+  );
+}
+
+// ── Campaign Drops Tab ────────────────────────────────────────────────────────
+function CampaignDropsTab({ courseId }) {
+  const [drops,    setDrops]   = useState([]);
+  const [cohorts,  setCohorts] = useState([]);
+  const [cohortId, setCohortId] = useState('');
+  const [loading,  setLoading] = useState(true);
+  const [dropModal, setDropModal] = useState(null);
+  const [delDrop,   setDelDrop]  = useState(null);
+  const [working,   setWorking]  = useState(null);
+
+  const loadDrops = useCallback(() =>
+    getCampaignDrops(courseId, cohortId || undefined)
+      .then((d) => setDrops(Array.isArray(d) ? d : []))
+      .finally(() => setLoading(false)),
+  [courseId, cohortId]);
+
+  useEffect(() => {
+    listCohorts(courseId).then((data) => {
+      setCohorts(Array.isArray(data) ? data : []);
+    }).catch(() => {});
+  }, [courseId]);
+
+  useEffect(() => { setLoading(true); loadDrops(); }, [loadDrops]);
+
+  const handleRelease = async (drop) => {
+    if (!cohortId) { alert('Select a cohort first to release a drop.'); return; }
+    setWorking(drop.id + ':release');
+    try { await releaseCampaignDrop(courseId, drop.id, cohortId); loadDrops(); }
+    finally { setWorking(null); }
+  };
+
+  const handleLock = async (drop) => {
+    if (!cohortId) { alert('Select a cohort first to lock a drop.'); return; }
+    setWorking(drop.id + ':lock');
+    try { await lockCampaignDrop(courseId, drop.id, cohortId); loadDrops(); }
+    finally { setWorking(null); }
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span className="fw-600">Campaign Drops</span>
+          <select
+            value={cohortId}
+            onChange={(e) => setCohortId(e.target.value)}
+            style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 14, background: 'white' }}
+          >
+            <option value="">— select cohort for release status —</option>
+            {cohorts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => setDropModal('new')}>+ Add Drop</button>
+      </div>
+
+      {loading ? <LoadingSpinner /> : drops.length === 0 ? (
+        <div className="empty-state"><p>No campaign drops yet. Add drops to structure the operation timeline.</p></div>
+      ) : (
+        <div>
+          {drops.sort((a, b) => a.number - b.number).map((drop) => {
+            const isUnlocked = drop.is_unlocked;
+            const isWorking  = working?.startsWith(drop.id);
+            return (
+              <div key={drop.id} className="card" style={{ marginBottom: 10, borderLeft: `3px solid ${isUnlocked ? 'var(--success)' : 'var(--border)'}` }}>
+                <div className="card-body" style={{ padding: '12px 16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                        <span style={{
+                          fontFamily: 'monospace', fontSize: 11, fontWeight: 700,
+                          padding: '2px 8px', borderRadius: 4,
+                          background: isUnlocked ? 'var(--success)' : 'var(--surface-2)',
+                          color: isUnlocked ? 'white' : 'var(--muted)',
+                        }}>
+                          DROP {drop.number}
+                        </span>
+                        <span className="fw-600" style={{ fontSize: 15 }}>{drop.title}</span>
+                        {isUnlocked && cohortId && (
+                          <span className="badge badge-green">Released</span>
+                        )}
+                      </div>
+                      {drop.narrative_intro && (
+                        <p className="text-sm text-muted" style={{
+                          margin: 0, maxHeight: 60, overflow: 'hidden', textOverflow: 'ellipsis',
+                          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                        }}>
+                          {drop.narrative_intro}
+                        </p>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0, marginLeft: 12 }}>
+                      {cohortId && (
+                        isUnlocked ? (
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            disabled={!!isWorking}
+                            onClick={() => handleLock(drop)}
+                          >
+                            {isWorking ? '…' : 'Lock'}
+                          </button>
+                        ) : (
+                          <button
+                            className="btn btn-primary btn-sm"
+                            disabled={!!isWorking}
+                            onClick={() => handleRelease(drop)}
+                          >
+                            {isWorking ? '…' : 'Release'}
+                          </button>
+                        )
+                      )}
+                      <button className="btn btn-ghost btn-xs" onClick={() => setDropModal(drop)}>Edit</button>
+                      <button className="btn btn-ghost btn-xs" style={{ color: 'var(--danger)' }} onClick={() => setDelDrop(drop)}>Delete</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {dropModal && (
+        <Modal
+          title={dropModal === 'new' ? 'Add Campaign Drop' : `Edit Drop ${dropModal.number}`}
+          onClose={() => setDropModal(null)}
+        >
+          <DropForm
+            courseId={courseId}
+            initial={dropModal !== 'new' ? dropModal : null}
+            onSave={() => { setDropModal(null); loadDrops(); }}
+            onClose={() => setDropModal(null)}
+          />
+        </Modal>
+      )}
+      {delDrop && (
+        <ConfirmDialog
+          title="Delete Campaign Drop"
+          message={`Delete Drop ${delDrop.number} "${delDrop.title}"? This does not delete the assignments tagged to it.`}
+          onConfirm={async () => { await deleteCampaignDrop(courseId, delDrop.id); setDelDrop(null); loadDrops(); }}
+          onCancel={() => setDelDrop(null)}
         />
       )}
     </div>
@@ -449,7 +661,7 @@ function GradesModal({ courseId, assignment, onClose }) {
         <>
           {assignment.grading_mode === 'squad' && (
             <div className="alert alert-info" style={{ marginBottom: 12 }}>
-              Squad-graded assignment. Grading one member automatically applies to all squad members.
+              Cell-graded assignment. Grading one member automatically applies to all cell members.
             </div>
           )}
           {subs.length > 0 && (
@@ -457,12 +669,12 @@ function GradesModal({ courseId, assignment, onClose }) {
               <p className="text-sm fw-600" style={{ marginBottom: 8 }}>Submissions ({subs.length})</p>
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th>Student</th>{assignment.grading_mode === 'squad' && <th>Squad</th>}<th>Submitted</th><th>Status</th></tr></thead>
+                  <thead><tr><th>Student</th>{assignment.grading_mode === 'squad' && <th>Cell</th>}<th>Submitted</th><th>Status</th></tr></thead>
                   <tbody>
                     {subs.map((s) => (
                       <tr key={s.id}>
                         <td>{s.student?.first_name} {s.student?.last_name}</td>
-                        {assignment.grading_mode === 'squad' && <td>{s.squad ? `Squad ${s.squad.number}` : '—'}</td>}
+                        {assignment.grading_mode === 'squad' && <td>{s.cell ? `Cell ${s.cell.number}` : '—'}</td>}
                         <td className="text-xs text-muted">{new Date(s.submitted_at).toLocaleString()}</td>
                         <td><span className="badge badge-blue">{s.status}</span></td>
                       </tr>
@@ -558,12 +770,12 @@ function SubmitModal({ courseId, assignment, onClose }) {
           <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
             <span className={`badge ${TYPE_BADGE[assignment.type] ?? 'badge-blue'}`}>{assignment.type}</span>
             {assignment.grading_mode === 'squad' && (
-              <span className="badge badge-yellow">Squad graded</span>
+              <span className="badge badge-yellow">Cell graded</span>
             )}
           </div>
           {assignment.grading_mode === 'squad' && (
             <div className="alert alert-info" style={{ marginBottom: 12 }}>
-              This is a squad assignment — your submission will be graded for your entire squad.
+              This is a cell tasking — your submission will be graded for your entire cell.
             </div>
           )}
           {assignment.description && <p className="text-sm" style={{ marginBottom: 12 }}>{assignment.description}</p>}
@@ -573,7 +785,7 @@ function SubmitModal({ courseId, assignment, onClose }) {
           {existing && (
             <div className="alert alert-info" style={{ marginBottom: 12 }}>
               You have an existing submission. Resubmitting will replace it.
-              {existing.squad && <span style={{ marginLeft: 6 }}>Squad: {existing.squad.number}{existing.squad.name ? ` (${existing.squad.name})` : ''}</span>}
+              {existing.cell && <span style={{ marginLeft: 6 }}>Cell: {existing.cell.number}{existing.cell.name ? ` (${existing.cell.name})` : ''}</span>}
             </div>
           )}
           <form id="sub-form" onSubmit={handleSubmit}>
@@ -681,7 +893,7 @@ function ProgressModal({ courseId, assignment, onClose }) {
             <thead>
               <tr>
                 <th>Student</th>
-                {assignment.grading_mode === 'squad' && <th>Squad</th>}
+                {assignment.grading_mode === 'squad' && <th>Cell</th>}
                 <th>Progress</th>
                 <th>Status</th>
               </tr>
@@ -691,7 +903,7 @@ function ProgressModal({ courseId, assignment, onClose }) {
                 <tr key={s.id}>
                   <td>{s.student?.first_name} {s.student?.last_name}</td>
                   {assignment.grading_mode === 'squad' && (
-                    <td>{s.squad ? `Squad ${s.squad.number}${s.squad.name ? ` (${s.squad.name})` : ''}` : '—'}</td>
+                    <td>{s.cell ? `Cell ${s.cell.number}${s.cell.name ? ` (${s.cell.name})` : ''}` : '—'}</td>
                   )}
                   <td style={{ minWidth: 140 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1039,7 +1251,7 @@ function CohortsTab({ courseId }) {
 
               {/* Sub-tabs */}
               <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>
-                {['members', 'squads'].map((t) => (
+                {['members', 'cells'].map((t) => (
                   <button
                     key={t}
                     className={`btn btn-sm ${subTab === t ? 'btn-primary' : 'btn-ghost'}`}
@@ -1090,9 +1302,9 @@ function CohortsTab({ courseId }) {
                 </>
               )}
 
-              {/* Squads sub-tab */}
-              {subTab === 'squads' && (
-                <SquadsPanel
+              {/* Cells sub-tab */}
+              {subTab === 'cells' && (
+                <CellsPanel
                   courseId={courseId}
                   cohortId={selected.id}
                   cohortMembers={selected.members ?? []}
@@ -1469,9 +1681,9 @@ export default function CourseDetailPage() {
       )}
 
       <div className="tabs">
-        {['modules', 'assignments', ...(canManage ? ['grades', 'cohorts', 'enrollments'] : [])].map((t) => (
+        {['modules', 'assignments', ...(canManage ? ['grades', 'cohorts', 'campaign', 'enrollments'] : [])].map((t) => (
           <button key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
-            {t.charAt(0).toUpperCase() + t.slice(1)}
+            {t === 'campaign' ? 'Campaign Drops' : t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
@@ -1534,7 +1746,7 @@ export default function CourseDetailPage() {
                             <td>
                               <div style={{ display: 'flex', gap: 4 }}>
                                 <span className={`badge ${TYPE_BADGE[a.type] ?? 'badge-blue'}`}>{a.type ?? 'module'}</span>
-                                {a.grading_mode === 'squad' && <span className="badge badge-gray">squad</span>}
+                                {a.grading_mode === 'squad' && <span className="badge badge-gray">cell graded</span>}
                               </div>
                             </td>
                             <td>{a.max_score}</td>
@@ -1583,6 +1795,9 @@ export default function CourseDetailPage() {
 
       {/* ── Cohorts ── */}
       {tab === 'cohorts' && canManage && <CohortsTab courseId={id} />}
+
+      {/* ── Campaign Drops ── */}
+      {tab === 'campaign' && canManage && <CampaignDropsTab courseId={id} />}
 
       {/* ── Enrollments ── */}
       {tab === 'enrollments' && canManage && (

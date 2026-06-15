@@ -21,6 +21,21 @@ module.exports = (sequelize) => {
         allowNull:    false,
         defaultValue: 'student',
       },
+      professional_role: {
+        type: DataTypes.ENUM(
+          'special_agent',
+          'intelligence_analyst',
+          'operational_support_sos',
+          'operational_support_da',
+          'supervisory_special_agent',
+          'supervisory_intelligence_analyst',
+          'task_force_officer'
+        ),
+        allowNull: true,
+        defaultValue: null,
+      },
+      onboarding_complete: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+      certifications:      { type: DataTypes.ARRAY(DataTypes.TEXT), allowNull: false, defaultValue: [] },
       is_active:  { type: DataTypes.BOOLEAN, defaultValue: true },
       last_login: { type: DataTypes.DATE,    allowNull: true },
     },

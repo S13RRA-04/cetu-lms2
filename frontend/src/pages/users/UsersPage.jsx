@@ -8,15 +8,29 @@ import Pagination from '../../components/common/Pagination.jsx';
 
 const ROLES = ['admin', 'instructor', 'student'];
 
+const PROFESSIONAL_ROLES = [
+  { value: 'special_agent',                    label: 'Special Agent' },
+  { value: 'intelligence_analyst',             label: 'Intelligence Analyst' },
+  { value: 'operational_support_sos',          label: 'Operational Support (SOS/TS)' },
+  { value: 'operational_support_da',           label: 'Operational Support (Data Analyst)' },
+  { value: 'supervisory_special_agent',        label: 'Supervisory Special Agent' },
+  { value: 'supervisory_intelligence_analyst', label: 'Supervisory Intelligence Analyst' },
+  { value: 'task_force_officer',               label: 'Task Force Officer' },
+];
+
+const profRoleLabel = (value) =>
+  PROFESSIONAL_ROLES.find((r) => r.value === value)?.label ?? null;
+
 function UserForm({ initial, onSave, onClose }) {
   const [form, setForm] = useState({
-    email:      initial?.email      ?? '',
-    username:   initial?.username   ?? '',
-    first_name: initial?.first_name ?? '',
-    last_name:  initial?.last_name  ?? '',
-    role:       initial?.role       ?? 'student',
-    is_active:  initial?.is_active  ?? true,
-    password:   '',
+    email:             initial?.email             ?? '',
+    username:          initial?.username          ?? '',
+    first_name:        initial?.first_name        ?? '',
+    last_name:         initial?.last_name         ?? '',
+    role:              initial?.role              ?? 'student',
+    professional_role: initial?.professional_role ?? '',
+    is_active:         initial?.is_active         ?? true,
+    password:          '',
   });
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState('');
@@ -33,7 +47,7 @@ function UserForm({ initial, onSave, onClose }) {
     setError('');
     try {
       if (isEdit) {
-        const payload = { first_name: form.first_name, last_name: form.last_name, role: form.role, is_active: form.is_active };
+        const payload = { first_name: form.first_name, last_name: form.last_name, role: form.role, professional_role: form.professional_role || null, is_active: form.is_active };
         await updateUser(initial.id, payload);
       } else {
         await createUser(form);
@@ -81,6 +95,13 @@ function UserForm({ initial, onSave, onClose }) {
           {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
       </div>
+      <div className="form-group">
+        <label>Professional Role</label>
+        <select value={form.professional_role} onChange={set('professional_role')}>
+          <option value="">— None —</option>
+          {PROFESSIONAL_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+        </select>
+      </div>
       {isEdit && (
         <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <input type="checkbox" id="active" checked={form.is_active} onChange={set('is_active')} style={{ width: 'auto' }} />
@@ -100,22 +121,23 @@ export default function UsersPage() {
   const [users,      setUsers]      = useState([]);
   const [meta,       setMeta]       = useState({});
   const [loading,    setLoading]    = useState(true);
-  const [search,     setSearch]     = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
-  const [activeTab,  setActiveTab]  = useState('all'); // 'all' | 'pending'
+  const [search,        setSearch]        = useState('');
+  const [roleFilter,    setRoleFilter]    = useState('');
+  const [profRoleFilter,setProfRoleFilter]= useState('');
+  const [activeTab,     setActiveTab]     = useState('all'); // 'all' | 'pending'
   const [page,       setPage]       = useState(1);
   const [modal,      setModal]      = useState(null);
   const [delTarget,  setDelTarget]  = useState(null);
 
   const load = useCallback(() => {
     setLoading(true);
-    const params = { search: search || undefined, role: roleFilter || undefined, page, limit: 15 };
+    const params = { search: search || undefined, role: roleFilter || undefined, professional_role: profRoleFilter || undefined, page, limit: 15 };
     if (activeTab === 'pending') params.is_active = 'false';
     getUsers(params)
       .then((data) => { setUsers(data.data ?? data.users ?? []); setMeta(data.meta ?? {}); })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [search, roleFilter, activeTab, page]);
+  }, [search, roleFilter, profRoleFilter, activeTab, page]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -157,9 +179,13 @@ export default function UsersPage() {
           </div>
           <button type="submit" className="btn btn-secondary">Search</button>
         </form>
-        <select value={roleFilter} onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }} style={{ width: 140 }}>
+        <select value={roleFilter} onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }} style={{ width: 130 }}>
           <option value="">All roles</option>
           {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+        </select>
+        <select value={profRoleFilter} onChange={(e) => { setProfRoleFilter(e.target.value); setPage(1); }} style={{ width: 210 }}>
+          <option value="">All professional roles</option>
+          {PROFESSIONAL_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
         </select>
       </div>
 
@@ -171,7 +197,7 @@ export default function UsersPage() {
             <table>
               <thead>
                 <tr>
-                  <th>Name</th><th>Email</th><th>Username</th><th>Role</th><th>Status</th><th></th>
+                  <th>Name</th><th>Email</th><th>Username</th><th>Role</th><th>Professional Role</th><th>Status</th><th></th>
                 </tr>
               </thead>
               <tbody>
@@ -181,6 +207,7 @@ export default function UsersPage() {
                     <td className="text-sm">{u.email}</td>
                     <td className="text-sm text-muted">{u.username}</td>
                     <td>{roleBadge(u.role)}</td>
+                    <td className="text-sm">{profRoleLabel(u.professional_role) ?? <span className="text-muted">—</span>}</td>
                     <td>
                       {u.is_active
                         ? <span className="badge badge-green">Active</span>

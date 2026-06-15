@@ -32,6 +32,17 @@ router.get('/me/grades', requireAuth, async (req, res, next) => {
   try { return res.json(await gradeService.getGradesForUser(req.user.id)); }
   catch (err) { return next(err); }
 });
+router.post('/me/onboarding', requireAuth, async (req, res, next) => {
+  try {
+    const { professional_role, certifications } = req.body;
+    const updated = await require('../services/user.service').updateUser(req.user.id, {
+      professional_role:    professional_role    || null,
+      certifications:       Array.isArray(certifications) ? certifications : [],
+      onboarding_complete:  true,
+    });
+    return res.json(updated);
+  } catch (err) { return next(err); }
+});
 
 router.get('/',    requireAuth, requireInstructor, ctrl.list);
 router.post('/',   requireAuth, requireInstructor, validate(createUserSchema), auditLog('create', 'user'), ctrl.create);

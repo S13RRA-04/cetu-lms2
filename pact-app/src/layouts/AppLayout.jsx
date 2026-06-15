@@ -7,11 +7,12 @@ import {
 import useAuthStore from '../store/authStore.js';
 import { logout } from '../api/pact.js';
 
-const SQUAD_THEME = {
-  1: { primary: '#ff073a', binary: '#27f5ff', lt: '#fff0f3', md: 'rgba(255,7,58,0.14)'   },
-  2: { primary: '#ffe600', binary: '#7c3cff', lt: '#fffde6', md: 'rgba(255,230,0,0.14)'  },
-  3: { primary: '#00c244', binary: '#ff4fd8', lt: '#d1fae5', md: 'rgba(0,194,68,0.14)'   },
-  4: { primary: '#00b0ff', binary: '#ffb020', lt: '#e6f7ff', md: 'rgba(0,176,255,0.14)'  },
+// Cell theme: keyed by cell.number mod 4 (1-4)
+const CELL_THEME = {
+  1: { primary: '#ef4444', lt: '#fff0f0', md: 'rgba(239,68,68,0.14)'   }, // Redstone — red
+  2: { primary: '#f59e0b', lt: '#fffde6', md: 'rgba(245,158,11,0.14)'  }, // Dogwood — amber
+  3: { primary: '#3b82f6', lt: '#eff6ff', md: 'rgba(59,130,246,0.14)'  }, // CyberDyne — blue
+  4: { primary: '#8b5cf6', lt: '#f5f3ff', md: 'rgba(139,92,246,0.14)'  }, // PixelPlay — purple
 };
 
 const Globe = lazy(() => import('../components/Globe.jsx'));
@@ -83,16 +84,16 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
   const dockRef = useRef(null);
 
   const isAdmin   = user?.role === 'admin' || user?.role === 'instructor';
-  const squadNum  = enrollment?.squad?.number ? Number(enrollment.squad.number) : null;
-  const squadTheme = SQUAD_THEME[squadNum];
-  const accent    = squadTheme?.primary ?? '#00b0ff';
+  const cellNum   = enrollment?.cell?.number ? ((Number(enrollment.cell.number) - 1) % 4) + 1 : null;
+  const cellTheme = cellNum ? CELL_THEME[cellNum] : null;
+  const accent    = cellTheme?.primary ?? '#00b0ff';
 
   useEffect(() => {
     const root = document.documentElement;
-    if (squadTheme) {
-      root.style.setProperty('--primary',    squadTheme.primary);
-      root.style.setProperty('--primary-lt', squadTheme.lt);
-      root.style.setProperty('--primary-md', squadTheme.md);
+    if (cellTheme) {
+      root.style.setProperty('--primary',    cellTheme.primary);
+      root.style.setProperty('--primary-lt', cellTheme.lt);
+      root.style.setProperty('--primary-md', cellTheme.md);
     } else {
       root.style.removeProperty('--primary');
       root.style.removeProperty('--primary-lt');
@@ -103,7 +104,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
       root.style.removeProperty('--primary-lt');
       root.style.removeProperty('--primary-md');
     };
-  }, [squadTheme]);
+  }, [cellTheme]);
 
   useEffect(() => {
     const handler = (e) => mouseY.set(e.clientY);
@@ -122,11 +123,17 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
 
   const toggleGroup = (key) => setCollapsed((c) => ({ ...c, [key]: !c[key] }));
 
-  const groups = TYPE_ORDER.reduce((acc, type) => {
-    const items = assignments.filter((a) => a.type === type && a.is_unlocked !== false);
-    if (items.length) acc.push({ type, items });
-    return acc;
-  }, []);
+  // Group unlocked assignments by drop_number (null = untagged, shown last)
+  const unlockedAssignments = assignments.filter((a) => a.is_unlocked !== false);
+  const dropNums = [...new Set(unlockedAssignments.map((a) => a.drop_number))].sort((a, b) => {
+    if (a === null) return 1;
+    if (b === null) return -1;
+    return a - b;
+  });
+  const groups = dropNums.map((num) => ({
+    drop: num,
+    items: unlockedAssignments.filter((a) => a.drop_number === num),
+  })).filter((g) => g.items.length > 0);
 
   return (
     <div className="app-shell">
@@ -321,52 +328,56 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
               </div>
 
               <div className="missions-panel-body">
-                {groups.map(({ type, items }) => (
-                  <div key={type} className="missions-group">
-                    <button
-                      className={`missions-group-btn${collapsed[type] ? ' collapsed' : ''}`}
-                      onClick={() => toggleGroup(type)}
-                    >
-                      <span
-                        className="missions-group-dot"
-                        style={{ background: TYPE_COLOR[type], boxShadow: `0 0 6px ${TYPE_COLOR[type]}` }}
-                      />
-                      <span className="missions-group-name">{type.toUpperCase()}</span>
-                      <span className="missions-group-count">{items.length}</span>
-                      <span className="missions-group-chevron">›</span>
-                    </button>
+                {groups.map(({ drop, items }) => {
+                  const key = drop ?? 'untagged';
+                  const label = drop != null ? `DROP ${drop}` : 'GENERAL';
+                  return (
+                    <div key={key} className="missions-group">
+                      <button
+                        className={`missions-group-btn${collapsed[key] ? ' collapsed' : ''}`}
+                        onClick={() => toggleGroup(key)}
+                      >
+                        <span
+                          className="missions-group-dot"
+                          style={{ background: accent, boxShadow: `0 0 6px ${accent}` }}
+                        />
+                        <span className="missions-group-name">{label}</span>
+                        <span className="missions-group-count">{items.length}</span>
+                        <span className="missions-group-chevron">›</span>
+                      </button>
 
-                    <div className={`missions-group-items${collapsed[type] ? '' : ' expanded'}`}>
-                      <div className="missions-group-items-inner">
-                        {items.map((a) => {
-                          const done = (a.progress ?? 0) >= 100;
-                          return (
-                            <NavLink
-                              key={a.id}
-                              to={`/assignment/${a.id}`}
-                              className={({ isActive }) =>
-                                `missions-assignment${isActive ? ' active' : ''}${done ? ' missions-assignment-done' : ''}`
-                              }
-                              onClick={() => setMissionsOpen(false)}
-                            >
-                              <span className="missions-a-title">{a.title}</span>
-                              {done ? (
-                                <span className="missions-a-check">✓</span>
-                              ) : (
-                                (a.progress ?? 0) > 0 && (
-                                  <span
-                                    className="missions-a-progress"
-                                    style={{ width: `${a.progress}%`, background: TYPE_COLOR[a.type] }}
-                                  />
-                                )
-                              )}
-                            </NavLink>
-                          );
-                        })}
+                      <div className={`missions-group-items${collapsed[key] ? '' : ' expanded'}`}>
+                        <div className="missions-group-items-inner">
+                          {items.map((a) => {
+                            const done = (a.progress ?? 0) >= 100;
+                            return (
+                              <NavLink
+                                key={a.id}
+                                to={`/assignment/${a.id}`}
+                                className={({ isActive }) =>
+                                  `missions-assignment${isActive ? ' active' : ''}${done ? ' missions-assignment-done' : ''}`
+                                }
+                                onClick={() => setMissionsOpen(false)}
+                              >
+                                <span className="missions-a-title">{a.title}</span>
+                                {done ? (
+                                  <span className="missions-a-check">✓</span>
+                                ) : (
+                                  (a.progress ?? 0) > 0 && (
+                                    <span
+                                      className="missions-a-progress"
+                                      style={{ width: `${a.progress}%`, background: TYPE_COLOR[a.type] }}
+                                    />
+                                  )
+                                )}
+                              </NavLink>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </motion.div>
           </>

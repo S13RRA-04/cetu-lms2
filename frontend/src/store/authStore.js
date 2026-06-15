@@ -32,6 +32,12 @@ const useAuthStore = create((set, get) => ({
     return data.user;
   },
 
+  updateUser: (patch) => {
+    const updated = { ...get().user, ...patch };
+    localStorage.setItem('user', JSON.stringify(updated));
+    set({ user: updated });
+  },
+
   logout: async () => {
     try { await authApi.logout(); } catch (_) { /* ignore */ }
     get().clearAuth();

@@ -50,8 +50,8 @@ export const getGradesForAssignment = (assignmentId) =>
 export const submitGrade = (assignmentId, userId, data) =>
   client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/grades/${userId}`, data).then((r) => r.data);
 
-export const submitSquadGrade = (assignmentId, squadId, data) =>
-  client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/grades/squad/${squadId}`, data).then((r) => r.data);
+export const submitCellGrade = (assignmentId, cellId, data) =>
+  client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/grades/cell/${cellId}`, data).then((r) => r.data);
 
 /* ── Cohorts ── */
 export const getCohorts = () =>
@@ -97,6 +97,25 @@ export const unlockAssignment = (assignmentId, cohortId) =>
 
 export const lockAssignment = (assignmentId, cohortId) =>
   client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/lock`, { cohort_id: cohortId }).then((r) => r.data);
+
+/* ── Campaign Drops ── */
+export const getCampaignDrops = (cohortId) =>
+  client.get(`/courses/${COURSE_ID}/campaign/drops`, { params: { cohort_id: cohortId } }).then((r) => r.data);
+
+export const createCampaignDrop = (data) =>
+  client.post(`/courses/${COURSE_ID}/campaign/drops`, data).then((r) => r.data);
+
+export const updateCampaignDrop = (dropId, data) =>
+  client.put(`/courses/${COURSE_ID}/campaign/drops/${dropId}`, data).then((r) => r.data);
+
+export const deleteCampaignDrop = (dropId) =>
+  client.delete(`/courses/${COURSE_ID}/campaign/drops/${dropId}`);
+
+export const releaseCampaignDrop = (dropId, cohortId) =>
+  client.post(`/courses/${COURSE_ID}/campaign/drops/${dropId}/release`, { cohort_id: cohortId }).then((r) => r.data);
+
+export const lockCampaignDrop = (dropId, cohortId) =>
+  client.post(`/courses/${COURSE_ID}/campaign/drops/${dropId}/lock`, { cohort_id: cohortId });
 
 /* ── Course Content ── */
 export const getCourseContent = () =>

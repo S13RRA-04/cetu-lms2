@@ -93,8 +93,8 @@ export default function AssignmentPage() {
       setSubmitted(true);
     } catch (err) {
       const msg = err.response?.data?.error?.message ?? '';
-      if (msg.includes('squad')) {
-        setError('You must be assigned to a squad to submit this assignment. Contact your instructor.');
+      if (msg.includes('squad') || msg.includes('cell')) {
+        setError('You must be assigned to a cell to submit this tasking. Contact your instructor.');
       } else if (msg.includes('cohort') || msg.includes('unlock') || err.response?.status === 403) {
         setError('This assignment is not yet unlocked for your cohort.');
       } else {
@@ -135,7 +135,7 @@ export default function AssignmentPage() {
   }
 
   const color      = TYPE_COLOR[assignment.type] ?? TYPE_COLOR.module;
-  const isSquad    = assignment.grading_mode === 'squad';
+  const isCell     = assignment.grading_mode === 'squad'; // internal value kept; means "cell-graded"
   const isLocked   = assignment.is_unlocked === false;
   const isSurvey   = assignment.type === 'survey';
   /* hasQuiz: quiz questions always carry a `payload` field; prompt objects (kind:'prompt') do not */
@@ -153,7 +153,17 @@ export default function AssignmentPage() {
           <span className="type-badge" style={{ color, borderColor: color }}>
             {(assignment.type ?? 'module').toUpperCase()}
           </span>
-          {isSquad && <span className="squad-badge">Squad</span>}
+          {assignment.drop_number != null && (
+            <span className="type-badge" style={{ color: 'var(--muted)', borderColor: 'var(--border)', fontFamily: 'var(--mono)', fontSize: 10 }}>
+              DROP {assignment.drop_number}
+            </span>
+          )}
+          {isCell && <span className="squad-badge">Cell Tasking</span>}
+          {assignment.role_filters?.length > 0 && (
+            <span className="squad-badge" style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--muted)' }}>
+              {assignment.role_filters.join(' · ')}
+            </span>
+          )}
         </div>
 
         <h1 className="assignment-title">{assignment.title}</h1>
@@ -265,9 +275,9 @@ export default function AssignmentPage() {
             ) : (
               <div>
                 <div className="section-label">Mission Response</div>
-                {isSquad && (
+                {isCell && (
                   <div className="squad-notice">
-                    Squad assignment — your submission will be graded for your entire squad
+                    Cell tasking — your submission will be graded for your entire cell
                   </div>
                 )}
                 {submission && (

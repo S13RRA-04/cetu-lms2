@@ -1,10 +1,15 @@
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import useAuthStore, { ADMIN_ROLES } from '../../store/authStore.js';
 
 export default function ProtectedRoute({ roles }) {
   const { user, accessToken } = useAuthStore();
+  const location = useLocation();
 
   if (!accessToken) return <Navigate to="/login" replace />;
+
+  if (user && !user.onboarding_complete && location.pathname !== '/onboarding') {
+    return <Navigate to="/onboarding" replace />;
+  }
 
   if (roles && user && !roles.includes(user.role)) {
     return <Navigate to="/dashboard" replace />;

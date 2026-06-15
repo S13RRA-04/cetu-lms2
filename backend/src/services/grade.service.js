@@ -1,5 +1,5 @@
 'use strict';
-const { Grade, Assignment, User, Enrollment, Squad } = require('../models');
+const { Grade, Assignment, User, Enrollment, Cell } = require('../models');
 const { NotFoundError, AppError }                    = require('../utils/errors');
 const ltiService                                     = require('./lti.service');
 const logger                                         = require('../utils/logger');
@@ -69,14 +69,13 @@ async function upsertGrade(assignmentId, userId, data, graderId) {
 async function gradeSquad(assignmentId, squadId, data, graderId) {
   const assignment = await Assignment.findByPk(assignmentId);
   if (!assignment) throw new NotFoundError('Assignment');
-  if (assignment.grading_mode !== 'squad') throw new AppError('Assignment is not squad-graded', 400, 'BAD_REQUEST');
+  if (assignment.grading_mode !== 'squad') throw new AppError('Assignment is not cell-graded', 400, 'BAD_REQUEST');
 
-  const squad = await Squad.findByPk(squadId);
-  if (!squad) throw new NotFoundError('Squad');
+  const cell = await Cell.findByPk(squadId);
+  if (!cell) throw new NotFoundError('Cell');
 
-  // Find all squad members enrolled in this course
-  const enrollments = await Enrollment.findAll({ where: { squad_id: squadId, course_id: assignment.course_id } });
-  if (enrollments.length === 0) throw new AppError('No members found in squad for this course', 400, 'BAD_REQUEST');
+  const enrollments = await Enrollment.findAll({ where: { cell_id: squadId, course_id: assignment.course_id } });
+  if (enrollments.length === 0) throw new AppError('No members found in cell for this course', 400, 'BAD_REQUEST');
 
   const grades = await Promise.all(enrollments.map(async (e) => {
     const [grade, created] = await Grade.findOrCreate({

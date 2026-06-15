@@ -15,7 +15,7 @@ module.exports = (sequelize) => {
         allowNull:    false,
         defaultValue: 'in_progress',
       },
-      squad_id: { type: DataTypes.UUID, allowNull: true },
+      cell_id: { type: DataTypes.UUID, allowNull: true },
       progress: { type: DataTypes.SMALLINT, allowNull: false, defaultValue: 0 },
     },
     { tableName: 'submissions' }

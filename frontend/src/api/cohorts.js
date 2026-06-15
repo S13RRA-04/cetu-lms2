@@ -9,10 +9,10 @@ export const deleteCohort   = (courseId, cohortId)          => api.delete(`/cour
 export const addMember      = (courseId, cohortId, userId)  => api.post(`/courses/${courseId}/cohorts/${cohortId}/members`, { user_id: userId }).then(r => r.data);
 export const removeMember   = (courseId, cohortId, userId)  => api.delete(`/courses/${courseId}/cohorts/${cohortId}/members/${userId}`);
 
-// Squads
-export const listSquads     = (courseId, cohortId)          => api.get(`/courses/${courseId}/cohorts/${cohortId}/squads`).then(r => r.data);
-export const createSquad    = (courseId, cohortId, data)    => api.post(`/courses/${courseId}/cohorts/${cohortId}/squads`, data).then(r => r.data);
-export const updateSquad    = (courseId, cohortId, squadId, data) => api.put(`/courses/${courseId}/cohorts/${cohortId}/squads/${squadId}`, data).then(r => r.data);
-export const deleteSquad    = (courseId, cohortId, squadId) => api.delete(`/courses/${courseId}/cohorts/${cohortId}/squads/${squadId}`);
-export const assignToSquad  = (courseId, cohortId, squadId, userId) => api.post(`/courses/${courseId}/cohorts/${cohortId}/squads/${squadId}/members`, { user_id: userId }).then(r => r.data);
-export const removeFromSquad = (courseId, cohortId, squadId, userId) => api.delete(`/courses/${courseId}/cohorts/${cohortId}/squads/${squadId}/members/${userId}`);
+// Cells
+export const listCells      = (courseId, cohortId)                   => api.get(`/courses/${courseId}/cohorts/${cohortId}/cells`).then(r => r.data);
+export const createCell     = (courseId, cohortId, data)             => api.post(`/courses/${courseId}/cohorts/${cohortId}/cells`, data).then(r => r.data);
+export const updateCell     = (courseId, cohortId, cellId, data)     => api.put(`/courses/${courseId}/cohorts/${cohortId}/cells/${cellId}`, data).then(r => r.data);
+export const deleteCell     = (courseId, cohortId, cellId)           => api.delete(`/courses/${courseId}/cohorts/${cohortId}/cells/${cellId}`);
+export const assignToCell   = (courseId, cohortId, cellId, userId)   => api.post(`/courses/${courseId}/cohorts/${cohortId}/cells/${cellId}/members`, { user_id: userId }).then(r => r.data);
+export const removeFromCell = (courseId, cohortId, cellId, userId)   => api.delete(`/courses/${courseId}/cohorts/${cohortId}/cells/${cellId}/members/${userId}`);

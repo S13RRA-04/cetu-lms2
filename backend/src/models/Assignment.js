@@ -24,8 +24,10 @@ module.exports = (sequelize) => {
         allowNull:    false,
         defaultValue: 'individual',
       },
-      order_index: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-      questions:   { type: DataTypes.JSONB,    allowNull: false, defaultValue: [] },
+      order_index:  { type: DataTypes.INTEGER,              allowNull: false, defaultValue: 0 },
+      questions:    { type: DataTypes.JSONB,                 allowNull: false, defaultValue: [] },
+      drop_number:  { type: DataTypes.SMALLINT,              allowNull: true,  defaultValue: null },
+      role_filters: { type: DataTypes.ARRAY(DataTypes.TEXT), allowNull: false, defaultValue: [] },
     },
     { tableName: 'assignments' }
   );

@@ -7,7 +7,7 @@ const Module              = require('./Module')(sequelize);
 const ContentItem         = require('./ContentItem')(sequelize);
 const Enrollment          = require('./Enrollment')(sequelize);
 const Cohort              = require('./Cohort')(sequelize);
-const Squad               = require('./Squad')(sequelize);
+const Cell                = require('./Cell')(sequelize);
 const AssignmentUnlock    = require('./AssignmentUnlock')(sequelize);
 const Assignment          = require('./Assignment')(sequelize);
 const Submission          = require('./Submission')(sequelize);
@@ -19,6 +19,8 @@ const ScenarioPackage       = require('./ScenarioPackage')(sequelize);
 const ScenarioPackageUnlock = require('./ScenarioPackageUnlock')(sequelize);
 const CourseContentItem     = require('./CourseContentItem')(sequelize);
 const CourseContentUnlock   = require('./CourseContentUnlock')(sequelize);
+const CampaignDrop          = require('./CampaignDrop')(sequelize);
+const CampaignDropUnlock    = require('./CampaignDropUnlock')(sequelize);
 const KcrEnvironment        = require('./KcrEnvironment')(sequelize);
 const KcrVenue              = require('./KcrVenue')(sequelize);
 const KcrRoom               = require('./KcrRoom')(sequelize);
@@ -53,13 +55,13 @@ Cohort.hasMany(Enrollment, { foreignKey: 'cohort_id', as: 'enrollments' });
 User.belongsToMany(Cohort, { through: Enrollment, foreignKey: 'user_id',  as: 'cohorts' });
 Cohort.belongsToMany(User, { through: Enrollment, foreignKey: 'cohort_id', as: 'members' });
 
-// ── Cohort ↔ Squad ─────────────────────────────────────────────────────────
-Cohort.hasMany(Squad, { as: 'squads', foreignKey: 'cohort_id', onDelete: 'CASCADE' });
-Squad.belongsTo(Cohort,              { foreignKey: 'cohort_id' });
-Squad.hasMany(Enrollment, { foreignKey: 'squad_id', as: 'members' });
-Enrollment.belongsTo(Squad, { foreignKey: 'squad_id', as: 'squad' });
-User.belongsToMany(Squad, { through: Enrollment, foreignKey: 'user_id',  as: 'squads' });
-Squad.belongsToMany(User, { through: Enrollment, foreignKey: 'squad_id', as: 'students' });
+// ── Cohort ↔ Cell ──────────────────────────────────────────────────────────
+Cohort.hasMany(Cell, { as: 'cells', foreignKey: 'cohort_id', onDelete: 'CASCADE' });
+Cell.belongsTo(Cohort,             { foreignKey: 'cohort_id' });
+Cell.hasMany(Enrollment, { foreignKey: 'cell_id', as: 'members' });
+Enrollment.belongsTo(Cell, { foreignKey: 'cell_id', as: 'cell' });
+User.belongsToMany(Cell, { through: Enrollment, foreignKey: 'user_id', as: 'cells' });
+Cell.belongsToMany(User, { through: Enrollment, foreignKey: 'cell_id', as: 'students' });
 
 // ── Assignment ↔ AssignmentUnlock ──────────────────────────────────────────
 Assignment.hasMany(AssignmentUnlock, { as: 'unlocks', foreignKey: 'assignment_id', onDelete: 'CASCADE' });
@@ -67,8 +69,8 @@ AssignmentUnlock.belongsTo(Assignment, { foreignKey: 'assignment_id' });
 AssignmentUnlock.belongsTo(Cohort,     { foreignKey: 'cohort_id' });
 AssignmentUnlock.belongsTo(User, { as: 'unlocker', foreignKey: 'unlocked_by' });
 
-// ── Submission ↔ Squad ─────────────────────────────────────────────────────
-Submission.belongsTo(Squad, { foreignKey: 'squad_id', as: 'squad' });
+// ── Submission ↔ Cell ──────────────────────────────────────────────────────
+Submission.belongsTo(Cell, { foreignKey: 'cell_id', as: 'cell' });
 
 // ── Course ↔ Assignment ────────────────────────────────────────────────────
 Course.hasMany(Assignment,  { as: 'assignments', foreignKey: 'course_id', onDelete: 'CASCADE' });
@@ -122,6 +124,14 @@ KcrPlacement.belongsTo(KcrArtifact, { as: 'artifact',   foreignKey: 'artifact_id
 Course.hasMany(KcrEnvironment,      { as: 'kcrEnvironments', foreignKey: 'course_id' });
 KcrEnvironment.belongsTo(Course,                             { foreignKey: 'course_id' });
 
+// ── CampaignDrop ↔ Course / CampaignDropUnlock ────────────────────────────
+Course.hasMany(CampaignDrop, { as: 'campaignDrops', foreignKey: 'course_id', onDelete: 'CASCADE' });
+CampaignDrop.belongsTo(Course, { foreignKey: 'course_id' });
+CampaignDrop.hasMany(CampaignDropUnlock, { as: 'unlocks', foreignKey: 'drop_id', onDelete: 'CASCADE' });
+CampaignDropUnlock.belongsTo(CampaignDrop, { foreignKey: 'drop_id' });
+CampaignDropUnlock.belongsTo(Cohort,      { foreignKey: 'cohort_id' });
+CampaignDropUnlock.belongsTo(User, { as: 'unlocker', foreignKey: 'unlocked_by' });
+
 // ── CourseContentItem ↔ CourseContentUnlock ────────────────────────────────
 Course.hasMany(CourseContentItem, { as: 'contentItems', foreignKey: 'course_id', onDelete: 'CASCADE' });
 CourseContentItem.belongsTo(Course, { foreignKey: 'course_id' });
@@ -138,7 +148,7 @@ module.exports = {
   ContentItem,
   Enrollment,
   Cohort,
-  Squad,
+  Cell,
   AssignmentUnlock,
   Assignment,
   Submission,
@@ -150,6 +160,8 @@ module.exports = {
   ScenarioPackageUnlock,
   CourseContentItem,
   CourseContentUnlock,
+  CampaignDrop,
+  CampaignDropUnlock,
   KcrEnvironment,
   KcrVenue,
   KcrRoom,
