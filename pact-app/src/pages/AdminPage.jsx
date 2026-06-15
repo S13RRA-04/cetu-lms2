@@ -870,7 +870,11 @@ function FolderReleaseForm({ folder, onReleased, onCancel }) {
 }
 
 function guessContentType(filename) {
-  const ext = filename.split('.').pop()?.toLowerCase();
+  const lower = filename.toLowerCase();
+  const ext   = lower.split('.').pop();
+  if (lower.includes('brief') || lower.includes('bulletin')) return 'briefing';
+  if (lower.includes('eviden') || lower.includes('artifact') || lower.includes('log') || lower.includes('ioc')) return 'evidence';
+  if (lower.includes('intel') || lower.includes('report') || lower.includes('analysis')) return 'intel_report';
   if (['pptx', 'ppt'].includes(ext)) return 'slides';
   if (['pdf', 'docx', 'doc'].includes(ext)) return 'handout';
   if (['xlsx', 'xls', 'csv'].includes(ext)) return 'form';
@@ -881,6 +885,7 @@ function PublishFileForm({ file, onPublished, onCancel }) {
   const [title,       setTitle]       = useState(() => file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '));
   const [contentType, setContentType] = useState(() => guessContentType(file.name));
   const [description, setDescription] = useState('');
+  const [dropNumber,  setDropNumber]  = useState('');
   const [isPublished, setIsPublished] = useState(true);
   const [saving,      setSaving]      = useState(false);
   const [err,         setErr]         = useState('');
@@ -896,6 +901,8 @@ function PublishFileForm({ file, onPublished, onCancel }) {
         description:  description.trim() || undefined,
         content_type: contentType,
         url:          file.url,
+        r2_key:       file.key,
+        drop_number:  dropNumber ? Number(dropNumber) : undefined,
         is_published: isPublished,
       });
       setDone(true);
@@ -917,6 +924,9 @@ function PublishFileForm({ file, onPublished, onCancel }) {
 
   return (
     <div className="publish-form">
+      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6, fontFamily: 'var(--mono)' }}>
+        {file.key}
+      </div>
       <div className="form-field">
         <label>Title *</label>
         <input value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -928,10 +938,22 @@ function PublishFileForm({ file, onPublished, onCancel }) {
             {CONTENT_TYPES.map((t) => <option key={t} value={t}>{CONTENT_TYPE_LABELS[t]}</option>)}
           </select>
         </div>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, paddingBottom: 2 }}>
-          <input type="checkbox" id="pub-now" checked={isPublished} onChange={(e) => setIsPublished(e.target.checked)} />
-          <label htmlFor="pub-now" style={{ fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}>Publish now</label>
+        <div style={{ flex: '0 0 90px' }}>
+          <label>Drop #</label>
+          <input
+            type="number"
+            min={1}
+            max={6}
+            placeholder="—"
+            value={dropNumber}
+            onChange={(e) => setDropNumber(e.target.value)}
+            style={{ width: '100%' }}
+          />
         </div>
+      </div>
+      <div className="form-field" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <input type="checkbox" id="pub-now" checked={isPublished} onChange={(e) => setIsPublished(e.target.checked)} />
+        <label htmlFor="pub-now" style={{ fontSize: 13, cursor: 'pointer' }}>Publish now (visible when unlocked)</label>
       </div>
       <div className="form-field">
         <label>Description</label>
@@ -1338,8 +1360,17 @@ function SubmissionDetail({ sub, assignment, existingGrade, onGradeSaved }) {
    COURSE CONTENT PANEL
 ═══════════════════════════════════════════════════════════ */
 
-const CONTENT_TYPES = ['slides', 'handout', 'agenda', 'form', 'resource'];
-const CONTENT_TYPE_LABELS = { slides: 'Slides', handout: 'Handout', agenda: 'Agenda', form: 'Form', resource: 'Resource' };
+const CONTENT_TYPES = ['briefing', 'evidence', 'intel_report', 'slides', 'handout', 'agenda', 'form', 'resource'];
+const CONTENT_TYPE_LABELS = {
+  briefing:     'CP Briefing',
+  evidence:     'Evidence',
+  intel_report: 'Intel Report',
+  slides:       'Slides',
+  handout:      'Handout',
+  agenda:       'Agenda',
+  form:         'Form',
+  resource:     'Resource',
+};
 
 function CourseContentPanel({ items, cohorts, loaded, onItemsChange }) {
   const [selected, setSelected] = useState(null);

@@ -121,6 +121,9 @@ export const lockCampaignDrop = (dropId, cohortId) =>
 export const getCourseContent = () =>
   client.get(`/courses/${COURSE_ID}/course-content`).then((r) => r.data);
 
+export const getContentDownloadUrl = (contentId) =>
+  `${client.defaults.baseURL}/courses/${COURSE_ID}/course-content/${contentId}/download`;
+
 export const createContentLink = (data) =>
   client.post(`/courses/${COURSE_ID}/course-content`, data).then((r) => r.data);
 

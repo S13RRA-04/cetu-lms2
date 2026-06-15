@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getCourseContent } from '../api/pact.js';
+import { getCourseContent, getContentDownloadUrl } from '../api/pact.js';
 
 const TYPE_META = {
   // Standard course materials
@@ -148,11 +148,18 @@ export default function CourseContentPage() {
 }
 
 function CaseCard({ item }) {
-  const meta    = TYPE_META[item.content_type] ?? TYPE_META.resource;
+  const meta       = TYPE_META[item.content_type] ?? TYPE_META.resource;
   const isCampaign = CAMPAIGN_TYPES.includes(item.content_type);
+  // Use the gated download endpoint for R2 files; fall back to download_url (external links)
+  const hasDownload = item.r2_key
+    ? true
+    : !!(item.download_url ?? item.url);
+  const downloadHref = item.r2_key
+    ? getContentDownloadUrl(item.id)
+    : (item.download_url ?? item.url);
 
   const handleOpen = () => {
-    if (item.url) window.open(item.url, '_blank', 'noopener');
+    if (hasDownload) window.open(downloadHref, '_blank', 'noopener');
   };
 
   return (
@@ -160,7 +167,7 @@ function CaseCard({ item }) {
       className="cc-card"
       onClick={handleOpen}
       style={{
-        cursor: item.url ? 'pointer' : 'default',
+        cursor: hasDownload ? 'pointer' : 'default',
         borderLeft: isCampaign ? `3px solid ${meta.color}` : undefined,
       }}
     >
@@ -171,7 +178,7 @@ function CaseCard({ item }) {
         {item.description && <div className="cc-card-desc">{item.description}</div>}
         {item.file_name && <div className="cc-card-file">{item.file_name}</div>}
       </div>
-      {item.url && (
+      {hasDownload && (
         <div className="cc-card-arrow" style={{ color: meta.color }}>→</div>
       )}
     </div>

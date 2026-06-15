@@ -48,4 +48,11 @@ async function lockForCohort(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { list, create, update, remove, unlockForCohort, lockForCohort };
+async function download(req, res, next) {
+  try {
+    const url = await svc.getDownloadUrl(req.params.cid, req.user.id);
+    return res.redirect(302, url);
+  } catch (err) { return next(err); }
+}
+
+module.exports = { list, create, update, remove, unlockForCohort, lockForCohort, download };

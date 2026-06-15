@@ -119,8 +119,9 @@ router.post('/:id/course-content',          requireAuth, requireInstructor, cour
 router.post('/:id/course-content/upload',   requireAuth, requireInstructor, rawUpload, courseContentCtrl.create);
 router.put('/:id/course-content/:cid',      requireAuth, requireInstructor, courseContentCtrl.update);
 router.delete('/:id/course-content/:cid',   requireAuth, requireInstructor, courseContentCtrl.remove);
-router.post('/:id/course-content/:cid/unlock', requireAuth, requireInstructor, courseContentCtrl.unlockForCohort);
-router.post('/:id/course-content/:cid/lock',   requireAuth, requireInstructor, courseContentCtrl.lockForCohort);
+router.get('/:id/course-content/:cid/download', requireAuth,                    courseContentCtrl.download);
+router.post('/:id/course-content/:cid/unlock',  requireAuth, requireInstructor, courseContentCtrl.unlockForCohort);
+router.post('/:id/course-content/:cid/lock',    requireAuth, requireInstructor, courseContentCtrl.lockForCohort);
 
 // Campaign drops
 router.get('/:id/campaign/drops',              requireAuth,                    campaignCtrl.listDrops);

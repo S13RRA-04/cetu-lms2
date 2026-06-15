@@ -65,7 +65,8 @@ async function create(courseId, data, fileBuffer, fileName, mimeType) {
     url      = upload.url;
     fileSize = fileBuffer.length;
   } else {
-    url = data.url;
+    url   = data.url;
+    r2Key = data.r2_key ?? null;
   }
 
   return CourseContentItem.create({
@@ -73,10 +74,38 @@ async function create(courseId, data, fileBuffer, fileName, mimeType) {
     title:        data.title,
     description:  data.description,
     content_type: data.content_type ?? 'resource',
-    order_index:  data.order_index  ?? 0,
-    is_published: data.is_published ?? false,
-    url, r2Key, file_name: fileName ?? data.file_name, file_size: fileSize,
+    order_index:  Number(data.order_index  ?? 0),
+    is_published: data.is_published === true || data.is_published === 'true',
+    drop_number:  data.drop_number  ? Number(data.drop_number) : null,
+    url,
+    r2_key:    r2Key,
+    file_name: fileName ?? data.file_name ?? null,
+    file_size: fileSize ?? (data.file_size ? Number(data.file_size) : null),
   });
+}
+
+async function getDownloadUrl(contentId, userId) {
+  const item = await CourseContentItem.findByPk(contentId);
+  if (!item) throw new NotFoundError('CourseContentItem');
+
+  const { Enrollment: EnrollmentModel } = require('../models');
+  const enrollment = await EnrollmentModel.findOne({
+    where: { user_id: userId, course_id: item.course_id },
+  });
+  if (!enrollment) throw new ForbiddenError('Not enrolled');
+
+  if (enrollment.cohort_id) {
+    const unlock = await CourseContentUnlock.findOne({
+      where: { content_id: contentId, cohort_id: enrollment.cohort_id },
+    });
+    if (!unlock) throw new ForbiddenError('Content not yet released for your cohort');
+  }
+
+  const url = item.r2_key
+    ? `${R2_PUBLIC_BASE_URL}/${item.r2_key}`
+    : item.url;
+  if (!url) throw new NotFoundError('No download URL configured for this item');
+  return url;
 }
 
 async function update(id, data) {
@@ -110,4 +139,4 @@ async function lockForCohort(contentId, cohortId) {
   await CourseContentUnlock.destroy({ where: { content_id: contentId, cohort_id: cohortId } });
 }
 
-module.exports = { listForStudent, listForAdmin, create, update, remove, unlockForCohort, lockForCohort };
+module.exports = { listForStudent, listForAdmin, create, update, remove, unlockForCohort, lockForCohort, getDownloadUrl };
