@@ -4,7 +4,7 @@ import {
   getSubmissions,
   getGradesForAssignment,
   submitGrade,
-  submitSquadGrade,
+  submitCellGrade,
   getCohorts,
   unlockAssignment,
   lockAssignment,
@@ -86,7 +86,7 @@ function GradeForm({ assignmentId, userId, squadId, isSquad, maxScore, existingG
     setErr('');
     try {
       if (isSquad && squadId) {
-        await submitSquadGrade(assignmentId, squadId, { score: s, feedback });
+        await submitCellGrade(assignmentId, squadId, { score: s, feedback });
       } else {
         await submitGrade(assignmentId, userId, { score: s, feedback });
       }
