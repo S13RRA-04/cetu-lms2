@@ -62,6 +62,7 @@ async function syncFromR2(courseId) {
       const title = slugToTitle(slug);
       await ScenarioPackage.create({
         course_id:      courseId,
+        scenario_name:  title,
         title,
         file_name:      slug,   // slug used as identifier
         r2_key:         prefix, // full prefix, e.g. "scenarios/brokered-exit/"

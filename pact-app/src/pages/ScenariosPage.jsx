@@ -7,7 +7,7 @@ export default function ScenariosPage() {
   const isAdmin       = user?.role === 'admin' || user?.role === 'instructor';
   const [packages,    setPackages]    = useState([]);
   const [loading,     setLoading]     = useState(true);
-  const [fileMap,     setFileMap]     = useState({});   // packageId → file[]
+  const [fileMap,     setFileMap]     = useState({});
   const [loadingPkg,  setLoadingPkg]  = useState({});
   const [errors,      setErrors]      = useState({});
 
@@ -20,7 +20,6 @@ export default function ScenariosPage() {
 
   const handleExpand = async (pkg) => {
     if (fileMap[pkg.id]) {
-      /* toggle off */
       setFileMap((m) => { const n = { ...m }; delete n[pkg.id]; return n; });
       return;
     }
@@ -39,93 +38,119 @@ export default function ScenariosPage() {
 
   if (loading) return <div className="loading-screen"><div className="spinner" /></div>;
 
-  const published = packages.filter((p) => isAdmin || p.is_published !== false);
+  const visible = packages.filter((p) => isAdmin || p.is_published !== false);
+
+  /* Group by scenario_name (fall back to title for legacy rows without one) */
+  const scenarioMap = new Map();
+  for (const pkg of visible) {
+    const key = pkg.scenario_name || pkg.title;
+    if (!scenarioMap.has(key)) scenarioMap.set(key, []);
+    scenarioMap.get(key).push(pkg);
+  }
+  /* Sort releases within each scenario by release_number */
+  for (const releases of scenarioMap.values()) {
+    releases.sort((a, b) => a.release_number - b.release_number);
+  }
+  const scenarios = [...scenarioMap.entries()].sort(([a], [b]) => a.localeCompare(b));
 
   return (
     <div className="scenarios-page">
       <h1 className="page-title">Scenario Packages</h1>
       <p className="page-subtitle">Download scenario files released for your cohort.</p>
 
-      {published.length === 0 ? (
+      {scenarios.length === 0 ? (
         <div className="scenarios-empty">
           <div className="scenarios-empty-icon">📦</div>
           <p>No scenario packages have been published yet.</p>
         </div>
       ) : (
         <div className="scenarios-list">
-          {published.map((pkg) => {
-            const unlocked = isAdmin || pkg.is_unlocked;
-            const files    = fileMap[pkg.id];
-            const expanded = !!files;
-            return (
-              <div key={pkg.id} className={`scenario-card${unlocked ? '' : ' scenario-locked'}`}>
-                <div className="scenario-card-header">
-                  <span className="scenario-release-badge">Package {pkg.release_number}</span>
-                  {!isAdmin && (
-                    <span className={`scenario-status-badge ${unlocked ? 'status-unlocked' : 'status-locked'}`}>
-                      {unlocked ? '🔓 Released' : '🔒 Not yet released'}
-                    </span>
-                  )}
-                  {isAdmin && (
-                    <span className={`scenario-status-badge ${pkg.is_published ? 'status-unlocked' : 'status-locked'}`}>
-                      {pkg.is_published ? 'Published' : 'Draft'}
-                    </span>
-                  )}
-                </div>
-
-                <div className="scenario-card-body">
-                  <h2 className="scenario-title">{pkg.title}</h2>
-                  {pkg.description && <p className="scenario-description">{pkg.description}</p>}
-                </div>
-
-                {errors[pkg.id] && (
-                  <div className="err-msg" style={{ margin: '0 20px 12px' }}>{errors[pkg.id]}</div>
-                )}
-
-                {/* File listing */}
-                {expanded && files.length > 0 && (
-                  <div className="scenario-file-list">
-                    {files.map((f) => (
-                      <a
-                        key={f.key}
-                        href={f.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="scenario-file-row"
-                        download
-                      >
-                        <span className="scenario-file-icon">📄</span>
-                        <span className="scenario-file-name">{f.name}</span>
-                        {f.size != null && (
-                          <span className="scenario-file-size">{formatSize(f.size)}</span>
+          {scenarios.map(([scenarioName, releases]) => (
+            <div key={scenarioName} className="scenario-group">
+              <h2 className="scenario-group-title">{scenarioName}</h2>
+              <div className="scenario-group-releases">
+                {releases.map((pkg) => {
+                  const unlocked = isAdmin || pkg.is_unlocked;
+                  const files    = fileMap[pkg.id];
+                  const expanded = !!files;
+                  return (
+                    <div key={pkg.id} className={`scenario-card${unlocked ? '' : ' scenario-locked'}`}>
+                      <div className="scenario-card-header">
+                        <span className="scenario-release-badge">Release {pkg.release_number}</span>
+                        {!isAdmin && (
+                          <span className={`scenario-status-badge ${unlocked ? 'status-unlocked' : 'status-locked'}`}>
+                            {unlocked ? '🔓 Released' : '🔒 Not yet released'}
+                          </span>
                         )}
-                        <span className="scenario-file-dl">↓</span>
-                      </a>
-                    ))}
-                  </div>
-                )}
-                {expanded && files.length === 0 && (
-                  <div className="scenario-file-empty">No files found in this package.</div>
-                )}
+                        {isAdmin && (
+                          <span className={`scenario-status-badge ${pkg.is_published ? 'status-unlocked' : 'status-locked'}`}>
+                            {pkg.is_published ? 'Published' : 'Draft'}
+                          </span>
+                        )}
+                      </div>
 
-                <div className="scenario-card-footer">
-                  {unlocked ? (
-                    <button
-                      className="btn-submit scenario-dl-btn"
-                      onClick={() => handleExpand(pkg)}
-                      disabled={loadingPkg[pkg.id]}
-                    >
-                      {loadingPkg[pkg.id] ? 'Loading…' : expanded ? '▲ Hide Files' : '↓ View Files'}
-                    </button>
-                  ) : (
-                    <span className="scenario-locked-msg">
-                      Your instructor has not released this package yet.
-                    </span>
-                  )}
-                </div>
+                      {pkg.title !== scenarioName && (
+                        <div className="scenario-card-body">
+                          <p className="scenario-release-title">{pkg.title}</p>
+                          {pkg.description && <p className="scenario-description">{pkg.description}</p>}
+                        </div>
+                      )}
+                      {pkg.title === scenarioName && pkg.description && (
+                        <div className="scenario-card-body">
+                          <p className="scenario-description">{pkg.description}</p>
+                        </div>
+                      )}
+
+                      {errors[pkg.id] && (
+                        <div className="err-msg" style={{ margin: '0 20px 12px' }}>{errors[pkg.id]}</div>
+                      )}
+
+                      {expanded && files.length > 0 && (
+                        <div className="scenario-file-list">
+                          {files.map((f) => (
+                            <a
+                              key={f.key}
+                              href={f.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="scenario-file-row"
+                              download
+                            >
+                              <span className="scenario-file-icon">📄</span>
+                              <span className="scenario-file-name">{f.name}</span>
+                              {f.size != null && (
+                                <span className="scenario-file-size">{formatSize(f.size)}</span>
+                              )}
+                              <span className="scenario-file-dl">↓</span>
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                      {expanded && files.length === 0 && (
+                        <div className="scenario-file-empty">No files found in this package.</div>
+                      )}
+
+                      <div className="scenario-card-footer">
+                        {unlocked ? (
+                          <button
+                            className="btn-submit scenario-dl-btn"
+                            onClick={() => handleExpand(pkg)}
+                            disabled={loadingPkg[pkg.id]}
+                          >
+                            {loadingPkg[pkg.id] ? 'Loading…' : expanded ? '▲ Hide Files' : '↓ View Files'}
+                          </button>
+                        ) : (
+                          <span className="scenario-locked-msg">
+                            Your instructor has not released this package yet.
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       )}
     </div>
