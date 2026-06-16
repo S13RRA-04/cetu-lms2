@@ -147,7 +147,7 @@ export default function AssignmentPage() {
   return (
     <div className="assignment-page">
       <div className="assignment-body">
-        <Link to="/" className="back-link">← Back to Dashboard</Link>
+        <Link to="/" className="back-link">← Operations Center</Link>
 
         <div className="assignment-meta">
           <span className="type-badge" style={{ color, borderColor: color }}>
@@ -182,8 +182,8 @@ export default function AssignmentPage() {
 
         {/* ── Locked state ── */}
         {isLocked ? (
-          <div className="locked-msg" style={{ padding: '32px 0', fontSize: 14, color: 'var(--muted)' }}>
-            🔒 This assignment has not been unlocked for your cohort yet. Check back later or contact your instructor.
+          <div className="locked-msg" style={{ padding: '32px 0', fontSize: 14, color: 'var(--muted)', fontFamily: 'var(--mono)', letterSpacing: '.06em' }}>
+            TASKING RESTRICTED — Awaiting Command authorization for your cohort.
           </div>
         ) : /* ── Survey flow ── */
         isSurvey ? (
@@ -192,7 +192,7 @@ export default function AssignmentPage() {
               ✓ Survey submitted — thank you for your feedback.
               <br />
               <Link to="/" className="btn-submit" style={{ display: 'inline-block', marginTop: 16, textDecoration: 'none', textAlign: 'center', background: color }}>
-                ← Back to Dashboard
+                ← Operations Center
               </Link>
             </div>
           ) : (
@@ -511,7 +511,7 @@ function QuizSummary({ result, assignment, color }) {
       )}
 
       <Link to="/" className="btn-submit" style={{ display: 'inline-block', marginTop: 24, background: color, textDecoration: 'none', textAlign: 'center' }}>
-        ← Back to Dashboard
+        ← Operations Center
       </Link>
     </div>
   );

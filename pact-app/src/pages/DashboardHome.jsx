@@ -1,14 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getMyEnrollment, getAssignments, getCampaignDrops } from '../api/pact.js';
 import useAuthStore from '../store/authStore.js';
-
-// Victim assignment by cell number (1-indexed, wraps at 4)
-const VICTIMS = {
-  1: { code: 'REDSTONE',  name: 'Redstone Memorial Hospital', sector: 'Healthcare',    color: '#ef4444', icon: '🏥' },
-  2: { code: 'DOGWOOD',   name: 'Dogwood Hotel',              sector: 'Hospitality',   color: '#f59e0b', icon: '🏨' },
-  3: { code: 'CYBERDYNE', name: 'CyberDyne Data Center',      sector: 'Technology',    color: '#3b82f6', icon: '🖥' },
-  4: { code: 'PIXELPLAY', name: 'Pixel Play Arcade',          sector: 'Entertainment', color: '#8b5cf6', icon: '🕹' },
-};
+import { getVictim } from '../constants/victims.js';
 
 const PROF_ROLE_LABELS = {
   special_agent:                    'Special Agent',
@@ -20,11 +13,6 @@ const PROF_ROLE_LABELS = {
   task_force_officer:               'Task Force Officer',
 };
 
-function getVictim(squadNumber) {
-  if (!squadNumber) return null;
-  const key = ((squadNumber - 1) % 4) + 1;
-  return VICTIMS[key] ?? null;
-}
 
 export default function DashboardHome() {
   const { user }      = useAuthStore();
@@ -107,7 +95,7 @@ export default function DashboardHome() {
               <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', color: victim.color, marginBottom: 4, textTransform: 'uppercase' }}>
                 YOUR INVESTIGATION TARGET
               </div>
-              <div style={{ fontWeight: 600, fontSize: 16 }}>{victim.icon} {victim.name}</div>
+              <div style={{ fontWeight: 600, fontSize: 16 }}>{victim.name}</div>
               <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{victim.sector} · Code: {victim.code}</div>
             </div>
             <div style={{
@@ -138,29 +126,29 @@ export default function DashboardHome() {
         <div className="stat-glass">
           <div className="stat-glass-icon">◈</div>
           <div className="stat-glass-value">{unlocked}</div>
-          <div className="stat-glass-label">Unlocked</div>
+          <div className="stat-glass-label">Issued</div>
         </div>
         <div className="stat-glass stat-glass-green">
           <div className="stat-glass-icon">◉</div>
           <div className="stat-glass-value">{completed}</div>
-          <div className="stat-glass-label">Completed</div>
+          <div className="stat-glass-label">Closed</div>
         </div>
         <div className="stat-glass stat-glass-amber">
           <div className="stat-glass-icon">⬡</div>
           <div className="stat-glass-value">{inProgress}</div>
-          <div className="stat-glass-label">In Progress</div>
+          <div className="stat-glass-label">Active</div>
         </div>
         <div className="stat-glass stat-glass-primary stat-glass-wide">
           <div className="stat-glass-icon">◇</div>
           <div className="stat-glass-value">{overallPct}%</div>
-          <div className="stat-glass-label">Overall</div>
+          <div className="stat-glass-label">Case Status</div>
         </div>
       </div>
 
       {/* ── Operation progress bar ── */}
       <div className="glass-card dash-progress-card">
         <div className="dash-progress-header">
-          <span className="section-label">Operation Progress</span>
+          <span className="section-label">Case Progress</span>
           <span className="dash-progress-fraction">{completed} / {total}</span>
         </div>
         <div className="progress-track progress-track-lg">
@@ -195,7 +183,7 @@ export default function DashboardHome() {
             </div>
             <div className="squad-card-title">
               <div className="squad-number">Squad {squad.number}{squad.name ? ` · ${squad.name}` : ''}</div>
-              <div className="squad-count">{(squad.students ?? []).length} operators</div>
+              <div className="squad-count">{(squad.students ?? []).length} assigned operator{(squad.students ?? []).length !== 1 ? 's' : ''}</div>
             </div>
           </div>
           <div className="squad-members">
@@ -222,7 +210,7 @@ export default function DashboardHome() {
       {/* ── Active taskings ── */}
       {inProgress > 0 && (
         <div className="glass-card dash-inprogress-card">
-          <div className="section-label" style={{ marginBottom: 14 }}>Active Taskings</div>
+          <div className="section-label" style={{ marginBottom: 14 }}>Active Taskings — Awaiting Completion</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {assignments
               .filter((a) => (a.progress ?? 0) > 0 && (a.progress ?? 0) < 100)

@@ -20,11 +20,11 @@ export default function GradesPage() {
 
   return (
     <div className="grades-page">
-      <h1 className="page-title">My Grades</h1>
+      <h1 className="page-title">Performance Record</h1>
 
       {grades.length === 0 ? (
         <div className="glass-card" style={{ padding: '40px 24px', textAlign: 'center' }}>
-          <p style={{ color: 'var(--muted)' }}>No grades recorded yet.</p>
+          <p style={{ color: 'var(--muted)' }}>No evaluations on record.</p>
         </div>
       ) : (
         <>
@@ -36,15 +36,15 @@ export default function GradesPage() {
             </div>
             <div className="stat-glass">
               <div className="stat-glass-value">{Math.round(totalEarned)}</div>
-              <div className="stat-glass-label">Points Earned</div>
+              <div className="stat-glass-label">Earned</div>
             </div>
             <div className="stat-glass">
               <div className="stat-glass-value">{Math.round(totalMax)}</div>
-              <div className="stat-glass-label">Points Possible</div>
+              <div className="stat-glass-label">Possible</div>
             </div>
             <div className="stat-glass">
               <div className="stat-glass-value">{grades.length}</div>
-              <div className="stat-glass-label">Graded</div>
+              <div className="stat-glass-label">Evaluated</div>
             </div>
           </div>
 
@@ -52,11 +52,11 @@ export default function GradesPage() {
           <div className="glass-card" style={{ padding: '20px 24px' }}>
             <div className="grades-table">
               <div className="grades-thead">
-                <span>Assignment</span>
+                <span>Tasking</span>
                 <span>Score</span>
                 <span>Max</span>
                 <span>%</span>
-                <span>Graded</span>
+                <span>Evaluated</span>
               </div>
               {grades.map((g) => {
                 const pct = Math.round((parseFloat(g.score) / parseFloat(g.max_score)) * 100);
@@ -76,7 +76,7 @@ export default function GradesPage() {
             </div>
             {grades.some((g) => g.feedback) && (
               <div style={{ marginTop: 24 }}>
-                <div className="section-label" style={{ marginBottom: 12 }}>Instructor Feedback</div>
+                <div className="section-label" style={{ marginBottom: 12 }}>After Action Review</div>
                 {grades.filter((g) => g.feedback).map((g) => (
                   <div key={g.id} className="feedback-row">
                     <div className="feedback-assignment">{g.Assignment?.title}</div>

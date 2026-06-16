@@ -19,9 +19,9 @@ export default function ScoreboardPage() {
   if (board.length === 0) {
     return (
       <div className="grades-page">
-        <h1 className="page-title">Scoreboard</h1>
+        <h1 className="page-title">Operational Standings</h1>
         <div className="glass-card" style={{ padding: '40px 24px', textAlign: 'center' }}>
-          <p style={{ color: 'var(--muted)' }}>No scores posted yet.</p>
+          <p style={{ color: 'var(--muted)' }}>No scores on record.</p>
         </div>
       </div>
     );
@@ -31,7 +31,7 @@ export default function ScoreboardPage() {
 
   return (
     <div className="grades-page">
-      <h1 className="page-title">Scoreboard</h1>
+      <h1 className="page-title">Operational Standings</h1>
       <div className="glass-card" style={{ padding: '20px 24px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {board.map((entry, i) => {

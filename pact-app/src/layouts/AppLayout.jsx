@@ -169,7 +169,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
         <div className="dock-icons">
           {/* Dashboard */}
           <DockIcon mouseY={mouseY} accent={accent}
-            label="Dashboard"
+            label="Operations"
             isActive={location.pathname === '/'}
             onClick={() => { navigate('/'); setSidebarOpen(false); setMissionsOpen(false); }}
           >
@@ -183,7 +183,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
 
           {/* Grades */}
           <DockIcon mouseY={mouseY} accent={accent}
-            label="Grades"
+            label="Record"
             isActive={location.pathname.startsWith('/grades')}
             onClick={() => { navigate('/grades'); setSidebarOpen(false); setMissionsOpen(false); }}
           >
@@ -196,7 +196,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
 
           {/* Scoreboard */}
           <DockIcon mouseY={mouseY} accent={accent}
-            label="Scoreboard"
+            label="Standings"
             isActive={location.pathname.startsWith('/scoreboard')}
             onClick={() => { navigate('/scoreboard'); setSidebarOpen(false); setMissionsOpen(false); }}
           >
@@ -212,7 +212,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
 
           {/* Scenarios */}
           <DockIcon mouseY={mouseY} accent={accent}
-            label="Scenarios"
+            label="Packages"
             isActive={location.pathname.startsWith('/scenarios')}
             onClick={() => { navigate('/scenarios'); setSidebarOpen(false); setMissionsOpen(false); }}
           >
@@ -224,7 +224,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
 
           {/* Course Content */}
           <DockIcon mouseY={mouseY} accent={accent}
-            label="Course Content"
+            label="Case File"
             isActive={location.pathname.startsWith('/course-content')}
             onClick={() => { navigate('/course-content'); setSidebarOpen(false); setMissionsOpen(false); }}
           >
@@ -251,7 +251,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
           {/* Admin */}
           {isAdmin && (
             <DockIcon mouseY={mouseY} accent={accent}
-              label="Admin"
+              label="Command"
               isActive={location.pathname.startsWith('/admin')}
               onClick={() => { navigate('/admin'); setSidebarOpen(false); setMissionsOpen(false); }}
             >

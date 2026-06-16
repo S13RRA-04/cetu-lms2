@@ -55,13 +55,13 @@ export default function ScenariosPage() {
 
   return (
     <div className="scenarios-page">
-      <h1 className="page-title">Scenario Packages</h1>
-      <p className="page-subtitle">Download scenario files released for your cohort.</p>
+      <h1 className="page-title">Intelligence Packages</h1>
+      <p className="page-subtitle">Access evidence files and intelligence packages authorized for your cohort.</p>
 
       {scenarios.length === 0 ? (
         <div className="scenarios-empty">
           <div className="scenarios-empty-icon">📦</div>
-          <p>No scenario packages have been published yet.</p>
+          <p>No packages have been authorized for your cohort.</p>
         </div>
       ) : (
         <div className="scenarios-list">
@@ -141,7 +141,7 @@ export default function ScenariosPage() {
                           </button>
                         ) : (
                           <span className="scenario-locked-msg">
-                            Your instructor has not released this package yet.
+                            Awaiting Command authorization.
                           </span>
                         )}
                       </div>
