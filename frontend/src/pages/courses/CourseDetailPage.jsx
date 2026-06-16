@@ -12,7 +12,7 @@ import {
 } from '../../api/courses.js';
 import {
   listCohorts, createCohort, updateCohort, deleteCohort, addMember, removeMember,
-  listCells, createCell, deleteCell, assignToCell, removeFromCell,
+  listSquads, createSquad, deleteSquad, assignToSquad, removeFromSquad,
 } from '../../api/cohorts.js';
 import {
   getCampaignDrops, createCampaignDrop, updateCampaignDrop, deleteCampaignDrop,
@@ -203,7 +203,7 @@ function AssignmentForm({ courseId, initial, onSave, onClose }) {
           <label>Grading Mode</label>
           <select value={form.grading_mode} onChange={set('grading_mode')}>
             <option value="individual">Individual</option>
-            <option value="squad">Cell (squad)</option>
+            <option value="squad">Squad</option>
           </select>
         </div>
       </div>
@@ -270,8 +270,8 @@ function AssignmentForm({ courseId, initial, onSave, onClose }) {
   );
 }
 
-// ── Add Cell Form ─────────────────────────────────────────────────────────────
-function AddCellForm({ courseId, cohortId, onSave, onClose }) {
+// ── Add Squad Form ────────────────────────────────────────────────────────────
+function AddSquadForm({ courseId, cohortId, onSave, onClose }) {
   const [number, setNumber] = useState(1);
   const [name,   setName]   = useState('');
   const [saving, setSaving] = useState(false);
@@ -280,7 +280,7 @@ function AddCellForm({ courseId, cohortId, onSave, onClose }) {
     e.preventDefault();
     setSaving(true);
     try {
-      await createCell(courseId, cohortId, { number: Number(number), name: name || null });
+      await createSquad(courseId, cohortId, { number: Number(number), name: name || null });
       onSave();
     } finally { setSaving(false); }
   };
@@ -298,68 +298,68 @@ function AddCellForm({ courseId, cohortId, onSave, onClose }) {
         </div>
       </div>
       <p className="text-xs text-muted" style={{ marginTop: 4 }}>
-        Cell number determines investigation target (1→Redstone, 2→Dogwood, 3→CyberDyne, 4→PixelPlay, then cycles).
+        Squad number determines investigation target (1→Redstone, 2→Dogwood, 3→CyberDyne, 4→PixelPlay, then cycles).
       </p>
       <div className="flex-end" style={{ marginTop: 16, gap: 8 }}>
         <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-        <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Add Cell'}</button>
+        <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Add Squad'}</button>
       </div>
     </form>
   );
 }
 
-// ── Cells Panel ───────────────────────────────────────────────────────────────
+// ── Squads Panel ──────────────────────────────────────────────────────────────
 const VICTIM_COLORS = { 1: '#ef4444', 2: '#f59e0b', 3: '#3b82f6', 4: '#8b5cf6' };
 const VICTIM_NAMES  = { 1: 'Redstone', 2: 'Dogwood', 3: 'CyberDyne', 4: 'PixelPlay' };
 
-function CellsPanel({ courseId, cohortId, cohortMembers }) {
-  const [cells,    setCells]   = useState([]);
+function SquadsPanel({ courseId, cohortId, cohortMembers }) {
+  const [squads,   setSquads]  = useState([]);
   const [loading,  setLoading] = useState(true);
   const [addModal, setAddModal] = useState(false);
-  const [delCell,  setDelCell] = useState(null);
+  const [delSquad, setDelSquad] = useState(null);
 
   const load = useCallback(() =>
-    listCells(courseId, cohortId).then(setCells).finally(() => setLoading(false)),
+    listSquads(courseId, cohortId).then(setSquads).finally(() => setLoading(false)),
   [courseId, cohortId]);
 
   useEffect(() => { load(); }, [load]);
 
   if (loading) return <LoadingSpinner />;
 
-  const assignedIds = new Set(cells.flatMap((c) => (c.students ?? []).map((u) => u.id)));
+  const assignedIds = new Set(squads.flatMap((s) => (s.students ?? []).map((u) => u.id)));
   const unassigned  = (cohortMembers ?? []).filter((m) => !assignedIds.has(m.id));
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <span className="fw-600">Task Force Cells ({cells.length})</span>
-        <button className="btn btn-primary btn-sm" onClick={() => setAddModal(true)}>+ Add Cell</button>
+        <span className="fw-600">Task Force Squads ({squads.length})</span>
+        <button className="btn btn-primary btn-sm" onClick={() => setAddModal(true)}>+ Add Squad</button>
       </div>
 
-      {cells.length === 0 ? (
-        <p className="text-muted text-sm">No cells yet. Add cells to assign students to investigation targets.</p>
-      ) : cells.map((cell) => {
-        const victimKey   = ((Number(cell.number) - 1) % 4) + 1;
+      {squads.length === 0 ? (
+        <p className="text-muted text-sm">No squads yet. Add squads to assign students to investigation targets.</p>
+      ) : squads.map((squad) => {
+        const victimKey   = ((Number(squad.number) - 1) % 4) + 1;
         const victimColor = VICTIM_COLORS[victimKey];
         const victimName  = VICTIM_NAMES[victimKey];
         return (
-          <div key={cell.id} style={{ border: `1px solid ${victimColor}40`, borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
+          <div key={squad.id} style={{ border: `1px solid ${victimColor}40`, borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: `${victimColor}0d` }}>
               <span className="fw-600" style={{ fontSize: 14 }}>
                 <span style={{ color: victimColor, marginRight: 6 }}>■</span>
-                Cell {cell.number}{cell.name ? ` — ${cell.name}` : ''}
+                Squad {squad.number}{squad.name ? ` — ${squad.name}` : ''}
                 <span className="text-muted" style={{ fontWeight: 400, marginLeft: 8, fontSize: 12 }}>
-                  {(cell.students ?? []).length} operator{(cell.students ?? []).length !== 1 ? 's' : ''} · {victimName}
+                  {(squad.students ?? []).length} operator{(squad.students ?? []).length !== 1 ? 's' : ''} · {victimName}
                 </span>
               </span>
-              <button className="btn btn-ghost btn-xs" style={{ color: 'var(--danger)' }} onClick={() => setDelCell(cell)}>Delete</button>
+              <button className="btn btn-ghost btn-xs" style={{ color: 'var(--danger)' }} onClick={() => setDelSquad(squad)}>Delete</button>
             </div>
             <div style={{ padding: '8px 12px' }}>
-              {(cell.students ?? []).length === 0 ? (
+              {(squad.students ?? []).length === 0 ? (
                 <p className="text-xs text-muted">No members assigned.</p>
               ) : (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {cell.students.map((u) => (
+                  {squad.students.map((u) => (
                     <div key={u.id} style={{
                       display: 'flex', alignItems: 'center', gap: 4,
                       background: '#f8fafc', border: '1px solid var(--border)',
@@ -368,8 +368,8 @@ function CellsPanel({ courseId, cohortId, cohortMembers }) {
                       {u.first_name} {u.last_name}
                       <button
                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: '0 2px', lineHeight: 1, fontSize: 14 }}
-                        title="Remove from cell"
-                        onClick={async () => { await removeFromCell(courseId, cohortId, cell.id, u.id); load(); }}
+                        title="Remove from squad"
+                        onClick={async () => { await removeFromSquad(courseId, cohortId, squad.id, u.id); load(); }}
                       >×</button>
                     </div>
                   ))}
@@ -380,7 +380,7 @@ function CellsPanel({ courseId, cohortId, cohortMembers }) {
         );
       })}
 
-      {unassigned.length > 0 && cells.length > 0 && (
+      {unassigned.length > 0 && squads.length > 0 && (
         <div style={{ marginTop: 16 }}>
           <p className="text-xs text-muted fw-600" style={{ marginBottom: 8 }}>
             Unassigned cohort members ({unassigned.length})
@@ -398,12 +398,12 @@ function CellsPanel({ courseId, cohortId, cohortMembers }) {
                   defaultValue=""
                   onChange={async (e) => {
                     if (!e.target.value) return;
-                    await assignToCell(courseId, cohortId, e.target.value, m.id);
+                    await assignToSquad(courseId, cohortId, e.target.value, m.id);
                     load();
                   }}
                 >
                   <option value="">→ assign</option>
-                  {cells.map((c) => <option key={c.id} value={c.id}>Cell {c.number}{c.name ? ` (${c.name})` : ''}</option>)}
+                  {squads.map((s) => <option key={s.id} value={s.id}>Squad {s.number}{s.name ? ` (${s.name})` : ''}</option>)}
                 </select>
               </div>
             ))}
@@ -411,15 +411,15 @@ function CellsPanel({ courseId, cohortId, cohortMembers }) {
         </div>
       )}
 
-      {unassigned.length > 0 && cells.length === 0 && (
+      {unassigned.length > 0 && squads.length === 0 && (
         <p className="text-xs text-muted" style={{ marginTop: 8 }}>
-          Add cells above to start assigning {unassigned.length} cohort member{unassigned.length !== 1 ? 's' : ''}.
+          Add squads above to start assigning {unassigned.length} cohort member{unassigned.length !== 1 ? 's' : ''}.
         </p>
       )}
 
       {addModal && (
-        <Modal title="Add Cell" onClose={() => setAddModal(false)}>
-          <AddCellForm
+        <Modal title="Add Squad" onClose={() => setAddModal(false)}>
+          <AddSquadForm
             courseId={courseId}
             cohortId={cohortId}
             onSave={() => { setAddModal(false); load(); }}
@@ -427,12 +427,12 @@ function CellsPanel({ courseId, cohortId, cohortMembers }) {
           />
         </Modal>
       )}
-      {delCell && (
+      {delSquad && (
         <ConfirmDialog
-          title="Delete Cell"
-          message={`Delete Cell ${delCell.number}${delCell.name ? ` (${delCell.name})` : ''}? Members will be unassigned.`}
-          onConfirm={async () => { await deleteCell(courseId, cohortId, delCell.id); setDelCell(null); load(); }}
-          onCancel={() => setDelCell(null)}
+          title="Delete Squad"
+          message={`Delete Squad ${delSquad.number}${delSquad.name ? ` (${delSquad.name})` : ''}? Members will be unassigned.`}
+          onConfirm={async () => { await deleteSquad(courseId, cohortId, delSquad.id); setDelSquad(null); load(); }}
+          onCancel={() => setDelSquad(null)}
         />
       )}
     </div>
@@ -661,7 +661,7 @@ function GradesModal({ courseId, assignment, onClose }) {
         <>
           {assignment.grading_mode === 'squad' && (
             <div className="alert alert-info" style={{ marginBottom: 12 }}>
-              Cell-graded assignment. Grading one member automatically applies to all cell members.
+              Squad-graded assignment. Grading one member automatically applies to all squad members.
             </div>
           )}
           {subs.length > 0 && (
@@ -669,12 +669,12 @@ function GradesModal({ courseId, assignment, onClose }) {
               <p className="text-sm fw-600" style={{ marginBottom: 8 }}>Submissions ({subs.length})</p>
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th>Student</th>{assignment.grading_mode === 'squad' && <th>Cell</th>}<th>Submitted</th><th>Status</th></tr></thead>
+                  <thead><tr><th>Student</th>{assignment.grading_mode === 'squad' && <th>Squad</th>}<th>Submitted</th><th>Status</th></tr></thead>
                   <tbody>
                     {subs.map((s) => (
                       <tr key={s.id}>
                         <td>{s.student?.first_name} {s.student?.last_name}</td>
-                        {assignment.grading_mode === 'squad' && <td>{s.cell ? `Cell ${s.cell.number}` : '—'}</td>}
+                        {assignment.grading_mode === 'squad' && <td>{s.squad ? `Squad ${s.squad.number}` : '—'}</td>}
                         <td className="text-xs text-muted">{new Date(s.submitted_at).toLocaleString()}</td>
                         <td><span className="badge badge-blue">{s.status}</span></td>
                       </tr>
@@ -770,12 +770,12 @@ function SubmitModal({ courseId, assignment, onClose }) {
           <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
             <span className={`badge ${TYPE_BADGE[assignment.type] ?? 'badge-blue'}`}>{assignment.type}</span>
             {assignment.grading_mode === 'squad' && (
-              <span className="badge badge-yellow">Cell graded</span>
+              <span className="badge badge-yellow">Squad graded</span>
             )}
           </div>
           {assignment.grading_mode === 'squad' && (
             <div className="alert alert-info" style={{ marginBottom: 12 }}>
-              This is a cell tasking — your submission will be graded for your entire cell.
+              This is a squad tasking — your submission will be graded for your entire squad.
             </div>
           )}
           {assignment.description && <p className="text-sm" style={{ marginBottom: 12 }}>{assignment.description}</p>}
@@ -785,7 +785,7 @@ function SubmitModal({ courseId, assignment, onClose }) {
           {existing && (
             <div className="alert alert-info" style={{ marginBottom: 12 }}>
               You have an existing submission. Resubmitting will replace it.
-              {existing.cell && <span style={{ marginLeft: 6 }}>Cell: {existing.cell.number}{existing.cell.name ? ` (${existing.cell.name})` : ''}</span>}
+              {existing.squad && <span style={{ marginLeft: 6 }}>Squad: {existing.squad.number}{existing.squad.name ? ` (${existing.squad.name})` : ''}</span>}
             </div>
           )}
           <form id="sub-form" onSubmit={handleSubmit}>
@@ -893,7 +893,7 @@ function ProgressModal({ courseId, assignment, onClose }) {
             <thead>
               <tr>
                 <th>Student</th>
-                {assignment.grading_mode === 'squad' && <th>Cell</th>}
+                {assignment.grading_mode === 'squad' && <th>Squad</th>}
                 <th>Progress</th>
                 <th>Status</th>
               </tr>
@@ -903,7 +903,7 @@ function ProgressModal({ courseId, assignment, onClose }) {
                 <tr key={s.id}>
                   <td>{s.student?.first_name} {s.student?.last_name}</td>
                   {assignment.grading_mode === 'squad' && (
-                    <td>{s.cell ? `Cell ${s.cell.number}${s.cell.name ? ` (${s.cell.name})` : ''}` : '—'}</td>
+                    <td>{s.squad ? `Squad ${s.squad.number}${s.squad.name ? ` (${s.squad.name})` : ''}` : '—'}</td>
                   )}
                   <td style={{ minWidth: 140 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1251,7 +1251,7 @@ function CohortsTab({ courseId }) {
 
               {/* Sub-tabs */}
               <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>
-                {['members', 'cells'].map((t) => (
+                {['members', 'squads'].map((t) => (
                   <button
                     key={t}
                     className={`btn btn-sm ${subTab === t ? 'btn-primary' : 'btn-ghost'}`}
@@ -1302,9 +1302,9 @@ function CohortsTab({ courseId }) {
                 </>
               )}
 
-              {/* Cells sub-tab */}
-              {subTab === 'cells' && (
-                <CellsPanel
+              {/* Squads sub-tab */}
+              {subTab === 'squads' && (
+                <SquadsPanel
                   courseId={courseId}
                   cohortId={selected.id}
                   cohortMembers={selected.members ?? []}
@@ -1746,7 +1746,7 @@ export default function CourseDetailPage() {
                             <td>
                               <div style={{ display: 'flex', gap: 4 }}>
                                 <span className={`badge ${TYPE_BADGE[a.type] ?? 'badge-blue'}`}>{a.type ?? 'module'}</span>
-                                {a.grading_mode === 'squad' && <span className="badge badge-gray">cell graded</span>}
+                                {a.grading_mode === 'squad' && <span className="badge badge-gray">squad graded</span>}
                               </div>
                             </td>
                             <td>{a.max_score}</td>

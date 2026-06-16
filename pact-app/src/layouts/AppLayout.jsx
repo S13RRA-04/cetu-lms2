@@ -7,8 +7,8 @@ import {
 import useAuthStore from '../store/authStore.js';
 import { logout } from '../api/pact.js';
 
-// Cell theme: keyed by cell.number mod 4 (1-4)
-const CELL_THEME = {
+// Squad theme: keyed by squad.number mod 4 (1-4)
+const SQUAD_THEME = {
   1: { primary: '#ef4444', lt: '#fff0f0', md: 'rgba(239,68,68,0.14)'   }, // Redstone — red
   2: { primary: '#f59e0b', lt: '#fffde6', md: 'rgba(245,158,11,0.14)'  }, // Dogwood — amber
   3: { primary: '#3b82f6', lt: '#eff6ff', md: 'rgba(59,130,246,0.14)'  }, // CyberDyne — blue
@@ -84,16 +84,16 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
   const dockRef = useRef(null);
 
   const isAdmin   = user?.role === 'admin' || user?.role === 'instructor';
-  const cellNum   = enrollment?.cell?.number ? ((Number(enrollment.cell.number) - 1) % 4) + 1 : null;
-  const cellTheme = cellNum ? CELL_THEME[cellNum] : null;
-  const accent    = cellTheme?.primary ?? '#00b0ff';
+  const squadNum   = enrollment?.squad?.number ? ((Number(enrollment.squad.number) - 1) % 4) + 1 : null;
+  const squadTheme = squadNum ? SQUAD_THEME[squadNum] : null;
+  const accent     = squadTheme?.primary ?? '#00b0ff';
 
   useEffect(() => {
     const root = document.documentElement;
-    if (cellTheme) {
-      root.style.setProperty('--primary',    cellTheme.primary);
-      root.style.setProperty('--primary-lt', cellTheme.lt);
-      root.style.setProperty('--primary-md', cellTheme.md);
+    if (squadTheme) {
+      root.style.setProperty('--primary',    squadTheme.primary);
+      root.style.setProperty('--primary-lt', squadTheme.lt);
+      root.style.setProperty('--primary-md', squadTheme.md);
     } else {
       root.style.removeProperty('--primary');
       root.style.removeProperty('--primary-lt');
@@ -104,7 +104,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
       root.style.removeProperty('--primary-lt');
       root.style.removeProperty('--primary-md');
     };
-  }, [cellTheme]);
+  }, [squadTheme]);
 
   useEffect(() => {
     const handler = (e) => mouseY.set(e.clientY);

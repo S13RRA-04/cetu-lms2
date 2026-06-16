@@ -50,8 +50,8 @@ export const getGradesForAssignment = (assignmentId) =>
 export const submitGrade = (assignmentId, userId, data) =>
   client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/grades/${userId}`, data).then((r) => r.data);
 
-export const submitCellGrade = (assignmentId, cellId, data) =>
-  client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/grades/cell/${cellId}`, data).then((r) => r.data);
+export const submitSquadGrade = (assignmentId, squadId, data) =>
+  client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/grades/squad/${squadId}`, data).then((r) => r.data);
 
 /* ── Cohorts ── */
 export const getCohorts = () =>

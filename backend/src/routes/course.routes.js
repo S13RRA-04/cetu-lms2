@@ -6,7 +6,7 @@ const assignCtrl   = require('../controllers/assignment.controller');
 const contentCtrl  = require('../controllers/contentItem.controller');
 const subCtrl      = require('../controllers/submission.controller');
 const cohortCtrl   = require('../controllers/cohort.controller');
-const cellCtrl         = require('../controllers/cell.controller');
+const squadCtrl        = require('../controllers/squad.controller');
 const campaignCtrl     = require('../controllers/campaign.controller');
 const scenarioCtrl     = require('../controllers/scenario.controller');
 const courseContentCtrl = require('../controllers/courseContent.controller');
@@ -78,16 +78,16 @@ router.get('/:id/assignments/:aid/progress',               requireAuth, requireI
 router.post('/:id/assignments/:aid/unlock',  requireAuth, requireInstructor, validate(unlockSchema), auditLog('unlock', 'assignment'), assignCtrl.unlockForCohort);
 router.post('/:id/assignments/:aid/lock',    requireAuth, requireInstructor, validate(unlockSchema), auditLog('lock',   'assignment'), assignCtrl.lockForCohort);
 
-// Cell grading
-router.put('/:id/assignments/:aid/grades/cell/:squadId',  requireAuth, requireInstructor, validate(gradeSchema), assignCtrl.gradeSquad);
+// Squad grading
+router.put('/:id/assignments/:aid/grades/squad/:squadId', requireAuth, requireInstructor, validate(gradeSchema), assignCtrl.gradeSquad);
 
-// Cells (nested under cohort)
-router.get('/:id/cohorts/:cid/cells',                     requireAuth, requireInstructor, cellCtrl.listByCohort);
-router.post('/:id/cohorts/:cid/cells',                    requireAuth, requireInstructor, cellCtrl.create);
-router.put('/:id/cohorts/:cid/cells/:sid',                requireAuth, requireInstructor, cellCtrl.update);
-router.delete('/:id/cohorts/:cid/cells/:sid',             requireAuth, requireInstructor, cellCtrl.remove);
-router.post('/:id/cohorts/:cid/cells/:sid/members',       requireAuth, requireInstructor, cellCtrl.assignMember);
-router.delete('/:id/cohorts/:cid/cells/:sid/members/:uid', requireAuth, requireInstructor, cellCtrl.removeMember);
+// Squads (nested under cohort)
+router.get('/:id/cohorts/:cid/squads',                     requireAuth, requireInstructor, squadCtrl.listByCohort);
+router.post('/:id/cohorts/:cid/squads',                    requireAuth, requireInstructor, squadCtrl.create);
+router.put('/:id/cohorts/:cid/squads/:sid',                requireAuth, requireInstructor, squadCtrl.update);
+router.delete('/:id/cohorts/:cid/squads/:sid',             requireAuth, requireInstructor, squadCtrl.remove);
+router.post('/:id/cohorts/:cid/squads/:sid/members',       requireAuth, requireInstructor, squadCtrl.assignMember);
+router.delete('/:id/cohorts/:cid/squads/:sid/members/:uid', requireAuth, requireInstructor, squadCtrl.removeMember);
 
 // Cohorts (nested under course)
 router.get('/:id/cohorts',                    requireAuth, requireInstructor, cohortCtrl.listByCourse);

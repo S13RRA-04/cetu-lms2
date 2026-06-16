@@ -92,8 +92,8 @@ export const unlockAssignment = (courseId, assignmentId, cohortId) =>
 export const lockAssignment = (courseId, assignmentId, cohortId) =>
   client.post(`/courses/${courseId}/assignments/${assignmentId}/lock`, { cohort_id: cohortId }).then((r) => r.data);
 
-export const gradeCell = (courseId, assignmentId, cellId, data) =>
-  client.put(`/courses/${courseId}/assignments/${assignmentId}/grades/cell/${cellId}`, data).then((r) => r.data);
+export const gradeSquad = (courseId, assignmentId, squadId, data) =>
+  client.put(`/courses/${courseId}/assignments/${assignmentId}/grades/squad/${squadId}`, data).then((r) => r.data);
 
 /* ── Campaign Drops ── */
 export const getCampaignDrops = (courseId, cohortId) =>

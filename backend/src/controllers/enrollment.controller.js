@@ -1,6 +1,6 @@
 'use strict';
 const enrollmentService = require('../services/enrollment.service');
-const { Enrollment, Cohort, Cell, User } = require('../models');
+const { Enrollment, Cohort, Squad, User } = require('../models');
 const { NotFoundError } = require('../utils/errors');
 
 async function listByCourse(req, res, next) {
@@ -39,8 +39,8 @@ async function getMyEnrollment(req, res, next) {
           attributes: ['id', 'name', 'start_date', 'end_date', 'is_active'],
         },
         {
-          model: Cell,
-          as:    'cell',
+          model: Squad,
+          as:    'squad',
           attributes: ['id', 'number', 'name'],
           include: [{
             model:      User,

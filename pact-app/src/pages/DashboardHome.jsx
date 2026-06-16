@@ -20,9 +20,9 @@ const PROF_ROLE_LABELS = {
   task_force_officer:               'Task Force Officer',
 };
 
-function getVictim(cellNumber) {
-  if (!cellNumber) return null;
-  const key = ((cellNumber - 1) % 4) + 1;
+function getVictim(squadNumber) {
+  if (!squadNumber) return null;
+  const key = ((squadNumber - 1) % 4) + 1;
   return VICTIMS[key] ?? null;
 }
 
@@ -49,8 +49,8 @@ export default function DashboardHome() {
 
   if (loading) return <div className="loading-screen"><div className="spinner" /></div>;
 
-  const cell   = enrollment?.cell;
-  const victim = cell ? getVictim(cell.number) : null;
+  const squad  = enrollment?.squad;
+  const victim = squad ? getVictim(squad.number) : null;
   const role   = user?.professional_role ? PROF_ROLE_LABELS[user.professional_role] ?? user.professional_role : null;
 
   const unlockedDrops  = drops.filter((d) => d.is_unlocked);
@@ -91,7 +91,7 @@ export default function DashboardHome() {
           {role && <span style={{ color: 'var(--primary)' }}>{role}</span>}
           {role && enrollment?.cohort?.name && <span className="dash-welcome-sep">·</span>}
           {enrollment?.cohort?.name ?? 'Task Force Operations'}
-          {cell && <><span className="dash-welcome-sep">·</span>Cell {cell.number}{cell.name ? ` — ${cell.name}` : ''}</>}
+          {squad && <><span className="dash-welcome-sep">·</span>Squad {squad.number}{squad.name ? ` — ${squad.name}` : ''}</>}
         </p>
       </div>
 
@@ -115,7 +115,7 @@ export default function DashboardHome() {
               borderRadius: 4, background: `${victim.color}20`, color: victim.color,
               border: `1px solid ${victim.color}40`, letterSpacing: '.08em',
             }}>
-              CELL {cell.number}
+              SQUAD {squad.number}
             </div>
           </div>
         </div>
@@ -186,20 +186,20 @@ export default function DashboardHome() {
         </div>
       </div>
 
-      {/* ── Cell roster ── */}
-      {cell && (
+      {/* ── Squad roster ── */}
+      {squad && (
         <div className="glass-card squad-card squad-card-accent">
           <div className="squad-card-header">
             <div className="squad-badge-large" style={victim ? { background: `${victim.color}25`, borderColor: victim.color } : {}}>
-              <span className="squad-badge-num" style={victim ? { color: victim.color } : {}}>{cell.number}</span>
+              <span className="squad-badge-num" style={victim ? { color: victim.color } : {}}>{squad.number}</span>
             </div>
             <div className="squad-card-title">
-              <div className="squad-number">Cell {cell.number}{cell.name ? ` · ${cell.name}` : ''}</div>
-              <div className="squad-count">{(cell.students ?? []).length} operators</div>
+              <div className="squad-number">Squad {squad.number}{squad.name ? ` · ${squad.name}` : ''}</div>
+              <div className="squad-count">{(squad.students ?? []).length} operators</div>
             </div>
           </div>
           <div className="squad-members">
-            {(cell.students ?? []).map((m) => (
+            {(squad.students ?? []).map((m) => (
               <div
                 key={m.id}
                 className={`squad-member${m.id === user?.id ? ' squad-member-self' : ''}`}

@@ -7,7 +7,7 @@ const Module              = require('./Module')(sequelize);
 const ContentItem         = require('./ContentItem')(sequelize);
 const Enrollment          = require('./Enrollment')(sequelize);
 const Cohort              = require('./Cohort')(sequelize);
-const Cell                = require('./Cell')(sequelize);
+const Squad               = require('./Squad')(sequelize);
 const AssignmentUnlock    = require('./AssignmentUnlock')(sequelize);
 const Assignment          = require('./Assignment')(sequelize);
 const Submission          = require('./Submission')(sequelize);
@@ -55,13 +55,13 @@ Cohort.hasMany(Enrollment, { foreignKey: 'cohort_id', as: 'enrollments' });
 User.belongsToMany(Cohort, { through: Enrollment, foreignKey: 'user_id',  as: 'cohorts' });
 Cohort.belongsToMany(User, { through: Enrollment, foreignKey: 'cohort_id', as: 'members' });
 
-// ── Cohort ↔ Cell ──────────────────────────────────────────────────────────
-Cohort.hasMany(Cell, { as: 'cells', foreignKey: 'cohort_id', onDelete: 'CASCADE' });
-Cell.belongsTo(Cohort,             { foreignKey: 'cohort_id' });
-Cell.hasMany(Enrollment, { foreignKey: 'cell_id', as: 'members' });
-Enrollment.belongsTo(Cell, { foreignKey: 'cell_id', as: 'cell' });
-User.belongsToMany(Cell, { through: Enrollment, foreignKey: 'user_id', as: 'cells' });
-Cell.belongsToMany(User, { through: Enrollment, foreignKey: 'cell_id', as: 'students' });
+// ── Cohort ↔ Squad ─────────────────────────────────────────────────────────
+Cohort.hasMany(Squad, { as: 'squads', foreignKey: 'cohort_id', onDelete: 'CASCADE' });
+Squad.belongsTo(Cohort,              { foreignKey: 'cohort_id' });
+Squad.hasMany(Enrollment, { foreignKey: 'squad_id', as: 'members' });
+Enrollment.belongsTo(Squad, { foreignKey: 'squad_id', as: 'squad' });
+User.belongsToMany(Squad, { through: Enrollment, foreignKey: 'user_id', as: 'squads' });
+Squad.belongsToMany(User, { through: Enrollment, foreignKey: 'squad_id', as: 'students' });
 
 // ── Assignment ↔ AssignmentUnlock ──────────────────────────────────────────
 Assignment.hasMany(AssignmentUnlock, { as: 'unlocks', foreignKey: 'assignment_id', onDelete: 'CASCADE' });
@@ -69,8 +69,8 @@ AssignmentUnlock.belongsTo(Assignment, { foreignKey: 'assignment_id' });
 AssignmentUnlock.belongsTo(Cohort,     { foreignKey: 'cohort_id' });
 AssignmentUnlock.belongsTo(User, { as: 'unlocker', foreignKey: 'unlocked_by' });
 
-// ── Submission ↔ Cell ──────────────────────────────────────────────────────
-Submission.belongsTo(Cell, { foreignKey: 'cell_id', as: 'cell' });
+// ── Submission ↔ Squad ─────────────────────────────────────────────────────
+Submission.belongsTo(Squad, { foreignKey: 'squad_id', as: 'squad' });
 
 // ── Course ↔ Assignment ────────────────────────────────────────────────────
 Course.hasMany(Assignment,  { as: 'assignments', foreignKey: 'course_id', onDelete: 'CASCADE' });
@@ -148,7 +148,7 @@ module.exports = {
   ContentItem,
   Enrollment,
   Cohort,
-  Cell,
+  Squad,
   AssignmentUnlock,
   Assignment,
   Submission,

@@ -94,7 +94,7 @@ export default function AssignmentPage() {
     } catch (err) {
       const msg = err.response?.data?.error?.message ?? '';
       if (msg.includes('squad') || msg.includes('cell')) {
-        setError('You must be assigned to a cell to submit this tasking. Contact your instructor.');
+        setError('You must be assigned to a squad to submit this tasking. Contact your instructor.');
       } else if (msg.includes('cohort') || msg.includes('unlock') || err.response?.status === 403) {
         setError('This assignment is not yet unlocked for your cohort.');
       } else {
@@ -135,7 +135,7 @@ export default function AssignmentPage() {
   }
 
   const color      = TYPE_COLOR[assignment.type] ?? TYPE_COLOR.module;
-  const isCell     = assignment.grading_mode === 'squad'; // internal value kept; means "cell-graded"
+  const isSquad    = assignment.grading_mode === 'squad';
   const isLocked   = assignment.is_unlocked === false;
   const isSurvey   = assignment.type === 'survey';
   /* hasQuiz: quiz questions always carry a `payload` field; prompt objects (kind:'prompt') do not */
@@ -158,7 +158,7 @@ export default function AssignmentPage() {
               DROP {assignment.drop_number}
             </span>
           )}
-          {isCell && <span className="squad-badge">Cell Tasking</span>}
+          {isSquad && <span className="squad-badge">Squad Tasking</span>}
           {assignment.role_filters?.length > 0 && (
             <span className="squad-badge" style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--muted)' }}>
               {assignment.role_filters.join(' · ')}
@@ -275,9 +275,9 @@ export default function AssignmentPage() {
             ) : (
               <div>
                 <div className="section-label">Mission Response</div>
-                {isCell && (
+                {isSquad && (
                   <div className="squad-notice">
-                    Cell tasking — your submission will be graded for your entire cell
+                    Squad tasking — your submission will be graded for your entire squad
                   </div>
                 )}
                 {submission && (
