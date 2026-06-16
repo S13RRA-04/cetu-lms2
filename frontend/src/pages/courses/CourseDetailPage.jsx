@@ -14,10 +14,6 @@ import {
   listCohorts, createCohort, updateCohort, deleteCohort, addMember, removeMember,
   listSquads, createSquad, deleteSquad, assignToSquad, removeFromSquad,
 } from '../../api/cohorts.js';
-import {
-  getCampaignDrops, createCampaignDrop, updateCampaignDrop, deleteCampaignDrop,
-  releaseCampaignDrop, lockCampaignDrop,
-} from '../../api/courses.js';
 import { getUsers } from '../../api/users.js';
 import { getLaunchUrl } from '../../api/auth.js';
 import useAuthStore from '../../store/authStore.js';
@@ -433,202 +429,6 @@ function SquadsPanel({ courseId, cohortId, cohortMembers }) {
           message={`Delete Squad ${delSquad.number}${delSquad.name ? ` (${delSquad.name})` : ''}? Members will be unassigned.`}
           onConfirm={async () => { await deleteSquad(courseId, cohortId, delSquad.id); setDelSquad(null); load(); }}
           onCancel={() => setDelSquad(null)}
-        />
-      )}
-    </div>
-  );
-}
-
-// ── Campaign Drop Form ────────────────────────────────────────────────────────
-function DropForm({ courseId, initial, onSave, onClose }) {
-  const [form, setForm] = useState({
-    number:          initial?.number          ?? '',
-    title:           initial?.title           ?? '',
-    narrative_intro: initial?.narrative_intro ?? '',
-  });
-  const [saving, setSaving] = useState(false);
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-
-  const submit = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      const payload = { ...form, number: Number(form.number) };
-      if (initial) await updateCampaignDrop(courseId, initial.id, payload);
-      else         await createCampaignDrop(courseId, payload);
-      onSave();
-    } finally { setSaving(false); }
-  };
-
-  return (
-    <form onSubmit={submit}>
-      <div className="grid-2">
-        <div className="form-group">
-          <label>Drop # *</label>
-          <input type="number" value={form.number} onChange={set('number')} min={1} max={6} required />
-        </div>
-        <div className="form-group">
-          <label>Title *</label>
-          <input value={form.title} onChange={set('title')} placeholder="e.g. Initial Contact" required />
-        </div>
-      </div>
-      <div className="form-group">
-        <label>Narrative Intro (Command Post bulletin)</label>
-        <textarea
-          value={form.narrative_intro}
-          onChange={set('narrative_intro')}
-          rows={5}
-          placeholder="Briefing text shown to students when this drop is released…"
-        />
-      </div>
-      <div className="flex-end" style={{ marginTop: 16, gap: 8 }}>
-        <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-        <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
-      </div>
-    </form>
-  );
-}
-
-// ── Campaign Drops Tab ────────────────────────────────────────────────────────
-function CampaignDropsTab({ courseId }) {
-  const [drops,    setDrops]   = useState([]);
-  const [cohorts,  setCohorts] = useState([]);
-  const [cohortId, setCohortId] = useState('');
-  const [loading,  setLoading] = useState(true);
-  const [dropModal, setDropModal] = useState(null);
-  const [delDrop,   setDelDrop]  = useState(null);
-  const [working,   setWorking]  = useState(null);
-
-  const loadDrops = useCallback(() =>
-    getCampaignDrops(courseId, cohortId || undefined)
-      .then((d) => setDrops(Array.isArray(d) ? d : []))
-      .finally(() => setLoading(false)),
-  [courseId, cohortId]);
-
-  useEffect(() => {
-    listCohorts(courseId).then((data) => {
-      setCohorts(Array.isArray(data) ? data : []);
-    }).catch(() => {});
-  }, [courseId]);
-
-  useEffect(() => { setLoading(true); loadDrops(); }, [loadDrops]);
-
-  const handleRelease = async (drop) => {
-    if (!cohortId) { alert('Select a cohort first to release a drop.'); return; }
-    setWorking(drop.id + ':release');
-    try { await releaseCampaignDrop(courseId, drop.id, cohortId); loadDrops(); }
-    finally { setWorking(null); }
-  };
-
-  const handleLock = async (drop) => {
-    if (!cohortId) { alert('Select a cohort first to lock a drop.'); return; }
-    setWorking(drop.id + ':lock');
-    try { await lockCampaignDrop(courseId, drop.id, cohortId); loadDrops(); }
-    finally { setWorking(null); }
-  };
-
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span className="fw-600">Campaign Drops</span>
-          <select
-            value={cohortId}
-            onChange={(e) => setCohortId(e.target.value)}
-            style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 14, background: 'white' }}
-          >
-            <option value="">— select cohort for release status —</option>
-            {cohorts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setDropModal('new')}>+ Add Drop</button>
-      </div>
-
-      {loading ? <LoadingSpinner /> : drops.length === 0 ? (
-        <div className="empty-state"><p>No campaign drops yet. Add drops to structure the operation timeline.</p></div>
-      ) : (
-        <div>
-          {drops.sort((a, b) => a.number - b.number).map((drop) => {
-            const isUnlocked = drop.is_unlocked;
-            const isWorking  = working?.startsWith(drop.id);
-            return (
-              <div key={drop.id} className="card" style={{ marginBottom: 10, borderLeft: `3px solid ${isUnlocked ? 'var(--success)' : 'var(--border)'}` }}>
-                <div className="card-body" style={{ padding: '12px 16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                        <span style={{
-                          fontFamily: 'monospace', fontSize: 11, fontWeight: 700,
-                          padding: '2px 8px', borderRadius: 4,
-                          background: isUnlocked ? 'var(--success)' : 'var(--surface-2)',
-                          color: isUnlocked ? 'white' : 'var(--muted)',
-                        }}>
-                          DROP {drop.number}
-                        </span>
-                        <span className="fw-600" style={{ fontSize: 15 }}>{drop.title}</span>
-                        {isUnlocked && cohortId && (
-                          <span className="badge badge-green">Released</span>
-                        )}
-                      </div>
-                      {drop.narrative_intro && (
-                        <p className="text-sm text-muted" style={{
-                          margin: 0, maxHeight: 60, overflow: 'hidden', textOverflow: 'ellipsis',
-                          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-                        }}>
-                          {drop.narrative_intro}
-                        </p>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', gap: 6, flexShrink: 0, marginLeft: 12 }}>
-                      {cohortId && (
-                        isUnlocked ? (
-                          <button
-                            className="btn btn-secondary btn-sm"
-                            disabled={!!isWorking}
-                            onClick={() => handleLock(drop)}
-                          >
-                            {isWorking ? '…' : 'Lock'}
-                          </button>
-                        ) : (
-                          <button
-                            className="btn btn-primary btn-sm"
-                            disabled={!!isWorking}
-                            onClick={() => handleRelease(drop)}
-                          >
-                            {isWorking ? '…' : 'Release'}
-                          </button>
-                        )
-                      )}
-                      <button className="btn btn-ghost btn-xs" onClick={() => setDropModal(drop)}>Edit</button>
-                      <button className="btn btn-ghost btn-xs" style={{ color: 'var(--danger)' }} onClick={() => setDelDrop(drop)}>Delete</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {dropModal && (
-        <Modal
-          title={dropModal === 'new' ? 'Add Campaign Drop' : `Edit Drop ${dropModal.number}`}
-          onClose={() => setDropModal(null)}
-        >
-          <DropForm
-            courseId={courseId}
-            initial={dropModal !== 'new' ? dropModal : null}
-            onSave={() => { setDropModal(null); loadDrops(); }}
-            onClose={() => setDropModal(null)}
-          />
-        </Modal>
-      )}
-      {delDrop && (
-        <ConfirmDialog
-          title="Delete Campaign Drop"
-          message={`Delete Drop ${delDrop.number} "${delDrop.title}"? This does not delete the assignments tagged to it.`}
-          onConfirm={async () => { await deleteCampaignDrop(courseId, delDrop.id); setDelDrop(null); loadDrops(); }}
-          onCancel={() => setDelDrop(null)}
         />
       )}
     </div>
@@ -1681,9 +1481,9 @@ export default function CourseDetailPage() {
       )}
 
       <div className="tabs">
-        {['modules', 'assignments', ...(canManage ? ['grades', 'cohorts', 'campaign', 'enrollments'] : [])].map((t) => (
+        {['modules', 'assignments', ...(canManage ? ['grades', 'cohorts', 'enrollments'] : [])].map((t) => (
           <button key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
-            {t === 'campaign' ? 'Campaign Drops' : t.charAt(0).toUpperCase() + t.slice(1)}
+            {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
@@ -1795,9 +1595,6 @@ export default function CourseDetailPage() {
 
       {/* ── Cohorts ── */}
       {tab === 'cohorts' && canManage && <CohortsTab courseId={id} />}
-
-      {/* ── Campaign Drops ── */}
-      {tab === 'campaign' && canManage && <CampaignDropsTab courseId={id} />}
 
       {/* ── Enrollments ── */}
       {tab === 'enrollments' && canManage && (

@@ -95,24 +95,6 @@ export const lockAssignment = (courseId, assignmentId, cohortId) =>
 export const gradeSquad = (courseId, assignmentId, squadId, data) =>
   client.put(`/courses/${courseId}/assignments/${assignmentId}/grades/squad/${squadId}`, data).then((r) => r.data);
 
-/* ── Campaign Drops ── */
-export const getCampaignDrops = (courseId, cohortId) =>
-  client.get(`/courses/${courseId}/campaign/drops`, { params: { cohort_id: cohortId } }).then((r) => r.data);
-
-export const createCampaignDrop = (courseId, data) =>
-  client.post(`/courses/${courseId}/campaign/drops`, data).then((r) => r.data);
-
-export const updateCampaignDrop = (courseId, dropId, data) =>
-  client.put(`/courses/${courseId}/campaign/drops/${dropId}`, data).then((r) => r.data);
-
-export const deleteCampaignDrop = (courseId, dropId) =>
-  client.delete(`/courses/${courseId}/campaign/drops/${dropId}`);
-
-export const releaseCampaignDrop = (courseId, dropId, cohortId) =>
-  client.post(`/courses/${courseId}/campaign/drops/${dropId}/release`, { cohort_id: cohortId }).then((r) => r.data);
-
-export const lockCampaignDrop = (courseId, dropId, cohortId) =>
-  client.post(`/courses/${courseId}/campaign/drops/${dropId}/lock`, { cohort_id: cohortId });
 
 export const getCourseGrades = (courseId, cohortId) =>
   client.get(`/courses/${courseId}/grades`, { params: cohortId ? { cohort_id: cohortId } : {} }).then((r) => r.data);
