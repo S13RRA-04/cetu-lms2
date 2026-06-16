@@ -1,7 +1,24 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { getMyEnrollment, getAssignments, getCampaignDrops } from '../api/pact.js';
 import useAuthStore from '../store/authStore.js';
 import { getVictim } from '../constants/victims.js';
+
+function useCountUp(target, duration = 900) {
+  const [val, setVal] = useState(0);
+  const started = useRef(false);
+  useEffect(() => {
+    if (target === 0 || started.current) return;
+    started.current = true;
+    const t0 = Date.now();
+    const tick = () => {
+      const p = Math.min((Date.now() - t0) / duration, 1);
+      setVal(Math.round(p * target));
+      if (p < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, [target, duration]);
+  return val;
+}
 
 const PROF_ROLE_LABELS = {
   special_agent:                    'Special Agent',
@@ -40,6 +57,11 @@ export default function DashboardHome() {
   const squad  = enrollment?.squad;
   const victim = squad ? getVictim(squad.number) : null;
   const role   = user?.professional_role ? PROF_ROLE_LABELS[user.professional_role] ?? user.professional_role : null;
+
+  const countUnlocked   = useCountUp(unlocked);
+  const countCompleted  = useCountUp(completed);
+  const countInProgress = useCountUp(inProgress);
+  const countPct        = useCountUp(overallPct);
 
   const unlockedDrops  = drops.filter((d) => d.is_unlocked);
   const activeDrop     = unlockedDrops.length > 0 ? unlockedDrops[unlockedDrops.length - 1] : null;
@@ -95,8 +117,15 @@ export default function DashboardHome() {
               <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', color: victim.color, marginBottom: 4, textTransform: 'uppercase' }}>
                 YOUR INVESTIGATION TARGET
               </div>
-              <div style={{ fontWeight: 600, fontSize: 16 }}>{victim.name}</div>
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{victim.sector} · Code: {victim.code}</div>
+              <div style={{ fontWeight: 700, fontSize: 17, color: 'var(--bright)', letterSpacing: '.02em' }} className="chroma">
+                {victim.name}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span>{victim.sector} · Code: {victim.code}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#ef4444', fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.1em' }}>
+                  <span className="threat-blink">●</span> ACTIVE THREAT
+                </span>
+              </div>
             </div>
             <div style={{
               fontFamily: 'var(--mono)', fontSize: 10, padding: '4px 10px',
@@ -125,22 +154,22 @@ export default function DashboardHome() {
       <div className="stats-banner">
         <div className="stat-glass">
           <div className="stat-glass-icon">◈</div>
-          <div className="stat-glass-value">{unlocked}</div>
+          <div className="stat-glass-value">{countUnlocked}</div>
           <div className="stat-glass-label">Issued</div>
         </div>
         <div className="stat-glass stat-glass-green">
           <div className="stat-glass-icon">◉</div>
-          <div className="stat-glass-value">{completed}</div>
+          <div className="stat-glass-value">{countCompleted}</div>
           <div className="stat-glass-label">Closed</div>
         </div>
         <div className="stat-glass stat-glass-amber">
           <div className="stat-glass-icon">⬡</div>
-          <div className="stat-glass-value">{inProgress}</div>
+          <div className="stat-glass-value">{countInProgress}</div>
           <div className="stat-glass-label">Active</div>
         </div>
         <div className="stat-glass stat-glass-primary stat-glass-wide">
           <div className="stat-glass-icon">◇</div>
-          <div className="stat-glass-value">{overallPct}%</div>
+          <div className="stat-glass-value">{countPct}%</div>
           <div className="stat-glass-label">Case Status</div>
         </div>
       </div>

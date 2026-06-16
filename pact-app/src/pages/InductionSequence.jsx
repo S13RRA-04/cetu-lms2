@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getVictim } from '../constants/victims.js';
+import DecryptText from '../components/DecryptText.jsx';
+import DataStream  from '../components/DataStream.jsx';
 
 const PROF_ROLE_LABELS = {
   special_agent:                    'Special Agent',
@@ -139,27 +141,35 @@ function PanelTarget({ enrollment, onAdvance }) {
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       transition={{ duration: 0.5 }}
     >
-      {/* Left color bar that reveals with the target */}
+      {/* Scrolling hex data stream in background */}
+      <DataStream color={victim.color} opacity={0.04} fontSize={10} />
+
+      {/* Left color bar */}
       <motion.div
         className="ind-target-bar"
         initial={{ scaleY: 0, opacity: 0 }}
         animate={stage >= 2 ? { scaleY: 1, opacity: 1 } : { scaleY: 0, opacity: 0 }}
-        transition={{ duration: 0.6, ease: 'easeOut' }}
-        style={{ background: victim.color }}
+        transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+        style={{
+          background: `linear-gradient(180deg, ${victim.color}, ${victim.color}88)`,
+          boxShadow: stage >= 2 ? `0 0 18px ${victim.color}` : 'none',
+        }}
       />
 
       <div className="ind-target-body">
-        {/* Accessing */}
+        {/* Accessing — decrypt effect */}
         <motion.div
           className="ind-target-accessing"
           initial={{ opacity: 0 }}
           animate={stage >= 1 ? { opacity: 1 } : { opacity: 0 }}
-          transition={{ duration: 0.4 }}
+          transition={{ duration: 0.3 }}
         >
-          ACCESSING RESTRICTED CASE FILE...
+          {stage >= 1 && (
+            <DecryptText text="ACCESSING RESTRICTED CASE FILE..." speed={28} hold={4} />
+          )}
         </motion.div>
 
-        {/* Classification */}
+        {/* Classification stamp */}
         <motion.div
           className="ind-stamp"
           style={{ marginTop: 24, marginBottom: 12 }}
@@ -170,18 +180,20 @@ function PanelTarget({ enrollment, onAdvance }) {
           YOUR INVESTIGATION TARGET
         </motion.div>
 
-        {/* Victim name — the reveal */}
+        {/* Victim name — THE reveal: decrypt + chromatic aberration + glow */}
         <motion.div
-          className="ind-target-name"
-          style={{ color: victim.color }}
-          initial={{ opacity: 0, y: 12 }}
-          animate={stage >= 2 ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }}
-          transition={{ duration: 0.5, ease: 'easeOut' }}
+          className="ind-target-name chroma"
+          style={{ color: victim.color, textShadow: `0 0 40px ${victim.color}88, 0 0 80px ${victim.color}44` }}
+          initial={{ opacity: 0, y: 16 }}
+          animate={stage >= 2 ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
         >
-          {victim.name}
+          {stage >= 2 && (
+            <DecryptText text={victim.name} speed={24} hold={5} delay={80} />
+          )}
         </motion.div>
 
-        {/* Sector / code */}
+        {/* Sector / code pills */}
         <motion.div
           className="ind-target-meta"
           initial={{ opacity: 0 }}
@@ -194,16 +206,16 @@ function PanelTarget({ enrollment, onAdvance }) {
           <span className="ind-target-meta-pill">
             CODE: {victim.code}
           </span>
-          <span className="ind-target-meta-pill ind-target-meta-status">
-            STATUS: ACTIVE INVESTIGATION
+          <span className="ind-target-meta-pill ind-target-meta-status threat-blink">
+            ● STATUS: ACTIVE INVESTIGATION
           </span>
         </motion.div>
 
         {/* Incident summary */}
         <motion.div
           className="ind-target-incident"
-          initial={{ opacity: 0 }}
-          animate={stage >= 4 ? { opacity: 1 } : { opacity: 0 }}
+          initial={{ opacity: 0, y: 8 }}
+          animate={stage >= 4 ? { opacity: 1, y: 0 } : { opacity: 0, y: 8 }}
           transition={{ duration: 0.5 }}
         >
           <div className="ind-target-incident-label">INCIDENT SUMMARY</div>
@@ -221,7 +233,11 @@ function PanelTarget({ enrollment, onAdvance }) {
           transition={{ duration: 0.4 }}
           style={{ marginTop: 32 }}
         >
-          <button className="ind-btn" style={{ borderColor: victim.color, color: victim.color }} onClick={onAdvance}>
+          <button
+            className="ind-btn"
+            style={{ borderColor: victim.color, color: victim.color, boxShadow: `0 0 12px ${victim.color}33` }}
+            onClick={onAdvance}
+          >
             ACKNOWLEDGED <span className="ind-btn-arrow">→</span>
           </button>
         </motion.div>

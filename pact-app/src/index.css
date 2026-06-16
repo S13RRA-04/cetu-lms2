@@ -3540,3 +3540,173 @@ body {
 .tx-ack-btn {
   align-self: flex-start;
 }
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   HOLLYWOOD CYBER EFFECTS
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Chromatic aberration — RGB channel split on big reveals ── */
+.chroma {
+  text-shadow:
+    -2px 0 rgba(255, 0, 64, 0.45),
+     2px 0 rgba(0, 255, 255, 0.45);
+}
+
+/* ── Threat blink — pulsing ● indicator ── */
+@keyframes threat-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.2; }
+}
+.threat-blink {
+  animation: threat-blink 1.2s ease-in-out infinite;
+}
+
+/* ── Vertical radar sweep — horizontal bright line sweeping top→bottom ── */
+@keyframes radar-sweep {
+  0%   { top: -3px; opacity: 0.7; }
+  80%  { opacity: 0.3; }
+  100% { top: 100%;  opacity: 0; }
+}
+.ind-root::after,
+.tx-root::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 176, 255, 0.5) 30%,
+    rgba(0, 176, 255, 0.8) 50%,
+    rgba(0, 176, 255, 0.5) 70%,
+    transparent 100%
+  );
+  animation: radar-sweep 5s linear infinite;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* ── Glitch — sporadic clip-slice + skew on text ── */
+@keyframes glitch-body {
+  0%, 88%, 100% { transform: none; }
+  90%  { transform: skewX(-6deg) translateX(-3px); }
+  92%  { transform: skewX(4deg)  translateX(3px);  }
+  94%  { transform: skewX(-2deg) translateX(-1px); }
+}
+@keyframes glitch-r {
+  0%, 88%, 100% { transform: none; opacity: 0; clip-path: none; }
+  90% { transform: translateX(-4px); opacity: 0.6; clip-path: inset(10% 0 70% 0); }
+  92% { transform: translateX(4px);  opacity: 0.4; clip-path: inset(60% 0 10% 0); }
+  94% { opacity: 0; }
+}
+@keyframes glitch-b {
+  0%, 89%, 100% { transform: none; opacity: 0; clip-path: none; }
+  91% { transform: translateX(4px);  opacity: 0.5; clip-path: inset(30% 0 50% 0); }
+  93% { transform: translateX(-4px); opacity: 0.3; clip-path: inset(50% 0 20% 0); }
+  95% { opacity: 0; }
+}
+
+.glitch-text {
+  position: relative;
+  display: inline-block;
+  animation: glitch-body 6s infinite;
+}
+.glitch-text::before,
+.glitch-text::after {
+  content: attr(data-text);
+  position: absolute;
+  left: 0; top: 0;
+  width: 100%;
+  overflow: hidden;
+}
+.glitch-text::before {
+  color: #ff0040;
+  animation: glitch-r 6s infinite;
+}
+.glitch-text::after {
+  color: #00ffff;
+  animation: glitch-b 6s infinite;
+}
+
+/* ── Progress fill scan sweep ── */
+@keyframes fill-sweep {
+  0%   { background-position: -100% 0; }
+  100% { background-position: 250%  0; }
+}
+.progress-fill-glow {
+  position: relative;
+  overflow: hidden;
+}
+.progress-fill-glow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255,255,255,0.35) 50%,
+    transparent 100%
+  );
+  background-size: 60% 100%;
+  animation: fill-sweep 2.4s linear infinite;
+}
+
+/* ── Occasional screen flicker on induction / transmission roots ── */
+@keyframes screen-flicker {
+  0%, 92%, 100% { opacity: 1; }
+  93%  { opacity: 0.88; }
+  93.5%{ opacity: 1;    }
+  94%  { opacity: 0.94; }
+  94.5%{ opacity: 0.82; }
+  95%  { opacity: 1;    }
+}
+.ind-root,
+.tx-root {
+  animation: screen-flicker 9s infinite;
+}
+
+/* ── Horizontal interference bands on TX ── */
+@keyframes interference {
+  0%   { transform: translateY(-100%); opacity: 0; }
+  5%   { opacity: 0.12; }
+  95%  { opacity: 0.08; }
+  100% { transform: translateY(100vh);  opacity: 0; }
+}
+.tx-interference {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  overflow: hidden;
+}
+.tx-interference::before,
+.tx-interference::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  height: 3px;
+  background: rgba(0, 176, 255, 0.6);
+  filter: blur(1px);
+}
+.tx-interference::before {
+  animation: interference 7s linear infinite;
+}
+.tx-interference::after {
+  animation: interference 7s linear 3.5s infinite;
+}
+
+/* ── Auth screen occasional flicker ── */
+.auth-root {
+  animation: screen-flicker 11s infinite;
+}
+
+/* ── Stat glass count-up pop ── */
+@keyframes stat-pop {
+  0%   { transform: scale(0.85); opacity: 0; }
+  60%  { transform: scale(1.06); }
+  100% { transform: scale(1);    opacity: 1; }
+}
+.stat-glass-value {
+  animation: stat-pop 0.5s ease-out both;
+}

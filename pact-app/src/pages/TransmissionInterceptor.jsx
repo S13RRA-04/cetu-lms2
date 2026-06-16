@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import DecryptText from '../components/DecryptText.jsx';
+import DataStream  from '../components/DataStream.jsx';
 
 // Tracks which drops a user has already seen
 export function seenKey(userId) {
@@ -55,7 +57,9 @@ export default function TransmissionInterceptor({ drop, onAcknowledge }) {
 
   return (
     <div className="tx-root">
+      <DataStream color="#00b0ff" opacity={0.045} fontSize={10} />
       <div className="ind-scanlines" />
+      <div className="tx-interference" />
 
       <div className="tx-body">
 
@@ -99,9 +103,13 @@ export default function TransmissionInterceptor({ drop, onAcknowledge }) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, ease: 'easeOut' }}
             >
-              <span className="tx-drop-num">DROP {drop.number}</span>
+              <span className="tx-drop-num">
+                <DecryptText text={`DROP ${drop.number}`} speed={30} hold={3} />
+              </span>
               {drop.title && (
-                <span className="tx-drop-title">{drop.title.toUpperCase()}</span>
+                <span className="tx-drop-title chroma">
+                  <DecryptText text={drop.title.toUpperCase()} speed={22} hold={6} delay={200} />
+                </span>
               )}
             </motion.div>
           )}
