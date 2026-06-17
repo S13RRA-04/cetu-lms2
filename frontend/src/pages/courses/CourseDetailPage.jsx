@@ -1053,7 +1053,20 @@ function CohortsTab({ courseId }) {
                       setSelected((prev) => ({ ...prev, ...updated }));
                     }}
                   >
-                    {selected.target_revealed ? '🔒 Hide Target' : '🎯 Reveal Target'}
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      {selected.target_revealed ? (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                      ) : (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="3"/>
+                          <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+                        </svg>
+                      )}
+                      {selected.target_revealed ? 'Conceal Target' : 'Reveal Target'}
+                    </span>
                   </button>
                   <button className="btn btn-secondary btn-sm" onClick={() => setCohortModal(selected)}>Edit</button>
                   <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }} onClick={() => setDelCohort(selected)}>Delete</button>
