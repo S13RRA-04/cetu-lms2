@@ -4514,7 +4514,7 @@ body {
   right: 0;
   pointer-events: none;
   overflow: hidden;
-  opacity: 0.28;
+  opacity: 0.55;
 }
 .ops-globe-bg canvas {
   width: 100% !important;

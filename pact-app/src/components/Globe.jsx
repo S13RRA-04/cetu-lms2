@@ -179,14 +179,14 @@ export default function Globe({
         /* Inner fill — barely-there tint, not a blob */
         const glowGeometry = new THREE.SphereGeometry(GLOBE_RADIUS * 1.01, 48, 32);
         const glowMaterial = new THREE.MeshBasicMaterial({
-          color: accent, transparent: true, opacity: 0.012, depthWrite: false,
+          color: accent, transparent: true, opacity: 0.055, depthWrite: false,
         });
         globe.add(new THREE.Mesh(glowGeometry, glowMaterial));
 
         /* Rim atmosphere — single tight shell, barely visible */
         const atmoShells = [
-          { rMult: 1.04, opacity: 0.018 },
-          { rMult: 1.09, opacity: 0.01  },
+          { rMult: 1.04, opacity: 0.065 },
+          { rMult: 1.09, opacity: 0.032 },
         ].map(({ rMult, opacity }) => {
           const geo = new THREE.SphereGeometry(GLOBE_RADIUS * rMult, 48, 32);
           const mat = new THREE.MeshBasicMaterial({
@@ -215,7 +215,7 @@ export default function Globe({
         const lineGeometry = new THREE.BufferGeometry();
         lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(buildGuideLines(), 3));
         const lineMaterial = new THREE.LineBasicMaterial({
-          color: accent, transparent: true, opacity: 0.16, depthWrite: false,
+          color: accent, transparent: true, opacity: 0.32, depthWrite: false,
         });
         globe.add(new THREE.LineSegments(lineGeometry, lineMaterial));
 
@@ -228,7 +228,7 @@ export default function Globe({
         const arcGeometry = new THREE.BufferGeometry();
         arcGeometry.setAttribute('position', new THREE.Float32BufferAttribute(buildArcSegments(arcPaths), 3));
         const arcMaterial = new THREE.LineBasicMaterial({
-          color: accent, transparent: true, opacity: 0.28, depthWrite: false,
+          color: accent, transparent: true, opacity: 0.52, depthWrite: false,
         });
         globe.add(new THREE.LineSegments(arcGeometry, arcMaterial));
 
@@ -256,7 +256,7 @@ export default function Globe({
           );
           const material = new THREE.LineBasicMaterial({
             color: accent, transparent: true,
-            opacity: 0.42 * Math.pow(1 - index / TRAIL_LAYER_COUNT, 1.7),
+            opacity: 0.68 * Math.pow(1 - index / TRAIL_LAYER_COUNT, 1.7),
             depthWrite: false,
           });
           globe.add(new THREE.LineSegments(geometry, material));
@@ -282,7 +282,7 @@ export default function Globe({
           new THREE.Float32BufferAttribute(buildLatitudeRing(0, GLOBE_RADIUS * 1.008), 3),
         );
         const eqMaterial = new THREE.LineBasicMaterial({
-          color: accent, transparent: true, opacity: 0.1, depthWrite: false,
+          color: accent, transparent: true, opacity: 0.22, depthWrite: false,
         });
         globe.add(new THREE.LineSegments(eqGeometry, eqMaterial));
 
@@ -292,7 +292,7 @@ export default function Globe({
 
         /* Orbit path rings */
         const orbitMat = new THREE.LineBasicMaterial({
-          color: accent, transparent: true, opacity: 0.09, depthWrite: false,
+          color: accent, transparent: true, opacity: 0.2, depthWrite: false,
         });
         const orbitGeos = SATELLITES.map((s) => {
           const geo = new THREE.BufferGeometry();
@@ -322,7 +322,7 @@ export default function Globe({
           new THREE.Float32BufferAttribute(new Float32Array(MAX_SAT_VERTS * 3), 3),
         );
         const meshMat = new THREE.LineBasicMaterial({
-          color: accent, transparent: true, opacity: 0.22, depthWrite: false,
+          color: accent, transparent: true, opacity: 0.42, depthWrite: false,
         });
         satGroup.add(new THREE.LineSegments(meshGeo, meshMat));
 
@@ -594,7 +594,7 @@ function buildPointCloudFromSample(points, accent) {
 
 function addGlobePoint(positions, colors, x, y, accent, intensity) {
   const vertex   = flatMapPointToSphere(x, y, GLOBE_RADIUS);
-  const depthFade = Math.pow(Math.max(0, Math.min(1, (vertex[2] / GLOBE_RADIUS + 1) / 2)), 2.2);
+  const depthFade = Math.pow(Math.max(0, Math.min(1, (vertex[2] / GLOBE_RADIUS + 1) / 2)), 1.4);
   positions.push(...vertex);
   colors.push(
     accent.r * depthFade * intensity,
@@ -696,7 +696,7 @@ function updateCyberEffects(arcs, pulseGeometry, pulseMaterial, trailLayers, sca
     ringPositions.setXYZ(i / 3, ringVertices[i], ringVertices[i + 1], ringVertices[i + 2]);
   }
   ringPositions.needsUpdate = true;
-  scanMaterial.opacity = 0.12 + 0.22 * (0.5 + 0.5 * Math.sin(time * 2.2));
+  scanMaterial.opacity = 0.22 + 0.38 * (0.5 + 0.5 * Math.sin(time * 2.2));
 }
 
 function wrap01(value) {
