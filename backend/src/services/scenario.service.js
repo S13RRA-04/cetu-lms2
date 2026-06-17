@@ -1,5 +1,5 @@
 'use strict';
-const { ListObjectsV2Command, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { ListObjectsV2Command, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { r2Client, R2_BUCKET, R2_DECKS_PREFIX } = require('../config/r2');
 const { ScenarioPackage, ScenarioPackageUnlock, Course, Cohort, Enrollment, Squad } = require('../models');
@@ -75,24 +75,28 @@ async function syncFromR2(courseId) {
   }
 }
 
-/* Build public URLs for every file inside a scenario's R2 prefix */
-async function getFilesForPackage(pkg) {
-  /* single-file package — r2_key points directly at the object */
+/* Presigned GET URL for a single R2 object — valid for 1 hour */
+async function presignDownload(key) {
+  return getSignedUrl(r2Client, new GetObjectCommand({ Bucket: R2_BUCKET, Key: key }), { expiresIn: 3600 });
+}
+
+/* Build file list for a package.
+   presigned=true (student downloads) → generate short-lived signed GET URLs.
+   presigned=false (admin browse)     → use public base URL. */
+async function getFilesForPackage(pkg, presigned = false) {
   if (!pkg.r2_key.endsWith('/')) {
-    return [{
-      key:  pkg.r2_key,
-      name: pkg.r2_key.split('/').pop(),
-      url:  `${R2_PUBLIC_BASE_URL}/${pkg.r2_key}`,
-      size: null,
-    }];
+    const url = presigned
+      ? await presignDownload(pkg.r2_key)
+      : `${R2_PUBLIC_BASE_URL}/${pkg.r2_key}`;
+    return [{ key: pkg.r2_key, name: pkg.r2_key.split('/').pop(), url, size: null }];
   }
   const objects = await listR2Files(pkg.r2_key);
-  return objects.map((obj) => ({
+  return Promise.all(objects.map(async (obj) => ({
     key:  obj.Key,
     name: obj.Key.slice(pkg.r2_key.length),
-    url:  `${R2_PUBLIC_BASE_URL}/${obj.Key}`,
+    url:  presigned ? await presignDownload(obj.Key) : `${R2_PUBLIC_BASE_URL}/${obj.Key}`,
     size: obj.Size,
-  }));
+  })));
 }
 
 async function listForStudent(courseId, userId) {
@@ -152,7 +156,7 @@ async function getDownloadUrl(packageId, userId) {
   });
   if (!unlock) throw new ForbiddenError('This package has not been released for your cohort');
 
-  const files = await getFilesForPackage(pkg);
+  const files = await getFilesForPackage(pkg, true); // presigned URLs for students
   return { files };
 }
 
@@ -160,7 +164,7 @@ async function getDownloadUrl(packageId, userId) {
 async function getFilesAdmin(packageId) {
   const pkg = await ScenarioPackage.findByPk(packageId);
   if (!pkg) throw new NotFoundError('ScenarioPackage');
-  const files = await getFilesForPackage(pkg);
+  const files = await getFilesForPackage(pkg, true); // presigned URLs for admin too
   return { files };
 }
 

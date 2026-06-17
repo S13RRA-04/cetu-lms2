@@ -891,9 +891,18 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
   const handleDrop = async () => {
     if (!cohortId) { setErr('Select a cohort.'); return; }
     if (!title.trim()) { setErr('Title is required.'); return; }
+    if (!releaseNum) { setErr('Drop number is required to notify students.'); return; }
+    if (cipher === 'vault' && (!vaultHint.trim() || !vaultPin.trim())) {
+      setErr('Vault cipher requires both a hint and a PIN.'); return;
+    }
+    if (cipher === 'signal' && !signalCode.trim()) {
+      setErr('Signal Hunt requires a signal code.'); return;
+    }
     setSaving(true);
     setErr('');
     try {
+      const dropNum = Number(releaseNum);
+
       // 1. Quick-release the scenario package to the cohort + optional squad
       await quickReleaseScenario({
         cohort_id:     cohortId,
@@ -903,31 +912,31 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
         squad_number:  squadNum === 'all' ? null : Number(squadNum),
       });
 
-      // 2. If a cipher challenge was configured, create/upsert the CampaignDrop record
-      if (cipher !== 'none' && releaseNum) {
-        const dropNum = Number(releaseNum);
-        // Load existing drops to check if one already exists for this number
-        let existingDrop = null;
-        try {
-          const drops = await getCampaignDrops();
-          existingDrop = (Array.isArray(drops) ? drops : []).find((d) => d.number === dropNum) ?? null;
-        } catch {}
+      // 2. Always create/upsert the CampaignDrop record so the student gets the transmission
+      let drops = [];
+      try { drops = await getCampaignDrops(); } catch {}
+      const existingDrop = (Array.isArray(drops) ? drops : []).find((d) => d.number === dropNum) ?? null;
 
-        const cipherPayload = {
-          number:        dropNum,
-          title:         `Drop ${dropNum}`,
-          vault_hint:    cipher === 'vault'  ? vaultHint.trim()    : null,
-          vault_pin:     cipher === 'vault'  ? vaultPin.trim()     : null,
-          html_signal:   cipher === 'signal' ? signalCode.trim().toUpperCase()  : null,
-          signal_prompt: cipher === 'signal' ? signalPrompt.trim() : null,
-        };
+      const dropPayload = {
+        number: dropNum,
+        title:  title.trim(),
+        vault_hint:    cipher === 'vault'  ? vaultHint.trim()                || null : null,
+        vault_pin:     cipher === 'vault'  ? vaultPin.trim()                 || null : null,
+        html_signal:   cipher === 'signal' ? signalCode.trim().toUpperCase() || null : null,
+        signal_prompt: cipher === 'signal' ? signalPrompt.trim()             || null : null,
+      };
 
-        if (existingDrop) {
-          await updateCampaignDrop(existingDrop.id, cipherPayload);
-        } else {
-          await createCampaignDrop(cipherPayload);
-        }
+      let campaignDrop;
+      if (existingDrop) {
+        campaignDrop = await updateCampaignDrop(existingDrop.id, dropPayload);
+        // updateCampaignDrop returns the updated record; keep existing id if response shape varies
+        campaignDrop = campaignDrop?.id ? campaignDrop : existingDrop;
+      } else {
+        campaignDrop = await createCampaignDrop(dropPayload);
       }
+
+      // 3. Unlock (release) the drop for the cohort — this is what makes is_unlocked: true
+      await releaseCampaignDrop(campaignDrop.id, cohortId);
 
       setDone(true);
       setTimeout(onReleased, 1200);
@@ -1005,7 +1014,7 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
 
         {/* Drop # */}
         <div className="form-field" style={{ margin: 0 }}>
-          <label>Drop #</label>
+          <label>Drop # *</label>
           <input type="number" min={1} max={6} value={releaseNum} onChange={(e) => setReleaseNum(e.target.value)}
             placeholder="e.g. 1" style={{ width: '100%' }} />
         </div>
