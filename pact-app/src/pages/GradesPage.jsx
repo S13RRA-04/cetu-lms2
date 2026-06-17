@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getMyGrades } from '../api/pact.js';
+import DecryptText from '../components/DecryptText.jsx';
 
 export default function GradesPage() {
   const [grades,  setGrades]  = useState([]);
@@ -27,7 +28,7 @@ export default function GradesPage() {
 
   return (
     <div className="ops-dashboard">
-      <div className="ops-dash-eyebrow">OPERATOR RECORD</div>
+      <div className="ops-dash-eyebrow"><DecryptText text="OPERATOR RECORD" speed={22} hold={3} /></div>
       <h1 className="ops-dash-name" style={{ marginBottom: 20 }}>Performance Log</h1>
 
       {grades.length === 0 ? (

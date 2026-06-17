@@ -2,10 +2,12 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { getAssignment, getMySubmission, submitAssignment, updateProgress } from '../api/pact.js';
-import DecryptText    from '../components/DecryptText.jsx';
-import QuizFlow       from '../components/QuizFlow.jsx';
-import ChallengeFlow  from '../components/ChallengeFlow.jsx';
-import useDraft       from '../hooks/useDraft.js';
+import DecryptText      from '../components/DecryptText.jsx';
+import SubmitSequence   from '../components/SubmitSequence.jsx';
+import SubmissionSuccess from '../components/SubmissionSuccess.jsx';
+import QuizFlow         from '../components/QuizFlow.jsx';
+import ChallengeFlow    from '../components/ChallengeFlow.jsx';
+import useDraft         from '../hooks/useDraft.js';
 
 const TYPE_COLOR = {
   module:     '#60a5fa',
@@ -44,109 +46,6 @@ function AccessingScreen({ assignment }) {
           {(assignment.type ?? 'TASKING').toUpperCase()}
         </div>
       )}
-    </motion.div>
-  );
-}
-
-/* ── Terminal-style submit sequence ───────────────────────────────────────── */
-function SubmitSequence({ color }) {
-  const [step, setStep] = useState(0);
-
-  useEffect(() => {
-    const t1 = setTimeout(() => setStep(1), 0);
-    const t2 = setTimeout(() => setStep(2), 560);
-    const t3 = setTimeout(() => setStep(3), 1180);
-    return () => [t1, t2, t3].forEach(clearTimeout);
-  }, []);
-
-  const lines = [
-    'ENCRYPTING FIELD REPORT...',
-    'ESTABLISHING SECURE CHANNEL...',
-    'TRANSMITTING TO COMMAND...',
-  ];
-
-  return (
-    <div className="ap-submit-seq">
-      {lines.map((text, i) => (
-        <motion.div
-          key={i}
-          className="ap-submit-line"
-          initial={{ opacity: 0, x: -12 }}
-          animate={step > i ? { opacity: 1, x: 0 } : { opacity: 0 }}
-          transition={{ duration: 0.22 }}
-        >
-          <span className="ap-submit-cursor">›</span>
-          <span>{text}</span>
-          {step > i + 1 && (
-            <span style={{ color, marginLeft: 12, fontSize: 10, letterSpacing: '.08em' }}>
-              SENT
-            </span>
-          )}
-        </motion.div>
-      ))}
-      <motion.div
-        style={{
-          height: 2, borderRadius: 1, marginTop: 14, background: color, transformOrigin: 'left',
-        }}
-        initial={{ scaleX: 0 }}
-        animate={{ scaleX: step / 3 }}
-        transition={{ duration: 0.5, ease: 'easeOut' }}
-      />
-    </div>
-  );
-}
-
-/* ── Field report success state ───────────────────────────────────────────── */
-function SubmissionSuccess({ assignment, submission, color }) {
-  return (
-    <motion.div
-      className="ap-success-root"
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45 }}
-    >
-      <div className="ap-success-stamp">TRANSMISSION CONFIRMED</div>
-      <div className="ap-success-title">FIELD REPORT TRANSMITTED</div>
-      <div className="ap-success-sub">
-        Command has received your report. Stand by for after-action assessment.
-      </div>
-      <div className="ap-success-meta">
-        <div className="ap-success-meta-row">
-          <span className="ap-success-meta-key">TASKING</span>
-          <span className="ap-success-meta-val">{assignment.title}</span>
-        </div>
-        <div className="ap-success-meta-row">
-          <span className="ap-success-meta-key">TYPE</span>
-          <span className="ap-success-meta-val" style={{ color }}>
-            {assignment.type?.toUpperCase()}
-          </span>
-        </div>
-        {assignment.drop_number != null && (
-          <div className="ap-success-meta-row">
-            <span className="ap-success-meta-key">DROP</span>
-            <span className="ap-success-meta-val">DROP {assignment.drop_number}</span>
-          </div>
-        )}
-        {submission?.squad && (
-          <div className="ap-success-meta-row">
-            <span className="ap-success-meta-key">SQUAD</span>
-            <span className="ap-success-meta-val">
-              Squad {submission.squad.number}
-              {submission.squad.name ? ` — ${submission.squad.name}` : ''}
-            </span>
-          </div>
-        )}
-        <div className="ap-success-meta-row">
-          <span className="ap-success-meta-key">TIMESTAMP</span>
-          <span className="ap-success-meta-val">{new Date().toLocaleString()}</span>
-        </div>
-      </div>
-      <Link to="/" className="ap-success-back">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="15 18 9 12 15 6"/>
-        </svg>
-        RETURN TO OPERATIONS CENTER
-      </Link>
     </motion.div>
   );
 }
@@ -629,9 +528,13 @@ function QuizSummary({ result, assignment, color }) {
   return (
     <div className="qz-summary">
       <div className="qz-summary-header">
-        <div className="qz-summary-icon" style={{ color }}>✓</div>
-        <h2>Mission Complete</h2>
-        <p>Submission recorded</p>
+        <div className="qz-summary-icon" style={{ color }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <h2>ASSESSMENT COMPLETE</h2>
+        <p>Report transmitted to command.</p>
       </div>
 
       {result && (

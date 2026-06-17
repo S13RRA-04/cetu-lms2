@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getScoreboard } from '../api/pact.js';
 import useAuthStore from '../store/authStore.js';
+import DecryptText from '../components/DecryptText.jsx';
 
 const RANK_COLORS = { 0: '#f59e0b', 1: '#94a3b8', 2: '#cd7c3a' };
 
@@ -42,7 +43,7 @@ export default function ScoreboardPage() {
   if (board.length === 0) {
     return (
       <div className="ops-dashboard">
-        <div className="ops-dash-eyebrow">STANDINGS</div>
+        <div className="ops-dash-eyebrow"><DecryptText text="STANDINGS" speed={22} hold={3} /></div>
         <h1 className="ops-dash-name" style={{ marginBottom: 20 }}>Operator Standings</h1>
         <div className="ops-empty-state">
           <div className="ops-empty-icon">

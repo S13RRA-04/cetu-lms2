@@ -4533,8 +4533,34 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: none;
+  position: relative;
 }
 .ops-left-rail::-webkit-scrollbar { display: none; }
+
+/* Periodic scan sweep down the left rail */
+.ops-left-rail::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 120px;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(0, 176, 255, 0.035) 50%,
+    transparent
+  );
+  pointer-events: none;
+  z-index: 20;
+  animation: rail-scan 9s ease-in-out infinite;
+  transform: translateY(-140px);
+}
+@keyframes rail-scan {
+  0%   { transform: translateY(-140px); opacity: 0; }
+  8%   { opacity: 1; }
+  92%  { opacity: 1; }
+  100% { transform: translateY(calc(100vh + 140px)); opacity: 0; }
+}
 
 /* Brand */
 .ops-brand {
@@ -4802,6 +4828,15 @@ body {
   flex-shrink: 0;
   z-index: 5;
 }
+@keyframes hud-glitch {
+  0%,  89%          { transform: none;           text-shadow: none; }
+  90%               { transform: skewX(-4deg);   text-shadow: 2px 0 #00eaff55, -2px 0 #ff003355; }
+  91%               { transform: skewX(3deg);    text-shadow: -2px 0 #00eaff55,  2px 0 #ff003355; }
+  92%               { transform: none;           text-shadow: none; }
+  93%               { transform: skewX(-2deg);   text-shadow: 1px 0 #00eaff44; }
+  94%, 100%         { transform: none;           text-shadow: none; }
+}
+
 .ops-hud-op {
   font-family: var(--mono);
   font-size: 9px;
@@ -4809,6 +4844,7 @@ body {
   letter-spacing: .16em;
   color: #3a4a5a;
   text-transform: uppercase;
+  animation: hud-glitch 14s infinite;
 }
 .ops-hud-div {
   color: #1a2a3a;
@@ -5556,4 +5592,44 @@ body {
 @keyframes cc-fetch-pulse {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.4; }
+}
+
+/* ── Quiz card shake on wrong answer ─────────────────────────────────────── */
+@keyframes qz-shake {
+  0%,  100% { transform: translateX(0); }
+  15%        { transform: translateX(-9px); }
+  35%        { transform: translateX(9px); }
+  55%        { transform: translateX(-6px); }
+  75%        { transform: translateX(5px); }
+}
+.qz-card-shake { animation: qz-shake 0.44s ease-out; }
+
+/* ── Quiz ops vocabulary styling updates ─────────────────────────────────── */
+.qz-wrong-banner {
+  font-family: var(--mono);
+  letter-spacing: .06em;
+}
+.qz-forced-banner {
+  font-family: var(--mono);
+  letter-spacing: .06em;
+}
+.qz-feedback-verdict {
+  font-family: var(--mono);
+  letter-spacing: .06em;
+}
+.qz-hint-label {
+  font-family: var(--mono);
+  letter-spacing: .1em;
+}
+.qz-hint-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── HUD bar ambient pulse on the SECURE indicator ───────────────────────── */
+.ops-hud-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }

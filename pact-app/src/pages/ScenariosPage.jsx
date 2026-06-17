@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getScenarios, getScenarioDownloadUrl } from '../api/pact.js';
 import useAuthStore from '../store/authStore.js';
+import DecryptText from '../components/DecryptText.jsx';
 
 const EXT_TYPE = {
   pdf:  'PDF', docx: 'DOC', doc: 'DOC',
@@ -109,7 +110,13 @@ export default function ScenariosPage() {
     }
   };
 
-  if (loading) return <div className="loading-screen"><div className="spinner" /></div>;
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
+      <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', letterSpacing: '.16em' }}>
+        LOADING CASE FILE...
+      </div>
+    </div>
+  );
 
   const visible = packages.filter((p) => isAdmin || p.is_published !== false);
 
@@ -127,7 +134,7 @@ export default function ScenariosPage() {
     <div className="ep-root">
       {/* Page header */}
       <div className="ep-page-header">
-        <div className="ep-page-eyebrow">CASE FILE // INTELLIGENCE PACKAGES</div>
+        <div className="ep-page-eyebrow"><DecryptText text="CASE FILE // INTELLIGENCE PACKAGES" speed={18} hold={3} /></div>
         <h1 className="ep-page-title">Evidence Repository</h1>
         <p className="ep-page-sub">
           Classified evidence files and intelligence packages authorized for your investigation.

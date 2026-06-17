@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { getCourseContent, getContentDownloadUrl } from '../api/pact.js';
+import DecryptText from '../components/DecryptText.jsx';
 
 const TYPE_META = {
   // Standard course materials
@@ -30,7 +31,13 @@ export default function CourseContentPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="loading-screen"><div className="spinner" /></div>;
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
+      <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', letterSpacing: '.16em' }}>
+        LOADING INTEL LIBRARY...
+      </div>
+    </div>
+  );
 
   const unlocked  = items.filter((i) => i.is_unlocked !== false);
   const typesUsed = [...new Set(unlocked.map((i) => i.content_type))];
@@ -63,15 +70,20 @@ export default function CourseContentPage() {
 
   return (
     <div className="cc-page">
-      <div className="cc-header">
-        <h1 className="page-title">Case File</h1>
-        <p className="page-subtitle">Evidence, briefings, intelligence reports, and course materials released for your cohort.</p>
+      <div className="ops-dashboard" style={{ paddingBottom: 0, marginBottom: 20 }}>
+        <div className="ops-dash-eyebrow"><DecryptText text="INTEL LIBRARY // CLASSIFIED MATERIALS" speed={18} hold={3} /></div>
+        <h1 className="ops-dash-name">Case File</h1>
       </div>
 
       {unlocked.length === 0 ? (
-        <div className="scenarios-empty">
-          <div className="scenarios-empty-icon">📂</div>
-          <p>No content has been released for your cohort yet.</p>
+        <div className="ops-empty-state">
+          <div className="ops-empty-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+            </svg>
+          </div>
+          <div className="ops-empty-label">NO MATERIALS AUTHORIZED</div>
+          <div className="ops-empty-sub">Stand by for Command authorization.</div>
         </div>
       ) : (
         <>

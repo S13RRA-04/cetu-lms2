@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import useAuthStore from '../store/authStore.js';
 import { logout } from '../api/pact.js';
 import { getVictim } from '../constants/victims.js';
+import DataStream from '../components/DataStream.jsx';
 
 const Globe = lazy(() => import('../components/Globe.jsx'));
 
@@ -89,7 +90,10 @@ function TargetCard({ squad, enrollment, accent }) {
   const vc = (revealed && victim) ? victim.color : '#f59e0b';
 
   return (
-    <div className="ops-target-card" style={{ borderColor: `${vc}35` }}>
+    <div className="ops-target-card" style={{ borderColor: `${vc}35`, position: 'relative', overflow: 'hidden' }}>
+      {revealed && victim && (
+        <DataStream color={victim.color} opacity={0.055} fontSize={9} speedScale={0.7} />
+      )}
       <div className="ops-target-header" style={{ background: vc }}>
         <span>{revealed ? 'TARGET ACQUIRED' : 'PENDING ASSIGNMENT'}</span>
         <span>SQ {squad.number}</span>

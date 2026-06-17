@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { updateProgress } from '../api/pact.js';
 import { loadDraftSync, clearDraftSync } from '../hooks/useDraft.js';
 
@@ -273,6 +274,7 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
 
   const [qIdx,    setQIdx]    = useState(draft?.qIdx    ?? 0);
   const [answers, setAnswers] = useState(draft?.answers ?? {});
+  const cardRef = useRef(null);
 
   const [qStates, setQStates] = useState(() =>
     draft?.qStates ?? Object.fromEntries(questions.map((q) => [q.id, {
@@ -357,6 +359,12 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
       const pct = Math.round(((answered + 1) / questions.length) * 100);
       updateProgress(assignmentId, pct).catch(() => {});
     } else {
+      /* shake the card */
+      if (cardRef.current) {
+        cardRef.current.classList.remove('qz-card-shake');
+        void cardRef.current.offsetWidth; // force reflow
+        cardRef.current.classList.add('qz-card-shake');
+      }
       setQStates((s) => {
         const cur      = s[q.id];
         const newAvail = Math.max(0, cur.available - 2);
@@ -445,111 +453,121 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
         )}
       </div>
 
-      {/* question card */}
-      <div className="qz-card">
-        {/* header */}
-        <div className="qz-card-header">
-          <span className="qz-q-num" style={{ color }}>Q{qIdx + 1}</span>
-          {q.scoring.mustPass && <span className="qz-must-pass">Must Pass</span>}
-          <div className="qz-pts-group">
-            {qs.available < q.scoring.points && (
-              <span className="qz-pts-orig">{q.scoring.points}</span>
-            )}
-            <span
-              className="qz-pts"
-              style={{ color: qs.available < q.scoring.points ? (qs.available === 0 ? '#ef4444' : '#f59e0b') : undefined }}
-            >
-              {qs.available} pt{qs.available !== 1 ? 's' : ''} available
-            </span>
-          </div>
-        </div>
-
-        {/* stem */}
-        <p className="qz-stem">{q.stem}</p>
-
-        {/* forced-reveal banner */}
-        {qs.forced && (
-          <div className="qz-forced-banner">
-            ✗ Out of points — correct answer shown below
-          </div>
-        )}
-
-        {/* wrong-attempt banner */}
-        {qs.lastWrong && !qs.forced && (
-          <div className="qz-wrong-banner">
-            ✗ Incorrect — {qs.available} pt{qs.available !== 1 ? 's' : ''} remaining. Try again.
-          </div>
-        )}
-
-        {/* hint panel */}
-        {qs.hintVisible && (
-          <div className="qz-hint-panel">
-            <span className="qz-hint-label">Hint</span>
-            {q.feedback?.reference}
-          </div>
-        )}
-
-        {/* answer widget */}
-        {q.payload.kind === 'multiple_choice' && (
-          <MultipleChoice
-            q={q}
-            shuffledOpts={shuffledOpts[qIdx]}
-            selected={raw}
-            onToggle={toggleOption}
-            revealed={qs.revealed}
-            forced={qs.forced}
-          />
-        )}
-        {q.payload.kind === 'true_false' && (
-          <TrueFalse
-            q={q}
-            selected={raw}
-            onSelect={updateAnswer}
-            revealed={qs.revealed}
-            forced={qs.forced}
-          />
-        )}
-        {q.payload.kind === 'drag_match' && (
-          <DragMatch
-            q={q}
-            matchState={raw}
-            onMatch={updateAnswer}
-            revealed={qs.revealed}
-            forced={qs.forced}
-            partialFeedback={qs.partialFeedback}
-          />
-        )}
-        {q.payload.kind === 'fill_blank' && (
-          <FillBlank
-            q={q}
-            value={raw}
-            onChange={updateAnswer}
-            revealed={qs.revealed}
-            forced={qs.forced}
-          />
-        )}
-
-        {/* final feedback (correct or forced) */}
-        {locked && (
-          <div className={`qz-feedback ${qs.revealed ? 'qz-feedback-correct' : 'qz-feedback-wrong'}`}>
-            <div className="qz-feedback-verdict">
-              {qs.revealed ? `✓ Correct — +${qs.available} pts` : '✗ Answer revealed — 0 pts'}
+      {/* question card with slide transition between questions */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={qIdx}
+          initial={{ opacity: 0, x: 16 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -16 }}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
+        >
+          <div className="qz-card" ref={cardRef}>
+            {/* header */}
+            <div className="qz-card-header">
+              <span className="qz-q-num" style={{ color }}>Q{qIdx + 1}</span>
+              {q.scoring.mustPass && <span className="qz-must-pass">Must Pass</span>}
+              <div className="qz-pts-group">
+                {qs.available < q.scoring.points && (
+                  <span className="qz-pts-orig">{q.scoring.points}</span>
+                )}
+                <span
+                  className="qz-pts"
+                  style={{ color: qs.available < q.scoring.points ? (qs.available === 0 ? '#ef4444' : '#f59e0b') : undefined }}
+                >
+                  {qs.available} pt{qs.available !== 1 ? 's' : ''} available
+                </span>
+              </div>
             </div>
-            <p className="qz-feedback-text">
-              {qs.revealed ? q.feedback?.correct : q.feedback?.incorrect}
-            </p>
-            {q.feedback?.reference && (
-              <div className="qz-feedback-ref">↗ {q.feedback.reference}</div>
+
+            {/* stem */}
+            <p className="qz-stem">{q.stem}</p>
+
+            {/* forced-reveal banner */}
+            {qs.forced && (
+              <div className="qz-forced-banner">
+                OUT OF ATTEMPTS — correct answer shown below
+              </div>
+            )}
+
+            {/* wrong-attempt banner */}
+            {qs.lastWrong && !qs.forced && (
+              <div className="qz-wrong-banner">
+                INCORRECT — {qs.available} pt{qs.available !== 1 ? 's' : ''} remaining. Try again.
+              </div>
+            )}
+
+            {/* intel brief (hint) panel */}
+            {qs.hintVisible && (
+              <div className="qz-hint-panel">
+                <span className="qz-hint-label">INTEL BRIEF</span>
+                {q.feedback?.reference}
+              </div>
+            )}
+
+            {/* answer widget */}
+            {q.payload.kind === 'multiple_choice' && (
+              <MultipleChoice
+                q={q}
+                shuffledOpts={shuffledOpts[qIdx]}
+                selected={raw}
+                onToggle={toggleOption}
+                revealed={qs.revealed}
+                forced={qs.forced}
+              />
+            )}
+            {q.payload.kind === 'true_false' && (
+              <TrueFalse
+                q={q}
+                selected={raw}
+                onSelect={updateAnswer}
+                revealed={qs.revealed}
+                forced={qs.forced}
+              />
+            )}
+            {q.payload.kind === 'drag_match' && (
+              <DragMatch
+                q={q}
+                matchState={raw}
+                onMatch={updateAnswer}
+                revealed={qs.revealed}
+                forced={qs.forced}
+                partialFeedback={qs.partialFeedback}
+              />
+            )}
+            {q.payload.kind === 'fill_blank' && (
+              <FillBlank
+                q={q}
+                value={raw}
+                onChange={updateAnswer}
+                revealed={qs.revealed}
+                forced={qs.forced}
+              />
+            )}
+
+            {/* final feedback (correct or forced) */}
+            {locked && (
+              <div className={`qz-feedback ${qs.revealed ? 'qz-feedback-correct' : 'qz-feedback-wrong'}`}>
+                <div className="qz-feedback-verdict">
+                  {qs.revealed ? `✓ CONFIRMED — +${qs.available} pts` : '✗ ANSWER REVEALED — 0 pts'}
+                </div>
+                <p className="qz-feedback-text">
+                  {qs.revealed ? q.feedback?.correct : q.feedback?.incorrect}
+                </p>
+                {q.feedback?.reference && (
+                  <div className="qz-feedback-ref">↗ {q.feedback.reference}</div>
+                )}
+              </div>
             )}
           </div>
-        )}
-      </div>
+        </motion.div>
+      </AnimatePresence>
 
       {/* action buttons */}
       <div className="qz-actions">
         {locked ? (
           <button className="btn-submit" onClick={handleNext} style={{ background: color }}>
-            {isLast ? 'See Results →' : 'Next Question →'}
+            {isLast ? 'COMPLETE ASSESSMENT →' : 'NEXT →'}
           </button>
         ) : (
           <>
@@ -557,12 +575,17 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
               className="btn-submit"
               onClick={handleSubmit}
               disabled={!hasAnswer()}
+              style={hasAnswer() ? { background: color } : {}}
             >
-              Submit Answer
+              SUBMIT RESPONSE
             </button>
             {hasHint && (
               <button className="qz-hint-btn" onClick={handleHint}>
-                💡 Use Hint <span className="qz-hint-cost">−1 pt</span>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+                REQUEST INTEL <span className="qz-hint-cost">−1 pt</span>
               </button>
             )}
           </>
