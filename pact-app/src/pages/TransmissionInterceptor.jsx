@@ -3,18 +3,23 @@ import { motion, AnimatePresence } from 'motion/react';
 import DecryptText from '../components/DecryptText.jsx';
 import DataStream  from '../components/DataStream.jsx';
 
-// Tracks which drops a user has already seen
+// Tracks which drops a user has already seen.
+// Key includes updatedAt so that updating a drop (e.g. adding cipher) re-shows it.
 export function seenKey(userId) {
-  return `pact_drops_seen_v1_${userId}`;
+  return `pact_drops_seen_v2_${userId}`;
+}
+export function dropSeenId(drop) {
+  return `${drop.id}:${drop.updatedAt ?? ''}`;
 }
 export function getSeenDropIds(userId) {
   try { return JSON.parse(localStorage.getItem(seenKey(userId)) ?? '[]'); }
   catch { return []; }
 }
-export function markDropSeen(userId, dropId) {
+export function markDropSeen(userId, drop) {
   const seen = getSeenDropIds(userId);
-  if (!seen.includes(dropId)) {
-    localStorage.setItem(seenKey(userId), JSON.stringify([...seen, dropId]));
+  const key  = dropSeenId(drop);
+  if (!seen.includes(key)) {
+    localStorage.setItem(seenKey(userId), JSON.stringify([...seen, key]));
   }
 }
 

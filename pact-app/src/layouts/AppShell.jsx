@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getAssignments, getMyEnrollment, getCampaignDrops } from '../api/pact.js';
 import AppLayout          from './AppLayout.jsx';
 import InductionSequence  from '../pages/InductionSequence.jsx';
-import TransmissionInterceptor, { getSeenDropIds, markDropSeen } from '../pages/TransmissionInterceptor.jsx';
+import TransmissionInterceptor, { getSeenDropIds, markDropSeen, dropSeenId } from '../pages/TransmissionInterceptor.jsx';
 import TargetRevealInterceptor, { targetSeenKey } from '../pages/TargetRevealInterceptor.jsx';
 import VaultKeypad        from '../pages/VaultKeypad.jsx';
 import SignalEntry        from '../pages/SignalEntry.jsx';
@@ -38,9 +38,10 @@ function markSignalVerified(userId, dropId) {
 
 function findNewDrop(drops, userId) {
   const seen = getSeenDropIds(userId);
-  // Find lowest-numbered unlocked drop not yet seen (deliver one at a time)
+  // Find lowest-numbered unlocked drop not yet seen (deliver one at a time).
+  // Uses dropSeenId (id + updatedAt) so that updating a drop re-shows it.
   return drops
-    .filter((d) => d.is_unlocked && !seen.includes(d.id))
+    .filter((d) => d.is_unlocked && !seen.includes(dropSeenId(d)))
     .sort((a, b) => a.number - b.number)[0] ?? null;
 }
 
@@ -123,7 +124,7 @@ export default function AppShell() {
   }, [user?.id]);
 
   const handleTransmissionAck = useCallback(() => {
-    if (user?.id && pendingDrop) markDropSeen(user.id, pendingDrop.id);
+    if (user?.id && pendingDrop) markDropSeen(user.id, pendingDrop);
     setPendingDrop(null);
     setVaultUnlocked(false);
     setSignalVerified(false);
@@ -147,7 +148,7 @@ export default function AppShell() {
   }, [alertDrop]);
 
   const handleAlertDismiss = useCallback(() => {
-    if (user?.id && alertDrop) markDropSeen(user.id, alertDrop.id);
+    if (user?.id && alertDrop) markDropSeen(user.id, alertDrop);
     setAlertDrop(null);
   }, [user?.id, alertDrop]);
 
