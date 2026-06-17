@@ -52,16 +52,10 @@ export default function DashboardHome() {
     }).finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="loading-screen"><div className="spinner" /></div>;
-
+  // Derive everything BEFORE any early return so hooks are always called in the same order
   const squad  = enrollment?.squad;
   const victim = squad ? getVictim(squad.number) : null;
   const role   = user?.professional_role ? PROF_ROLE_LABELS[user.professional_role] ?? user.professional_role : null;
-
-  const countUnlocked   = useCountUp(unlocked);
-  const countCompleted  = useCountUp(completed);
-  const countInProgress = useCountUp(inProgress);
-  const countPct        = useCountUp(overallPct);
 
   const unlockedDrops  = drops.filter((d) => d.is_unlocked);
   const activeDrop     = unlockedDrops.length > 0 ? unlockedDrops[unlockedDrops.length - 1] : null;
@@ -74,6 +68,14 @@ export default function DashboardHome() {
   const overallPct = total > 0
     ? Math.round(assignments.reduce((s, a) => s + (a.progress ?? 0), 0) / total)
     : 0;
+
+  // Hooks must be called unconditionally — before any early return
+  const countUnlocked   = useCountUp(unlocked);
+  const countCompleted  = useCountUp(completed);
+  const countInProgress = useCountUp(inProgress);
+  const countPct        = useCountUp(overallPct);
+
+  if (loading) return <div className="loading-screen"><div className="spinner" /></div>;
 
   return (
     <div className="dash-home">
