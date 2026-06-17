@@ -264,28 +264,13 @@ export default function AdminPage() {
           className={`admin-panel-tab${adminPanel === 'library' ? ' active' : ''}`}
           onClick={switchToLibrary}
         >
-          File Library
-        </button>
-        <button
-          className={`admin-panel-tab${adminPanel === 'campaign' ? ' active' : ''}`}
-          onClick={() => setAdminPanel('campaign')}
-        >
-          Campaign Drops
-        </button>
-        <button
-          className={`admin-panel-tab${adminPanel === 'casefile' ? ' active' : ''}`}
-          onClick={() => setAdminPanel('casefile')}
-        >
-          Case File
+          Scenario Drops
         </button>
       </div>
 
-      {adminPanel === 'casefile' ? (
-        <CaseFilePanel cohorts={cohorts} onCohortsChange={setCohorts} />
-      ) : adminPanel === 'campaign' ? (
-        <CampaignDropsPanel cohorts={cohorts} />
-      ) : adminPanel === 'library' ? (
-        <FileLibraryPanel
+      {adminPanel === 'library' ? (
+        <ScenarioDropsPanel
+          cohorts={cohorts}
           onContentPublished={() => setContentLoaded(false)}
         />
       ) : adminPanel === 'content' ? (
@@ -706,20 +691,29 @@ function formatR2Size(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/* ── File Library Panel ── */
+/* ── Scenario Drops Panel ── */
 
-function FileLibraryPanel({ onContentPublished }) {
+function ScenarioDropsPanel({ cohorts, onContentPublished }) {
   return (
     <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
-      <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 16 }}>
-        Browse all files in R2 and publish them directly to the Course Content library for learners.
-      </p>
-      <R2PublishBrowser rootPrefix="" onPublished={onContentPublished} />
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)', marginBottom: 4 }}>
+          SCENARIO DROP CONTROL
+        </div>
+        <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>
+          Browse R2 scenario packages. Release folders to specific cohorts and squads, with optional cipher challenge gates.
+        </p>
+      </div>
+      <R2PublishBrowser
+        rootPrefix="pact/scenarios/"
+        cohorts={cohorts}
+        onPublished={onContentPublished}
+      />
     </div>
   );
 }
 
-function R2PublishBrowser({ rootPrefix, onPublished }) {
+function R2PublishBrowser({ rootPrefix, cohorts = [], onPublished }) {
   const [prefix,        setPrefix]        = useState(rootPrefix);
   const [data,          setData]          = useState(null);
   const [loading,       setLoading]       = useState(false);
@@ -787,12 +781,14 @@ function R2PublishBrowser({ rootPrefix, onPublished }) {
                   style={{ marginLeft: 8, flexShrink: 0, fontSize: 11 }}
                   onClick={() => setReleasingKey(releasingKey === f.prefix ? null : f.prefix)}
                 >
-                  {releasingKey === f.prefix ? 'Cancel' : '↑ Release'}
+                  {releasingKey === f.prefix ? 'Cancel' : '↓ Drop'}
                 </button>
               </div>
               {releasingKey === f.prefix && (
                 <FolderReleaseForm
                   folder={f}
+                  cohorts={cohorts}
+                  currentPrefix={prefix}
                   onReleased={() => { setReleasingKey(null); onPublished?.(); }}
                   onCancel={() => setReleasingKey(null)}
                 />
@@ -828,32 +824,88 @@ function R2PublishBrowser({ rootPrefix, onPublished }) {
   );
 }
 
-function FolderReleaseForm({ folder, onReleased, onCancel }) {
-  const defaultTitle = folder.name.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-  const [title,       setTitle]       = useState(defaultTitle);
-  const [description, setDescription] = useState('');
-  const [isPublished, setIsPublished] = useState(true);
-  const [saving,      setSaving]      = useState(false);
-  const [err,         setErr]         = useState('');
-  const [done,        setDone]        = useState(false);
+const DROP_SQUAD_PALETTE = { 1: '#ef4444', 2: '#f59e0b', 3: '#3b82f6', 4: '#8b5cf6' };
 
-  const handleRelease = async () => {
-    if (!title.trim()) { setErr('Title is required'); return; }
+function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onReleased, onCancel }) {
+  // Infer drop number and scenario name from the current R2 path
+  // Path shape: pact/scenarios/{scenario}/Drop {#}/{victim}/
+  const inferDropNum = () => {
+    const parts = (currentPrefix + folder.name).split('/').filter(Boolean);
+    for (const p of parts) {
+      const m = p.match(/^drop\s*(\d+)$/i);
+      if (m) return m[1];
+    }
+    return '';
+  };
+  const inferScenario = () => {
+    const parts = (currentPrefix).split('/').filter(Boolean);
+    // pact/scenarios/{scenario}/...
+    const idx = parts.findIndex((p) => p.toLowerCase() === 'scenarios');
+    return idx >= 0 && parts[idx + 1] ? parts[idx + 1] : '';
+  };
+
+  const defaultTitle   = folder.name.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  const [cohortId,     setCohortId]     = useState(() => cohorts[0]?.id ?? '');
+  const [squadNum,     setSquadNum]     = useState('all');   // 'all' | '1' | '2' | '3' | '4'
+  const [title,        setTitle]        = useState(defaultTitle);
+  const [releaseNum,   setReleaseNum]   = useState(inferDropNum);
+  const [scenarioName, setScenarioName] = useState(inferScenario);
+  const [cipher,       setCipher]       = useState('none'); // 'none' | 'vault' | 'signal'
+  const [vaultHint,    setVaultHint]    = useState('');
+  const [vaultPin,     setVaultPin]     = useState('');
+  const [signalCode,   setSignalCode]   = useState('');
+  const [signalPrompt, setSignalPrompt] = useState('');
+  const [saving,       setSaving]       = useState(false);
+  const [err,          setErr]          = useState('');
+  const [done,         setDone]         = useState(false);
+
+  const selectedCohort = cohorts.find((c) => c.id === cohortId);
+
+  const handleDrop = async () => {
+    if (!cohortId) { setErr('Select a cohort.'); return; }
+    if (!title.trim()) { setErr('Title is required.'); return; }
     setSaving(true);
     setErr('');
     try {
-      await createScenario({
-        title:          title.trim(),
-        description:    description.trim() || undefined,
-        r2_key:         folder.prefix,
-        file_name:      folder.name,
-        release_number: 1,
-        is_published:   isPublished,
+      // 1. Quick-release the scenario package to the cohort + optional squad
+      await quickReleaseScenario({
+        cohort_id:     cohortId,
+        r2_key:        folder.prefix,
+        title:         title.trim(),
+        scenario_name: scenarioName.trim() || folder.name,
+        squad_number:  squadNum === 'all' ? null : Number(squadNum),
       });
+
+      // 2. If a cipher challenge was configured, create/upsert the CampaignDrop record
+      if (cipher !== 'none' && releaseNum) {
+        const dropNum = Number(releaseNum);
+        // Load existing drops to check if one already exists for this number
+        let existingDrop = null;
+        try {
+          const drops = await getCampaignDrops();
+          existingDrop = (Array.isArray(drops) ? drops : []).find((d) => d.number === dropNum) ?? null;
+        } catch {}
+
+        const cipherPayload = {
+          number:        dropNum,
+          title:         `Drop ${dropNum}`,
+          vault_hint:    cipher === 'vault'  ? vaultHint.trim()    : null,
+          vault_pin:     cipher === 'vault'  ? vaultPin.trim()     : null,
+          html_signal:   cipher === 'signal' ? signalCode.trim().toUpperCase()  : null,
+          signal_prompt: cipher === 'signal' ? signalPrompt.trim() : null,
+        };
+
+        if (existingDrop) {
+          await updateCampaignDrop(existingDrop.id, cipherPayload);
+        } else {
+          await createCampaignDrop(cipherPayload);
+        }
+      }
+
       setDone(true);
-      setTimeout(onReleased, 1000);
+      setTimeout(onReleased, 1200);
     } catch (e) {
-      setErr(e.response?.data?.error?.message ?? 'Release failed');
+      setErr(e.response?.data?.error?.message ?? 'Drop failed');
     } finally {
       setSaving(false);
     }
@@ -861,33 +913,128 @@ function FolderReleaseForm({ folder, onReleased, onCancel }) {
 
   if (done) {
     return (
-      <div style={{ padding: '8px 16px', color: '#10b981', fontSize: 13 }}>
-        ✓ Added to Scenario Gating
+      <div style={{ padding: '10px 16px', color: '#10b981', fontSize: 13, fontFamily: 'var(--mono)', letterSpacing: '.06em' }}>
+        DROP RELEASED{squadNum !== 'all' ? ` — SQUAD ${squadNum}` : ' — ALL SQUADS'}
+        {cipher !== 'none' && ` + ${cipher === 'vault' ? 'VAULT LOCK' : 'SIGNAL HUNT'}`}
       </div>
     );
   }
 
+  const squadColor = squadNum !== 'all' ? (DROP_SQUAD_PALETTE[Number(squadNum)] ?? 'var(--primary)') : 'var(--primary)';
+
   return (
-    <div className="publish-form">
-      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6, fontFamily: 'var(--mono)' }}>
-        📁 {folder.prefix}
+    <div className="publish-form" style={{ borderLeft: `3px solid ${squadColor}` }}>
+      {/* Path indicator */}
+      <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted)', letterSpacing: '.06em', marginBottom: 10 }}>
+        {folder.prefix}
       </div>
-      <div className="form-field">
-        <label>Title *</label>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} />
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px', marginBottom: 10 }}>
+        {/* Cohort */}
+        <div className="form-field" style={{ margin: 0 }}>
+          <label>Cohort *</label>
+          <select value={cohortId} onChange={(e) => setCohortId(e.target.value)}
+            style={{ padding: '5px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, width: '100%' }}>
+            <option value="">— select —</option>
+            {cohorts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+
+        {/* Squad */}
+        <div className="form-field" style={{ margin: 0 }}>
+          <label>Squad</label>
+          <select value={squadNum} onChange={(e) => setSquadNum(e.target.value)}
+            style={{ padding: '5px 8px', borderRadius: 4, border: `1.5px solid ${squadColor}66`, background: 'var(--surface)', color: squadColor, fontSize: 13, fontWeight: 600, width: '100%' }}>
+            <option value="all">All Squads</option>
+            <option value="1">Squad 1</option>
+            <option value="2">Squad 2</option>
+            <option value="3">Squad 3</option>
+            <option value="4">Squad 4</option>
+          </select>
+        </div>
+
+        {/* Title */}
+        <div className="form-field" style={{ margin: 0 }}>
+          <label>Title *</label>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} style={{ width: '100%' }} />
+        </div>
+
+        {/* Drop # */}
+        <div className="form-field" style={{ margin: 0 }}>
+          <label>Drop #</label>
+          <input type="number" min={1} max={6} value={releaseNum} onChange={(e) => setReleaseNum(e.target.value)}
+            placeholder="e.g. 1" style={{ width: '100%' }} />
+        </div>
       </div>
-      <div className="form-field">
-        <label>Description</label>
-        <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" />
+
+      {/* Cipher challenge */}
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginBottom: 10 }}>
+        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--muted)', marginBottom: 8 }}>
+          CIPHER CHALLENGE (OPTIONAL)
+        </div>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+          {[
+            { key: 'none',   label: 'None' },
+            { key: 'vault',  label: 'Vault Lock' },
+            { key: 'signal', label: 'HTML Signal Hunt' },
+          ].map(({ key, label }) => (
+            <button key={key} onClick={() => setCipher(key)} style={{
+              padding: '4px 12px', borderRadius: 4, fontSize: 12, cursor: 'pointer',
+              fontFamily: 'var(--mono)', fontWeight: 600, letterSpacing: '.06em',
+              border: cipher === key
+                ? `1.5px solid ${key === 'vault' ? 'var(--primary)' : key === 'signal' ? '#00ff9d' : 'var(--border)'}`
+                : '1.5px solid var(--border)',
+              background: cipher === key
+                ? key === 'vault'  ? 'rgba(0,176,255,0.1)'
+                : key === 'signal' ? 'rgba(0,255,157,0.08)'
+                : 'var(--surface-2,#f1f5f9)'
+                : 'var(--surface)',
+              color: cipher === key
+                ? key === 'vault' ? 'var(--primary)' : key === 'signal' ? '#00c978' : 'var(--text)'
+                : 'var(--muted)',
+            }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {cipher === 'vault' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div className="form-field" style={{ margin: 0 }}>
+              <label>Cipher Challenge — hint shown to students</label>
+              <textarea value={vaultHint} onChange={(e) => setVaultHint(e.target.value)} rows={2}
+                placeholder="e.g. Run the SHA-256 hash of 'NIGHTFALL-7' through CyberChef. Enter the first 6 hex characters as the PIN."
+                style={{ width: '100%', resize: 'vertical' }} />
+            </div>
+            <div className="form-field" style={{ margin: 0 }}>
+              <label>Vault PIN — the answer students must derive</label>
+              <input value={vaultPin} onChange={(e) => setVaultPin(e.target.value.toUpperCase())}
+                placeholder="e.g. A3F9B1" style={{ width: '100%', fontFamily: 'monospace', letterSpacing: '.1em' }} />
+            </div>
+          </div>
+        )}
+
+        {cipher === 'signal' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div className="form-field" style={{ margin: 0 }}>
+              <label>Signal Code — embedded in page HTML source</label>
+              <input value={signalCode} onChange={(e) => setSignalCode(e.target.value.toUpperCase())}
+                placeholder="e.g. BRAVO-7-TANGO" style={{ width: '100%', fontFamily: 'monospace', letterSpacing: '.1em' }} />
+            </div>
+            <div className="form-field" style={{ margin: 0 }}>
+              <label>Hunt Prompt — instruction shown to students</label>
+              <textarea value={signalPrompt} onChange={(e) => setSignalPrompt(e.target.value)} rows={2}
+                placeholder="A signal has been embedded in this operations channel. Inspect the page source to intercept it."
+                style={{ width: '100%', resize: 'vertical' }} />
+            </div>
+          </div>
+        )}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-        <input type="checkbox" id="folder-pub" checked={isPublished} onChange={(e) => setIsPublished(e.target.checked)} />
-        <label htmlFor="folder-pub" style={{ fontSize: 13, cursor: 'pointer' }}>Publish now</label>
-      </div>
-      {err && <div className="err-msg">{err}</div>}
-      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-        <button className="btn-submit" style={{ width: 'auto' }} onClick={handleRelease} disabled={saving}>
-          {saving ? 'Releasing…' : 'Add to Scenario Gating'}
+
+      {err && <div className="err-msg" style={{ marginBottom: 8 }}>{err}</div>}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="btn-submit" style={{ width: 'auto' }} onClick={handleDrop} disabled={saving}>
+          {saving ? 'Dropping…' : `Release Drop${squadNum !== 'all' ? ` → Squad ${squadNum}` : ' → All Squads'}`}
         </button>
         <button className="btn-secondary" onClick={onCancel}>Cancel</button>
       </div>
@@ -1578,43 +1725,44 @@ function ScenarioIntelPanel({ scenarios, dropNumber }) {
     setR2Loading((l) => ({ ...l, [pkg.id]: true }));
     setExpanded((e) => ({ ...e, [pkg.id]: true }));
     try {
-      // Browse returns { prefix, folders: [{prefix,name}], files: [{key,name,url,size}] }
+      // Structure: pact/scenarios/{name}/Drop {#}/{Victim}/files
+      // The pkg.r2_key may point to the scenario root, a drop folder, or a victim folder.
+      // We do a two-level browse: top + one level deep into each sub-folder.
       const top = await browseScenarioR2(pkg.r2_key);
+      const topFolders = top.folders ?? [];
 
-      // Recursively browse each top-level sub-folder (squad dirs, victim dirs, etc.)
-      const subFolders = top.folders ?? [];
+      // Browse one level into each sub-folder in parallel
       const subResults = await Promise.all(
-        subFolders.map((folder) => browseScenarioR2(folder.prefix).catch(() => ({ folders: [], files: [] })))
+        topFolders.map((f) => browseScenarioR2(f.prefix).catch(() => ({ folders: [], files: [] })))
       );
 
-      // Build a flat enriched file list with relative paths
-      const files = [];
-      // Top-level files
+      // Build display rows: { label, isFolder, children?, files? }
+      const rows = [];
+
+      // Top-level files (supplemental files at this level)
       for (const f of (top.files ?? [])) {
-        files.push({ name: f.name, size: f.size, url: f.url, depth: 0 });
+        rows.push({ type: 'file', name: f.name, size: f.size, url: f.url, folder: null });
       }
-      // Sub-folder contents
-      for (let i = 0; i < subFolders.length; i++) {
-        const folderName = subFolders[i].name;
-        const sub = subResults[i];
-        // Files directly inside this sub-folder
+
+      for (let i = 0; i < topFolders.length; i++) {
+        const folderName = topFolders[i].name;
+        const sub        = subResults[i];
+
+        // Files directly inside this folder
         for (const f of (sub.files ?? [])) {
-          files.push({ name: `${folderName}/${f.name}`, size: f.size, url: f.url, depth: 1, folder: folderName });
+          rows.push({ type: 'file', name: f.name, size: f.size, url: f.url, folder: folderName });
         }
-        // Second-level sub-folders (e.g. victims within squad)
+        // Sub-folders (next level — victim folders or further nesting)
         for (const sf of (sub.folders ?? [])) {
-          const subName = `${folderName}/${sf.name}`;
-          files.push({ name: subName, isFolder: true, size: null, depth: 1, folder: folderName });
+          rows.push({ type: 'folder', name: sf.name, folder: folderName, prefix: sf.prefix });
         }
-      }
-      // Top-level folders that had no files yet — add as folder markers
-      for (const folder of subFolders) {
-        if (!files.some((f) => f.folder === folder.name && !f.isFolder)) {
-          files.push({ name: folder.name, isFolder: true, size: null, depth: 0 });
+        // If sub had nothing, still show the folder so the structure is visible
+        if ((sub.files ?? []).length === 0 && (sub.folders ?? []).length === 0) {
+          rows.push({ type: 'empty-folder', name: folderName, folder: null });
         }
       }
 
-      setR2Files((rf) => ({ ...rf, [pkg.id]: files }));
+      setR2Files((rf) => ({ ...rf, [pkg.id]: rows }));
     } catch {
       setR2Err((e) => ({ ...e, [pkg.id]: 'Failed to load R2 contents' }));
     } finally {
@@ -1719,80 +1867,102 @@ function ScenarioIntelPanel({ scenarios, dropNumber }) {
                   ) : files.length === 0 ? (
                     <div style={{ color: 'var(--muted)', fontStyle: 'italic' }}>No files found in R2</div>
                   ) : (() => {
-                    // Group files by their top-level folder (or root)
-                    const byFolder = {};
-                    for (const f of files) {
-                      const key = f.folder ?? '__root__';
-                      if (!byFolder[key]) byFolder[key] = [];
-                      byFolder[key].push(f);
+                    // Group rows by their parent folder label
+                    const byParent = {};  // parentFolder → row[]
+                    const rootRows = [];
+                    for (const row of files) {
+                      if (row.folder) {
+                        if (!byParent[row.folder]) byParent[row.folder] = [];
+                        byParent[row.folder].push(row);
+                      } else {
+                        rootRows.push(row);
+                      }
                     }
-                    const rootFiles   = byFolder.__root__ ?? [];
-                    const folderKeys  = Object.keys(byFolder).filter((k) => k !== '__root__');
+                    const parentFolders = Object.keys(byParent);
 
-                    const renderFile = (f, i) => {
-                      const baseName = f.name.split('/').pop();
-                      const tag = extTag(baseName);
+                    const FileRow = ({ row, indent = 0 }) => {
+                      const tag = extTag(row.name);
                       return (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: indent }}>
                           <span style={{
                             fontFamily: 'monospace', fontSize: 8, fontWeight: 700,
                             padding: '1px 4px', borderRadius: 2,
                             background: tag.color + '22', color: tag.color, flexShrink: 0,
                           }}>{tag.icon}</span>
-                          <span style={{ color: 'var(--text)', fontSize: 12, flex: 1 }}>{baseName}</span>
-                          {f.size > 0 && <span style={{ color: 'var(--muted)', fontSize: 10, flexShrink: 0 }}>{formatBytes(f.size)}</span>}
+                          <span style={{ color: 'var(--text)', fontSize: 12, flex: 1 }}>{row.name}</span>
+                          {row.size > 0 && (
+                            <span style={{ color: 'var(--muted)', fontSize: 10, flexShrink: 0 }}>{formatBytes(row.size)}</span>
+                          )}
                         </div>
                       );
                     };
 
+                    const FolderLabel = ({ name, count, color }) => (
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        fontFamily: 'monospace', fontWeight: 700, fontSize: 11,
+                        letterSpacing: '.05em', color: color ?? 'var(--text)', marginBottom: 3,
+                      }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" opacity="0.7">
+                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                        </svg>
+                        {name}
+                        {count > 0 && (
+                          <span style={{ fontWeight: 400, color: 'var(--muted)', fontSize: 10 }}>
+                            ({count})
+                          </span>
+                        )}
+                      </div>
+                    );
+
+                    const dropLike   = (n) => /^drop\s*\d+$/i.test(n);
+                    const victimLike = (n) => !/^drop\s*\d+$/i.test(n);
+
                     return (
-                      <>
-                        {/* Grouped by top-level folder */}
-                        {folderKeys.map((folder) => {
-                          const folderFiles = byFolder[folder].filter((f) => !f.isFolder);
-                          const subFolderMarkers = byFolder[folder].filter((f) => f.isFolder);
-                          const isVictim = /victim|suspect|subject/i.test(folder);
-                          const isSquad  = /^squad[-_]?\d+$/i.test(folder);
-                          const folderColor = isVictim ? '#f59e0b' : isSquad ? '#3b82f6' : 'var(--text)';
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {/* Grouped by parent folder */}
+                        {parentFolders.map((parentName) => {
+                          const rows    = byParent[parentName];
+                          const isDropFolder   = dropLike(parentName);
+                          const parentColor    = isDropFolder ? 'var(--primary)' : '#f59e0b';
+                          const fileRows       = rows.filter((r) => r.type === 'file');
+                          const subFolderRows  = rows.filter((r) => r.type === 'folder');
                           return (
-                            <div key={folder} style={{ marginBottom: 6 }}>
-                              <div style={{
-                                display: 'flex', alignItems: 'center', gap: 5,
-                                fontFamily: 'monospace', fontWeight: 700,
-                                fontSize: 11, letterSpacing: '.06em',
-                                color: folderColor, marginBottom: 3,
-                              }}>
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" opacity="0.7">
-                                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-                                </svg>
-                                {folder.replace(/-/g, ' ').toUpperCase()}
-                                {folderFiles.length > 0 && (
-                                  <span style={{ fontWeight: 400, color: 'var(--muted)', fontSize: 10 }}>
-                                    ({folderFiles.length} file{folderFiles.length !== 1 ? 's' : ''})
-                                  </span>
-                                )}
-                              </div>
-                              <div style={{ paddingLeft: 14, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                {subFolderMarkers.map((sf, i) => (
-                                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#8b5cf6', fontFamily: 'monospace', fontSize: 11 }}>
-                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" opacity="0.6">
+                            <div key={parentName}>
+                              <FolderLabel
+                                name={parentName}
+                                count={fileRows.length + subFolderRows.length}
+                                color={parentColor}
+                              />
+                              <div style={{ paddingLeft: 14, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                {/* Sub-folders (victim folders inside a drop folder) */}
+                                {subFolderRows.map((sf, i) => (
+                                  <div key={i} style={{
+                                    display: 'flex', alignItems: 'center', gap: 5,
+                                    fontFamily: 'monospace', fontSize: 11,
+                                    color: '#f59e0b', fontWeight: 600,
+                                  }}>
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" opacity="0.7">
                                       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                                     </svg>
-                                    {sf.name.split('/').pop()?.replace(/-/g, ' ').toUpperCase()}
+                                    {sf.name}
                                   </div>
                                 ))}
-                                {folderFiles.map(renderFile)}
+                                {/* Files inside this folder */}
+                                {fileRows.map((row, i) => <FileRow key={i} row={row} />)}
                               </div>
                             </div>
                           );
                         })}
-                        {/* Root-level files */}
-                        {rootFiles.filter((f) => !f.isFolder).length > 0 && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            {rootFiles.filter((f) => !f.isFolder).map(renderFile)}
-                          </div>
+                        {/* Root-level rows (files or empty-folder markers) */}
+                        {rootRows.map((row, i) =>
+                          row.type === 'file'
+                            ? <FileRow key={i} row={row} />
+                            : row.type === 'empty-folder'
+                              ? <FolderLabel key={i} name={row.name} count={0} />
+                              : null
                         )}
-                      </>
+                      </div>
                     );
                   })()}
                 </div>
@@ -2326,15 +2496,22 @@ function CaseFilePanel({ cohorts, onCohortsChange }) {
 }
 
 function CohortSetupPanel({ cohort, onCohortUpdate }) {
-  const [squads,        setSquads]        = useState([]);
-  const [loadingSquads, setLoadingSquads] = useState(true);
-  const [scenarioName,  setScenarioName]  = useState(cohort.scenario_name ?? '');
-  const [savingScenario, setSavingScenario] = useState(false);
-  const [caseNames,     setCaseNames]     = useState({});
-  const [savingSquad,   setSavingSquad]   = useState({});
-  const [targetBusy,    setTargetBusy]    = useState(false);
-  const [err,           setErr]           = useState('');
-  const [msg,           setMsg]           = useState('');
+  const [squads,          setSquads]          = useState([]);
+  const [loadingSquads,   setLoadingSquads]   = useState(true);
+  const [scenarioName,    setScenarioName]    = useState(cohort.scenario_name ?? '');
+  const [savingScenario,  setSavingScenario]  = useState(false);
+  const [caseNames,       setCaseNames]       = useState({});
+  const [savingSquad,     setSavingSquad]     = useState({});
+  const [targetBusy,      setTargetBusy]      = useState(false);
+  const [err,             setErr]             = useState('');
+  const [msg,             setMsg]             = useState('');
+
+  // R2 detection state
+  const [r2Scenarios,     setR2Scenarios]     = useState([]);  // {name, prefix}[]
+  const [scanningR2,      setScanningR2]      = useState(false);
+  const [r2Victims,       setR2Victims]       = useState([]);  // folder name strings
+  const [scanningVictims, setScanningVictims] = useState(false);
+  const [victimPickerSq,  setVictimPickerSq]  = useState(null); // squadId being picked
 
   useEffect(() => {
     setLoadingSquads(true);
@@ -2352,25 +2529,95 @@ function CohortSetupPanel({ cohort, onCohortUpdate }) {
 
   const flash = (m) => { setMsg(m); setTimeout(() => setMsg(''), 2500); };
 
-  const saveScenario = async () => {
+  const saveScenario = async (nameOverride) => {
+    const name = (nameOverride ?? scenarioName).trim();
     setSavingScenario(true);
     setErr('');
     try {
-      const updated = await updateCohort(cohort.id, { scenario_name: scenarioName.trim() || null });
+      const updated = await updateCohort(cohort.id, { scenario_name: name || null });
       onCohortUpdate(updated);
-      flash('Scenario name saved.');
+      if (nameOverride !== undefined) setScenarioName(name);
+      flash('Scenario saved.');
     } catch { setErr('Save failed.'); }
     finally { setSavingScenario(false); }
   };
 
-  const saveCaseName = async (squadId) => {
+  const saveCaseName = async (squadId, nameOverride) => {
+    const name = nameOverride ?? caseNames[squadId];
+    if (nameOverride !== undefined) setCaseNames((p) => ({ ...p, [squadId]: nameOverride }));
     setSavingSquad((s) => ({ ...s, [squadId]: true }));
+    setVictimPickerSq(null);
     try {
-      await updateSquad(cohort.id, squadId, { case_name: caseNames[squadId]?.trim() || null });
-      setSquads((prev) => prev.map((sq) => sq.id === squadId ? { ...sq, case_name: caseNames[squadId] } : sq));
+      await updateSquad(cohort.id, squadId, { case_name: (name ?? '').trim() || null });
+      setSquads((prev) => prev.map((sq) => sq.id === squadId ? { ...sq, case_name: (name ?? '').trim() || null } : sq));
       flash('Case name saved.');
     } catch { setErr('Save failed.'); }
     finally { setSavingSquad((s) => ({ ...s, [squadId]: false })); }
+  };
+
+  // Browse pact/scenarios/ to find available scenario folders
+  const scanScenarios = async () => {
+    setScanningR2(true);
+    setR2Scenarios([]);
+    try {
+      const data = await browseScenarioR2('pact/scenarios/');
+      const folders = (data.folders ?? []).map((f) => ({
+        name:   f.name,
+        prefix: f.prefix,
+      }));
+      setR2Scenarios(folders);
+    } catch { setErr('Failed to scan R2. Check credentials.'); }
+    finally { setScanningR2(false); }
+  };
+
+  // Browse pact/scenarios/{scenarioName}/Drop {#}/ to find victim sub-folders
+  // Structure: pact/scenarios/{name}/Drop {#}/{Victim Name}/ + supplemental files
+  const scanVictims = async () => {
+    const name = scenarioName.trim();
+    if (!name) { setErr('Set a scenario name first.'); return; }
+    setScanningVictims(true);
+    setR2Victims([]);
+    try {
+      const scenarioPrefix = `pact/scenarios/${name}/`;
+      const topLevel = await browseScenarioR2(scenarioPrefix);
+
+      // Top-level folders are Drop folders: "Drop 1", "Drop 2", etc.
+      const dropFolders = topLevel.folders ?? [];
+
+      // Browse every drop folder in parallel to get victim sub-folders + supplemental files
+      const dropContents = await Promise.all(
+        dropFolders.map((df) =>
+          browseScenarioR2(df.prefix).catch(() => ({ folders: [], files: [] }))
+        )
+      );
+
+      // Collect unique victim names across all drops, tracking which drops they appear in
+      const victimMap = new Map(); // victim name → { drops: Set<dropName>, prefix }
+      for (let i = 0; i < dropFolders.length; i++) {
+        const dropName   = dropFolders[i].name;     // e.g. "Drop 1"
+        const dropNum    = parseInt(dropName.replace(/\D/g, ''), 10) || (i + 1);
+        const contents   = dropContents[i];
+
+        for (const victim of (contents.folders ?? [])) {
+          if (!victimMap.has(victim.name)) {
+            victimMap.set(victim.name, { drops: new Set(), dropNums: new Set(), prefix: victim.prefix });
+          }
+          victimMap.get(victim.name).drops.add(dropName);
+          victimMap.get(victim.name).dropNums.add(dropNum);
+        }
+      }
+
+      const victims = Array.from(victimMap.entries()).map(([victimName, info]) => ({
+        name:     victimName,
+        drops:    Array.from(info.drops).sort(),
+        dropNums: Array.from(info.dropNums).sort((a, b) => a - b),
+        prefix:   info.prefix,
+        squadHint: null,
+      }));
+
+      setR2Victims(victims);
+    } catch { setErr('Failed to scan victim folders.'); }
+    finally { setScanningVictims(false); }
   };
 
   const toggleTarget = async () => {
@@ -2390,20 +2637,22 @@ function CohortSetupPanel({ cohort, onCohortUpdate }) {
       {err && <div className="err-msg" style={{ marginBottom: 12 }}>{err}</div>}
       {msg && <div style={{ fontSize: 12, color: '#10b981', marginBottom: 12, fontFamily: 'var(--mono)', letterSpacing: '.08em' }}>{msg}</div>}
 
-      {/* Scenario Assignment */}
+      {/* ── Scenario Assignment ─────────────────────────────────────────────── */}
       <div style={{ marginBottom: 28 }}>
         <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--primary)', marginBottom: 8 }}>
           Scenario Assignment
         </div>
         <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.6 }}>
-          The scenario name must match the R2 folder name exactly (e.g. <code>packet heist</code>). Used to auto-navigate the R2 browser during drop releases.
+          Must match the R2 folder name exactly. Click <strong>Scan R2</strong> to auto-detect available scenarios.
         </p>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+
+        {/* Input row */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
           <input
             value={scenarioName}
             onChange={(e) => setScenarioName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') saveScenario(); }}
-            placeholder="e.g. packet heist"
+            placeholder="e.g. brokered-exit"
             style={{
               flex: 1, padding: '7px 10px',
               border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)',
@@ -2411,62 +2660,243 @@ function CohortSetupPanel({ cohort, onCohortUpdate }) {
               fontSize: 13, fontFamily: 'var(--mono)',
             }}
           />
-          <button className="btn-submit" style={{ width: 'auto', flexShrink: 0 }} onClick={saveScenario} disabled={savingScenario}>
+          <button
+            className="btn-secondary"
+            style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}
+            onClick={scanScenarios}
+            disabled={scanningR2}
+          >
+            {scanningR2 ? (
+              <><div className="spinner" style={{ width: 11, height: 11 }} /> Scanning…</>
+            ) : (
+              <>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                Scan R2
+              </>
+            )}
+          </button>
+          <button className="btn-submit" style={{ width: 'auto', flexShrink: 0 }} onClick={() => saveScenario()} disabled={savingScenario}>
             {savingScenario ? 'Saving…' : 'Save'}
           </button>
         </div>
+
+        {/* R2 detected scenario pills */}
+        {r2Scenarios.length > 0 && (
+          <div style={{
+            border: '1px solid var(--border)', borderRadius: 6,
+            padding: '10px 12px', background: 'var(--surface-2, #f8fafc)',
+          }}>
+            <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--mono)', letterSpacing: '.08em', marginBottom: 8 }}>
+              DETECTED IN R2 — click to select:
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {r2Scenarios.map((s) => (
+                <button
+                  key={s.prefix}
+                  onClick={() => { setScenarioName(s.name); saveScenario(s.name); }}
+                  style={{
+                    border: `1px solid ${scenarioName === s.name ? 'var(--primary)' : 'var(--border)'}`,
+                    background: scenarioName === s.name ? 'rgba(0,176,255,0.1)' : 'var(--surface)',
+                    color: scenarioName === s.name ? 'var(--primary)' : 'var(--text)',
+                    borderRadius: 4, padding: '4px 10px', cursor: 'pointer',
+                    fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600,
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {s.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Squad Case Assignments */}
+      {/* ── Squad Case Assignments ──────────────────────────────────────────── */}
       <div style={{ marginBottom: 28 }}>
-        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--primary)', marginBottom: 8 }}>
-          Squad Case Assignments
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--primary)' }}>
+            Squad Case Assignments
+          </div>
+          {scenarioName.trim() && (
+            <button
+              className="btn-secondary"
+              style={{ fontSize: 11, padding: '3px 9px', display: 'flex', alignItems: 'center', gap: 4 }}
+              onClick={scanVictims}
+              disabled={scanningVictims}
+            >
+              {scanningVictims ? (
+                <><div className="spinner" style={{ width: 10, height: 10 }} /> Scanning…</>
+              ) : (
+                <>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                  </svg>
+                  Detect Victims
+                </>
+              )}
+            </button>
+          )}
         </div>
         <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.6 }}>
-          Assign each squad's victim or case name. Smart matching compares these against R2 folder names during release to auto-route drops.
+          Assign each squad's victim or case name. Smart matching auto-routes drops to the correct squad during release.
         </p>
+
+        {/* Detected victims legend */}
+        {r2Victims.length > 0 && (
+          <div style={{
+            border: '1px solid rgba(0,176,255,0.25)',
+            borderRadius: 6, padding: '10px 12px',
+            background: 'rgba(0,176,255,0.03)',
+            marginBottom: 12,
+          }}>
+            <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--mono)', letterSpacing: '.08em', marginBottom: 8 }}>
+              {r2Victims.length} VICTIM{r2Victims.length !== 1 ? 'S' : ''} DETECTED ACROSS {
+                (() => {
+                  const allDrops = new Set(r2Victims.flatMap((v) => v.drops));
+                  return allDrops.size;
+                })()
+              } DROP{
+                (() => {
+                  const allDrops = new Set(r2Victims.flatMap((v) => v.drops));
+                  return allDrops.size !== 1 ? 'S' : '';
+                })()
+              }:
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {r2Victims.map((v, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{
+                    fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600,
+                    color: 'var(--text)', flex: 1,
+                  }}>
+                    {v.name}
+                  </span>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {v.drops.map((d) => (
+                      <span key={d} style={{
+                        fontFamily: 'var(--mono)', fontSize: 9, padding: '1px 6px',
+                        borderRadius: 3, background: 'rgba(0,176,255,0.1)',
+                        border: '1px solid rgba(0,176,255,0.25)',
+                        color: 'var(--primary)', whiteSpace: 'nowrap',
+                      }}>
+                        {d}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {loadingSquads ? (
           <div className="spinner" />
         ) : squads.length === 0 ? (
           <p style={{ color: 'var(--muted)', fontSize: 13 }}>No squads found for this cohort. Create squads first.</p>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[...squads].sort((a, b) => a.number - b.number).map((sq) => {
               const color = SQUAD_COLORS[sq.number] ?? 'var(--primary)';
+              const pickerOpen = victimPickerSq === sq.id;
+
+              // Auto-suggest victims for this squad based on detected victims
+              const squadHintName = `squad-${sq.number}`;
+              const suggestions = r2Victims.filter((v) =>
+                !v.squadHint ||
+                v.squadHint.replace(/\D/g, '') === String(sq.number)
+              );
+
               return (
-                <div key={sq.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{
-                    width: 64, flexShrink: 0, fontFamily: 'var(--mono)', fontSize: 10,
-                    fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color,
-                  }}>
-                    SQUAD {sq.number}
+                <div key={sq.id}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{
+                      width: 64, flexShrink: 0, fontFamily: 'var(--mono)', fontSize: 10,
+                      fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color,
+                    }}>
+                      SQUAD {sq.number}
+                    </div>
+                    <div style={{
+                      fontSize: 11, color: 'var(--muted)', width: 110, flexShrink: 0,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {sq.name || '—'}
+                    </div>
+                    <div style={{ flex: 1, position: 'relative' }}>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <input
+                          value={caseNames[sq.id] ?? ''}
+                          onChange={(e) => setCaseNames((p) => ({ ...p, [sq.id]: e.target.value }))}
+                          onKeyDown={(e) => { if (e.key === 'Enter') saveCaseName(sq.id); }}
+                          onFocus={() => suggestions.length > 0 && setVictimPickerSq(sq.id)}
+                          placeholder="victim / case name…"
+                          style={{
+                            flex: 1, padding: '6px 10px',
+                            border: `1.5px solid ${color}55`,
+                            borderRadius: 'var(--radius-sm)',
+                            background: 'var(--surface)', color: 'var(--text)', fontSize: 13,
+                          }}
+                        />
+                        {suggestions.length > 0 && (
+                          <button
+                            className="btn-secondary"
+                            style={{ fontSize: 11, padding: '4px 8px', flexShrink: 0 }}
+                            onClick={() => setVictimPickerSq(pickerOpen ? null : sq.id)}
+                            title="Pick from detected victims"
+                          >
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points={pickerOpen ? '18 15 12 9 6 15' : '6 9 12 15 18 9'}/>
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Victim dropdown */}
+                      {pickerOpen && (
+                        <div style={{
+                          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+                          background: 'var(--surface)', border: '1px solid var(--border)',
+                          borderRadius: 6, boxShadow: '0 4px 16px rgba(0,0,0,.15)',
+                          marginTop: 2, maxHeight: 200, overflowY: 'auto',
+                        }}>
+                          {suggestions.map((v, i) => (
+                            <button
+                              key={i}
+                              onClick={() => saveCaseName(sq.id, v.name)}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 8,
+                                width: '100%', textAlign: 'left',
+                                padding: '8px 12px', background: 'none', border: 'none',
+                                cursor: 'pointer', fontSize: 13, color: 'var(--text)',
+                                borderBottom: i < suggestions.length - 1 ? '1px solid var(--border)' : 'none',
+                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f8fafc)'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" opacity="0.4">
+                                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                              </svg>
+                              <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{v.name}</span>
+                              {v.squadHint && (
+                                <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>
+                                  {v.squadHint}
+                                </span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      className="btn-sm-primary"
+                      style={{ flexShrink: 0 }}
+                      onClick={() => saveCaseName(sq.id)}
+                      disabled={!!savingSquad[sq.id]}
+                    >
+                      {savingSquad[sq.id] ? '…' : 'Save'}
+                    </button>
                   </div>
-                  <div style={{
-                    fontSize: 11, color: 'var(--muted)', width: 110, flexShrink: 0,
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>
-                    {sq.name || '—'}
-                  </div>
-                  <input
-                    value={caseNames[sq.id] ?? ''}
-                    onChange={(e) => setCaseNames((p) => ({ ...p, [sq.id]: e.target.value }))}
-                    onKeyDown={(e) => { if (e.key === 'Enter') saveCaseName(sq.id); }}
-                    placeholder="victim / case name…"
-                    style={{
-                      flex: 1, padding: '6px 10px',
-                      border: `1.5px solid ${color}55`,
-                      borderRadius: 'var(--radius-sm)',
-                      background: 'var(--surface)', color: 'var(--text)', fontSize: 13,
-                    }}
-                  />
-                  <button
-                    className="btn-sm-primary"
-                    style={{ flexShrink: 0 }}
-                    onClick={() => saveCaseName(sq.id)}
-                    disabled={!!savingSquad[sq.id]}
-                  >
-                    {savingSquad[sq.id] ? '…' : 'Save'}
-                  </button>
                 </div>
               );
             })}
