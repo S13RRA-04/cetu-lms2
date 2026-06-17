@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, lazy, Suspense, useCallback } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense, useCallback, memo } from 'react';
 import { NavLink, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import {
   motion, AnimatePresence,
@@ -16,6 +16,44 @@ const SQUAD_THEME = {
 };
 
 const Globe = lazy(() => import('../components/Globe.jsx'));
+
+function LiveClock() {
+  const [time, setTime] = useState('');
+  useEffect(() => {
+    const fmt = () => new Date().toLocaleTimeString('en-US', { hour12: false });
+    setTime(fmt());
+    const id = setInterval(() => setTime(fmt()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return <>{time}</>;
+}
+
+const HudBar = memo(function HudBar({ accent, enrollment }) {
+  const squad = enrollment?.squad;
+  return (
+    <div className="hud-bar">
+      <span className="hud-op">OPERATION BRKR</span>
+      <span className="hud-divider">·</span>
+      <motion.span className="hud-status">
+        <motion.span
+          className="hud-led"
+          style={{ background: accent }}
+          animate={{ opacity: [1, 0.35, 1] }}
+          transition={{ duration: 2.4, repeat: Infinity }}
+        />
+        SECURE
+      </motion.span>
+      {squad && (
+        <>
+          <span className="hud-divider">·</span>
+          <span className="hud-squad" style={{ color: accent }}>SQUAD {squad.number}</span>
+        </>
+      )}
+      <span className="hud-spacer" />
+      <span className="hud-time"><LiveClock /></span>
+    </div>
+  );
+});
 
 const TYPE_COLOR = {
   module:     '#60a5fa',
@@ -391,6 +429,8 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
           <button className="topbar-hamburger" onClick={() => setSidebarOpen(true)}>☰</button>
           <span className="topbar-brand" style={{ color: accent }}>PACT</span>
         </div>
+
+        <HudBar accent={accent} enrollment={enrollment} />
 
         <main className="app-main">
           <div key={location.pathname} className="page-transition">
