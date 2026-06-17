@@ -27,7 +27,7 @@ async function getMySubmission(assignmentId, userId) {
 
 async function getSquadSubmission(assignmentId, squadId) {
   return Submission.findOne({
-    where: { assignment_id: assignmentId, cell_id: squadId, status: { [require('sequelize').Op.in]: ['submitted', 'graded', 'returned'] } },
+    where: { assignment_id: assignmentId, squad_id: squadId, status: { [require('sequelize').Op.in]: ['submitted', 'graded', 'returned'] } },
     include: [{ model: User, as: 'student', attributes: ['id', 'first_name', 'last_name'] }],
     order: [['submitted_at', 'DESC']],
   });
@@ -64,11 +64,11 @@ async function updateProgress(assignmentId, userId, progress) {
 
   const enrollment = await _checkUnlocked(assignment, userId);
 
-  const squadId = enrollment.cell_id ?? null;
+  const squadId = enrollment.squad_id ?? null;
 
   const [sub] = await Submission.findOrCreate({
     where:    { assignment_id: assignmentId, user_id: userId },
-    defaults: { cell_id: squadId, progress, status: 'in_progress', content: null, submitted_at: new Date() },
+    defaults: { squad_id: squadId, progress, status: 'in_progress', content: null, submitted_at: new Date() },
   });
 
   if (sub.status === 'submitted' || sub.status === 'graded') return sub;
@@ -82,7 +82,7 @@ async function submit(assignmentId, userId, content) {
   if (!assignment) throw new NotFoundError('Assignment');
 
   const enrollment = await _checkUnlocked(assignment, userId);
-  const squadId = enrollment.cell_id ?? null;
+  const squadId = enrollment.squad_id ?? null;
 
   if (assignment.grading_mode === 'squad' && !squadId) {
     throw new AppError('You must be assigned to a squad to submit this assignment', 400, 'NO_SQUAD');
@@ -92,10 +92,10 @@ async function submit(assignmentId, userId, content) {
   const existing = await Submission.findOne({ where: { assignment_id: assignmentId, user_id: userId } });
   let submission;
   if (existing) {
-    await existing.update({ content, submitted_at: new Date(), status: 'submitted', progress: 100, cell_id: squadId });
+    await existing.update({ content, submitted_at: new Date(), status: 'submitted', progress: 100, squad_id: squadId });
     submission = existing;
   } else {
-    submission = await Submission.create({ assignment_id: assignmentId, user_id: userId, cell_id: squadId, content, submitted_at: new Date(), status: 'submitted', progress: 100 });
+    submission = await Submission.create({ assignment_id: assignmentId, user_id: userId, squad_id: squadId, content, submitted_at: new Date(), status: 'submitted', progress: 100 });
   }
 
   // Auto-grade quiz submissions: QuizFlow embeds totalScore + maxScore in the content JSON
