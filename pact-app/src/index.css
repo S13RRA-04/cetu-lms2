@@ -5633,3 +5633,284 @@ body {
   align-items: center;
   gap: 6px;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   VAULT KEYPAD  (VaultKeypad.jsx)
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.vk-root {
+  position: fixed;
+  inset: 0;
+  background: #040608;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.vk-scanlines {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0, 0, 0, 0.16) 3px,
+    rgba(0, 0, 0, 0.16) 4px
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+.vk-body {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+  max-width: 520px;
+  padding: 40px 32px 52px;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.vk-header {
+  text-align: center;
+}
+
+.vk-stamp {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .28em;
+  color: #00b0ff;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.vk-drop-id {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: .15em;
+  color: rgba(148, 163, 184, 0.7);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.vk-clearance {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .2em;
+  color: rgba(239, 68, 68, 0.55);
+  text-transform: uppercase;
+}
+
+/* ── Vault door ─────────────────────────────────────────────────────────── */
+.vk-door-section {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 160px;
+  height: 160px;
+}
+
+.vk-door-wrap {
+  width: 160px;
+  height: 160px;
+}
+
+.vk-door-svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 0 12px rgba(0, 176, 255, 0.35));
+}
+
+.vk-door-glow {
+  position: absolute;
+  inset: -20px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 176, 255, 0.28) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* ── Cipher challenge ───────────────────────────────────────────────────── */
+.vk-challenge {
+  background: rgba(0, 176, 255, 0.04);
+  border: 1px solid rgba(0, 176, 255, 0.18);
+  border-radius: 4px;
+  padding: 12px 18px;
+  text-align: center;
+  max-width: 420px;
+  width: 100%;
+}
+
+.vk-challenge-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .22em;
+  color: rgba(0, 176, 255, 0.6);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.vk-challenge-text {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: rgba(226, 232, 240, 0.88);
+  line-height: 1.6;
+  word-break: break-all;
+  letter-spacing: .04em;
+}
+
+/* ── PIN display ────────────────────────────────────────────────────────── */
+.vk-pin-display {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+}
+
+.vk-pin-cell {
+  width: 44px;
+  height: 52px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  transition: border-color 0.15s;
+}
+
+.vk-pin-filled {
+  background: rgba(0, 176, 255, 0.06);
+}
+
+.vk-pin-wrong {
+  border-color: rgba(239, 68, 68, 0.5) !important;
+  background: rgba(239, 68, 68, 0.06) !important;
+}
+
+.vk-pin-open {
+  border-color: rgba(52, 211, 153, 0.6) !important;
+  background: rgba(52, 211, 153, 0.08) !important;
+}
+
+.vk-pin-char {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.vk-pin-placeholder {
+  font-family: var(--mono);
+  font-size: 18px;
+  color: rgba(148, 163, 184, 0.18);
+}
+
+/* ── Error / OK messages ────────────────────────────────────────────────── */
+.vk-err-msg {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .16em;
+  color: rgba(239, 68, 68, 0.9);
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 18px;
+}
+
+.vk-err-locked {
+  color: rgba(239, 68, 68, 1);
+  letter-spacing: .12em;
+}
+
+.vk-ok-msg {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .18em;
+  color: rgba(52, 211, 153, 0.95);
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 18px;
+}
+
+/* ── Keypad ─────────────────────────────────────────────────────────────── */
+.vk-keypad {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  max-width: 380px;
+}
+
+.vk-hex-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 7px;
+  width: 100%;
+}
+
+.vk-key {
+  background: rgba(0, 176, 255, 0.06);
+  border: 1px solid rgba(0, 176, 255, 0.2);
+  border-radius: 4px;
+  color: rgba(226, 232, 240, 0.85);
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  padding: 13px 8px;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+  user-select: none;
+  text-transform: uppercase;
+}
+
+.vk-key:hover {
+  background: rgba(0, 176, 255, 0.14);
+  border-color: rgba(0, 176, 255, 0.5);
+  color: #00b0ff;
+}
+
+.vk-control-row {
+  display: flex;
+  gap: 7px;
+  width: 100%;
+}
+
+.vk-control-row .vk-key {
+  flex: 1;
+}
+
+.vk-key-wide {
+  flex: 3 !important;
+  background: rgba(0, 176, 255, 0.1);
+  border-color: rgba(0, 176, 255, 0.35);
+  color: #00b0ff;
+  letter-spacing: .2em;
+  font-size: 12px;
+}
+
+.vk-key-wide:hover {
+  background: rgba(0, 176, 255, 0.22);
+  border-color: rgba(0, 176, 255, 0.65);
+}
+
+/* ── Locked state ───────────────────────────────────────────────────────── */
+.vk-locked-msg {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .08em;
+  color: rgba(148, 163, 184, 0.45);
+  text-align: center;
+  margin-top: 4px;
+}

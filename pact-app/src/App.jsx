@@ -42,33 +42,76 @@ const router = createBrowserRouter([
   { path: '*', element: <Navigate to="/" replace /> },
 ]);
 
+/* Decode a JWT payload without verifying the signature (client-side expiry check only) */
+function jwtExp(token) {
+  try { return JSON.parse(atob(token.split('.')[1]))?.exp ?? 0; }
+  catch { return 0; }
+}
+
+function isTokenStale(token) {
+  if (!token) return true;
+  // Treat as stale if it expires within the next 60 seconds
+  return jwtExp(token) - 60 < Date.now() / 1000;
+}
+
+async function silentRefresh(setUser) {
+  try {
+    const res  = await fetch('/api/v1/auth/refresh', { method: 'POST', credentials: 'include' });
+    if (!res.ok) throw new Error('refresh failed');
+    const { accessToken, user } = await res.json();
+    localStorage.setItem('accessToken', accessToken);
+    if (user) {
+      localStorage.setItem('user', JSON.stringify(user));
+      setUser(user);
+    }
+  } catch {
+    /* Refresh cookie is gone — clear stale state so Guard redirects to /login */
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('user');
+    setUser(null);
+  }
+}
+
 export default function App() {
-  const { setUser }   = useAuthStore();
+  const { setUser }       = useAuthStore();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const token  = params.get('launch_token');
-    if (!token) { setReady(true); return; }
+    const launchToken = params.get('launch_token');
 
-    /* Strip the param from the URL immediately so it's not bookmarked / logged */
-    params.delete('launch_token');
-    const clean = window.location.pathname + (params.toString() ? `?${params}` : '');
-    window.history.replaceState(null, '', clean);
+    if (launchToken) {
+      /* Strip the param from the URL immediately so it's not bookmarked / logged */
+      params.delete('launch_token');
+      const clean = window.location.pathname + (params.toString() ? `?${params}` : '');
+      window.history.replaceState(null, '', clean);
 
-    fetch('/api/v1/auth/exchange-launch-token', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ token }),
-    })
-      .then((r) => r.ok ? r.json() : Promise.reject(r))
-      .then(({ accessToken, user }) => {
-        localStorage.setItem('accessToken', accessToken);
-        setUser(user);
+      fetch('/api/v1/auth/exchange-launch-token', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ token: launchToken }),
       })
-      .catch(() => { /* token expired or invalid — fall through to normal login */ })
-      .finally(() => setReady(true));
-  }, []);
+        .then((r) => r.ok ? r.json() : Promise.reject(r))
+        .then(({ accessToken, user }) => {
+          localStorage.setItem('accessToken', accessToken);
+          setUser(user);
+        })
+        .catch(() => { /* token expired or invalid — fall through to normal login */ })
+        .finally(() => setReady(true));
+      return;
+    }
+
+    /* If the stored access token is missing or about to expire, refresh it now
+       before any protected routes mount and fire API calls. This prevents the
+       401-cascade that shows up in the console on every page reload. */
+    const stored = localStorage.getItem('user');
+    const access = localStorage.getItem('accessToken');
+    if (stored && isTokenStale(access)) {
+      silentRefresh(setUser).finally(() => setReady(true));
+    } else {
+      setReady(true);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!ready) return null;
   return <RouterProvider router={router} />;

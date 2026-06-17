@@ -3,7 +3,7 @@ const { CampaignDrop, CampaignDropUnlock, Assignment, AssignmentUnlock,
         CourseContentItem, CourseContentUnlock, Course, Cohort } = require('../models');
 const { NotFoundError, AppError } = require('../utils/errors');
 
-async function listDrops(courseId, cohortId) {
+async function listDrops(courseId, cohortId, includePin = false) {
   const drops = await CampaignDrop.findAll({
     where: { course_id: courseId },
     include: cohortId
@@ -17,11 +17,24 @@ async function listDrops(courseId, cohortId) {
     order: [['number', 'ASC']],
   });
 
-  return drops.map((d) => ({
-    ...d.toJSON(),
-    is_unlocked: cohortId ? (d.unlocks?.length > 0) : null,
-    unlocked_at: cohortId ? (d.unlocks?.[0]?.unlocked_at ?? null) : null,
-  }));
+  return drops.map((d) => {
+    const json = d.toJSON();
+    const pin  = json.vault_pin;
+    if (!includePin) delete json.vault_pin;
+    return {
+      ...json,
+      vault_pin_length: pin ? pin.length : null,
+      is_unlocked: cohortId ? (d.unlocks?.length > 0) : null,
+      unlocked_at: cohortId ? (d.unlocks?.[0]?.unlocked_at ?? null) : null,
+    };
+  });
+}
+
+async function verifyVaultPin(dropId, pin) {
+  const drop = await CampaignDrop.findByPk(dropId);
+  if (!drop) throw new NotFoundError('CampaignDrop');
+  if (!drop.vault_pin) return { valid: false };
+  return { valid: drop.vault_pin.toLowerCase().trim() === String(pin).toLowerCase().trim() };
 }
 
 async function createDrop(courseId, data) {
@@ -91,4 +104,4 @@ async function lockDrop(dropId, cohortId) {
   await CampaignDropUnlock.destroy({ where: { drop_id: dropId, cohort_id: cohortId } });
 }
 
-module.exports = { listDrops, createDrop, updateDrop, deleteDrop, releaseDrop, lockDrop };
+module.exports = { listDrops, createDrop, updateDrop, deleteDrop, releaseDrop, lockDrop, verifyVaultPin };

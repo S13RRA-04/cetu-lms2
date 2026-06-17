@@ -3,9 +3,16 @@ const campaignService = require('../services/campaign.service');
 
 async function listDrops(req, res, next) {
   try {
-    // Students see drops with unlock status for their cohort
     const cohortId = req.query.cohort_id ?? null;
-    res.json(await campaignService.listDrops(req.params.id, cohortId));
+    const isStaff  = ['admin', 'superadmin', 'instructor'].includes(req.user?.role);
+    res.json(await campaignService.listDrops(req.params.id, cohortId, isStaff));
+  } catch (err) { next(err); }
+}
+
+async function verifyVaultPin(req, res, next) {
+  try {
+    const { valid } = await campaignService.verifyVaultPin(req.params.did, req.body.pin ?? '');
+    res.json({ valid });
   } catch (err) { next(err); }
 }
 
@@ -38,4 +45,4 @@ async function lockDrop(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listDrops, createDrop, updateDrop, deleteDrop, releaseDrop, lockDrop };
+module.exports = { listDrops, createDrop, updateDrop, deleteDrop, releaseDrop, lockDrop, verifyVaultPin };

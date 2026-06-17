@@ -118,6 +118,9 @@ export const getCampaignDrops = (cohortId) =>
 export const createCampaignDrop = (data) =>
   client.post(`/courses/${COURSE_ID}/campaign/drops`, data).then((r) => r.data);
 
+export const verifyVaultPin = (dropId, pin) =>
+  client.post(`/courses/${COURSE_ID}/campaign/drops/${dropId}/verify-pin`, { pin }).then((r) => r.data);
+
 export const updateCampaignDrop = (dropId, data) =>
   client.put(`/courses/${COURSE_ID}/campaign/drops/${dropId}`, data).then((r) => r.data);
 

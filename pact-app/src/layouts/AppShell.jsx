@@ -5,6 +5,7 @@ import AppLayout          from './AppLayout.jsx';
 import InductionSequence  from '../pages/InductionSequence.jsx';
 import TransmissionInterceptor, { getSeenDropIds, markDropSeen } from '../pages/TransmissionInterceptor.jsx';
 import TargetRevealInterceptor, { targetSeenKey } from '../pages/TargetRevealInterceptor.jsx';
+import VaultKeypad        from '../pages/VaultKeypad.jsx';
 import SessionTimeoutWarning from '../components/SessionTimeoutWarning.jsx';
 import DropAlert          from '../components/DropAlert.jsx';
 import useSessionTimeout  from '../hooks/useSessionTimeout.js';
@@ -12,6 +13,16 @@ import useAuthStore       from '../store/authStore.js';
 
 function inductionKey(userId) {
   return `pact_inducted_v1_${userId}`;
+}
+
+function vaultKey(userId, dropId) {
+  return `pact_vault_v1_${userId}_${dropId}`;
+}
+function isVaultUnlocked(userId, dropId) {
+  return !!localStorage.getItem(vaultKey(userId, dropId));
+}
+function markVaultUnlocked(userId, dropId) {
+  localStorage.setItem(vaultKey(userId, dropId), '1');
 }
 
 function findNewDrop(drops, userId) {
@@ -33,6 +44,7 @@ export default function AppShell() {
 
   // Instructors and admins skip induction and transmissions entirely
   const isStudent = user?.role === 'student';
+  const [vaultUnlocked, setVaultUnlocked] = useState(false);
   const [inducted, setInducted] = useState(() => {
     if (!isStudent || !user?.id) return true;
     return !!localStorage.getItem(inductionKey(user.id));
@@ -101,6 +113,12 @@ export default function AppShell() {
   const handleTransmissionAck = useCallback(() => {
     if (user?.id && pendingDrop) markDropSeen(user.id, pendingDrop.id);
     setPendingDrop(null);
+    setVaultUnlocked(false);
+  }, [user?.id, pendingDrop]);
+
+  const handleVaultUnlock = useCallback(() => {
+    if (user?.id && pendingDrop) markVaultUnlocked(user.id, pendingDrop.id);
+    setVaultUnlocked(true);
   }, [user?.id, pendingDrop]);
 
   const handleAlertView = useCallback(() => {
@@ -166,6 +184,12 @@ export default function AppShell() {
 
   // Incoming transmission — student, inducted, new drop pending
   if (isStudent && pendingDrop) {
+    const needsVault = pendingDrop.vault_hint &&
+      !vaultUnlocked &&
+      !isVaultUnlocked(user?.id, pendingDrop.id);
+    if (needsVault) {
+      return <VaultKeypad drop={pendingDrop} onUnlock={handleVaultUnlock} />;
+    }
     return <TransmissionInterceptor drop={pendingDrop} onAcknowledge={handleTransmissionAck} />;
   }
 

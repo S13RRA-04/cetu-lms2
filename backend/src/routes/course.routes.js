@@ -129,7 +129,8 @@ router.get('/:id/campaign/drops',              requireAuth,                    c
 router.post('/:id/campaign/drops',             requireAuth, requireInstructor, campaignCtrl.createDrop);
 router.put('/:id/campaign/drops/:did',         requireAuth, requireInstructor, campaignCtrl.updateDrop);
 router.delete('/:id/campaign/drops/:did',      requireAuth, requireInstructor, campaignCtrl.deleteDrop);
-router.post('/:id/campaign/drops/:did/release',requireAuth, requireInstructor, campaignCtrl.releaseDrop);
-router.post('/:id/campaign/drops/:did/lock',   requireAuth, requireInstructor, campaignCtrl.lockDrop);
+router.post('/:id/campaign/drops/:did/release',  requireAuth, requireInstructor, campaignCtrl.releaseDrop);
+router.post('/:id/campaign/drops/:did/lock',     requireAuth, requireInstructor, campaignCtrl.lockDrop);
+router.post('/:id/campaign/drops/:did/verify-pin', requireAuth,                 campaignCtrl.verifyVaultPin);
 
 module.exports = router;

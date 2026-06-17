@@ -1415,6 +1415,8 @@ function DropFormInline({ initial, onSave, onCancel }) {
     number:          initial?.number          ?? '',
     title:           initial?.title           ?? '',
     narrative_intro: initial?.narrative_intro ?? '',
+    vault_hint:      initial?.vault_hint      ?? '',
+    vault_pin:       initial?.vault_pin       ?? '',
   });
   const [saving, setSaving] = useState(false);
   const [err,    setErr]    = useState('');
@@ -1465,6 +1467,30 @@ function DropFormInline({ initial, onSave, onCancel }) {
           placeholder="Intel brief, narrative context, tasking orders…"
           style={{ width: '100%', resize: 'vertical' }}
         />
+      </div>
+      <div style={{ background: 'rgba(0,176,255,0.04)', border: '1px solid rgba(0,176,255,0.15)', borderRadius: 4, padding: '10px 12px', marginBottom: 8 }}>
+        <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: '.18em', color: 'rgba(0,176,255,0.7)', textTransform: 'uppercase', marginBottom: 8 }}>
+          Vault Lock (optional)
+        </div>
+        <div style={{ marginBottom: 8 }}>
+          <label className="admin-grade-label">Cipher Challenge — Vault Hint (shown to students)</label>
+          <textarea
+            value={form.vault_hint}
+            onChange={set('vault_hint')}
+            rows={2}
+            placeholder="e.g. Run the SHA-256 hash of 'NIGHTFALL-7' through CyberChef. Enter the first 6 hex characters as the PIN."
+            style={{ width: '100%', resize: 'vertical' }}
+          />
+        </div>
+        <div>
+          <label className="admin-grade-label">Vault PIN (secret — students must derive this)</label>
+          <input
+            value={form.vault_pin}
+            onChange={set('vault_pin')}
+            placeholder="e.g. A3F9B1"
+            style={{ width: '100%', fontFamily: 'monospace', letterSpacing: '.1em', textTransform: 'uppercase' }}
+          />
+        </div>
       </div>
       {err && <div className="err-msg">{err}</div>}
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
