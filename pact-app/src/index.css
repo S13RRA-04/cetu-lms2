@@ -5687,16 +5687,17 @@ body {
   z-index: 3;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 18px;
+  align-items: stretch;
+  gap: 16px;
   width: 100%;
-  max-width: 480px;
-  padding: 36px 28px 48px;
+  max-width: 680px;
+  padding: 32px 36px 44px;
 }
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
 .vk-header {
   text-align: center;
+  align-self: center;
 }
 
 .vk-badge {
@@ -5757,13 +5758,15 @@ body {
 /* ── Cipher challenge ───────────────────────────────────────────────────── */
 .vk-challenge {
   position: relative;
+  flex: 1;
   background: rgba(0, 8, 16, 0.7);
   border: 1px solid rgba(0, 176, 255, 0.22);
   border-left: 3px solid rgba(0, 176, 255, 0.6);
   border-radius: 3px;
-  padding: 14px 20px;
-  width: 100%;
-  max-width: 420px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .vk-challenge-label {
@@ -5784,80 +5787,83 @@ body {
 }
 
 /* ── PIN display ────────────────────────────────────────────────────────── */
-.vk-pin-display {
+/* ── Two-column layout ──────────────────────────────────────────────────── */
+.vk-main-grid {
   display: flex;
-  gap: 8px;
+  gap: 24px;
   align-items: center;
   justify-content: center;
+  width: 100%;
 }
 
-.vk-pin-cell {
-  width: 50px;
-  height: 60px;
-  border: 1px solid rgba(148, 163, 184, 0.15);
-  border-bottom: 2px solid rgba(148, 163, 184, 0.25);
-  border-radius: 3px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
-  transition: border-color 0.15s, background 0.15s;
+/* ── Code input display ─────────────────────────────────────────────────── */
+.vk-code-display {
+  width: 100%;
+  background: rgba(0, 8, 18, 0.85);
+  border: 1px solid rgba(0, 176, 255, 0.22);
+  border-bottom: 2px solid rgba(0, 176, 255, 0.5);
+  border-radius: 4px;
+  padding: 10px 16px 12px;
+  transition: border-color 0.15s;
 }
 
-.vk-pin-active {
-  border-color: rgba(0, 176, 255, 0.4) !important;
-  border-bottom-color: #00b0ff !important;
-  background: rgba(0, 176, 255, 0.04) !important;
-}
-
-.vk-pin-filled {
-  border-color: rgba(0, 176, 255, 0.3);
-  border-bottom-color: rgba(0, 176, 255, 0.7);
-  background: rgba(0, 176, 255, 0.04);
-}
-
-.vk-pin-wrong {
-  border-color: rgba(239, 68, 68, 0.45) !important;
+.vk-code-display.vk-code-wrong {
+  border-color: rgba(239, 68, 68, 0.4) !important;
   border-bottom-color: rgba(239, 68, 68, 0.7) !important;
-  background: rgba(239, 68, 68, 0.05) !important;
 }
 
-.vk-pin-open {
-  border-color: rgba(52, 211, 153, 0.5) !important;
-  border-bottom-color: rgba(52, 211, 153, 0.8) !important;
-  background: rgba(52, 211, 153, 0.06) !important;
+.vk-code-display.vk-code-open {
+  border-color: rgba(52, 211, 153, 0.4) !important;
+  border-bottom-color: rgba(52, 211, 153, 0.7) !important;
 }
 
-.vk-pin-char {
+.vk-code-label {
+  display: block;
   font-family: var(--mono);
-  font-size: 24px;
+  font-size: 8px;
+  letter-spacing: .3em;
+  color: rgba(0, 176, 255, 0.45);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.vk-code-value {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.vk-code-text {
+  font-family: var(--mono);
+  font-size: 22px;
   font-weight: 700;
   color: #00b0ff;
-  letter-spacing: 0;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+  flex: 1;
 }
 
-.vk-pin-cursor {
-  display: block;
+.vk-code-cursor {
+  display: inline-block;
   width: 2px;
-  height: 28px;
+  height: 26px;
   background: #00b0ff;
   border-radius: 1px;
-}
-
-.vk-pin-placeholder {
-  display: block;
-  width: 20px;
-  height: 2px;
-  background: rgba(148,163,184,0.12);
-  border-radius: 1px;
+  flex-shrink: 0;
 }
 
 /* ── Status messages ────────────────────────────────────────────────────── */
 .vk-status-row {
-  height: 20px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
+  align-self: center;
 }
 
 .vk-err-msg {
@@ -5871,9 +5877,7 @@ body {
   gap: 6px;
 }
 
-.vk-err-locked {
-  color: #ef4444;
-}
+.vk-err-locked { color: #ef4444; }
 
 .vk-checking-msg {
   font-family: var(--mono);
@@ -5894,35 +5898,36 @@ body {
   gap: 7px;
 }
 
-/* ── Keypad ─────────────────────────────────────────────────────────────── */
-.vk-keypad {
+/* ── Full keyboard ──────────────────────────────────────────────────────── */
+.vk-keyboard {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  width: 100%;
-  max-width: 360px;
-}
-
-.vk-hex-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
   gap: 5px;
   width: 100%;
 }
 
+.vk-kb-row {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+}
+
+/* Letter/number keys */
 .vk-key {
-  background: rgba(4, 12, 22, 0.8);
-  border: 1px solid rgba(0, 176, 255, 0.16);
-  border-bottom: 2px solid rgba(0, 176, 255, 0.28);
+  flex: 1;
+  min-width: 0;
+  background: rgba(4, 10, 20, 0.9);
+  border: 1px solid rgba(0, 176, 255, 0.14);
+  border-bottom: 2px solid rgba(0, 176, 255, 0.26);
   border-radius: 4px;
-  color: rgba(226, 232, 240, 0.8);
+  color: rgba(220, 232, 244, 0.82);
   font-family: var(--mono);
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: .04em;
-  padding: 14px 8px;
+  letter-spacing: .03em;
+  padding: 11px 4px;
   cursor: pointer;
-  transition: background 0.08s, border-color 0.08s, color 0.08s;
+  transition: background 0.07s, border-color 0.07s, color 0.07s;
   user-select: none;
   text-transform: uppercase;
   display: flex;
@@ -5932,57 +5937,53 @@ body {
 
 .vk-key:hover:not(:disabled) {
   background: rgba(0, 176, 255, 0.1);
-  border-color: rgba(0, 176, 255, 0.45);
-  border-bottom-color: rgba(0, 176, 255, 0.7);
+  border-color: rgba(0, 176, 255, 0.4);
+  border-bottom-color: rgba(0, 176, 255, 0.65);
   color: #00b0ff;
 }
 
 .vk-key:disabled {
-  opacity: 0.35;
+  opacity: 0.3;
   cursor: not-allowed;
 }
 
+/* ── Control row ────────────────────────────────────────────────────────── */
+.vk-kb-controls {
+  margin-top: 2px;
+}
+
 .vk-key-danger {
-  border-color: rgba(239, 68, 68, 0.18);
-  border-bottom-color: rgba(239, 68, 68, 0.35);
+  flex: 0 0 auto;
+  min-width: 60px;
+  border-color: rgba(239, 68, 68, 0.16);
+  border-bottom-color: rgba(239, 68, 68, 0.32);
 }
 
 .vk-key-danger:hover:not(:disabled) {
   background: rgba(239, 68, 68, 0.08);
-  border-color: rgba(239, 68, 68, 0.45);
-  border-bottom-color: rgba(239, 68, 68, 0.7);
+  border-color: rgba(239, 68, 68, 0.4);
+  border-bottom-color: rgba(239, 68, 68, 0.65);
   color: #ef4444;
 }
 
-.vk-control-row {
-  display: flex;
-  gap: 5px;
-  width: 100%;
-}
-
-.vk-control-row .vk-key {
-  flex: 1;
-}
-
 .vk-key-wide {
-  flex: 3 !important;
-  background: rgba(0, 176, 255, 0.08);
-  border-color: rgba(0, 176, 255, 0.3);
-  border-bottom-color: rgba(0, 176, 255, 0.55);
+  flex: 1 !important;
+  background: rgba(0, 176, 255, 0.07);
+  border-color: rgba(0, 176, 255, 0.28);
+  border-bottom-color: rgba(0, 176, 255, 0.52);
   color: #00b0ff;
-  letter-spacing: .22em;
+  letter-spacing: .18em;
   font-size: 11px;
+  padding: 13px 8px;
 }
 
 .vk-key-wide:hover:not(:disabled) {
-  background: rgba(0, 176, 255, 0.18);
-  border-color: rgba(0, 176, 255, 0.6);
+  background: rgba(0, 176, 255, 0.16);
+  border-color: rgba(0, 176, 255, 0.55);
   border-bottom-color: #00b0ff;
 }
 
-.vk-key-wide:disabled {
-  opacity: 0.3;
-}
+.vk-key-wide:disabled { opacity: 0.28; }
 
 /* ── Locked state ───────────────────────────────────────────────────────── */
 .vk-locked-msg {
