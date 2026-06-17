@@ -37,7 +37,7 @@ async function update(squadId, data) {
 async function remove(squadId) {
   const squad = await Squad.findByPk(squadId);
   if (!squad) throw new NotFoundError('Squad');
-  await Enrollment.update({ squad_id: null }, { where: { squad_id: squadId } });
+  await Enrollment.update({ cell_id: null }, { where: { cell_id: squadId } });
   await squad.destroy();
 }
 
@@ -49,11 +49,11 @@ async function assignMember(squadId, userId) {
   if (!enrollment) throw new AppError('User is not enrolled in this cohort', 400, 'NOT_ENROLLED');
 
   await Enrollment.update(
-    { squad_id: null },
-    { where: { user_id: userId, cohort_id: squad.cohort_id, squad_id: { [require('sequelize').Op.ne]: null } } }
+    { cell_id: null },
+    { where: { user_id: userId, cohort_id: squad.cohort_id, cell_id: { [require('sequelize').Op.ne]: null } } }
   );
 
-  await enrollment.update({ squad_id: squadId });
+  await enrollment.update({ cell_id: squadId });
   return listByCohort(squad.cohort_id);
 }
 
@@ -61,10 +61,10 @@ async function removeMember(squadId, userId) {
   const squad = await Squad.findByPk(squadId);
   if (!squad) throw new NotFoundError('Squad');
 
-  const enrollment = await Enrollment.findOne({ where: { user_id: userId, squad_id: squadId } });
+  const enrollment = await Enrollment.findOne({ where: { user_id: userId, cell_id: squadId } });
   if (!enrollment) throw new NotFoundError('Squad member');
 
-  await enrollment.update({ squad_id: null });
+  await enrollment.update({ cell_id: null });
 }
 
 module.exports = { listByCohort, create, update, remove, assignMember, removeMember };

@@ -74,7 +74,7 @@ async function gradeSquad(assignmentId, squadId, data, graderId) {
   const squad = await Squad.findByPk(squadId);
   if (!squad) throw new NotFoundError('Squad');
 
-  const enrollments = await Enrollment.findAll({ where: { squad_id: squadId, course_id: assignment.course_id } });
+  const enrollments = await Enrollment.findAll({ where: { cell_id: squadId, course_id: assignment.course_id } });
   if (enrollments.length === 0) throw new AppError('No members found in squad for this course', 400, 'BAD_REQUEST');
 
   const grades = await Promise.all(enrollments.map(async (e) => {

@@ -58,10 +58,10 @@ Cohort.belongsToMany(User, { through: Enrollment, foreignKey: 'cohort_id', as: '
 // ── Cohort ↔ Squad ─────────────────────────────────────────────────────────
 Cohort.hasMany(Squad, { as: 'squads', foreignKey: 'cohort_id', onDelete: 'CASCADE' });
 Squad.belongsTo(Cohort,              { foreignKey: 'cohort_id' });
-Squad.hasMany(Enrollment, { foreignKey: 'squad_id', as: 'members' });
-Enrollment.belongsTo(Squad, { foreignKey: 'squad_id', as: 'squad' });
+Squad.hasMany(Enrollment, { foreignKey: 'cell_id', as: 'members' });
+Enrollment.belongsTo(Squad, { foreignKey: 'cell_id', as: 'squad' });
 User.belongsToMany(Squad, { through: Enrollment, foreignKey: 'user_id', as: 'squads' });
-Squad.belongsToMany(User, { through: Enrollment, foreignKey: 'squad_id', as: 'students' });
+Squad.belongsToMany(User, { through: Enrollment, foreignKey: 'cell_id', as: 'students' });
 
 // ── Assignment ↔ AssignmentUnlock ──────────────────────────────────────────
 Assignment.hasMany(AssignmentUnlock, { as: 'unlocks', foreignKey: 'assignment_id', onDelete: 'CASCADE' });
@@ -70,7 +70,7 @@ AssignmentUnlock.belongsTo(Cohort,     { foreignKey: 'cohort_id' });
 AssignmentUnlock.belongsTo(User, { as: 'unlocker', foreignKey: 'unlocked_by' });
 
 // ── Submission ↔ Squad ─────────────────────────────────────────────────────
-Submission.belongsTo(Squad, { foreignKey: 'squad_id', as: 'squad' });
+Submission.belongsTo(Squad, { foreignKey: 'cell_id', as: 'squad' });
 
 // ── Course ↔ Assignment ────────────────────────────────────────────────────
 Course.hasMany(Assignment,  { as: 'assignments', foreignKey: 'course_id', onDelete: 'CASCADE' });

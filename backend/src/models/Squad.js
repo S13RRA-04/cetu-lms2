@@ -10,7 +10,7 @@ module.exports = (sequelize) => {
       number:    { type: DataTypes.SMALLINT,    allowNull: false },
       name:      { type: DataTypes.STRING(100), allowNull: true },
     },
-    { tableName: 'squads' }
+    { tableName: 'cells' }
   );
 
   return Squad;
