@@ -102,18 +102,23 @@ function PanelTarget({ enrollment, onAdvance }) {
   const victim = getVictim(squad?.number);
 
   const [stage, setStage] = useState(0);
+  const [flashed, setFlashed] = useState(false);
   // Stages: 0=blank, 1=accessing, 2=name reveal, 3=details, 4=incident, 5=button
 
   useEffect(() => {
     const timers = [
       setTimeout(() => setStage(1), 400),
       setTimeout(() => setStage(2), 1400),
-      setTimeout(() => setStage(3), 2400),
-      setTimeout(() => setStage(4), 3200),
-      setTimeout(() => setStage(5), 4200),
+      setTimeout(() => setStage(3), 2600),
+      setTimeout(() => setStage(4), 3400),
+      setTimeout(() => setStage(5), 4600),
     ];
     return () => timers.forEach(clearTimeout);
   }, []);
+
+  useEffect(() => {
+    if (stage === 2 && !flashed) setFlashed(true);
+  }, [stage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!victim) {
     return (
@@ -142,17 +147,28 @@ function PanelTarget({ enrollment, onAdvance }) {
       transition={{ duration: 0.5 }}
     >
       {/* Scrolling hex data stream in background */}
-      <DataStream color={victim.color} opacity={0.04} fontSize={10} />
+      <DataStream color={victim.color} opacity={0.12} fontSize={11} speedScale={1.4} />
+
+      {/* Full-screen flash when name reveals */}
+      {flashed && (
+        <motion.div
+          className="ind-target-flash"
+          style={{ background: victim.color }}
+          initial={{ opacity: 0.55 }}
+          animate={{ opacity: 0 }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
+        />
+      )}
 
       {/* Left color bar */}
       <motion.div
         className="ind-target-bar"
         initial={{ scaleY: 0, opacity: 0 }}
         animate={stage >= 2 ? { scaleY: 1, opacity: 1 } : { scaleY: 0, opacity: 0 }}
-        transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
         style={{
           background: `linear-gradient(180deg, ${victim.color}, ${victim.color}88)`,
-          boxShadow: stage >= 2 ? `0 0 18px ${victim.color}` : 'none',
+          boxShadow: stage >= 2 ? `0 0 30px ${victim.color}, 0 0 60px ${victim.color}66` : 'none',
         }}
       />
 
@@ -183,13 +199,13 @@ function PanelTarget({ enrollment, onAdvance }) {
         {/* Victim name — THE reveal: decrypt + chromatic aberration + glow */}
         <motion.div
           className="ind-target-name chroma"
-          style={{ color: victim.color, textShadow: `0 0 40px ${victim.color}88, 0 0 80px ${victim.color}44` }}
-          initial={{ opacity: 0, y: 16 }}
-          animate={stage >= 2 ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
-          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          style={{ color: victim.color, textShadow: `0 0 30px ${victim.color}, 0 0 80px ${victim.color}88` }}
+          initial={{ opacity: 0, y: 20, scale: 0.94 }}
+          animate={stage >= 2 ? { opacity: 1, y: 0, scale: [0.94, 1.04, 1] } : { opacity: 0, y: 20, scale: 0.94 }}
+          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
         >
           {stage >= 2 && (
-            <DecryptText text={victim.name} speed={24} hold={5} delay={80} />
+            <DecryptText text={victim.name} speed={20} hold={5} delay={60} />
           )}
         </motion.div>
 

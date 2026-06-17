@@ -166,10 +166,10 @@ export default function AssignmentPage() {
           )}
         </div>
 
-        <h1 className="assignment-title">{assignment.title}</h1>
+        <h1 className="assignment-title glitch-text" data-text={assignment.title}>{assignment.title}</h1>
 
         {assignment.description && (
-          <div className="briefing-box">{assignment.description}</div>
+          <div className="briefing-classified">{assignment.description}</div>
         )}
 
         {assignment.due_date && (

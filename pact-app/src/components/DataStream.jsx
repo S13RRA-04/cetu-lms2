@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 const HEX = '0123456789ABCDEF';
 const r = (n) => Math.floor(Math.random() * n);
 
-export default function DataStream({ color = '#00b0ff', opacity = 0.055, fontSize = 11 }) {
+export default function DataStream({ color = '#00b0ff', opacity = 0.055, fontSize = 11, speedScale = 1 }) {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -19,7 +19,7 @@ export default function DataStream({ color = '#00b0ff', opacity = 0.055, fontSiz
       canvas.height = canvas.offsetHeight;
       cols      = Math.floor(canvas.width / (fontSize * 1.5));
       positions = Array.from({ length: cols }, () => -r(canvas.height));
-      speeds    = Array.from({ length: cols }, () => r(3) + 1);
+      speeds    = Array.from({ length: cols }, () => (r(3) + 1) * speedScale);
       brightCol = r(cols);
     };
 
@@ -58,7 +58,7 @@ export default function DataStream({ color = '#00b0ff', opacity = 0.055, fontSiz
     const ro = new ResizeObserver(init);
     ro.observe(canvas);
     return () => { cancelAnimationFrame(animId); ro.disconnect(); };
-  }, [color, opacity, fontSize]);
+  }, [color, opacity, fontSize, speedScale]);
 
   return (
     <canvas

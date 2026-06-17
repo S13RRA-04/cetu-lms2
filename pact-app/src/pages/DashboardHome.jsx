@@ -109,32 +109,53 @@ export default function DashboardHome() {
 
       {/* ── Active investigation target ── */}
       {victim && (
-        <div className="glass-card" style={{
-          borderLeft: `3px solid ${victim.color}`,
-          padding: '16px 20px',
-          marginBottom: 20,
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', color: victim.color, marginBottom: 4, textTransform: 'uppercase' }}>
-                YOUR INVESTIGATION TARGET
-              </div>
-              <div style={{ fontWeight: 700, fontSize: 17, color: 'var(--bright)', letterSpacing: '.02em' }} className="chroma">
-                {victim.name}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span>{victim.sector} · Code: {victim.code}</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#ef4444', fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.1em' }}>
-                  <span className="threat-blink">●</span> ACTIVE THREAT
-                </span>
-              </div>
+        <div
+          className="vtc-root"
+          style={{
+            '--vc': victim.color,
+            '--vc-dim': victim.colorDim,
+          }}
+        >
+          {/* Colored header bar */}
+          <div className="vtc-header" style={{ background: victim.color }}>
+            <span>▌ TARGET ACQUIRED — ACTIVE INVESTIGATION</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span className="threat-blink" style={{ color: '#000' }}>●</span>
+              <span>SQUAD {squad.number}</span>
+            </span>
+          </div>
+
+          <div className="vtc-body">
+            <div className="vtc-eyebrow">Active Investigation Target</div>
+            <div className="vtc-name chroma" style={{ color: victim.color }}>
+              {victim.name}
             </div>
-            <div style={{
-              fontFamily: 'var(--mono)', fontSize: 10, padding: '4px 10px',
-              borderRadius: 4, background: `${victim.color}20`, color: victim.color,
-              border: `1px solid ${victim.color}40`, letterSpacing: '.08em',
-            }}>
-              SQUAD {squad.number}
+            <div className="vtc-meta">
+              <span>{victim.sector}</span>
+              <span>·</span>
+              <span>CASE: {victim.code}</span>
+              <span>·</span>
+              <span style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span className="threat-blink">●</span> THREAT ACTIVE
+              </span>
+            </div>
+            <div className="vtc-intel">
+              <div className="vtc-intel-item">
+                PRIORITY
+                <span style={{ color: '#ef4444', fontWeight: 700 }}>CRITICAL</span>
+              </div>
+              <div className="vtc-intel-item">
+                CLASSIFICATION
+                <span>TLP:RED // LES</span>
+              </div>
+              <div className="vtc-intel-item">
+                CASE STATUS
+                <span style={{ color: '#10b981' }}>ACTIVE — ONGOING</span>
+              </div>
+              <div className="vtc-intel-item">
+                OPERATION
+                <span>BRKR // {victim.code}</span>
+              </div>
             </div>
           </div>
         </div>

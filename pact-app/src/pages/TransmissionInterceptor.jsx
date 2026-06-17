@@ -57,7 +57,7 @@ export default function TransmissionInterceptor({ drop, onAcknowledge }) {
 
   return (
     <div className="tx-root">
-      <DataStream color="#00b0ff" opacity={0.045} fontSize={10} />
+      <DataStream color="#00b0ff" opacity={0.10} fontSize={11} speedScale={1.6} />
       <div className="ind-scanlines" />
       <div className="tx-interference" />
 
