@@ -12,6 +12,7 @@ module.exports = (sequelize) => {
       end_date:   { type: DataTypes.DATEONLY, allowNull: true },
       is_active:        { type: DataTypes.BOOLEAN, defaultValue: true },
       target_revealed:  { type: DataTypes.BOOLEAN, defaultValue: false },
+      scenario_name:    { type: DataTypes.STRING(255), allowNull: true },
     },
     { tableName: 'cohorts' }
   );

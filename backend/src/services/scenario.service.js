@@ -77,17 +77,22 @@ async function syncFromR2(courseId) {
 
 /* Build public URLs for every file inside a scenario's R2 prefix */
 async function getFilesForPackage(pkg) {
+  /* single-file package — r2_key points directly at the object */
+  if (!pkg.r2_key.endsWith('/')) {
+    return [{
+      key:  pkg.r2_key,
+      name: pkg.r2_key.split('/').pop(),
+      url:  `${R2_PUBLIC_BASE_URL}/${pkg.r2_key}`,
+      size: null,
+    }];
+  }
   const objects = await listR2Files(pkg.r2_key);
-  return objects.map((obj) => {
-    /* Relative path inside the scenario folder for display */
-    const relativePath = obj.Key.slice(pkg.r2_key.length);
-    return {
-      key:  obj.Key,
-      name: relativePath,
-      url:  `${R2_PUBLIC_BASE_URL}/${obj.Key}`,
-      size: obj.Size,
-    };
-  });
+  return objects.map((obj) => ({
+    key:  obj.Key,
+    name: obj.Key.slice(pkg.r2_key.length),
+    url:  `${R2_PUBLIC_BASE_URL}/${obj.Key}`,
+    size: obj.Size,
+  }));
 }
 
 async function listForStudent(courseId, userId) {
@@ -235,8 +240,41 @@ async function deleteR2Object(key) {
   await r2Client.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
 }
 
+/*
+  Quick-release: create a ScenarioPackage (folder or single file) and
+  immediately unlock it for the specified cohort. Assigns release_number
+  as max(existing) + 1 across the course.
+*/
+async function quickRelease(courseId, cohortId, { r2_key, title, scenario_name, squad_number, unlocker_id }) {
+  const cohort = await Cohort.findByPk(cohortId);
+  if (!cohort) throw new (require('../utils/errors').NotFoundError)('Cohort');
+
+  const max = await ScenarioPackage.max('release_number', { where: { course_id: courseId } });
+  const release_number = (max ?? 0) + 1;
+
+  const file_name = r2_key.replace(/\/$/, '').split('/').pop();
+
+  const pkg = await ScenarioPackage.create({
+    course_id:      courseId,
+    title:          title || file_name,
+    scenario_name:  scenario_name || title || file_name,
+    file_name,
+    r2_key,
+    release_number,
+    squad_number:   squad_number ?? null,
+    is_published:   true,
+  });
+
+  await ScenarioPackageUnlock.findOrCreate({
+    where:    { package_id: pkg.id, cohort_id: cohortId },
+    defaults: { unlocked_by: unlocker_id ?? null, unlocked_at: new Date() },
+  });
+
+  return pkg;
+}
+
 module.exports = {
   listForStudent, listForAdmin, getDownloadUrl, getFilesAdmin,
   create, update, remove, unlockForCohort, lockForCohort,
-  browseR2, getPresignedUploadUrl, deleteR2Object,
+  browseR2, getPresignedUploadUrl, deleteR2Object, quickRelease,
 };

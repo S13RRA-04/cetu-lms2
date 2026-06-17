@@ -101,10 +101,11 @@ router.delete('/:id/cohorts/:cid/members/:uid', requireAuth, requireInstructor, 
 // Scenario packages
 router.get('/:id/scenarios',                       requireAuth,                    scenarioCtrl.list);
 router.post('/:id/scenarios',                      requireAuth, requireInstructor, scenarioCtrl.create);
-// R2 browser + upload (must precede /:sid param routes)
+// R2 browser + upload + quick-release (must precede /:sid param routes)
 router.get('/:id/scenarios/browse',                requireAuth, requireInstructor, scenarioCtrl.browse);
 router.post('/:id/scenarios/presign',              requireAuth, requireInstructor, scenarioCtrl.presignUpload);
 router.delete('/:id/scenarios/r2-object',          requireAuth, requireInstructor, scenarioCtrl.deleteR2Object);
+router.post('/:id/scenarios/quick-release',        requireAuth, requireInstructor, scenarioCtrl.quickRelease);
 // Per-package routes
 router.put('/:id/scenarios/:sid',                  requireAuth, requireInstructor, scenarioCtrl.update);
 router.delete('/:id/scenarios/:sid',               requireAuth, requireInstructor, scenarioCtrl.remove);

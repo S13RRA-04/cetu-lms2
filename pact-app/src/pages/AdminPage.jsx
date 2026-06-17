@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
   getAdminAssignments,
   getSubmissions,
@@ -31,6 +31,9 @@ import {
   releaseCampaignDrop,
   lockCampaignDrop,
   updateCohort,
+  getSquadsByCohort,
+  updateSquad,
+  quickReleaseScenario,
 } from '../api/pact.js';
 
 const TYPE_COLOR = {
@@ -270,15 +273,15 @@ export default function AdminPage() {
           Campaign Drops
         </button>
         <button
-          className={`admin-panel-tab${adminPanel === 'operations' ? ' active' : ''}`}
-          onClick={() => setAdminPanel('operations')}
+          className={`admin-panel-tab${adminPanel === 'casefile' ? ' active' : ''}`}
+          onClick={() => setAdminPanel('casefile')}
         >
-          Operations
+          Case File
         </button>
       </div>
 
-      {adminPanel === 'operations' ? (
-        <CohortControlPanel cohorts={cohorts} onCohortsChange={setCohorts} />
+      {adminPanel === 'casefile' ? (
+        <CaseFilePanel cohorts={cohorts} onCohortsChange={setCohorts} />
       ) : adminPanel === 'campaign' ? (
         <CampaignDropsPanel cohorts={cohorts} />
       ) : adminPanel === 'library' ? (
@@ -1958,6 +1961,532 @@ function ContentItemForm({ onSaved, onCancel }) {
         <button className="btn-submit" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
         <button className="btn-secondary" onClick={onCancel}>Cancel</button>
       </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CASE FILE PANEL — cohort setup + drop release workflow
+═══════════════════════════════════════════════════════════ */
+
+const SQUAD_COLORS = { 1: '#ef4444', 2: '#f59e0b', 3: '#3b82f6', 4: '#8b5cf6' };
+
+function normalizeName(s) {
+  return (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function matchScore(folderName, caseName) {
+  const folderWords = new Set(normalizeName(folderName).split(' ').filter(Boolean));
+  const caseWords   = normalizeName(caseName).split(' ').filter(Boolean);
+  if (!folderWords.size || !caseWords.length) return 0;
+  const hits = caseWords.filter((w) => folderWords.has(w)).length;
+  return hits / Math.max(folderWords.size, caseWords.length);
+}
+
+function detectSquad(name, squads) {
+  let best = null, bestScore = 0.3;
+  for (const sq of squads) {
+    if (!sq.case_name) continue;
+    const score = matchScore(name, sq.case_name);
+    if (score > bestScore) { bestScore = score; best = sq; }
+  }
+  return best;
+}
+
+function SquadChip({ squad }) {
+  if (!squad) {
+    return (
+      <span style={{
+        padding: '2px 7px', borderRadius: 4, fontSize: 10,
+        fontFamily: 'var(--mono)', fontWeight: 700, flexShrink: 0,
+        background: 'var(--surface-2, #f1f5f9)', color: 'var(--muted)',
+        border: '1px solid var(--border)',
+      }}>
+        ALL SQUADS
+      </span>
+    );
+  }
+  const color = SQUAD_COLORS[squad.number] ?? 'var(--primary)';
+  return (
+    <span style={{
+      padding: '2px 7px', borderRadius: 4, fontSize: 10,
+      fontFamily: 'var(--mono)', fontWeight: 700, flexShrink: 0,
+      background: `${color}22`, color, border: `1px solid ${color}44`,
+    }}>
+      SQUAD {squad.number}
+    </span>
+  );
+}
+
+function CaseFilePanel({ cohorts, onCohortsChange }) {
+  const [cohortId, setCohortId] = useState(() => cohorts[0]?.id ?? '');
+  const [subTab,   setSubTab]   = useState('setup');
+
+  const selectedCohort = cohorts.find((c) => c.id === cohortId) ?? null;
+
+  const handleCohortUpdate = useCallback((updated) => {
+    onCohortsChange((prev) => prev.map((c) => c.id === updated.id ? { ...c, ...updated } : c));
+  }, [onCohortsChange]);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+      {/* Top bar */}
+      <div style={{
+        padding: '10px 20px', borderBottom: '1px solid var(--border)',
+        display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap',
+        background: 'var(--surface)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', color: 'var(--muted)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Cohort</span>
+          <select
+            value={cohortId}
+            onChange={(e) => setCohortId(e.target.value)}
+            style={{ padding: '5px 8px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13, background: 'var(--surface)', color: 'var(--text)' }}
+          >
+            {cohorts.length === 0 && <option value="">No cohorts</option>}
+            {cohorts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {['setup', 'releases'].map((tab) => (
+            <button
+              key={tab}
+              className={`scenario-tab${subTab === tab ? ' active' : ''}`}
+              onClick={() => setSubTab(tab)}
+            >
+              {tab === 'setup' ? 'Cohort Setup' : 'Release Drops'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {!selectedCohort ? (
+        <div className="admin-empty"><p>No cohorts available.</p></div>
+      ) : subTab === 'setup' ? (
+        <CohortSetupPanel
+          key={selectedCohort.id}
+          cohort={selectedCohort}
+          onCohortUpdate={handleCohortUpdate}
+        />
+      ) : (
+        <DropReleasePanel
+          key={selectedCohort.id}
+          cohort={selectedCohort}
+        />
+      )}
+    </div>
+  );
+}
+
+function CohortSetupPanel({ cohort, onCohortUpdate }) {
+  const [squads,        setSquads]        = useState([]);
+  const [loadingSquads, setLoadingSquads] = useState(true);
+  const [scenarioName,  setScenarioName]  = useState(cohort.scenario_name ?? '');
+  const [savingScenario, setSavingScenario] = useState(false);
+  const [caseNames,     setCaseNames]     = useState({});
+  const [savingSquad,   setSavingSquad]   = useState({});
+  const [targetBusy,    setTargetBusy]    = useState(false);
+  const [err,           setErr]           = useState('');
+  const [msg,           setMsg]           = useState('');
+
+  useEffect(() => {
+    setLoadingSquads(true);
+    getSquadsByCohort(cohort.id)
+      .then((data) => {
+        const arr = Array.isArray(data) ? data : [];
+        setSquads(arr);
+        const init = {};
+        arr.forEach((sq) => { init[sq.id] = sq.case_name ?? ''; });
+        setCaseNames(init);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingSquads(false));
+  }, [cohort.id]);
+
+  const flash = (m) => { setMsg(m); setTimeout(() => setMsg(''), 2500); };
+
+  const saveScenario = async () => {
+    setSavingScenario(true);
+    setErr('');
+    try {
+      const updated = await updateCohort(cohort.id, { scenario_name: scenarioName.trim() || null });
+      onCohortUpdate(updated);
+      flash('Scenario name saved.');
+    } catch { setErr('Save failed.'); }
+    finally { setSavingScenario(false); }
+  };
+
+  const saveCaseName = async (squadId) => {
+    setSavingSquad((s) => ({ ...s, [squadId]: true }));
+    try {
+      await updateSquad(cohort.id, squadId, { case_name: caseNames[squadId]?.trim() || null });
+      setSquads((prev) => prev.map((sq) => sq.id === squadId ? { ...sq, case_name: caseNames[squadId] } : sq));
+      flash('Case name saved.');
+    } catch { setErr('Save failed.'); }
+    finally { setSavingSquad((s) => ({ ...s, [squadId]: false })); }
+  };
+
+  const toggleTarget = async () => {
+    setTargetBusy(true);
+    setErr('');
+    try {
+      const updated = await updateCohort(cohort.id, { target_revealed: !cohort.target_revealed });
+      onCohortUpdate(updated);
+    } catch { setErr('Update failed.'); }
+    finally { setTargetBusy(false); }
+  };
+
+  const revealed = !!cohort.target_revealed;
+
+  return (
+    <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1, maxWidth: 720 }}>
+      {err && <div className="err-msg" style={{ marginBottom: 12 }}>{err}</div>}
+      {msg && <div style={{ fontSize: 12, color: '#10b981', marginBottom: 12, fontFamily: 'var(--mono)', letterSpacing: '.08em' }}>{msg}</div>}
+
+      {/* Scenario Assignment */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--primary)', marginBottom: 8 }}>
+          Scenario Assignment
+        </div>
+        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.6 }}>
+          The scenario name must match the R2 folder name exactly (e.g. <code>packet heist</code>). Used to auto-navigate the R2 browser during drop releases.
+        </p>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input
+            value={scenarioName}
+            onChange={(e) => setScenarioName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') saveScenario(); }}
+            placeholder="e.g. packet heist"
+            style={{
+              flex: 1, padding: '7px 10px',
+              border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)',
+              background: 'var(--surface)', color: 'var(--text)',
+              fontSize: 13, fontFamily: 'var(--mono)',
+            }}
+          />
+          <button className="btn-submit" style={{ width: 'auto', flexShrink: 0 }} onClick={saveScenario} disabled={savingScenario}>
+            {savingScenario ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+
+      {/* Squad Case Assignments */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--primary)', marginBottom: 8 }}>
+          Squad Case Assignments
+        </div>
+        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.6 }}>
+          Assign each squad's victim or case name. Smart matching compares these against R2 folder names during release to auto-route drops.
+        </p>
+        {loadingSquads ? (
+          <div className="spinner" />
+        ) : squads.length === 0 ? (
+          <p style={{ color: 'var(--muted)', fontSize: 13 }}>No squads found for this cohort. Create squads first.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[...squads].sort((a, b) => a.number - b.number).map((sq) => {
+              const color = SQUAD_COLORS[sq.number] ?? 'var(--primary)';
+              return (
+                <div key={sq.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 64, flexShrink: 0, fontFamily: 'var(--mono)', fontSize: 10,
+                    fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color,
+                  }}>
+                    SQUAD {sq.number}
+                  </div>
+                  <div style={{
+                    fontSize: 11, color: 'var(--muted)', width: 110, flexShrink: 0,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {sq.name || '—'}
+                  </div>
+                  <input
+                    value={caseNames[sq.id] ?? ''}
+                    onChange={(e) => setCaseNames((p) => ({ ...p, [sq.id]: e.target.value }))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') saveCaseName(sq.id); }}
+                    placeholder="victim / case name…"
+                    style={{
+                      flex: 1, padding: '6px 10px',
+                      border: `1.5px solid ${color}55`,
+                      borderRadius: 'var(--radius-sm)',
+                      background: 'var(--surface)', color: 'var(--text)', fontSize: 13,
+                    }}
+                  />
+                  <button
+                    className="btn-sm-primary"
+                    style={{ flexShrink: 0 }}
+                    onClick={() => saveCaseName(sq.id)}
+                    disabled={!!savingSquad[sq.id]}
+                  >
+                    {savingSquad[sq.id] ? '…' : 'Save'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Target Reveal */}
+      <div>
+        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--primary)', marginBottom: 8 }}>
+          Investigation Target
+        </div>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px',
+          borderRadius: 10,
+          border: `1px solid ${revealed ? 'rgba(16,185,129,0.3)' : 'var(--border)'}`,
+          background: revealed ? 'rgba(16,185,129,0.04)' : 'var(--surface)',
+        }}>
+          <div style={{ flex: 1 }}>
+            <div style={{
+              fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em',
+              textTransform: 'uppercase', color: revealed ? '#10b981' : 'var(--muted)',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: revealed ? '#10b981' : 'var(--muted)', flexShrink: 0 }} />
+              {revealed ? 'TARGET REVEALED — students can see their investigation target' : 'TARGET CLASSIFIED — students see a redacted pending state'}
+            </div>
+          </div>
+          <button
+            onClick={toggleTarget}
+            disabled={targetBusy}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 7,
+              padding: '8px 18px', borderRadius: 7,
+              border: `1px solid ${revealed ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.4)'}`,
+              background: revealed ? 'rgba(239,68,68,0.07)' : 'rgba(16,185,129,0.08)',
+              color: revealed ? '#ef4444' : '#10b981',
+              fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 700,
+              letterSpacing: '.14em', textTransform: 'uppercase',
+              cursor: targetBusy ? 'not-allowed' : 'pointer',
+              opacity: targetBusy ? 0.5 : 1, flexShrink: 0,
+            }}
+          >
+            {targetBusy ? '...' : revealed ? (
+              <>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+                </svg>
+                Conceal Target
+              </>
+            ) : (
+              <>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+                </svg>
+                Reveal Target
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DropReleasePanel({ cohort }) {
+  const [squads,    setSquads]    = useState([]);
+  const [data,      setData]      = useState(null);
+  const [prefix,    setPrefix]    = useState('');
+  const [loading,   setLoading]   = useState(false);
+  const [err,       setErr]       = useState('');
+  const [releasing, setReleasing] = useState({});
+  const [released,  setReleased]  = useState({});
+
+  const initialPrefix = useMemo(() => {
+    if (!cohort.scenario_name) return 'pact/scenarios/';
+    return `pact/scenarios/${cohort.scenario_name}/`;
+  }, [cohort.scenario_name]);
+
+  useEffect(() => {
+    getSquadsByCohort(cohort.id)
+      .then((d) => setSquads(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, [cohort.id]);
+
+  const load = useCallback((p) => {
+    setLoading(true);
+    setErr('');
+    browseScenarioR2(p)
+      .then((d) => { setData(d); setPrefix(p); })
+      .catch(() => setErr('Failed to load R2. Check R2 credentials.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(initialPrefix); }, [initialPrefix, load]);
+
+  const crumbs = useMemo(() => {
+    if (!prefix) return [{ label: 'root', prefix: '' }];
+    const parts = prefix.split('/').filter(Boolean);
+    return [{ label: 'root', prefix: '' }].concat(
+      parts.map((p, i) => ({
+        label:  p,
+        prefix: parts.slice(0, i + 1).join('/') + '/',
+      })),
+    );
+  }, [prefix]);
+
+  const doRelease = async (r2_key, name) => {
+    const matchedSquad = detectSquad(name, squads);
+    setReleasing((p) => ({ ...p, [r2_key]: true }));
+    setErr('');
+    try {
+      await quickReleaseScenario({
+        cohort_id:     cohort.id,
+        r2_key,
+        title:         name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+        scenario_name: cohort.scenario_name || 'Unknown Scenario',
+        squad_number:  matchedSquad?.number ?? null,
+      });
+      setReleased((p) => ({ ...p, [r2_key]: matchedSquad?.number ?? 0 }));
+    } catch (e) {
+      setErr(e.response?.data?.error?.message ?? 'Release failed');
+    } finally {
+      setReleasing((p) => ({ ...p, [r2_key]: false }));
+    }
+  };
+
+  if (!cohort.scenario_name) {
+    return (
+      <div className="admin-empty" style={{ padding: 32 }}>
+        <p>Set a <strong>Scenario Name</strong> in Cohort Setup before releasing drops.</p>
+      </div>
+    );
+  }
+
+  const noSquadCaseNames = squads.length > 0 && squads.every((sq) => !sq.case_name);
+
+  return (
+    <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
+      {/* Legend bar */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.1em', color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+          SCENARIO: <span style={{ color: 'var(--text)' }}>{cohort.scenario_name}</span>
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {[...squads].sort((a, b) => a.number - b.number).map((sq) => {
+            const color = SQUAD_COLORS[sq.number] ?? 'var(--primary)';
+            return (
+              <span key={sq.id} style={{
+                padding: '2px 7px', borderRadius: 4, fontSize: 10, fontFamily: 'var(--mono)', fontWeight: 700,
+                background: `${color}22`, color, border: `1px solid ${color}44`,
+              }}>
+                S{sq.number}{sq.case_name ? ` · ${sq.case_name}` : ''}
+              </span>
+            );
+          })}
+          <span style={{ padding: '2px 7px', borderRadius: 4, fontSize: 10, fontFamily: 'var(--mono)', fontWeight: 700, background: 'var(--surface-2, #f1f5f9)', color: 'var(--muted)', border: '1px solid var(--border)' }}>
+            ALL SQUADS
+          </span>
+        </div>
+      </div>
+
+      {noSquadCaseNames && (
+        <div style={{ padding: '8px 12px', marginBottom: 12, borderRadius: 6, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', fontSize: 12, color: '#b45309' }}>
+          No squad case names set — all drops will route to All Squads. Set case names in Cohort Setup for automatic matching.
+        </div>
+      )}
+
+      {/* Breadcrumb */}
+      <div className="r2-breadcrumb" style={{ marginBottom: 10 }}>
+        {crumbs.map((c, i) => (
+          <span key={c.prefix + i}>
+            {i > 0 && <span className="r2-crumb-sep">/</span>}
+            <button
+              className={`r2-crumb${i === crumbs.length - 1 ? ' r2-crumb-active' : ''}`}
+              onClick={() => load(c.prefix)}
+              disabled={i === crumbs.length - 1}
+            >{c.label}</button>
+          </span>
+        ))}
+      </div>
+
+      {err && <div className="err-msg" style={{ marginBottom: 8 }}>{err}</div>}
+
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 32 }}><div className="spinner" /></div>
+      ) : data && (
+        <div className="r2-listing">
+          {data.folders.length === 0 && data.files.length === 0 && (
+            <p style={{ color: 'var(--muted)', fontSize: 13, padding: '8px 0' }}>Empty folder.</p>
+          )}
+
+          {data.folders.map((f) => {
+            const matchedSquad = detectSquad(f.name, squads);
+            const isReleased   = released[f.prefix] != null;
+            const isReleasing  = !!releasing[f.prefix];
+            return (
+              <div key={f.prefix} className="r2-file-block">
+                <div className="r2-row r2-folder" style={{ alignItems: 'center' }}>
+                  <button
+                    onClick={() => load(f.prefix)}
+                    style={{ display: 'flex', gap: 6, alignItems: 'center', flex: 1, background: 'none', border: 'none', cursor: 'pointer', padding: 0, minWidth: 0 }}
+                  >
+                    <span style={{ fontSize: 14, flexShrink: 0 }}>📁</span>
+                    <span className="r2-name" style={{ textAlign: 'left' }}>{f.name}/</span>
+                  </button>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0, marginLeft: 8 }}>
+                    {isReleased ? (
+                      <span style={{ fontSize: 10, fontFamily: 'var(--mono)', fontWeight: 700, color: '#10b981' }}>
+                        ✓ RELEASED {released[f.prefix] === 0 ? '→ ALL' : `→ S${released[f.prefix]}`}
+                      </span>
+                    ) : (
+                      <>
+                        <SquadChip squad={matchedSquad} />
+                        <button
+                          className="btn-sm-primary"
+                          style={{ fontSize: 11 }}
+                          disabled={isReleasing}
+                          onClick={() => doRelease(f.prefix, f.name)}
+                        >
+                          {isReleasing ? '…' : 'Release'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {data.files.map((f) => {
+            const matchedSquad = detectSquad(f.name, squads);
+            const isReleased   = released[f.key] != null;
+            const isReleasing  = !!releasing[f.key];
+            return (
+              <div key={f.key} className="r2-file-block">
+                <div className="r2-row r2-file" style={{ alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: 14, flexShrink: 0 }}>📄</span>
+                    <a href={f.url} target="_blank" rel="noopener noreferrer" className="r2-name r2-file-link" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</a>
+                    {f.size != null && <span className="r2-size" style={{ flexShrink: 0 }}>{formatR2Size(f.size)}</span>}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0, marginLeft: 8 }}>
+                    {isReleased ? (
+                      <span style={{ fontSize: 10, fontFamily: 'var(--mono)', fontWeight: 700, color: '#10b981' }}>
+                        ✓ RELEASED {released[f.key] === 0 ? '→ ALL' : `→ S${released[f.key]}`}
+                      </span>
+                    ) : (
+                      <>
+                        <SquadChip squad={matchedSquad} />
+                        <button
+                          className="btn-sm-primary"
+                          style={{ fontSize: 11 }}
+                          disabled={isReleasing}
+                          onClick={() => doRelease(f.key, f.name)}
+                        >
+                          {isReleasing ? '…' : 'Release'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

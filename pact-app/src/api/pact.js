@@ -63,6 +63,13 @@ export const getCohorts = () =>
 export const updateCohort = (cohortId, data) =>
   client.put(`/courses/${COURSE_ID}/cohorts/${cohortId}`, data).then((r) => r.data);
 
+/* ── Squads ── */
+export const getSquadsByCohort = (cohortId) =>
+  client.get(`/courses/${COURSE_ID}/cohorts/${cohortId}/squads`).then((r) => r.data);
+
+export const updateSquad = (cohortId, squadId, data) =>
+  client.put(`/courses/${COURSE_ID}/cohorts/${cohortId}/squads/${squadId}`, data).then((r) => r.data);
+
 /* ── Scenarios ── */
 export const getScenarios = () =>
   client.get(`/courses/${COURSE_ID}/scenarios`).then((r) => r.data);
@@ -87,6 +94,9 @@ export const lockScenario = (packageId, cohortId) =>
 
 export const browseScenarioR2 = (prefix) =>
   client.get(`/courses/${COURSE_ID}/scenarios/browse`, { params: { prefix } }).then((r) => r.data);
+
+export const quickReleaseScenario = (data) =>
+  client.post(`/courses/${COURSE_ID}/scenarios/quick-release`, data).then((r) => r.data);
 
 export const presignScenarioUpload = (key, contentType) =>
   client.post(`/courses/${COURSE_ID}/scenarios/presign`, { key, content_type: contentType }).then((r) => r.data);

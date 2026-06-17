@@ -9,6 +9,7 @@ module.exports = (sequelize) => {
       cohort_id: { type: DataTypes.UUID,        allowNull: false },
       number:    { type: DataTypes.SMALLINT,    allowNull: false },
       name:      { type: DataTypes.STRING(100), allowNull: true },
+      case_name: { type: DataTypes.STRING(255), allowNull: true },
     },
     { tableName: 'squads' }
   );
