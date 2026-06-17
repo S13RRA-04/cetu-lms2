@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { getCourseContent, getContentDownloadUrl } from '../api/pact.js';
 
 const TYPE_META = {
@@ -148,19 +148,22 @@ export default function CourseContentPage() {
 }
 
 function CaseCard({ item }) {
+  const [fetching, setFetching] = useState(false);
   const meta       = TYPE_META[item.content_type] ?? TYPE_META.resource;
   const isCampaign = CAMPAIGN_TYPES.includes(item.content_type);
-  // Use the gated download endpoint for R2 files; fall back to download_url (external links)
-  const hasDownload = item.r2_key
-    ? true
-    : !!(item.download_url ?? item.url);
+  const hasDownload = item.r2_key ? true : !!(item.download_url ?? item.url);
   const downloadHref = item.r2_key
     ? getContentDownloadUrl(item.id)
     : (item.download_url ?? item.url);
 
-  const handleOpen = () => {
-    if (hasDownload) window.open(downloadHref, '_blank', 'noopener');
-  };
+  const handleOpen = useCallback(() => {
+    if (!hasDownload || fetching) return;
+    setFetching(true);
+    setTimeout(() => {
+      window.open(downloadHref, '_blank', 'noopener');
+      setFetching(false);
+    }, 680);
+  }, [hasDownload, fetching, downloadHref]);
 
   return (
     <div
@@ -171,6 +174,11 @@ function CaseCard({ item }) {
         borderLeft: isCampaign ? `3px solid ${meta.color}` : undefined,
       }}
     >
+      {fetching && (
+        <div className="cc-card-fetching-overlay">
+          <span className="cc-card-fetching-text">RETRIEVING CLASSIFIED FILE...</span>
+        </div>
+      )}
       <div className="cc-card-icon" style={{ color: meta.color }}>{meta.icon}</div>
       <div className="cc-card-body">
         <div className="cc-card-type" style={{ color: meta.color }}>{meta.label}</div>
@@ -178,7 +186,7 @@ function CaseCard({ item }) {
         {item.description && <div className="cc-card-desc">{item.description}</div>}
         {item.file_name && <div className="cc-card-file">{item.file_name}</div>}
       </div>
-      {hasDownload && (
+      {hasDownload && !fetching && (
         <div className="cc-card-arrow" style={{ color: meta.color }}>→</div>
       )}
     </div>

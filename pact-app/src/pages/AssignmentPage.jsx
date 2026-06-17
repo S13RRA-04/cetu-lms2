@@ -1,35 +1,171 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
 import { getAssignment, getMySubmission, submitAssignment, updateProgress } from '../api/pact.js';
+import DecryptText    from '../components/DecryptText.jsx';
 import QuizFlow       from '../components/QuizFlow.jsx';
 import ChallengeFlow  from '../components/ChallengeFlow.jsx';
 import useDraft       from '../hooks/useDraft.js';
 
-
 const TYPE_COLOR = {
-  module:     '#2563eb',
-  game:       '#059669',
-  assessment: '#d97706',
-  survey:     '#7c3aed',
-  challenge:  '#dc2626',
-  capstone:   '#b45309',
+  module:     '#60a5fa',
+  game:       '#34d399',
+  assessment: '#fbbf24',
+  survey:     '#a78bfa',
+  challenge:  '#f87171',
+  capstone:   '#fb923c',
 };
 
 const PCT_STEPS = [0, 25, 50, 75, 100];
 
+/* ── Accessing classified document screen ─────────────────────────────────── */
+function AccessingScreen({ assignment }) {
+  const color = TYPE_COLOR[assignment?.type] ?? '#60a5fa';
+  return (
+    <motion.div
+      className="ap-access-root"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0, transition: { duration: 0.18 } }}
+      transition={{ duration: 0.2 }}
+    >
+      <div className="ap-access-mono">
+        <DecryptText text="ACCESSING CLASSIFIED DOCUMENT..." speed={22} hold={3} />
+      </div>
+      <div className="ap-access-bar">
+        <div className="ap-access-bar-fill" style={{ background: color }} />
+      </div>
+      <div className="ap-access-title">
+        {assignment?.title?.toUpperCase() ?? '...'}
+      </div>
+      {assignment?.drop_number != null && (
+        <div className="ap-access-mono" style={{ marginTop: 6 }}>
+          DROP {assignment.drop_number}&nbsp;&nbsp;·&nbsp;&nbsp;
+          {(assignment.type ?? 'TASKING').toUpperCase()}
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+/* ── Terminal-style submit sequence ───────────────────────────────────────── */
+function SubmitSequence({ color }) {
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setStep(1), 0);
+    const t2 = setTimeout(() => setStep(2), 560);
+    const t3 = setTimeout(() => setStep(3), 1180);
+    return () => [t1, t2, t3].forEach(clearTimeout);
+  }, []);
+
+  const lines = [
+    'ENCRYPTING FIELD REPORT...',
+    'ESTABLISHING SECURE CHANNEL...',
+    'TRANSMITTING TO COMMAND...',
+  ];
+
+  return (
+    <div className="ap-submit-seq">
+      {lines.map((text, i) => (
+        <motion.div
+          key={i}
+          className="ap-submit-line"
+          initial={{ opacity: 0, x: -12 }}
+          animate={step > i ? { opacity: 1, x: 0 } : { opacity: 0 }}
+          transition={{ duration: 0.22 }}
+        >
+          <span className="ap-submit-cursor">›</span>
+          <span>{text}</span>
+          {step > i + 1 && (
+            <span style={{ color, marginLeft: 12, fontSize: 10, letterSpacing: '.08em' }}>
+              SENT
+            </span>
+          )}
+        </motion.div>
+      ))}
+      <motion.div
+        style={{
+          height: 2, borderRadius: 1, marginTop: 14, background: color, transformOrigin: 'left',
+        }}
+        initial={{ scaleX: 0 }}
+        animate={{ scaleX: step / 3 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+      />
+    </div>
+  );
+}
+
+/* ── Field report success state ───────────────────────────────────────────── */
+function SubmissionSuccess({ assignment, submission, color }) {
+  return (
+    <motion.div
+      className="ap-success-root"
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45 }}
+    >
+      <div className="ap-success-stamp">TRANSMISSION CONFIRMED</div>
+      <div className="ap-success-title">FIELD REPORT TRANSMITTED</div>
+      <div className="ap-success-sub">
+        Command has received your report. Stand by for after-action assessment.
+      </div>
+      <div className="ap-success-meta">
+        <div className="ap-success-meta-row">
+          <span className="ap-success-meta-key">TASKING</span>
+          <span className="ap-success-meta-val">{assignment.title}</span>
+        </div>
+        <div className="ap-success-meta-row">
+          <span className="ap-success-meta-key">TYPE</span>
+          <span className="ap-success-meta-val" style={{ color }}>
+            {assignment.type?.toUpperCase()}
+          </span>
+        </div>
+        {assignment.drop_number != null && (
+          <div className="ap-success-meta-row">
+            <span className="ap-success-meta-key">DROP</span>
+            <span className="ap-success-meta-val">DROP {assignment.drop_number}</span>
+          </div>
+        )}
+        {submission?.squad && (
+          <div className="ap-success-meta-row">
+            <span className="ap-success-meta-key">SQUAD</span>
+            <span className="ap-success-meta-val">
+              Squad {submission.squad.number}
+              {submission.squad.name ? ` — ${submission.squad.name}` : ''}
+            </span>
+          </div>
+        )}
+        <div className="ap-success-meta-row">
+          <span className="ap-success-meta-key">TIMESTAMP</span>
+          <span className="ap-success-meta-val">{new Date().toLocaleString()}</span>
+        </div>
+      </div>
+      <Link to="/" className="ap-success-back">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        RETURN TO OPERATIONS CENTER
+      </Link>
+    </motion.div>
+  );
+}
+
+/* ── Main assignment page ─────────────────────────────────────────────────── */
 export default function AssignmentPage() {
   const { id } = useParams();
 
-  const [assignment,  setAssignment]  = useState(null);
-  const [submission,  setSubmission]  = useState(null);
-  const [content,     setContent]     = useState('');
-  const [progress,    setProgress]    = useState(0);
-  const [loading,     setLoading]     = useState(true);
-  const [saving,      setSaving]      = useState(false);
-  const [submitted,   setSubmitted]   = useState(false);
-  const [error,       setError]       = useState('');
-  const [quizResult,  setQuizResult]  = useState(null);
-  const [quizStarted, setQuizStarted] = useState(false);
+  const [assignment,   setAssignment]   = useState(null);
+  const [submission,   setSubmission]   = useState(null);
+  const [content,      setContent]      = useState('');
+  const [progress,     setProgress]     = useState(0);
+  const [loading,      setLoading]      = useState(true);
+  const [accessPhase,  setAccessPhase]  = useState('loading'); // loading | accessing | ready
+  const [saving,       setSaving]       = useState(false);
+  const [submitted,    setSubmitted]    = useState(false);
+  const [error,        setError]        = useState('');
+  const [quizResult,   setQuizResult]   = useState(null);
+  const [quizStarted,  setQuizStarted]  = useState(false);
 
   const { saveDebounced, load: loadDraft, clear: clearDraft } = useDraft(id);
 
@@ -39,6 +175,7 @@ export default function AssignmentPage() {
     setContent('');
     setProgress(0);
     setLoading(true);
+    setAccessPhase('loading');
     setSubmitted(false);
     setError('');
     setQuizResult(null);
@@ -62,7 +199,6 @@ export default function AssignmentPage() {
           } catch {}
         }
       }
-      /* Restore freeform draft if not yet submitted */
       if (!alreadySubmitted) {
         const draft = loadDraft();
         if (draft?.content !== undefined) {
@@ -73,8 +209,19 @@ export default function AssignmentPage() {
           }
         }
       }
-    }).finally(() => setLoading(false));
-  }, [id]);
+    }).finally(() => {
+      setLoading(false);
+      setAccessPhase('accessing');
+    });
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Drive the access phase timer
+  useEffect(() => {
+    if (accessPhase === 'accessing') {
+      const t = setTimeout(() => setAccessPhase('ready'), 1400);
+      return () => clearTimeout(t);
+    }
+  }, [accessPhase]);
 
   const handleProgressStep = useCallback(async (pct) => {
     setProgress(pct);
@@ -121,14 +268,28 @@ export default function AssignmentPage() {
   }, [id, clearDraft]);
 
   if (loading) {
-    return <div className="loading-screen"><div className="spinner" /></div>;
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
+        <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', letterSpacing: '.16em' }}>
+          LOADING TASKING...
+        </div>
+      </div>
+    );
+  }
+
+  if (accessPhase === 'accessing' && assignment) {
+    return (
+      <AnimatePresence mode="wait">
+        <AccessingScreen key="accessing" assignment={assignment} />
+      </AnimatePresence>
+    );
   }
 
   if (!assignment) {
     return (
-      <div className="loading-screen">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
         <p style={{ color: 'var(--muted)', fontFamily: 'var(--mono)', letterSpacing: '.1em' }}>
-          Assignment not found.
+          TASKING NOT FOUND
         </p>
       </div>
     );
@@ -138,10 +299,8 @@ export default function AssignmentPage() {
   const isSquad    = assignment.grading_mode === 'squad';
   const isLocked   = assignment.is_unlocked === false;
   const isSurvey   = assignment.type === 'survey';
-  /* hasQuiz: quiz questions always carry a `payload` field; prompt objects (kind:'prompt') do not */
   const hasQuiz    = !isLocked && !isSurvey && Array.isArray(assignment.questions) &&
     assignment.questions.some((q) => q.payload != null);
-  /* isWorkshop: challenge/capstone — always uses ChallengeFlow regardless of prompt objects in questions */
   const isWorkshop = !isLocked && (assignment.type === 'challenge' || assignment.type === 'capstone');
 
   return (
@@ -166,7 +325,9 @@ export default function AssignmentPage() {
           )}
         </div>
 
-        <h1 className="assignment-title glitch-text" data-text={assignment.title}>{assignment.title}</h1>
+        <h1 className="assignment-title glitch-text" data-text={assignment.title}>
+          {assignment.title}
+        </h1>
 
         {assignment.description && (
           <div className="briefing-classified">{assignment.description}</div>
@@ -180,19 +341,21 @@ export default function AssignmentPage() {
 
         <hr className="divider" />
 
-        {/* ── Locked state ── */}
         {isLocked ? (
           <div className="locked-msg" style={{ padding: '32px 0', fontSize: 14, color: 'var(--muted)', fontFamily: 'var(--mono)', letterSpacing: '.06em' }}>
             TASKING RESTRICTED — Awaiting Command authorization for your cohort.
           </div>
-        ) : /* ── Survey flow ── */
-        isSurvey ? (
+        ) : isSurvey ? (
           submitted ? (
-            <div className="success-banner" style={{ marginTop: 24 }}>
-              ✓ Survey submitted — thank you for your feedback.
-              <br />
-              <Link to="/" className="btn-submit" style={{ display: 'inline-block', marginTop: 16, textDecoration: 'none', textAlign: 'center', background: color }}>
-                ← Operations Center
+            <div className="ap-success-root" style={{ paddingTop: 0 }}>
+              <div className="ap-success-stamp">RESPONSE LOGGED</div>
+              <div className="ap-success-title">SURVEY SUBMITTED</div>
+              <div className="ap-success-sub">Your feedback has been recorded. Thank you.</div>
+              <Link to="/" className="ap-success-back" style={{ marginTop: 20 }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6"/>
+                </svg>
+                RETURN TO OPERATIONS CENTER
               </Link>
             </div>
           ) : (
@@ -205,8 +368,7 @@ export default function AssignmentPage() {
               />
             </>
           )
-        ) : /* ── Workshop (challenge/capstone without quiz questions) ── */
-        isWorkshop ? (
+        ) : isWorkshop ? (
           <ChallengeFlow
             assignment={assignment}
             color={color}
@@ -219,8 +381,7 @@ export default function AssignmentPage() {
               setSubmitted(true);
             }}
           />
-        ) : /* ── Quiz flow (modules, assessments, capstones with question banks) ── */
-        hasQuiz ? (
+        ) : hasQuiz ? (
           submitted ? (
             <QuizSummary result={quizResult} assignment={assignment} color={color} />
           ) : assignment.type === 'assessment' && !quizStarted ? (
@@ -238,10 +399,10 @@ export default function AssignmentPage() {
             </>
           )
         ) : (
-          /* ── Freeform submission for non-quiz assignments ── */
+          /* ── Freeform submission ── */
           <>
             <div style={{ marginBottom: 28 }}>
-              <div className="section-label">Mission Progress</div>
+              <div className="section-label">OPERATIONAL PROGRESS</div>
               <div className="progress-track">
                 <div className="progress-fill" style={{ width: `${progress}%`, background: color }} />
               </div>
@@ -251,7 +412,7 @@ export default function AssignmentPage() {
                     key={pct}
                     className={`pct-btn${progress === pct ? ' active' : ''}`}
                     onClick={() => handleProgressStep(pct)}
-                    disabled={submitted}
+                    disabled={submitted || saving}
                   >
                     {pct}%
                   </button>
@@ -263,18 +424,16 @@ export default function AssignmentPage() {
             <hr className="divider" />
 
             {submitted ? (
-              <div className="success-banner">
-                ✓ Mission submitted successfully
-                {submission?.squad && (
-                  <div style={{ marginTop: 6, fontSize: 11, opacity: .7 }}>
-                    Squad {submission.squad.number}
-                    {submission.squad.name ? ` (${submission.squad.name})` : ''}
-                  </div>
-                )}
-              </div>
+              <SubmissionSuccess
+                assignment={assignment}
+                submission={submission}
+                color={color}
+              />
+            ) : saving ? (
+              <SubmitSequence color={color} />
             ) : (
               <div>
-                <div className="section-label">Mission Response</div>
+                <div className="section-label">FIELD REPORT</div>
                 {isSquad && (
                   <div className="squad-notice">
                     Squad tasking — your submission will be graded for your entire squad
@@ -282,7 +441,7 @@ export default function AssignmentPage() {
                 )}
                 {submission && (
                   <div className="prev-submission">
-                    ✓ Previous submission on record — resubmitting will replace it
+                    Previous report on record — resubmitting will replace it
                   </div>
                 )}
                 {error && <div className="err-msg">{error}</div>}
@@ -294,14 +453,14 @@ export default function AssignmentPage() {
                       setContent(e.target.value);
                       saveDebounced({ content: e.target.value, progress });
                     }}
-                    placeholder="Enter your mission response…"
+                    placeholder="Enter your field report response…"
                     required
                   />
                   <div className="action-row">
-                    <button type="submit" className="btn-submit" disabled={saving}>
-                      {saving ? 'Transmitting…' : submission ? 'Resubmit Mission' : 'Submit Mission'}
+                    <button type="submit" className="btn-submit" style={{ background: color }} disabled={saving}>
+                      {submission ? 'RESUBMIT REPORT' : 'SUBMIT FIELD REPORT'}
                     </button>
-                    <Link to="/" className="btn-cancel">Cancel</Link>
+                    <Link to="/" className="btn-cancel">CANCEL</Link>
                   </div>
                 </form>
               </div>
@@ -342,7 +501,7 @@ function ModuleIntro({ assignment, color, onBegin }) {
 
       {mustPass > 0 && (
         <div className="module-mustpass-warn">
-          ⚠ {mustPass} question{mustPass !== 1 ? 's are' : ' is'} flagged Must-Pass.
+          {mustPass} question{mustPass !== 1 ? 's are' : ' is'} flagged Must-Pass.
           Wrong answers on these items reflect critical operational knowledge — review carefully before submitting.
         </div>
       )}
@@ -432,7 +591,7 @@ function SurveyFlow({ questions, color, onComplete }) {
               <div className="survey-section-label">{section}</div>
               {questions
                 .filter((q) => q.section === section)
-                .map((q, i) => renderQuestion(q, questions.indexOf(q)))}
+                .map((q) => renderQuestion(q, questions.indexOf(q)))}
             </div>
           ))
         : questions.map((q, i) => renderQuestion(q, i))

@@ -1,24 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getMyEnrollment, getAssignments, getCampaignDrops } from '../api/pact.js';
 import useAuthStore from '../store/authStore.js';
-import { getVictim } from '../constants/victims.js';
-
-function useCountUp(target, duration = 900) {
-  const [val, setVal] = useState(0);
-  const started = useRef(false);
-  useEffect(() => {
-    if (target === 0 || started.current) return;
-    started.current = true;
-    const t0 = Date.now();
-    const tick = () => {
-      const p = Math.min((Date.now() - t0) / duration, 1);
-      setVal(Math.round(p * target));
-      if (p < 1) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  }, [target, duration]);
-  return val;
-}
+import DecryptText from '../components/DecryptText.jsx';
 
 const PROF_ROLE_LABELS = {
   special_agent:                    'Special Agent',
@@ -30,9 +14,35 @@ const PROF_ROLE_LABELS = {
   task_force_officer:               'Task Force Officer',
 };
 
+const TYPE_COLOR = {
+  module:     '#60a5fa',
+  game:       '#34d399',
+  assessment: '#fbbf24',
+  survey:     '#a78bfa',
+  challenge:  '#f87171',
+  capstone:   '#fb923c',
+};
+
+function useCountUp(target, duration = 800) {
+  const [val, setVal]   = useState(0);
+  const started         = useRef(false);
+  useEffect(() => {
+    if (target === 0 || started.current) return;
+    started.current = true;
+    const t0   = Date.now();
+    const tick = () => {
+      const p = Math.min((Date.now() - t0) / duration, 1);
+      setVal(Math.round(p * target));
+      if (p < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, [target, duration]);
+  return val;
+}
 
 export default function DashboardHome() {
   const { user }      = useAuthStore();
+  const navigate      = useNavigate();
   const [enrollment,  setEnrollment]  = useState(null);
   const [assignments, setAssignments] = useState([]);
   const [drops,       setDrops]       = useState([]);
@@ -52,259 +62,184 @@ export default function DashboardHome() {
     }).finally(() => setLoading(false));
   }, []);
 
-  // Derive everything BEFORE any early return so hooks are always called in the same order
-  const squad  = enrollment?.squad;
-  const victim = squad ? getVictim(squad.number) : null;
-  const role   = user?.professional_role ? PROF_ROLE_LABELS[user.professional_role] ?? user.professional_role : null;
+  const role        = user?.professional_role ? PROF_ROLE_LABELS[user.professional_role] ?? user.professional_role : null;
+  const unlocked    = assignments.filter((a) => a.is_unlocked !== false).length;
+  const completed   = assignments.filter((a) => (a.progress ?? 0) >= 100).length;
+  const inProgress  = assignments.filter((a) => (a.progress ?? 0) > 0 && (a.progress ?? 0) < 100).length;
+  const total       = assignments.length;
+  const overallPct  = total > 0
+    ? Math.round(assignments.reduce((s, a) => s + (a.progress ?? 0), 0) / total) : 0;
 
-  const unlockedDrops  = drops.filter((d) => d.is_unlocked);
-  const activeDrop     = unlockedDrops.length > 0 ? unlockedDrops[unlockedDrops.length - 1] : null;
-  const nextDrop       = drops.find((d) => !d.is_unlocked);
+  const activeDrop  = [...drops].filter((d) => d.is_unlocked).sort((a, b) => b.number - a.number)[0] ?? null;
 
-  const unlocked   = assignments.filter((a) => a.is_unlocked !== false).length;
-  const completed  = assignments.filter((a) => (a.progress ?? 0) >= 100).length;
-  const inProgress = assignments.filter((a) => (a.progress ?? 0) > 0 && (a.progress ?? 0) < 100).length;
-  const total      = assignments.length;
-  const overallPct = total > 0
-    ? Math.round(assignments.reduce((s, a) => s + (a.progress ?? 0), 0) / total)
-    : 0;
+  const cUnlocked   = useCountUp(unlocked);
+  const cCompleted  = useCountUp(completed);
+  const cProgress   = useCountUp(inProgress);
+  const cPct        = useCountUp(overallPct);
 
-  // Hooks must be called unconditionally — before any early return
-  const countUnlocked   = useCountUp(unlocked);
-  const countCompleted  = useCountUp(completed);
-  const countInProgress = useCountUp(inProgress);
-  const countPct        = useCountUp(overallPct);
+  /* Group unlocked assignments by drop number for the tasking feed */
+  const dropNums = [...new Set(
+    assignments.filter((a) => a.is_unlocked !== false && a.drop_number != null).map((a) => a.drop_number)
+  )].sort((a, b) => a - b);
+  const untagged = assignments.filter((a) => a.is_unlocked !== false && a.drop_number == null);
 
-  if (loading) return <div className="loading-screen"><div className="spinner" /></div>;
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
+        <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', letterSpacing: '.16em' }}>
+          LOADING OPERATIONS CENTER...
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="dash-home">
+    <div className="ops-dashboard">
 
-      {/* ── Operation header ── */}
-      <div className="dash-welcome">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '.12em', color: 'var(--muted)', textTransform: 'uppercase' }}>
-            OPERATION BRKR
-          </span>
-          {activeDrop && (
-            <span style={{
-              fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.1em',
-              padding: '2px 8px', borderRadius: 4, border: '1px solid var(--primary)',
-              color: 'var(--primary)', textTransform: 'uppercase',
-            }}>
-              DROP {activeDrop.number} ACTIVE
-            </span>
-          )}
-        </div>
-        <h1 className="dash-welcome-name">
+      {/* ── Page header ── */}
+      <div className="ops-dash-header">
+        <div className="ops-dash-eyebrow">OPERATIONS CENTER</div>
+        <h1 className="ops-dash-name">
           {user?.first_name} {user?.last_name}
         </h1>
-        <p className="dash-welcome-sub">
+        <div className="ops-dash-meta">
           {role && <span style={{ color: 'var(--primary)' }}>{role}</span>}
-          {role && enrollment?.cohort?.name && <span className="dash-welcome-sep">·</span>}
-          {enrollment?.cohort?.name ?? 'Task Force Operations'}
-          {squad && <><span className="dash-welcome-sep">·</span>Squad {squad.number}{squad.name ? ` — ${squad.name}` : ''}</>}
-        </p>
+          {role && enrollment?.cohort?.name && <span className="ops-dash-sep">·</span>}
+          <span>{enrollment?.cohort?.name ?? 'Task Force Operations'}</span>
+          {enrollment?.squad && (
+            <>
+              <span className="ops-dash-sep">·</span>
+              <span>Squad {enrollment.squad.number}{enrollment.squad.name ? ` — ${enrollment.squad.name}` : ''}</span>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* ── Active investigation target (gated on cohort.target_revealed) ── */}
-      {squad && !enrollment?.cohort?.target_revealed ? (
-        /* Pending state — admin hasn't revealed the target yet */
-        <div className="vtc-root" style={{ '--vc': '#f59e0b', '--vc-dim': 'rgba(245,158,11,0.15)' }}>
-          <div className="vtc-header" style={{ background: '#f59e0b' }}>
-            <span>▌ INVESTIGATION TARGET — PENDING ASSIGNMENT</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span className="threat-blink" style={{ color: '#000' }}>●</span>
-              <span>SQUAD {squad.number}</span>
-            </span>
-          </div>
-          <div className="vtc-body">
-            <div className="vtc-eyebrow">Investigation Target</div>
-            <div className="vtc-name" style={{ color: 'rgba(148,163,184,0.4)', fontFamily: 'var(--mono)', letterSpacing: '.18em', fontSize: 18 }}>
-              ████████████████████
-            </div>
-            <div className="vtc-meta">
-              <span style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span className="threat-blink" style={{ animationDuration: '1.4s' }}>●</span> AWAITING COMMAND AUTHORIZATION
-              </span>
-            </div>
-            <div className="vtc-intel">
-              <div className="vtc-intel-item">
-                STATUS<span style={{ color: '#f59e0b' }}>PENDING</span>
-              </div>
-              <div className="vtc-intel-item">
-                CLASSIFICATION<span>TLP:RED // LES</span>
-              </div>
-              <div className="vtc-intel-item">
-                OPERATION<span>BRKR // CLASSIFIED</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : victim ? (
-        /* Revealed state */
-        <div className="vtc-root" style={{ '--vc': victim.color, '--vc-dim': victim.colorDim }}>
-          <div className="vtc-header" style={{ background: victim.color }}>
-            <span>▌ TARGET ACQUIRED — ACTIVE INVESTIGATION</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span className="threat-blink" style={{ color: '#000' }}>●</span>
-              <span>SQUAD {squad.number}</span>
-            </span>
-          </div>
-          <div className="vtc-body">
-            <div className="vtc-eyebrow">Active Investigation Target</div>
-            <div className="vtc-name" style={{ color: victim.color }}>
-              {victim.name}
-            </div>
-            <div className="vtc-meta">
-              <span>{victim.sector}</span>
-              <span>·</span>
-              <span>CASE: {victim.code}</span>
-              <span>·</span>
-              <span style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span className="threat-blink">●</span> THREAT ACTIVE
-              </span>
-            </div>
-            <div className="vtc-intel">
-              <div className="vtc-intel-item">
-                PRIORITY<span style={{ color: '#ef4444', fontWeight: 700 }}>CRITICAL</span>
-              </div>
-              <div className="vtc-intel-item">
-                CLASSIFICATION<span>TLP:RED // LES</span>
-              </div>
-              <div className="vtc-intel-item">
-                CASE STATUS<span style={{ color: '#10b981' }}>ACTIVE — ONGOING</span>
-              </div>
-              <div className="vtc-intel-item">
-                OPERATION<span>BRKR // {victim.code}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {/* ── Command Post bulletin (active drop) ── */}
+      {/* ── Command Post bulletin ── */}
       {activeDrop?.narrative_intro && (
-        <div className="glass-card" style={{ borderLeft: '3px solid var(--primary)', padding: '16px 20px', marginBottom: 20 }}>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', color: 'var(--primary)', marginBottom: 8, textTransform: 'uppercase' }}>
-            COMMAND POST — DROP {activeDrop.number}: {activeDrop.title}
+        <div className="ops-cp-bulletin">
+          <div className="ops-cp-header">
+            <span className="ops-cp-led" />
+            <DecryptText
+              text={`COMMAND POST — DROP ${activeDrop.number}: ${activeDrop.title}`}
+              speed={18}
+              hold={4}
+            />
           </div>
-          <p style={{ fontSize: 13, lineHeight: 1.65, color: 'var(--text)', whiteSpace: 'pre-wrap', margin: 0 }}>
-            {activeDrop.narrative_intro}
-          </p>
+          <p className="ops-cp-body">{activeDrop.narrative_intro}</p>
         </div>
       )}
 
-      {/* ── Stats ── */}
-      <div className="stats-banner">
-        <div className="stat-glass">
-          <div className="stat-glass-icon">◈</div>
-          <div className="stat-glass-value">{countUnlocked}</div>
-          <div className="stat-glass-label">Issued</div>
+      {/* ── Stat strip ── */}
+      <div className="ops-stat-strip">
+        <div className="ops-stat">
+          <div className="ops-stat-value">{cUnlocked}</div>
+          <div className="ops-stat-label">ISSUED</div>
         </div>
-        <div className="stat-glass stat-glass-green">
-          <div className="stat-glass-icon">◉</div>
-          <div className="stat-glass-value">{countCompleted}</div>
-          <div className="stat-glass-label">Closed</div>
+        <div className="ops-stat ops-stat-green">
+          <div className="ops-stat-value">{cCompleted}</div>
+          <div className="ops-stat-label">CLOSED</div>
         </div>
-        <div className="stat-glass stat-glass-amber">
-          <div className="stat-glass-icon">⬡</div>
-          <div className="stat-glass-value">{countInProgress}</div>
-          <div className="stat-glass-label">Active</div>
+        <div className="ops-stat ops-stat-amber">
+          <div className="ops-stat-value">{cProgress}</div>
+          <div className="ops-stat-label">ACTIVE</div>
         </div>
-        <div className="stat-glass stat-glass-primary stat-glass-wide">
-          <div className="stat-glass-icon">◇</div>
-          <div className="stat-glass-value">{countPct}%</div>
-          <div className="stat-glass-label">Case Status</div>
+        <div className="ops-stat ops-stat-primary">
+          <div className="ops-stat-value">{cPct}<span style={{ fontSize: '0.55em', fontWeight: 400 }}>%</span></div>
+          <div className="ops-stat-label">CASE STATUS</div>
         </div>
       </div>
 
-      {/* ── Operation progress bar ── */}
-      <div className="glass-card dash-progress-card">
-        <div className="dash-progress-header">
-          <span className="section-label">Case Progress</span>
-          <span className="dash-progress-fraction">{completed} / {total}</span>
+      {/* ── Case progress bar ── */}
+      <div className="ops-progress-block">
+        <div className="ops-progress-header">
+          <span className="ops-section-label">CASE PROGRESS</span>
+          <span className="ops-progress-fraction">{completed} / {total} taskings</span>
         </div>
-        <div className="progress-track progress-track-lg">
-          <div className="progress-fill progress-fill-glow" style={{ width: `${overallPct}%` }} />
+        <div className="ops-progress-track">
+          <div className="ops-progress-fill" style={{ width: `${overallPct}%` }} />
         </div>
         {drops.length > 0 && (
-          <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+          <div className="ops-drop-markers">
             {drops.map((d) => (
-              <span key={d.id} style={{
-                fontFamily: 'var(--mono)', fontSize: 10, padding: '2px 8px', borderRadius: 3,
-                background: d.is_unlocked ? 'var(--primary)' : 'var(--surface-2)',
-                color: d.is_unlocked ? '#000' : 'var(--muted)',
-                opacity: d.is_unlocked ? 1 : 0.5,
-              }}>
+              <span key={d.id} className={`ops-drop-marker${d.is_unlocked ? ' active' : ''}`}>
                 DROP {d.number}
               </span>
             ))}
           </div>
         )}
-        <div className="dash-progress-footer" style={{ marginTop: 8 }}>
-          <span>{completed} of {total} taskings complete</span>
-          <span>{overallPct}%</span>
-        </div>
       </div>
 
-      {/* ── Squad roster ── */}
-      {squad && (
-        <div className="glass-card squad-card squad-card-accent">
-          <div className="squad-card-header">
-            <div className="squad-badge-large" style={victim ? { background: `${victim.color}25`, borderColor: victim.color } : {}}>
-              <span className="squad-badge-num" style={victim ? { color: victim.color } : {}}>{squad.number}</span>
-            </div>
-            <div className="squad-card-title">
-              <div className="squad-number">Squad {squad.number}{squad.name ? ` · ${squad.name}` : ''}</div>
-              <div className="squad-count">{(squad.students ?? []).length} assigned operator{(squad.students ?? []).length !== 1 ? 's' : ''}</div>
-            </div>
-          </div>
-          <div className="squad-members">
-            {(squad.students ?? []).map((m) => (
-              <div
-                key={m.id}
-                className={`squad-member${m.id === user?.id ? ' squad-member-self' : ''}`}
-              >
-                <div className="member-avatar">{m.first_name?.[0]}{m.last_name?.[0]}</div>
-                <div>
-                  <span>{m.first_name} {m.last_name}{m.id === user?.id ? ' (you)' : ''}</span>
-                  {m.professional_role && (
-                    <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>
-                      {PROF_ROLE_LABELS[m.professional_role] ?? m.professional_role}
-                    </div>
-                  )}
-                </div>
+      {/* ── Active tasking feed ── */}
+      {(dropNums.length > 0 || untagged.length > 0) && (
+        <div className="ops-tasking-block">
+          <div className="ops-section-label" style={{ marginBottom: 12 }}>ACTIVE TASKING</div>
+
+          {dropNums.map((num) => {
+            const items = assignments.filter((a) => a.is_unlocked !== false && a.drop_number === num);
+            return (
+              <div key={num} className="ops-tasking-group">
+                <div className="ops-tasking-group-label">DROP {num}</div>
+                {items.map((a) => (
+                  <TaskingRow key={a.id} assignment={a} onOpen={() => navigate(`/assignment/${a.id}`)} />
+                ))}
               </div>
-            ))}
-          </div>
+            );
+          })}
+
+          {untagged.length > 0 && (
+            <div className="ops-tasking-group">
+              <div className="ops-tasking-group-label">GENERAL</div>
+              {untagged.map((a) => (
+                <TaskingRow key={a.id} assignment={a} onOpen={() => navigate(`/assignment/${a.id}`)} />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {/* ── Active taskings ── */}
-      {inProgress > 0 && (
-        <div className="glass-card dash-inprogress-card">
-          <div className="section-label" style={{ marginBottom: 14 }}>Active Taskings — Awaiting Completion</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {assignments
-              .filter((a) => (a.progress ?? 0) > 0 && (a.progress ?? 0) < 100)
-              .map((a) => (
-                <div key={a.id} className="dash-progress-row">
-                  <span className="dash-progress-title">{a.title}</span>
-                  {a.drop_number && (
-                    <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted)', marginRight: 8, whiteSpace: 'nowrap' }}>
-                      DROP {a.drop_number}
-                    </span>
-                  )}
-                  <div className="progress-track" style={{ flex: 1 }}>
-                    <div className="progress-fill progress-fill-glow" style={{ width: `${a.progress}%` }} />
-                  </div>
-                  <span className="dash-progress-pct">{a.progress}%</span>
-                </div>
-              ))}
+      {assignments.length === 0 && (
+        <div className="ops-empty-state">
+          <div className="ops-empty-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
           </div>
+          <div className="ops-empty-label">NO TASKINGS ISSUED</div>
+          <div className="ops-empty-sub">Stand by for command authorization.</div>
         </div>
       )}
     </div>
+  );
+}
+
+function TaskingRow({ assignment: a, onOpen }) {
+  const pct  = a.progress ?? 0;
+  const done = pct >= 100;
+  const color = TYPE_COLOR[a.type] ?? '#60a5fa';
+
+  return (
+    <button className={`ops-tasking-row${done ? ' ops-tasking-done' : ''}`} onClick={onOpen}>
+      <span className="ops-tasking-type-dot" style={{ background: color }} />
+      <span className="ops-tasking-title">{a.title}</span>
+      <span className="ops-tasking-type" style={{ color }}>{a.type.toUpperCase()}</span>
+      <div className="ops-tasking-right">
+        {done ? (
+          <span className="ops-tasking-done-label">CLOSED</span>
+        ) : pct > 0 ? (
+          <div className="ops-tasking-prog-wrap">
+            <div className="ops-tasking-prog-track">
+              <div className="ops-tasking-prog-fill" style={{ width: `${pct}%`, background: color }} />
+            </div>
+            <span className="ops-tasking-pct">{pct}%</span>
+          </div>
+        ) : (
+          <span className="ops-tasking-open-label">OPEN</span>
+        )}
+      </div>
+      <svg className="ops-tasking-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="9 18 15 12 9 6"/>
+      </svg>
+    </button>
   );
 }
