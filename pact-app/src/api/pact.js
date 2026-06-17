@@ -60,6 +60,9 @@ export const getCohorts = () =>
     return Array.isArray(raw) ? raw : (raw.data ?? []);
   });
 
+export const updateCohort = (cohortId, data) =>
+  client.put(`/courses/${COURSE_ID}/cohorts/${cohortId}`, data).then((r) => r.data);
+
 /* ── Scenarios ── */
 export const getScenarios = () =>
   client.get(`/courses/${COURSE_ID}/scenarios`).then((r) => r.data);
