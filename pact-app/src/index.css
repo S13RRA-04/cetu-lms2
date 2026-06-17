@@ -5638,10 +5638,16 @@ body {
    VAULT KEYPAD  (VaultKeypad.jsx)
    ══════════════════════════════════════════════════════════════════════════════ */
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   VAULT KEYPAD  (VaultKeypad.jsx)
+   ══════════════════════════════════════════════════════════════════════════════ */
+
 .vk-root {
   position: fixed;
   inset: 0;
-  background: #040608;
+  background: #030507;
+  background-image:
+    radial-gradient(ellipse 60% 50% at 50% 42%, rgba(0,176,255,0.07) 0%, transparent 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -5649,30 +5655,43 @@ body {
   overflow: hidden;
 }
 
+/* Horizontal scanlines */
 .vk-scanlines {
   position: absolute;
   inset: 0;
   background: repeating-linear-gradient(
-    0deg,
+    180deg,
     transparent,
     transparent 3px,
-    rgba(0, 0, 0, 0.16) 3px,
-    rgba(0, 0, 0, 0.16) 4px
+    rgba(0, 0, 0, 0.14) 3px,
+    rgba(0, 0, 0, 0.14) 4px
   );
   pointer-events: none;
   z-index: 1;
 }
 
+/* Scanner sweep line */
+.vk-scanner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, rgba(0,176,255,0.22) 30%, rgba(0,176,255,0.45) 50%, rgba(0,176,255,0.22) 70%, transparent 100%);
+  pointer-events: none;
+  z-index: 2;
+}
+
 .vk-body {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
+  gap: 18px;
   width: 100%;
-  max-width: 520px;
-  padding: 40px 32px 52px;
+  max-width: 480px;
+  padding: 36px 28px 48px;
 }
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
@@ -5680,30 +5699,28 @@ body {
   text-align: center;
 }
 
-.vk-stamp {
+.vk-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: .28em;
+  letter-spacing: .26em;
   color: #00b0ff;
   text-transform: uppercase;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  padding: 5px 14px;
+  border: 1px solid rgba(0,176,255,0.25);
+  border-radius: 2px;
+  background: rgba(0,176,255,0.05);
 }
 
 .vk-drop-id {
   font-family: var(--mono);
-  font-size: 13px;
-  letter-spacing: .15em;
-  color: rgba(148, 163, 184, 0.7);
-  text-transform: uppercase;
-  margin-bottom: 4px;
-}
-
-.vk-clearance {
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: .2em;
-  color: rgba(239, 68, 68, 0.55);
+  font-size: 11px;
+  letter-spacing: .18em;
+  color: rgba(148, 163, 184, 0.55);
   text-transform: uppercase;
 }
 
@@ -5713,121 +5730,157 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 160px;
-  height: 160px;
+  width: 220px;
+  height: 220px;
 }
 
 .vk-door-wrap {
-  width: 160px;
-  height: 160px;
+  width: 220px;
+  height: 220px;
 }
 
 .vk-door-svg {
   width: 100%;
   height: 100%;
-  filter: drop-shadow(0 0 12px rgba(0, 176, 255, 0.35));
+  filter: drop-shadow(0 0 18px rgba(0, 176, 255, 0.28)) drop-shadow(0 0 5px rgba(0, 176, 255, 0.5));
 }
 
 .vk-door-glow {
   position: absolute;
-  inset: -20px;
+  inset: -40px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(0, 176, 255, 0.28) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(0, 176, 255, 0.35) 0%, rgba(0,176,255,0.08) 45%, transparent 70%);
   pointer-events: none;
+  z-index: -1;
 }
 
 /* ── Cipher challenge ───────────────────────────────────────────────────── */
 .vk-challenge {
-  background: rgba(0, 176, 255, 0.04);
-  border: 1px solid rgba(0, 176, 255, 0.18);
-  border-radius: 4px;
-  padding: 12px 18px;
-  text-align: center;
-  max-width: 420px;
+  position: relative;
+  background: rgba(0, 8, 16, 0.7);
+  border: 1px solid rgba(0, 176, 255, 0.22);
+  border-left: 3px solid rgba(0, 176, 255, 0.6);
+  border-radius: 3px;
+  padding: 14px 20px;
   width: 100%;
+  max-width: 420px;
 }
 
 .vk-challenge-label {
   font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: .22em;
-  color: rgba(0, 176, 255, 0.6);
+  font-size: 8px;
+  letter-spacing: .28em;
+  color: rgba(0, 176, 255, 0.5);
   text-transform: uppercase;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .vk-challenge-text {
   font-family: var(--mono);
   font-size: 13px;
-  color: rgba(226, 232, 240, 0.88);
-  line-height: 1.6;
-  word-break: break-all;
-  letter-spacing: .04em;
+  color: rgba(226, 232, 240, 0.9);
+  line-height: 1.65;
+  letter-spacing: .03em;
 }
 
 /* ── PIN display ────────────────────────────────────────────────────────── */
 .vk-pin-display {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
   justify-content: center;
 }
 
 .vk-pin-cell {
-  width: 44px;
-  height: 52px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  width: 50px;
+  height: 60px;
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-bottom: 2px solid rgba(148, 163, 184, 0.25);
   border-radius: 3px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.4);
-  transition: border-color 0.15s;
+  background: rgba(0, 0, 0, 0.5);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.vk-pin-active {
+  border-color: rgba(0, 176, 255, 0.4) !important;
+  border-bottom-color: #00b0ff !important;
+  background: rgba(0, 176, 255, 0.04) !important;
 }
 
 .vk-pin-filled {
-  background: rgba(0, 176, 255, 0.06);
+  border-color: rgba(0, 176, 255, 0.3);
+  border-bottom-color: rgba(0, 176, 255, 0.7);
+  background: rgba(0, 176, 255, 0.04);
 }
 
 .vk-pin-wrong {
-  border-color: rgba(239, 68, 68, 0.5) !important;
-  background: rgba(239, 68, 68, 0.06) !important;
+  border-color: rgba(239, 68, 68, 0.45) !important;
+  border-bottom-color: rgba(239, 68, 68, 0.7) !important;
+  background: rgba(239, 68, 68, 0.05) !important;
 }
 
 .vk-pin-open {
-  border-color: rgba(52, 211, 153, 0.6) !important;
-  background: rgba(52, 211, 153, 0.08) !important;
+  border-color: rgba(52, 211, 153, 0.5) !important;
+  border-bottom-color: rgba(52, 211, 153, 0.8) !important;
+  background: rgba(52, 211, 153, 0.06) !important;
 }
 
 .vk-pin-char {
   font-family: var(--mono);
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 700;
+  color: #00b0ff;
   letter-spacing: 0;
 }
 
-.vk-pin-placeholder {
-  font-family: var(--mono);
-  font-size: 18px;
-  color: rgba(148, 163, 184, 0.18);
+.vk-pin-cursor {
+  display: block;
+  width: 2px;
+  height: 28px;
+  background: #00b0ff;
+  border-radius: 1px;
 }
 
-/* ── Error / OK messages ────────────────────────────────────────────────── */
+.vk-pin-placeholder {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: rgba(148,163,184,0.12);
+  border-radius: 1px;
+}
+
+/* ── Status messages ────────────────────────────────────────────────────── */
+.vk-status-row {
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .vk-err-msg {
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: .16em;
+  letter-spacing: .15em;
   color: rgba(239, 68, 68, 0.9);
   text-transform: uppercase;
   display: flex;
   align-items: center;
   gap: 6px;
-  min-height: 18px;
 }
 
 .vk-err-locked {
-  color: rgba(239, 68, 68, 1);
-  letter-spacing: .12em;
+  color: #ef4444;
+}
+
+.vk-checking-msg {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .22em;
+  color: rgba(0, 176, 255, 0.7);
+  text-transform: uppercase;
 }
 
 .vk-ok-msg {
@@ -5839,51 +5892,71 @@ body {
   display: flex;
   align-items: center;
   gap: 7px;
-  min-height: 18px;
 }
 
 /* ── Keypad ─────────────────────────────────────────────────────────────── */
 .vk-keypad {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  align-items: center;
+  gap: 6px;
   width: 100%;
-  max-width: 380px;
+  max-width: 360px;
 }
 
 .vk-hex-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 7px;
+  gap: 5px;
   width: 100%;
 }
 
 .vk-key {
-  background: rgba(0, 176, 255, 0.06);
-  border: 1px solid rgba(0, 176, 255, 0.2);
+  background: rgba(4, 12, 22, 0.8);
+  border: 1px solid rgba(0, 176, 255, 0.16);
+  border-bottom: 2px solid rgba(0, 176, 255, 0.28);
   border-radius: 4px;
-  color: rgba(226, 232, 240, 0.85);
+  color: rgba(226, 232, 240, 0.8);
   font-family: var(--mono);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
-  letter-spacing: .06em;
-  padding: 13px 8px;
+  letter-spacing: .04em;
+  padding: 14px 8px;
   cursor: pointer;
-  transition: background 0.1s, border-color 0.1s, color 0.1s;
+  transition: background 0.08s, border-color 0.08s, color 0.08s;
   user-select: none;
   text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.vk-key:hover {
-  background: rgba(0, 176, 255, 0.14);
-  border-color: rgba(0, 176, 255, 0.5);
+.vk-key:hover:not(:disabled) {
+  background: rgba(0, 176, 255, 0.1);
+  border-color: rgba(0, 176, 255, 0.45);
+  border-bottom-color: rgba(0, 176, 255, 0.7);
   color: #00b0ff;
+}
+
+.vk-key:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.vk-key-danger {
+  border-color: rgba(239, 68, 68, 0.18);
+  border-bottom-color: rgba(239, 68, 68, 0.35);
+}
+
+.vk-key-danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.45);
+  border-bottom-color: rgba(239, 68, 68, 0.7);
+  color: #ef4444;
 }
 
 .vk-control-row {
   display: flex;
-  gap: 7px;
+  gap: 5px;
   width: 100%;
 }
 
@@ -5893,26 +5966,31 @@ body {
 
 .vk-key-wide {
   flex: 3 !important;
-  background: rgba(0, 176, 255, 0.1);
-  border-color: rgba(0, 176, 255, 0.35);
+  background: rgba(0, 176, 255, 0.08);
+  border-color: rgba(0, 176, 255, 0.3);
+  border-bottom-color: rgba(0, 176, 255, 0.55);
   color: #00b0ff;
-  letter-spacing: .2em;
-  font-size: 12px;
+  letter-spacing: .22em;
+  font-size: 11px;
 }
 
-.vk-key-wide:hover {
-  background: rgba(0, 176, 255, 0.22);
-  border-color: rgba(0, 176, 255, 0.65);
+.vk-key-wide:hover:not(:disabled) {
+  background: rgba(0, 176, 255, 0.18);
+  border-color: rgba(0, 176, 255, 0.6);
+  border-bottom-color: #00b0ff;
+}
+
+.vk-key-wide:disabled {
+  opacity: 0.3;
 }
 
 /* ── Locked state ───────────────────────────────────────────────────────── */
 .vk-locked-msg {
   font-family: var(--mono);
   font-size: 11px;
-  letter-spacing: .08em;
-  color: rgba(148, 163, 184, 0.45);
+  letter-spacing: .07em;
+  color: rgba(148, 163, 184, 0.4);
   text-align: center;
-  margin-top: 4px;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
