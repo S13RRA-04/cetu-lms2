@@ -164,14 +164,10 @@ export default function VaultKeypad({ drop, onUnlock }) {
     }
   }, [status, code, attempts, drop.id, onUnlock]);
 
-  const ALLOWED_SPECIAL = new Set("!@#$%^&*()-_=+[]{}|;:'\",.<>?/\\ `~");
-
   useEffect(() => {
     const handler = (e) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (/^[a-zA-Z0-9]$/.test(e.key)) { e.preventDefault(); press(e.key.toUpperCase()); }
-      else if (e.key === ' ')           { e.preventDefault(); press(' '); }
-      else if (ALLOWED_SPECIAL.has(e.key)) { e.preventDefault(); press(e.key); }
+      if (e.key.length === 1)           { e.preventDefault(); press(e.key); }
       else if (e.key === 'Backspace')   { e.preventDefault(); backspace(); }
       else if (e.key === 'Enter')       { e.preventDefault(); submit(); }
     };
@@ -180,16 +176,6 @@ export default function VaultKeypad({ drop, onUnlock }) {
   }, [press, backspace, submit]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isBlocked = status !== 'idle';
-
-  /* keyboard rows */
-  const rows = [
-    ['1','2','3','4','5','6','7','8','9','0'],
-    ['!','@','#','$','%','^','&','*','(', ')'],
-    ['Q','W','E','R','T','Y','U','I','O','P'],
-    ['A','S','D','F','G','H','J','K','L'],
-    ['Z','X','C','V','B','N','M'],
-    ['-','_','=','+','[',']',';',':','"',"'",'.',',','?','/'],
-  ];
 
   return (
     <div className="vk-root">
@@ -312,7 +298,7 @@ export default function VaultKeypad({ drop, onUnlock }) {
           </AnimatePresence>
         </div>
 
-        {/* ── Full keyboard ── */}
+        {/* ── Full QWERTY keyboard ── */}
         {status !== 'locked' && status !== 'open' && (
           <motion.div
             className="vk-keyboard"
@@ -320,24 +306,45 @@ export default function VaultKeypad({ drop, onUnlock }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45, delay: 0.5 }}
           >
-            {rows.map((row, ri) => (
-              <div key={ri} className="vk-kb-row">
-                {row.map((k) => (
-                  <Key key={k} label={k} onClick={() => press(k)} disabled={isBlocked} />
-                ))}
-              </div>
-            ))}
+            {/* Row 1 — numbers */}
+            <div className="vk-kb-row vk-kb-r1">
+              {'`1234567890-='.split('').map((k) => (
+                <Key key={k} label={k} onClick={() => press(k)} disabled={isBlocked} />
+              ))}
+              <Key label={<BkspIcon />} onClick={backspace} danger disabled={isBlocked} className="vk-key-bksp" />
+            </div>
 
-            {/* Control row */}
-            <div className="vk-kb-row vk-kb-controls">
-              <Key label={<BkspIcon />} onClick={backspace} danger disabled={isBlocked} />
-              <Key label="SPACE" onClick={() => press(' ')} className="vk-key-space" disabled={isBlocked} />
+            {/* Row 2 — QWERTY */}
+            <div className="vk-kb-row vk-kb-r2">
+              {'QWERTYUIOP[]\\'.split('').map((k) => (
+                <Key key={k} label={k === '\\' ? '\\' : k} onClick={() => press(k)} disabled={isBlocked} />
+              ))}
+            </div>
+
+            {/* Row 3 — home row */}
+            <div className="vk-kb-row vk-kb-r3">
+              {"ASDFGHJKL;'".split('').map((k) => (
+                <Key key={k} label={k} onClick={() => press(k)} disabled={isBlocked} />
+              ))}
               <Key
-                label={status === 'checking' ? '··· VERIFYING' : 'CONFIRM CODE'}
+                label={status === 'checking' ? '···' : 'ENTER'}
                 onClick={submit}
                 wide
                 disabled={isBlocked || !code.trim()}
+                className="vk-key-enter"
               />
+            </div>
+
+            {/* Row 4 — bottom letters */}
+            <div className="vk-kb-row vk-kb-r4">
+              {'ZXCVBNM,./'.split('').map((k) => (
+                <Key key={k} label={k} onClick={() => press(k)} disabled={isBlocked} />
+              ))}
+            </div>
+
+            {/* Row 5 — space */}
+            <div className="vk-kb-row vk-kb-r5">
+              <Key label="SPACE" onClick={() => press(' ')} disabled={isBlocked} className="vk-key-space" />
             </div>
           </motion.div>
         )}

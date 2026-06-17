@@ -5690,7 +5690,7 @@ body {
   align-items: stretch;
   gap: 16px;
   width: 100%;
-  max-width: 680px;
+  max-width: 780px;
   padding: 32px 36px 44px;
 }
 
@@ -5898,109 +5898,128 @@ body {
   gap: 7px;
 }
 
-/* ── Full keyboard ──────────────────────────────────────────────────────── */
+/* ── Full QWERTY keyboard ───────────────────────────────────────────────── */
 .vk-keyboard {
+  --k: 40px;   /* base key width  */
+  --kh: 38px;  /* key height      */
+  --g:  4px;   /* gap between keys */
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: var(--g);
   width: 100%;
+  align-items: flex-start;
 }
 
 .vk-kb-row {
   display: flex;
-  gap: 3px;
-  justify-content: center;
+  gap: var(--g);
 }
 
-/* Letter/number keys */
+/* Stagger offsets matching a real keyboard */
+.vk-kb-r1 { margin-left: 0; }
+.vk-kb-r2 { margin-left: calc((var(--k) + var(--g)) * 0.5); }
+.vk-kb-r3 { margin-left: calc((var(--k) + var(--g)) * 0.75); }
+.vk-kb-r4 { margin-left: calc((var(--k) + var(--g)) * 1.25); }
+.vk-kb-r5 { margin-left: calc((var(--k) + var(--g)) * 3.25); }
+
+/* Base key */
 .vk-key {
-  flex: 1;
-  min-width: 0;
+  width: var(--k);
+  height: var(--kh);
+  flex: 0 0 var(--k);
   background: rgba(4, 10, 20, 0.9);
   border: 1px solid rgba(0, 176, 255, 0.14);
-  border-bottom: 2px solid rgba(0, 176, 255, 0.26);
-  border-radius: 4px;
-  color: rgba(220, 232, 244, 0.82);
+  border-bottom: 2px solid rgba(0, 176, 255, 0.28);
+  border-radius: 5px;
+  color: rgba(215, 228, 242, 0.82);
   font-family: var(--mono);
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: .02em;
-  padding: 10px 2px;
+  letter-spacing: .01em;
   cursor: pointer;
-  transition: background 0.07s, border-color 0.07s, color 0.07s;
+  transition: background 0.07s, border-color 0.07s, color 0.07s, box-shadow 0.07s;
   user-select: none;
-  text-transform: uppercase;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 2px 0 rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04);
 }
 
 .vk-key:hover:not(:disabled) {
   background: rgba(0, 176, 255, 0.1);
   border-color: rgba(0, 176, 255, 0.4);
-  border-bottom-color: rgba(0, 176, 255, 0.65);
+  border-bottom-color: rgba(0, 176, 255, 0.7);
   color: #00b0ff;
+  box-shadow: 0 2px 0 rgba(0,0,0,0.5), 0 0 8px rgba(0,176,255,0.15), inset 0 1px 0 rgba(255,255,255,0.04);
 }
 
 .vk-key:disabled {
-  opacity: 0.3;
+  opacity: 0.28;
   cursor: not-allowed;
 }
 
-/* ── Control row ────────────────────────────────────────────────────────── */
-.vk-kb-controls {
-  margin-top: 2px;
+/* Wide keys */
+.vk-key-bksp {
+  width: calc(var(--k) * 1.5 + var(--g) * 0.5) !important;
+  flex: 0 0 calc(var(--k) * 1.5 + var(--g) * 0.5) !important;
 }
 
+.vk-key-enter {
+  width: calc(var(--k) * 2.1 + var(--g)) !important;
+  flex: 0 0 calc(var(--k) * 2.1 + var(--g)) !important;
+  background: rgba(0, 176, 255, 0.08) !important;
+  border-color: rgba(0, 176, 255, 0.3) !important;
+  border-bottom-color: rgba(0, 176, 255, 0.55) !important;
+  color: #00b0ff !important;
+  font-size: 10px !important;
+  letter-spacing: .2em !important;
+}
+
+.vk-key-enter:hover:not(:disabled) {
+  background: rgba(0, 176, 255, 0.18) !important;
+  border-color: rgba(0, 176, 255, 0.6) !important;
+  border-bottom-color: #00b0ff !important;
+}
+
+.vk-key-enter:disabled { opacity: 0.25; }
+
 .vk-key-space {
-  flex: 0 0 auto;
-  min-width: 72px;
+  width: calc(var(--k) * 4 + var(--g) * 3) !important;
+  flex: 0 0 calc(var(--k) * 4 + var(--g) * 3) !important;
   font-size: 9px !important;
-  letter-spacing: .18em !important;
-  color: rgba(148, 163, 184, 0.6) !important;
+  letter-spacing: .22em !important;
+  color: rgba(148, 163, 184, 0.5) !important;
   border-color: rgba(148, 163, 184, 0.12) !important;
-  border-bottom-color: rgba(148, 163, 184, 0.22) !important;
+  border-bottom-color: rgba(148, 163, 184, 0.24) !important;
 }
 
 .vk-key-space:hover:not(:disabled) {
-  color: rgba(148, 163, 184, 0.9) !important;
   background: rgba(148, 163, 184, 0.06) !important;
-  border-color: rgba(148, 163, 184, 0.3) !important;
+  border-color: rgba(148, 163, 184, 0.28) !important;
   border-bottom-color: rgba(148, 163, 184, 0.5) !important;
+  color: rgba(148, 163, 184, 0.85) !important;
 }
 
+/* Danger (backspace) */
 .vk-key-danger {
-  flex: 0 0 auto;
-  min-width: 58px;
-  border-color: rgba(239, 68, 68, 0.16);
-  border-bottom-color: rgba(239, 68, 68, 0.32);
+  border-color: rgba(239, 68, 68, 0.16) !important;
+  border-bottom-color: rgba(239, 68, 68, 0.3) !important;
 }
 
 .vk-key-danger:hover:not(:disabled) {
-  background: rgba(239, 68, 68, 0.08);
-  border-color: rgba(239, 68, 68, 0.4);
-  border-bottom-color: rgba(239, 68, 68, 0.65);
-  color: #ef4444;
+  background: rgba(239, 68, 68, 0.09) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  border-bottom-color: rgba(239, 68, 68, 0.65) !important;
+  color: #f87171 !important;
 }
 
+/* vk-key-wide is now unused but keep for safety */
 .vk-key-wide {
-  flex: 1 !important;
   background: rgba(0, 176, 255, 0.07);
   border-color: rgba(0, 176, 255, 0.28);
   border-bottom-color: rgba(0, 176, 255, 0.52);
   color: #00b0ff;
-  letter-spacing: .18em;
-  font-size: 11px;
-  padding: 13px 8px;
 }
-
-.vk-key-wide:hover:not(:disabled) {
-  background: rgba(0, 176, 255, 0.16);
-  border-color: rgba(0, 176, 255, 0.55);
-  border-bottom-color: #00b0ff;
-}
-
-.vk-key-wide:disabled { opacity: 0.28; }
 
 /* ── Locked state ───────────────────────────────────────────────────────── */
 .vk-locked-msg {
