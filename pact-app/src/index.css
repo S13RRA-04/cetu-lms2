@@ -5908,7 +5908,7 @@ body {
 
 .vk-kb-row {
   display: flex;
-  gap: 4px;
+  gap: 3px;
   justify-content: center;
 }
 
@@ -5922,10 +5922,10 @@ body {
   border-radius: 4px;
   color: rgba(220, 232, 244, 0.82);
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: .03em;
-  padding: 11px 4px;
+  letter-spacing: .02em;
+  padding: 10px 2px;
   cursor: pointer;
   transition: background 0.07s, border-color 0.07s, color 0.07s;
   user-select: none;
@@ -5952,9 +5952,26 @@ body {
   margin-top: 2px;
 }
 
+.vk-key-space {
+  flex: 0 0 auto;
+  min-width: 72px;
+  font-size: 9px !important;
+  letter-spacing: .18em !important;
+  color: rgba(148, 163, 184, 0.6) !important;
+  border-color: rgba(148, 163, 184, 0.12) !important;
+  border-bottom-color: rgba(148, 163, 184, 0.22) !important;
+}
+
+.vk-key-space:hover:not(:disabled) {
+  color: rgba(148, 163, 184, 0.9) !important;
+  background: rgba(148, 163, 184, 0.06) !important;
+  border-color: rgba(148, 163, 184, 0.3) !important;
+  border-bottom-color: rgba(148, 163, 184, 0.5) !important;
+}
+
 .vk-key-danger {
   flex: 0 0 auto;
-  min-width: 60px;
+  min-width: 58px;
   border-color: rgba(239, 68, 68, 0.16);
   border-bottom-color: rgba(239, 68, 68, 0.32);
 }

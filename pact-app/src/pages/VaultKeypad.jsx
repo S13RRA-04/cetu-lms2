@@ -164,25 +164,31 @@ export default function VaultKeypad({ drop, onUnlock }) {
     }
   }, [status, code, attempts, drop.id, onUnlock]);
 
+  const ALLOWED_SPECIAL = new Set("!@#$%^&*()-_=+[]{}|;:'\",.<>?/\\ `~");
+
   useEffect(() => {
     const handler = (e) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (/^[a-zA-Z0-9]$/.test(e.key)) { e.preventDefault(); press(e.key.toUpperCase()); }
-      else if (e.key === 'Backspace')    { e.preventDefault(); backspace(); }
-      else if (e.key === 'Enter')        { e.preventDefault(); submit(); }
+      else if (e.key === ' ')           { e.preventDefault(); press(' '); }
+      else if (ALLOWED_SPECIAL.has(e.key)) { e.preventDefault(); press(e.key); }
+      else if (e.key === 'Backspace')   { e.preventDefault(); backspace(); }
+      else if (e.key === 'Enter')       { e.preventDefault(); submit(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [press, backspace, submit]);
+  }, [press, backspace, submit]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isBlocked = status !== 'idle';
 
   /* keyboard rows */
   const rows = [
     ['1','2','3','4','5','6','7','8','9','0'],
+    ['!','@','#','$','%','^','&','*','(', ')'],
     ['Q','W','E','R','T','Y','U','I','O','P'],
     ['A','S','D','F','G','H','J','K','L'],
     ['Z','X','C','V','B','N','M'],
+    ['-','_','=','+','[',']',';',':','"',"'",'.',',','?','/'],
   ];
 
   return (
@@ -325,6 +331,7 @@ export default function VaultKeypad({ drop, onUnlock }) {
             {/* Control row */}
             <div className="vk-kb-row vk-kb-controls">
               <Key label={<BkspIcon />} onClick={backspace} danger disabled={isBlocked} />
+              <Key label="SPACE" onClick={() => press(' ')} className="vk-key-space" disabled={isBlocked} />
               <Key
                 label={status === 'checking' ? '··· VERIFYING' : 'CONFIRM CODE'}
                 onClick={submit}
