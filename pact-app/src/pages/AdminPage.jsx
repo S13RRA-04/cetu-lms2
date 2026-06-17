@@ -1417,6 +1417,8 @@ function DropFormInline({ initial, onSave, onCancel }) {
     narrative_intro: initial?.narrative_intro ?? '',
     vault_hint:      initial?.vault_hint      ?? '',
     vault_pin:       initial?.vault_pin       ?? '',
+    html_signal:     initial?.html_signal     ?? '',
+    signal_prompt:   initial?.signal_prompt   ?? '',
   });
   const [saving, setSaving] = useState(false);
   const [err,    setErr]    = useState('');
@@ -1492,6 +1494,30 @@ function DropFormInline({ initial, onSave, onCancel }) {
           />
         </div>
       </div>
+      <div style={{ background: 'rgba(0,255,157,0.03)', border: '1px solid rgba(0,255,157,0.15)', borderRadius: 4, padding: '10px 12px', marginBottom: 8 }}>
+        <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: '.18em', color: 'rgba(0,255,157,0.65)', textTransform: 'uppercase', marginBottom: 8 }}>
+          HTML Signal Hunt (optional)
+        </div>
+        <div style={{ marginBottom: 8 }}>
+          <label className="admin-grade-label">Signal Code (embedded in page &lt;head&gt; as a hidden HTML comment)</label>
+          <input
+            value={form.html_signal}
+            onChange={set('html_signal')}
+            placeholder="e.g. BRAVO-7-TANGO"
+            style={{ width: '100%', fontFamily: 'monospace', letterSpacing: '.1em', textTransform: 'uppercase' }}
+          />
+        </div>
+        <div>
+          <label className="admin-grade-label">Hunt Prompt (shown to students — what to look for)</label>
+          <textarea
+            value={form.signal_prompt}
+            onChange={set('signal_prompt')}
+            rows={2}
+            placeholder="A signal has been embedded in this operations channel. Inspect the page source to intercept it."
+            style={{ width: '100%', resize: 'vertical' }}
+          />
+        </div>
+      </div>
       {err && <div className="err-msg">{err}</div>}
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
         <button className="btn-submit" style={{ width: 'auto' }} onClick={handleSave} disabled={saving}>
@@ -1503,8 +1529,285 @@ function DropFormInline({ initial, onSave, onCancel }) {
   );
 }
 
+/* ── Scenario Intel Panel ─────────────────────────────────────────────────── */
+const DROP_SQUAD_COLORS = { 1: '#ef4444', 2: '#f59e0b', 3: '#3b82f6', 4: '#8b5cf6' };
+const EXT_ICONS = {
+  pdf:  { icon: 'PDF', color: '#ef4444' },
+  docx: { icon: 'DOC', color: '#3b82f6' },
+  doc:  { icon: 'DOC', color: '#3b82f6' },
+  xlsx: { icon: 'XLS', color: '#10b981' },
+  xls:  { icon: 'XLS', color: '#10b981' },
+  zip:  { icon: 'ZIP', color: '#f59e0b' },
+  pcap: { icon: 'CAP', color: '#8b5cf6' },
+  img:  { icon: 'IMG', color: '#06b6d4' },
+  png:  { icon: 'PNG', color: '#06b6d4' },
+  jpg:  { icon: 'IMG', color: '#06b6d4' },
+  jpeg: { icon: 'IMG', color: '#06b6d4' },
+  txt:  { icon: 'TXT', color: '#94a3b8' },
+  csv:  { icon: 'CSV', color: '#10b981' },
+  json: { icon: 'JSON', color: '#f59e0b' },
+};
+
+function fileExt(name) {
+  return name.split('.').pop()?.toLowerCase() ?? '';
+}
+function extTag(name) {
+  const ext = fileExt(name);
+  return EXT_ICONS[ext] ?? { icon: ext.toUpperCase().slice(0, 3) || 'FILE', color: '#64748b' };
+}
+function formatBytes(n) {
+  if (!n) return '';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+
+function ScenarioIntelPanel({ scenarios, dropNumber }) {
+  const matched = scenarios.filter((s) => s.release_number === dropNumber);
+  const [expanded,    setExpanded]   = useState({});  // pkgId → bool
+  const [r2Files,     setR2Files]    = useState({});  // pkgId → file[]
+  const [r2Loading,   setR2Loading]  = useState({});  // pkgId → bool
+  const [r2Err,       setR2Err]      = useState({});  // pkgId → string
+
+  const loadFiles = async (pkg) => {
+    if (r2Files[pkg.id] || r2Loading[pkg.id]) {
+      setExpanded((e) => ({ ...e, [pkg.id]: !e[pkg.id] }));
+      return;
+    }
+    setR2Loading((l) => ({ ...l, [pkg.id]: true }));
+    setExpanded((e) => ({ ...e, [pkg.id]: true }));
+    try {
+      // Browse returns { prefix, folders: [{prefix,name}], files: [{key,name,url,size}] }
+      const top = await browseScenarioR2(pkg.r2_key);
+
+      // Recursively browse each top-level sub-folder (squad dirs, victim dirs, etc.)
+      const subFolders = top.folders ?? [];
+      const subResults = await Promise.all(
+        subFolders.map((folder) => browseScenarioR2(folder.prefix).catch(() => ({ folders: [], files: [] })))
+      );
+
+      // Build a flat enriched file list with relative paths
+      const files = [];
+      // Top-level files
+      for (const f of (top.files ?? [])) {
+        files.push({ name: f.name, size: f.size, url: f.url, depth: 0 });
+      }
+      // Sub-folder contents
+      for (let i = 0; i < subFolders.length; i++) {
+        const folderName = subFolders[i].name;
+        const sub = subResults[i];
+        // Files directly inside this sub-folder
+        for (const f of (sub.files ?? [])) {
+          files.push({ name: `${folderName}/${f.name}`, size: f.size, url: f.url, depth: 1, folder: folderName });
+        }
+        // Second-level sub-folders (e.g. victims within squad)
+        for (const sf of (sub.folders ?? [])) {
+          const subName = `${folderName}/${sf.name}`;
+          files.push({ name: subName, isFolder: true, size: null, depth: 1, folder: folderName });
+        }
+      }
+      // Top-level folders that had no files yet — add as folder markers
+      for (const folder of subFolders) {
+        if (!files.some((f) => f.folder === folder.name && !f.isFolder)) {
+          files.push({ name: folder.name, isFolder: true, size: null, depth: 0 });
+        }
+      }
+
+      setR2Files((rf) => ({ ...rf, [pkg.id]: files }));
+    } catch {
+      setR2Err((e) => ({ ...e, [pkg.id]: 'Failed to load R2 contents' }));
+    } finally {
+      setR2Loading((l) => ({ ...l, [pkg.id]: false }));
+    }
+  };
+
+  if (matched.length === 0) return null;
+
+  return (
+    <div style={{
+      borderTop: '1px solid var(--border)',
+      background: 'rgba(0,176,255,0.02)',
+      padding: '10px 14px',
+    }}>
+      <div style={{
+        fontFamily: 'monospace', fontSize: 10, letterSpacing: '.14em',
+        color: 'var(--primary)', textTransform: 'uppercase', marginBottom: 8,
+        display: 'flex', alignItems: 'center', gap: 6,
+      }}>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+          <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+        </svg>
+        SCENARIO INTEL — {matched.length} PACKAGE{matched.length !== 1 ? 'S' : ''} LINKED
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {matched.map((pkg) => {
+          const squadColor = pkg.squad_number ? (DROP_SQUAD_COLORS[pkg.squad_number] ?? '#94a3b8') : null;
+          const isExpanded = !!expanded[pkg.id];
+          const files = r2Files[pkg.id] ?? [];
+
+          return (
+            <div key={pkg.id} style={{
+              border: '1px solid var(--border)',
+              borderRadius: 6,
+              overflow: 'hidden',
+              background: 'var(--surface, #fff)',
+            }}>
+              {/* Package header */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '7px 12px', cursor: 'pointer',
+              }} onClick={() => loadFiles(pkg)}>
+                {squadColor && (
+                  <span style={{
+                    fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
+                    letterSpacing: '.1em', padding: '1px 6px', borderRadius: 3,
+                    background: squadColor + '22', color: squadColor,
+                    border: `1px solid ${squadColor}44`, flexShrink: 0,
+                  }}>
+                    SQ {pkg.squad_number}
+                  </span>
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>
+                    {pkg.title}
+                  </div>
+                  {pkg.scenario_name && pkg.scenario_name !== pkg.title && (
+                    <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'monospace', letterSpacing: '.04em' }}>
+                      {pkg.scenario_name}
+                    </div>
+                  )}
+                  {pkg.description && (
+                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, lineHeight: 1.5 }}>
+                      {pkg.description}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  {pkg.is_published && (
+                    <span style={{ fontSize: 10, color: '#10b981', fontWeight: 600 }}>PUBLISHED</span>
+                  )}
+                  <span style={{
+                    fontFamily: 'monospace', fontSize: 10, color: 'var(--muted)',
+                    letterSpacing: '.08em',
+                  }}>
+                    {pkg.r2_key.replace(/^scenarios\//, '').replace(/\/$/, '')}
+                  </span>
+                  {r2Loading[pkg.id] ? (
+                    <div className="spinner" style={{ width: 12, height: 12 }} />
+                  ) : (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                      style={{ color: 'var(--muted)', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+                      <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                  )}
+                </div>
+              </div>
+
+              {/* R2 file tree */}
+              {isExpanded && !r2Loading[pkg.id] && (
+                <div style={{
+                  borderTop: '1px solid var(--border)',
+                  background: 'var(--surface-2, #f8fafc)',
+                  padding: '8px 12px',
+                  fontSize: 12,
+                }}>
+                  {r2Err[pkg.id] ? (
+                    <div style={{ color: 'var(--danger)', fontSize: 12 }}>{r2Err[pkg.id]}</div>
+                  ) : files.length === 0 ? (
+                    <div style={{ color: 'var(--muted)', fontStyle: 'italic' }}>No files found in R2</div>
+                  ) : (() => {
+                    // Group files by their top-level folder (or root)
+                    const byFolder = {};
+                    for (const f of files) {
+                      const key = f.folder ?? '__root__';
+                      if (!byFolder[key]) byFolder[key] = [];
+                      byFolder[key].push(f);
+                    }
+                    const rootFiles   = byFolder.__root__ ?? [];
+                    const folderKeys  = Object.keys(byFolder).filter((k) => k !== '__root__');
+
+                    const renderFile = (f, i) => {
+                      const baseName = f.name.split('/').pop();
+                      const tag = extTag(baseName);
+                      return (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{
+                            fontFamily: 'monospace', fontSize: 8, fontWeight: 700,
+                            padding: '1px 4px', borderRadius: 2,
+                            background: tag.color + '22', color: tag.color, flexShrink: 0,
+                          }}>{tag.icon}</span>
+                          <span style={{ color: 'var(--text)', fontSize: 12, flex: 1 }}>{baseName}</span>
+                          {f.size > 0 && <span style={{ color: 'var(--muted)', fontSize: 10, flexShrink: 0 }}>{formatBytes(f.size)}</span>}
+                        </div>
+                      );
+                    };
+
+                    return (
+                      <>
+                        {/* Grouped by top-level folder */}
+                        {folderKeys.map((folder) => {
+                          const folderFiles = byFolder[folder].filter((f) => !f.isFolder);
+                          const subFolderMarkers = byFolder[folder].filter((f) => f.isFolder);
+                          const isVictim = /victim|suspect|subject/i.test(folder);
+                          const isSquad  = /^squad[-_]?\d+$/i.test(folder);
+                          const folderColor = isVictim ? '#f59e0b' : isSquad ? '#3b82f6' : 'var(--text)';
+                          return (
+                            <div key={folder} style={{ marginBottom: 6 }}>
+                              <div style={{
+                                display: 'flex', alignItems: 'center', gap: 5,
+                                fontFamily: 'monospace', fontWeight: 700,
+                                fontSize: 11, letterSpacing: '.06em',
+                                color: folderColor, marginBottom: 3,
+                              }}>
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" opacity="0.7">
+                                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                                </svg>
+                                {folder.replace(/-/g, ' ').toUpperCase()}
+                                {folderFiles.length > 0 && (
+                                  <span style={{ fontWeight: 400, color: 'var(--muted)', fontSize: 10 }}>
+                                    ({folderFiles.length} file{folderFiles.length !== 1 ? 's' : ''})
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ paddingLeft: 14, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                {subFolderMarkers.map((sf, i) => (
+                                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#8b5cf6', fontFamily: 'monospace', fontSize: 11 }}>
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" opacity="0.6">
+                                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                                    </svg>
+                                    {sf.name.split('/').pop()?.replace(/-/g, ' ').toUpperCase()}
+                                  </div>
+                                ))}
+                                {folderFiles.map(renderFile)}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {/* Root-level files */}
+                        {rootFiles.filter((f) => !f.isFolder).length > 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            {rootFiles.filter((f) => !f.isFolder).map(renderFile)}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function CampaignDropsPanel({ cohorts }) {
   const [drops,     setDrops]    = useState([]);
+  const [scenarios, setScenarios] = useState([]);
   const [loading,   setLoading]  = useState(true);
   const [cohortId,  setCohortId] = useState(() => cohorts[0]?.id ?? '');
   const [addOpen,   setAddOpen]  = useState(false);
@@ -1516,11 +1819,17 @@ function CampaignDropsPanel({ cohorts }) {
   const load = useCallback(() => {
     setLoading(true);
     setErr('');
-    getCampaignDrops(cohortId || undefined)
-      .then((d) => setDrops(Array.isArray(d) ? d : []))
+    Promise.all([
+      getCampaignDrops(cohortId || undefined),
+      scenarios.length === 0 ? getScenarios() : Promise.resolve(scenarios),
+    ])
+      .then(([d, s]) => {
+        setDrops(Array.isArray(d) ? d : []);
+        setScenarios(Array.isArray(s) ? s : (s?.data ?? []));
+      })
       .catch(() => setErr('Failed to load campaign drops.'))
       .finally(() => setLoading(false));
-  }, [cohortId]);
+  }, [cohortId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load(); }, [load]);
 
@@ -1696,6 +2005,41 @@ function CampaignDropsPanel({ cohorts }) {
                   }}>
                     {drop.narrative_intro}
                   </div>
+                )}
+
+                {/* Game locks badge strip */}
+                {!isEditing && (drop.vault_hint || drop.html_signal) && (
+                  <div style={{
+                    padding: '5px 14px',
+                    borderTop: '1px solid var(--border)',
+                    display: 'flex', gap: 6, flexWrap: 'wrap',
+                  }}>
+                    {drop.html_signal && (
+                      <span style={{
+                        fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
+                        letterSpacing: '.14em', padding: '2px 8px', borderRadius: 3,
+                        background: 'rgba(0,255,157,0.1)', color: '#00c978',
+                        border: '1px solid rgba(0,255,157,0.25)',
+                      }}>
+                        HTML SIGNAL
+                      </span>
+                    )}
+                    {drop.vault_hint && (
+                      <span style={{
+                        fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
+                        letterSpacing: '.14em', padding: '2px 8px', borderRadius: 3,
+                        background: 'rgba(0,176,255,0.1)', color: 'var(--primary)',
+                        border: '1px solid rgba(0,176,255,0.25)',
+                      }}>
+                        VAULT LOCK
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Scenario intel — linked R2 packages */}
+                {!isEditing && (
+                  <ScenarioIntelPanel scenarios={scenarios} dropNumber={drop.number} />
                 )}
 
                 {/* Inline edit form */}

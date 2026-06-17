@@ -6,6 +6,7 @@ import InductionSequence  from '../pages/InductionSequence.jsx';
 import TransmissionInterceptor, { getSeenDropIds, markDropSeen } from '../pages/TransmissionInterceptor.jsx';
 import TargetRevealInterceptor, { targetSeenKey } from '../pages/TargetRevealInterceptor.jsx';
 import VaultKeypad        from '../pages/VaultKeypad.jsx';
+import SignalEntry        from '../pages/SignalEntry.jsx';
 import SessionTimeoutWarning from '../components/SessionTimeoutWarning.jsx';
 import DropAlert          from '../components/DropAlert.jsx';
 import useSessionTimeout  from '../hooks/useSessionTimeout.js';
@@ -23,6 +24,16 @@ function isVaultUnlocked(userId, dropId) {
 }
 function markVaultUnlocked(userId, dropId) {
   localStorage.setItem(vaultKey(userId, dropId), '1');
+}
+
+function signalKey(userId, dropId) {
+  return `pact_signal_v1_${userId}_${dropId}`;
+}
+function isSignalVerified(userId, dropId) {
+  return !!localStorage.getItem(signalKey(userId, dropId));
+}
+function markSignalVerified(userId, dropId) {
+  localStorage.setItem(signalKey(userId, dropId), '1');
 }
 
 function findNewDrop(drops, userId) {
@@ -44,7 +55,8 @@ export default function AppShell() {
 
   // Instructors and admins skip induction and transmissions entirely
   const isStudent = user?.role === 'student';
-  const [vaultUnlocked, setVaultUnlocked] = useState(false);
+  const [vaultUnlocked,  setVaultUnlocked]  = useState(false);
+  const [signalVerified, setSignalVerified] = useState(false);
   const [inducted, setInducted] = useState(() => {
     if (!isStudent || !user?.id) return true;
     return !!localStorage.getItem(inductionKey(user.id));
@@ -114,11 +126,17 @@ export default function AppShell() {
     if (user?.id && pendingDrop) markDropSeen(user.id, pendingDrop.id);
     setPendingDrop(null);
     setVaultUnlocked(false);
+    setSignalVerified(false);
   }, [user?.id, pendingDrop]);
 
   const handleVaultUnlock = useCallback(() => {
     if (user?.id && pendingDrop) markVaultUnlocked(user.id, pendingDrop.id);
     setVaultUnlocked(true);
+  }, [user?.id, pendingDrop]);
+
+  const handleSignalVerify = useCallback(() => {
+    if (user?.id && pendingDrop) markSignalVerified(user.id, pendingDrop.id);
+    setSignalVerified(true);
   }, [user?.id, pendingDrop]);
 
   const handleAlertView = useCallback(() => {
@@ -183,13 +201,22 @@ export default function AppShell() {
   }
 
   // Incoming transmission — student, inducted, new drop pending
+  // Gate order: Signal → Vault → Transmission
   if (isStudent && pendingDrop) {
+    const needsSignal = pendingDrop.html_signal &&
+      !signalVerified &&
+      !isSignalVerified(user?.id, pendingDrop.id);
+    if (needsSignal) {
+      return <SignalEntry drop={pendingDrop} onVerify={handleSignalVerify} />;
+    }
+
     const needsVault = pendingDrop.vault_hint &&
       !vaultUnlocked &&
       !isVaultUnlocked(user?.id, pendingDrop.id);
     if (needsVault) {
       return <VaultKeypad drop={pendingDrop} onUnlock={handleVaultUnlock} />;
     }
+
     return <TransmissionInterceptor drop={pendingDrop} onAcknowledge={handleTransmissionAck} />;
   }
 
