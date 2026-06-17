@@ -846,11 +846,13 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
 
   const defaultTitle   = folder.name.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   const [cohortId,     setCohortId]     = useState(() => cohorts[0]?.id ?? '');
-  const [squadNum,     setSquadNum]     = useState('all');   // 'all' | '1' | '2' | '3' | '4'
+  const [squads,       setSquads]       = useState([]);
+  const [squadNum,     setSquadNum]     = useState('all');
+  const [matchedSquad, setMatchedSquad] = useState(null); // { squad, score }
   const [title,        setTitle]        = useState(defaultTitle);
   const [releaseNum,   setReleaseNum]   = useState(inferDropNum);
   const [scenarioName, setScenarioName] = useState(inferScenario);
-  const [cipher,       setCipher]       = useState('none'); // 'none' | 'vault' | 'signal'
+  const [cipher,       setCipher]       = useState('none');
   const [vaultHint,    setVaultHint]    = useState('');
   const [vaultPin,     setVaultPin]     = useState('');
   const [signalCode,   setSignalCode]   = useState('');
@@ -858,6 +860,31 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
   const [saving,       setSaving]       = useState(false);
   const [err,          setErr]          = useState('');
   const [done,         setDone]         = useState(false);
+
+  // Load squads when cohort changes, then auto-match victim folder name
+  useEffect(() => {
+    if (!cohortId) { setSquads([]); setMatchedSquad(null); return; }
+    getSquadsByCohort(cohortId)
+      .then((data) => {
+        const arr = Array.isArray(data) ? data : [];
+        setSquads(arr);
+        // Run victim name matching against squad case names
+        let best = null, bestScore = 0.3;
+        for (const sq of arr) {
+          if (!sq.case_name) continue;
+          const score = matchScore(folder.name, sq.case_name);
+          if (score > bestScore) { bestScore = score; best = { squad: sq, score: bestScore }; }
+        }
+        if (best) {
+          setMatchedSquad(best);
+          setSquadNum(String(best.squad.number));
+        } else {
+          setMatchedSquad(null);
+          setSquadNum('all');
+        }
+      })
+      .catch(() => {});
+  }, [cohortId, folder.name]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedCohort = cohorts.find((c) => c.id === cohortId);
 
@@ -942,14 +969,31 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
 
         {/* Squad */}
         <div className="form-field" style={{ margin: 0 }}>
-          <label>Squad</label>
-          <select value={squadNum} onChange={(e) => setSquadNum(e.target.value)}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            Squad
+            {matchedSquad && squadNum === String(matchedSquad.squad.number) && (
+              <span style={{
+                fontFamily: 'var(--mono)', fontSize: 9, fontWeight: 700,
+                letterSpacing: '.1em', padding: '1px 6px', borderRadius: 3,
+                background: `${DROP_SQUAD_PALETTE[matchedSquad.squad.number] ?? '#94a3b8'}22`,
+                color: DROP_SQUAD_PALETTE[matchedSquad.squad.number] ?? '#94a3b8',
+                border: `1px solid ${DROP_SQUAD_PALETTE[matchedSquad.squad.number] ?? '#94a3b8'}44`,
+              }}>
+                AUTO-MATCHED · {matchedSquad.squad.case_name}
+              </span>
+            )}
+          </label>
+          <select value={squadNum} onChange={(e) => { setSquadNum(e.target.value); setMatchedSquad(null); }}
             style={{ padding: '5px 8px', borderRadius: 4, border: `1.5px solid ${squadColor}66`, background: 'var(--surface)', color: squadColor, fontSize: 13, fontWeight: 600, width: '100%' }}>
             <option value="all">All Squads</option>
-            <option value="1">Squad 1</option>
-            <option value="2">Squad 2</option>
-            <option value="3">Squad 3</option>
-            <option value="4">Squad 4</option>
+            {squads.length > 0
+              ? [...squads].sort((a, b) => a.number - b.number).map((sq) => (
+                  <option key={sq.id} value={String(sq.number)}>
+                    Squad {sq.number}{sq.case_name ? ` — ${sq.case_name}` : ''}
+                  </option>
+                ))
+              : [1, 2, 3, 4].map((n) => <option key={n} value={String(n)}>Squad {n}</option>)
+            }
           </select>
         </div>
 
