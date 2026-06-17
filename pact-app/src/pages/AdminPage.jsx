@@ -705,7 +705,7 @@ function ScenarioDropsPanel({ cohorts, onContentPublished }) {
         </p>
       </div>
       <R2PublishBrowser
-        rootPrefix="pact/scenarios/"
+        rootPrefix=""
         cohorts={cohorts}
         onPublished={onContentPublished}
       />
