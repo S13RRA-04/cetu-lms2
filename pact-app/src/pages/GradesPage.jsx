@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
 import { getMyGrades } from '../api/pact.js';
 import DecryptText from '../components/DecryptText.jsx';
 
@@ -75,13 +76,19 @@ export default function GradesPage() {
               <span>PCT</span>
               <span>EVALUATED</span>
             </div>
-            {grades.map((g) => {
+            {grades.map((g, i) => {
               const pct = parseFloat(g.max_score) > 0
                 ? Math.round((parseFloat(g.score) / parseFloat(g.max_score)) * 100)
                 : 0;
               const rc = pct >= 80 ? 'var(--green)' : pct >= 60 ? 'var(--warning)' : '#ef4444';
               return (
-                <div key={g.id} className="ops-perf-row">
+                <motion.div
+                  key={g.id}
+                  className="ops-perf-row"
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.22, delay: i * 0.05 }}
+                >
                   <span className="ops-perf-title">{g.Assignment?.title ?? '—'}</span>
                   <span className="ops-perf-val" style={{ color: rc }}>{g.score}</span>
                   <span className="ops-perf-max">{g.max_score}</span>
@@ -89,7 +96,7 @@ export default function GradesPage() {
                   <span className="ops-perf-date">
                     {g.graded_at ? new Date(g.graded_at).toLocaleDateString() : '—'}
                   </span>
-                </div>
+                </motion.div>
               );
             })}
           </div>

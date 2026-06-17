@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
 import { getScoreboard } from '../api/pact.js';
 import useAuthStore from '../store/authStore.js';
 import DecryptText from '../components/DecryptText.jsx';
@@ -64,26 +65,39 @@ export default function ScoreboardPage() {
 
   return (
     <div className="ops-dashboard">
-      <div className="ops-dash-eyebrow">STANDINGS</div>
+      <div className="ops-dash-eyebrow"><DecryptText text="STANDINGS" speed={22} hold={3} /></div>
       <h1 className="ops-dash-name" style={{ marginBottom: 20 }}>Operator Standings</h1>
       <div className="ops-board">
         {board.map((entry, i) => {
           const isMe     = entry.userId === user?.id;
           const pct      = Math.round((entry.totalScore / (entry.maxScore || 1)) * 100);
           const barColor = RANK_COLORS[i] ?? 'var(--primary)';
+          const barWidth = `${(entry.totalScore / maxTotal) * 100}%`;
           return (
-            <div key={entry.userId} className={`ops-board-entry${isMe ? ' ops-board-me' : ''}`}>
+            <motion.div
+              key={entry.userId}
+              className={`ops-board-entry${isMe ? ' ops-board-me' : ''}`}
+              initial={{ opacity: 0, x: -16 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.24, delay: i * 0.06 }}
+            >
               <RankBadge rank={i} />
               <span className="ops-board-name">
                 {entry.firstName} {entry.lastName}
                 {isMe && <span className="ops-board-you">YOU</span>}
               </span>
               <div className="ops-board-bar-wrap">
-                <div className="ops-board-bar-fill" style={{ width: `${(entry.totalScore / maxTotal) * 100}%`, background: barColor }} />
+                <motion.div
+                  className="ops-board-bar-fill"
+                  style={{ background: barColor }}
+                  initial={{ width: '0%' }}
+                  animate={{ width: barWidth }}
+                  transition={{ duration: 0.9, ease: 'easeOut', delay: 0.2 + i * 0.06 }}
+                />
               </div>
               <span className="ops-board-score" style={{ color: barColor }}>{entry.totalScore}</span>
               <span className="ops-board-pct">{pct}%</span>
-            </div>
+            </motion.div>
           );
         })}
       </div>

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { motion } from 'motion/react';
 import { getCourseContent, getContentDownloadUrl } from '../api/pact.js';
 import DecryptText from '../components/DecryptText.jsx';
 
@@ -131,7 +132,7 @@ export default function CourseContentPage() {
                 </div>
               )}
               <div className="cc-grid">
-                {dropItems.map((item) => <CaseCard key={item.id} item={item} />)}
+                {dropItems.map((item, i) => <CaseCard key={item.id} item={item} idx={i} />)}
               </div>
             </div>
           ))}
@@ -149,7 +150,7 @@ export default function CourseContentPage() {
                 </div>
               )}
               <div className="cc-grid">
-                {materialItems.map((item) => <CaseCard key={item.id} item={item} />)}
+                {materialItems.map((item, i) => <CaseCard key={item.id} item={item} idx={i} />)}
               </div>
             </>
           )}
@@ -159,7 +160,7 @@ export default function CourseContentPage() {
   );
 }
 
-function CaseCard({ item }) {
+function CaseCard({ item, idx = 0 }) {
   const [fetching, setFetching] = useState(false);
   const meta       = TYPE_META[item.content_type] ?? TYPE_META.resource;
   const isCampaign = CAMPAIGN_TYPES.includes(item.content_type);
@@ -178,13 +179,16 @@ function CaseCard({ item }) {
   }, [hasDownload, fetching, downloadHref]);
 
   return (
-    <div
+    <motion.div
       className="cc-card"
       onClick={handleOpen}
       style={{
         cursor: hasDownload ? 'pointer' : 'default',
         borderLeft: isCampaign ? `3px solid ${meta.color}` : undefined,
       }}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.24, delay: idx * 0.06 }}
     >
       {fetching && (
         <div className="cc-card-fetching-overlay">
@@ -201,6 +205,6 @@ function CaseCard({ item }) {
       {hasDownload && !fetching && (
         <div className="cc-card-arrow" style={{ color: meta.color }}>→</div>
       )}
-    </div>
+    </motion.div>
   );
 }

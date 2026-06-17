@@ -150,10 +150,16 @@ export default function ScenariosPage() {
         </div>
       ) : (
         <div className="ep-scenario-list">
-          {scenarios.map(([scenarioName, releases]) => {
+          {scenarios.map(([scenarioName, releases], si) => {
             const authorizedCount = releases.filter((r) => isAdmin || r.is_unlocked).length;
             return (
-              <div key={scenarioName} className="ep-scenario">
+              <motion.div
+                key={scenarioName}
+                className="ep-scenario"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.28, delay: si * 0.09 }}
+              >
 
                 {/* Folder header */}
                 <div className="ep-folder-header">
@@ -321,7 +327,7 @@ export default function ScenariosPage() {
                     );
                   })}
                 </div>
-              </div>
+              </motion.div>
             );
           })}
         </div>

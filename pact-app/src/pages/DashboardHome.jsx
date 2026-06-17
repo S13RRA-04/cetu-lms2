@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
 import { getMyEnrollment, getAssignments, getCampaignDrops } from '../api/pact.js';
 import useAuthStore from '../store/authStore.js';
 import DecryptText from '../components/DecryptText.jsx';
@@ -98,7 +99,7 @@ export default function DashboardHome() {
 
       {/* ── Page header ── */}
       <div className="ops-dash-header">
-        <div className="ops-dash-eyebrow">OPERATIONS CENTER</div>
+        <div className="ops-dash-eyebrow"><DecryptText text="OPERATIONS CENTER" speed={22} hold={3} /></div>
         <h1 className="ops-dash-name">
           {user?.first_name} {user?.last_name}
         </h1>
@@ -132,22 +133,25 @@ export default function DashboardHome() {
 
       {/* ── Stat strip ── */}
       <div className="ops-stat-strip">
-        <div className="ops-stat">
-          <div className="ops-stat-value">{cUnlocked}</div>
-          <div className="ops-stat-label">ISSUED</div>
-        </div>
-        <div className="ops-stat ops-stat-green">
-          <div className="ops-stat-value">{cCompleted}</div>
-          <div className="ops-stat-label">CLOSED</div>
-        </div>
-        <div className="ops-stat ops-stat-amber">
-          <div className="ops-stat-value">{cProgress}</div>
-          <div className="ops-stat-label">ACTIVE</div>
-        </div>
-        <div className="ops-stat ops-stat-primary">
-          <div className="ops-stat-value">{cPct}<span style={{ fontSize: '0.55em', fontWeight: 400 }}>%</span></div>
-          <div className="ops-stat-label">CASE STATUS</div>
-        </div>
+        {[
+          { val: cUnlocked,  label: 'ISSUED',      cls: '' },
+          { val: cCompleted, label: 'CLOSED',       cls: ' ops-stat-green' },
+          { val: cProgress,  label: 'ACTIVE',       cls: ' ops-stat-amber' },
+          { val: cPct,       label: 'CASE STATUS',  cls: ' ops-stat-primary', pct: true },
+        ].map(({ val, label, cls, pct }, i) => (
+          <motion.div
+            key={label}
+            className={`ops-stat${cls}`}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.28, delay: i * 0.07 }}
+          >
+            <div className="ops-stat-value">
+              {val}{pct && <span style={{ fontSize: '0.55em', fontWeight: 400 }}>%</span>}
+            </div>
+            <div className="ops-stat-label">{label}</div>
+          </motion.div>
+        ))}
       </div>
 
       {/* ── Case progress bar ── */}
@@ -157,7 +161,12 @@ export default function DashboardHome() {
           <span className="ops-progress-fraction">{completed} / {total} taskings</span>
         </div>
         <div className="ops-progress-track">
-          <div className="ops-progress-fill" style={{ width: `${overallPct}%` }} />
+          <motion.div
+            className="ops-progress-fill"
+            initial={{ width: '0%' }}
+            animate={{ width: `${overallPct}%` }}
+            transition={{ duration: 1.1, ease: 'easeOut', delay: 0.3 }}
+          />
         </div>
         {drops.length > 0 && (
           <div className="ops-drop-markers">
@@ -175,26 +184,28 @@ export default function DashboardHome() {
         <div className="ops-tasking-block">
           <div className="ops-section-label" style={{ marginBottom: 12 }}>ACTIVE TASKING</div>
 
-          {dropNums.map((num) => {
-            const items = assignments.filter((a) => a.is_unlocked !== false && a.drop_number === num);
+          {(() => {
+            let rowIdx = 0;
             return (
-              <div key={num} className="ops-tasking-group">
-                <div className="ops-tasking-group-label">DROP {num}</div>
-                {items.map((a) => (
-                  <TaskingRow key={a.id} assignment={a} onOpen={() => navigate(`/assignment/${a.id}`)} />
-                ))}
-              </div>
+              <>
+                {dropNums.map((num) => {
+                  const items = assignments.filter((a) => a.is_unlocked !== false && a.drop_number === num);
+                  return (
+                    <div key={num} className="ops-tasking-group">
+                      <div className="ops-tasking-group-label">DROP {num}</div>
+                      {items.map((a) => <TaskingRow key={a.id} assignment={a} idx={rowIdx++} onOpen={() => navigate(`/assignment/${a.id}`)} />)}
+                    </div>
+                  );
+                })}
+                {untagged.length > 0 && (
+                  <div className="ops-tasking-group">
+                    <div className="ops-tasking-group-label">GENERAL</div>
+                    {untagged.map((a) => <TaskingRow key={a.id} assignment={a} idx={rowIdx++} onOpen={() => navigate(`/assignment/${a.id}`)} />)}
+                  </div>
+                )}
+              </>
             );
-          })}
-
-          {untagged.length > 0 && (
-            <div className="ops-tasking-group">
-              <div className="ops-tasking-group-label">GENERAL</div>
-              {untagged.map((a) => (
-                <TaskingRow key={a.id} assignment={a} onOpen={() => navigate(`/assignment/${a.id}`)} />
-              ))}
-            </div>
-          )}
+          })()}
         </div>
       )}
 
@@ -213,13 +224,19 @@ export default function DashboardHome() {
   );
 }
 
-function TaskingRow({ assignment: a, onOpen }) {
+function TaskingRow({ assignment: a, idx = 0, onOpen }) {
   const pct  = a.progress ?? 0;
   const done = pct >= 100;
   const color = TYPE_COLOR[a.type] ?? '#60a5fa';
 
   return (
-    <button className={`ops-tasking-row${done ? ' ops-tasking-done' : ''}`} onClick={onOpen}>
+    <motion.button
+      className={`ops-tasking-row${done ? ' ops-tasking-done' : ''}`}
+      onClick={onOpen}
+      initial={{ opacity: 0, x: -12 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.22, delay: 0.15 + idx * 0.055 }}
+    >
       <span className="ops-tasking-type-dot" style={{ background: color }} />
       <span className="ops-tasking-title">{a.title}</span>
       <span className="ops-tasking-type" style={{ color }}>{a.type.toUpperCase()}</span>
@@ -240,6 +257,6 @@ function TaskingRow({ assignment: a, onOpen }) {
       <svg className="ops-tasking-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="9 18 15 12 9 6"/>
       </svg>
-    </button>
+    </motion.button>
   );
 }
