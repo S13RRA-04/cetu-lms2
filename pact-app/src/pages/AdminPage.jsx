@@ -995,11 +995,15 @@ function PublishFileForm({ file, onPublished, onCancel }) {
 
 /* ── Scenario Gating Panel ── */
 
+const SQUAD_LABELS = { 1: 'Squad 1 — Redstone Memorial', 2: 'Squad 2 — Dogwood Hotel', 3: 'Squad 3 — CyberDyne', 4: 'Squad 4 — PixelPlay' };
+
 function ScenarioPackageForm({ initial, onSave, onCancel }) {
   const [form, setForm] = useState({
     title:          initial?.title          ?? '',
     description:    initial?.description    ?? '',
+    scenario_name:  initial?.scenario_name  ?? '',
     release_number: initial?.release_number ?? 1,
+    squad_number:   initial?.squad_number   ?? '',
     is_published:   initial?.is_published   ?? false,
   });
   const [saving, setSaving] = useState(false);
@@ -1012,7 +1016,11 @@ function ScenarioPackageForm({ initial, onSave, onCancel }) {
     setSaving(true);
     setErr('');
     try {
-      await onSave({ ...form, release_number: parseInt(form.release_number, 10) || 1 });
+      await onSave({
+        ...form,
+        release_number: parseInt(form.release_number, 10) || 1,
+        squad_number:   form.squad_number !== '' ? parseInt(form.squad_number, 10) : null,
+      });
     } catch (e) {
       setErr(e.response?.data?.error?.message ?? 'Save failed');
     } finally {
@@ -1038,6 +1046,19 @@ function ScenarioPackageForm({ initial, onSave, onCancel }) {
           <label className="admin-grade-label">Release #</label>
           <input type="number" min={1} className="admin-score-input" value={form.release_number}
             onChange={(e) => set('release_number', e.target.value)} style={{ width: '100%' }} />
+        </div>
+        <div style={{ flex: 2 }}>
+          <label className="admin-grade-label">Squad (leave blank for all squads)</label>
+          <select
+            value={form.squad_number}
+            onChange={(e) => set('squad_number', e.target.value)}
+            style={{ width: '100%', padding: '7px 10px', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13 }}
+          >
+            <option value="">All squads</option>
+            {[1, 2, 3, 4].map((n) => (
+              <option key={n} value={n}>{SQUAD_LABELS[n]}</option>
+            ))}
+          </select>
         </div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, paddingBottom: 2 }}>
           <input type="checkbox" id="sp-pub" checked={!!form.is_published}
@@ -1106,7 +1127,7 @@ function ScenarioGatingPanel({ scenarios, cohorts, loaded, onScenariosChange }) 
               onClick={() => { setSelected(pkg); setEditTarget(null); }}
             >
               <span className="admin-assign-type" style={{ color: 'var(--primary)' }}>
-                PKG {pkg.release_number}
+                PKG {pkg.release_number}{pkg.squad_number ? ` · S${pkg.squad_number}` : ''}
               </span>
               <span className="admin-assign-title">{pkg.title}</span>
               {!pkg.is_published && <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 4 }}>draft</span>}

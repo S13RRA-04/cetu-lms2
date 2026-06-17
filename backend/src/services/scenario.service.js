@@ -2,7 +2,7 @@
 const { ListObjectsV2Command, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { r2Client, R2_BUCKET, R2_DECKS_PREFIX } = require('../config/r2');
-const { ScenarioPackage, ScenarioPackageUnlock, Course, Cohort, Enrollment } = require('../models');
+const { ScenarioPackage, ScenarioPackageUnlock, Course, Cohort, Enrollment, Squad } = require('../models');
 const { NotFoundError, ForbiddenError } = require('../utils/errors');
 
 const R2_PUBLIC_BASE_URL = (process.env.R2_PUBLIC_BASE_URL ?? '').replace(/\/$/, '');
@@ -91,8 +91,13 @@ async function getFilesForPackage(pkg) {
 }
 
 async function listForStudent(courseId, userId) {
-  const enrollment = await Enrollment.findOne({ where: { user_id: userId, course_id: courseId } });
+  const enrollment = await Enrollment.findOne({
+    where:   { user_id: userId, course_id: courseId },
+    include: [{ model: Squad, as: 'squad', attributes: ['id', 'number'] }],
+  });
   if (!enrollment) throw new ForbiddenError('Not enrolled in this course');
+
+  const studentSquadNumber = enrollment.squad?.number ?? null;
 
   const unlockedSet = new Set();
   if (enrollment.cohort_id) {
@@ -105,7 +110,12 @@ async function listForStudent(courseId, userId) {
     order: [['release_number', 'ASC']],
   });
 
-  return packages.map((p) => ({
+  // Filter out packages assigned to a different squad
+  const visible = packages.filter(
+    (p) => p.squad_number == null || p.squad_number === studentSquadNumber
+  );
+
+  return visible.map((p) => ({
     ...p.toJSON(),
     is_unlocked: unlockedSet.has(p.id),
   }));

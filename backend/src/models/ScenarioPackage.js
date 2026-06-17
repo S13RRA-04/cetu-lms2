@@ -12,6 +12,7 @@ module.exports = (sequelize) => sequelize.define(
     r2_key:         { type: DataTypes.STRING(512),  allowNull: false },
     file_name:      { type: DataTypes.STRING(255),  allowNull: false },
     release_number: { type: DataTypes.INTEGER,      allowNull: false, defaultValue: 1 },
+    squad_number:   { type: DataTypes.INTEGER,      allowNull: true  },
     is_published:   { type: DataTypes.BOOLEAN,      defaultValue: false },
   },
   { tableName: 'scenario_packages' }
