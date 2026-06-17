@@ -1043,7 +1043,18 @@ function CohortsTab({ courseId }) {
                   )}
                   {!selected.is_active && <span className="badge badge-gray" style={{ marginTop: 4 }}>Inactive</span>}
                 </div>
-                <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <button
+                    className={`btn btn-sm ${selected.target_revealed ? 'btn-secondary' : 'btn-primary'}`}
+                    style={{ fontWeight: 600, fontSize: 11, letterSpacing: '.05em' }}
+                    onClick={async () => {
+                      const updated = await updateCohort(courseId, selected.id, { target_revealed: !selected.target_revealed });
+                      setCohorts((prev) => prev.map((c) => c.id === selected.id ? { ...c, ...updated } : c));
+                      setSelected((prev) => ({ ...prev, ...updated }));
+                    }}
+                  >
+                    {selected.target_revealed ? '🔒 Hide Target' : '🎯 Reveal Target'}
+                  </button>
                   <button className="btn btn-secondary btn-sm" onClick={() => setCohortModal(selected)}>Edit</button>
                   <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }} onClick={() => setDelCohort(selected)}>Delete</button>
                 </div>

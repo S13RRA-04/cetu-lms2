@@ -4,6 +4,7 @@ import { getAssignments, getMyEnrollment, getCampaignDrops } from '../api/pact.j
 import AppLayout          from './AppLayout.jsx';
 import InductionSequence  from '../pages/InductionSequence.jsx';
 import TransmissionInterceptor, { getSeenDropIds, markDropSeen } from '../pages/TransmissionInterceptor.jsx';
+import TargetRevealInterceptor, { targetSeenKey } from '../pages/TargetRevealInterceptor.jsx';
 import SessionTimeoutWarning from '../components/SessionTimeoutWarning.jsx';
 import useSessionTimeout  from '../hooks/useSessionTimeout.js';
 import useAuthStore       from '../store/authStore.js';
@@ -32,6 +33,10 @@ export default function AppShell() {
   const [inducted, setInducted] = useState(() => {
     if (!isStudent || !user?.id) return true;
     return !!localStorage.getItem(inductionKey(user.id));
+  });
+  const [targetSeen, setTargetSeen] = useState(() => {
+    if (!isStudent || !user?.id) return true;
+    return !!localStorage.getItem(targetSeenKey(user.id));
   });
 
   const navigate = useNavigate();
@@ -104,6 +109,20 @@ export default function AppShell() {
         user={user}
         enrollment={enrollment}
         onComplete={handleInductionComplete}
+      />
+    );
+  }
+
+  // Target reveal — admin has revealed the target and student hasn't acknowledged it yet
+  const targetRevealed = enrollment?.cohort?.target_revealed;
+  if (isStudent && inducted && targetRevealed && !targetSeen && enrollment?.squad) {
+    return (
+      <TargetRevealInterceptor
+        enrollment={enrollment}
+        onAcknowledge={() => {
+          if (user?.id) localStorage.setItem(targetSeenKey(user.id), '1');
+          setTargetSeen(true);
+        }}
       />
     );
   }

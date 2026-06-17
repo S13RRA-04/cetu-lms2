@@ -107,16 +107,43 @@ export default function DashboardHome() {
         </p>
       </div>
 
-      {/* ── Active investigation target ── */}
-      {victim && (
-        <div
-          className="vtc-root"
-          style={{
-            '--vc': victim.color,
-            '--vc-dim': victim.colorDim,
-          }}
-        >
-          {/* Colored header bar */}
+      {/* ── Active investigation target (gated on cohort.target_revealed) ── */}
+      {squad && !enrollment?.cohort?.target_revealed ? (
+        /* Pending state — admin hasn't revealed the target yet */
+        <div className="vtc-root" style={{ '--vc': '#f59e0b', '--vc-dim': 'rgba(245,158,11,0.15)' }}>
+          <div className="vtc-header" style={{ background: '#f59e0b' }}>
+            <span>▌ INVESTIGATION TARGET — PENDING ASSIGNMENT</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span className="threat-blink" style={{ color: '#000' }}>●</span>
+              <span>SQUAD {squad.number}</span>
+            </span>
+          </div>
+          <div className="vtc-body">
+            <div className="vtc-eyebrow">Investigation Target</div>
+            <div className="vtc-name" style={{ color: 'rgba(148,163,184,0.4)', fontFamily: 'var(--mono)', letterSpacing: '.18em', fontSize: 18 }}>
+              ████████████████████
+            </div>
+            <div className="vtc-meta">
+              <span style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span className="threat-blink" style={{ animationDuration: '1.4s' }}>●</span> AWAITING COMMAND AUTHORIZATION
+              </span>
+            </div>
+            <div className="vtc-intel">
+              <div className="vtc-intel-item">
+                STATUS<span style={{ color: '#f59e0b' }}>PENDING</span>
+              </div>
+              <div className="vtc-intel-item">
+                CLASSIFICATION<span>TLP:RED // LES</span>
+              </div>
+              <div className="vtc-intel-item">
+                OPERATION<span>BRKR // CLASSIFIED</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : victim ? (
+        /* Revealed state */
+        <div className="vtc-root" style={{ '--vc': victim.color, '--vc-dim': victim.colorDim }}>
           <div className="vtc-header" style={{ background: victim.color }}>
             <span>▌ TARGET ACQUIRED — ACTIVE INVESTIGATION</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -124,10 +151,9 @@ export default function DashboardHome() {
               <span>SQUAD {squad.number}</span>
             </span>
           </div>
-
           <div className="vtc-body">
             <div className="vtc-eyebrow">Active Investigation Target</div>
-            <div className="vtc-name chroma" style={{ color: victim.color }}>
+            <div className="vtc-name" style={{ color: victim.color }}>
               {victim.name}
             </div>
             <div className="vtc-meta">
@@ -141,25 +167,21 @@ export default function DashboardHome() {
             </div>
             <div className="vtc-intel">
               <div className="vtc-intel-item">
-                PRIORITY
-                <span style={{ color: '#ef4444', fontWeight: 700 }}>CRITICAL</span>
+                PRIORITY<span style={{ color: '#ef4444', fontWeight: 700 }}>CRITICAL</span>
               </div>
               <div className="vtc-intel-item">
-                CLASSIFICATION
-                <span>TLP:RED // LES</span>
+                CLASSIFICATION<span>TLP:RED // LES</span>
               </div>
               <div className="vtc-intel-item">
-                CASE STATUS
-                <span style={{ color: '#10b981' }}>ACTIVE — ONGOING</span>
+                CASE STATUS<span style={{ color: '#10b981' }}>ACTIVE — ONGOING</span>
               </div>
               <div className="vtc-intel-item">
-                OPERATION
-                <span>BRKR // {victim.code}</span>
+                OPERATION<span>BRKR // {victim.code}</span>
               </div>
             </div>
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* ── Command Post bulletin (active drop) ── */}
       {activeDrop?.narrative_intro && (

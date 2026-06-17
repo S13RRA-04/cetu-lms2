@@ -3547,13 +3547,20 @@ body {
    HOLLYWOOD CYBER EFFECTS
    ══════════════════════════════════════════════════════════════════════════════ */
 
-/* ── Chromatic aberration — RGB channel split on big reveals ── */
+/* ── Chromatic aberration — subtle readable version ── */
 .chroma {
+  text-shadow:
+    -2px 0 rgba(255, 0, 64, 0.4),
+     2px 0 rgba(0, 255, 255, 0.4);
+}
+
+/* ── Chromatic aberration — heavy version for fullscreen dramatic reveals only ── */
+.chroma-xl {
   text-shadow:
     -4px 0 rgba(255, 0, 64, 0.7),
      4px 0 rgba(0, 255, 255, 0.7),
-    -8px 0 rgba(255, 0, 64, 0.2),
-     8px 0 rgba(0, 255, 255, 0.2);
+    -8px 0 rgba(255, 0, 64, 0.18),
+     8px 0 rgba(0, 255, 255, 0.18);
 }
 
 /* ── Threat blink — pulsing ● indicator ── */

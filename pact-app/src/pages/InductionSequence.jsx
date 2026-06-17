@@ -98,8 +98,9 @@ function PanelAssignment({ user, enrollment, onAdvance }) {
 
 // Panel 2 — Target reveal (THE moment)
 function PanelTarget({ enrollment, onAdvance }) {
-  const squad  = enrollment?.squad;
-  const victim = getVictim(squad?.number);
+  const squad           = enrollment?.squad;
+  const victim          = getVictim(squad?.number);
+  const targetRevealed  = enrollment?.cohort?.target_revealed;
 
   const [stage, setStage] = useState(0);
   const [flashed, setFlashed] = useState(false);
@@ -120,7 +121,7 @@ function PanelTarget({ enrollment, onAdvance }) {
     if (stage === 2 && !flashed) setFlashed(true);
   }, [stage]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!victim) {
+  if (!victim || !targetRevealed) {
     return (
       <motion.div className="ind-panel"
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -128,11 +129,23 @@ function PanelTarget({ enrollment, onAdvance }) {
       >
         <div className="ind-stamp">INVESTIGATION TARGET</div>
         <div className="ind-target-pending">
-          <div className="ind-target-pending-label">ASSIGNMENT PENDING</div>
-          <p className="ind-prose" style={{ marginTop: 16 }}>
-            Your investigation target will be assigned by your supervising agent.
-            Check back after your squad assignment is confirmed.
+          <div className="ind-target-pending-label" style={{ fontSize: 18, letterSpacing: '.1em', color: '#f59e0b' }}>
+            TARGET: CLASSIFIED
+          </div>
+          <div style={{
+            fontFamily: 'var(--mono)', fontSize: 28, fontWeight: 800,
+            color: 'rgba(148,163,184,0.18)', letterSpacing: '.12em', margin: '16px 0',
+          }}>
+            ████████████████████
+          </div>
+          <p className="ind-prose">
+            Your investigation target is classified pending Command authorization.
+            You will be notified when your target assignment is released.
           </p>
+          <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.18em', color: '#f59e0b', marginTop: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className="threat-blink" style={{ animationDuration: '1.4s' }}>●</span>
+            AWAITING COMMAND AUTHORIZATION
+          </div>
         </div>
         <button className="ind-btn" onClick={onAdvance}>CONTINUE <span className="ind-btn-arrow">→</span></button>
       </motion.div>
@@ -198,7 +211,7 @@ function PanelTarget({ enrollment, onAdvance }) {
 
         {/* Victim name — THE reveal: decrypt + chromatic aberration + glow */}
         <motion.div
-          className="ind-target-name chroma"
+          className="ind-target-name chroma-xl"
           style={{ color: victim.color, textShadow: `0 0 30px ${victim.color}, 0 0 80px ${victim.color}88` }}
           initial={{ opacity: 0, y: 20, scale: 0.94 }}
           animate={stage >= 2 ? { opacity: 1, y: 0, scale: [0.94, 1.04, 1] } : { opacity: 0, y: 20, scale: 0.94 }}

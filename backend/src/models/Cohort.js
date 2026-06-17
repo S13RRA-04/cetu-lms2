@@ -10,7 +10,8 @@ module.exports = (sequelize) => {
       course_id: { type: DataTypes.UUID, allowNull: false },
       start_date: { type: DataTypes.DATEONLY, allowNull: true },
       end_date:   { type: DataTypes.DATEONLY, allowNull: true },
-      is_active:  { type: DataTypes.BOOLEAN, defaultValue: true },
+      is_active:        { type: DataTypes.BOOLEAN, defaultValue: true },
+      target_revealed:  { type: DataTypes.BOOLEAN, defaultValue: false },
     },
     { tableName: 'cohorts' }
   );

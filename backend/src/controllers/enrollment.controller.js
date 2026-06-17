@@ -36,7 +36,7 @@ async function getMyEnrollment(req, res, next) {
         {
           model: Cohort,
           as:    'cohort',
-          attributes: ['id', 'name', 'start_date', 'end_date', 'is_active'],
+          attributes: ['id', 'name', 'start_date', 'end_date', 'is_active', 'target_revealed'],
         },
         {
           model: Squad,
