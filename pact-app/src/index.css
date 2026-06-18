@@ -4629,8 +4629,12 @@ body {
   display: flex;
   height: 100vh;
   overflow: hidden;
-  background: #04070b;
   position: relative;
+  /* Base colour + dot-grid texture (sits beneath the globe) */
+  background-color: #04070b;
+  background-image:
+    radial-gradient(circle, rgba(0, 140, 220, 0.055) 1px, transparent 1px);
+  background-size: 28px 28px;
 }
 
 /* Globe sits behind the right pane only — the rail is fully opaque */
@@ -5547,12 +5551,19 @@ body {
   z-index: 8888;
 }
 
-/* Edge vignette — gives the screen a CRT depth */
+/* Edge vignette — cinematic depth, leaves globe center clear */
 .ops-room::after {
   content: '';
   position: fixed;
   inset: 0;
-  background: radial-gradient(ellipse at 50% 50%, transparent 58%, rgba(0,0,0,0.38) 100%);
+  background:
+    /* Primary vignette — darkens the outer ring */
+    radial-gradient(ellipse at 50% 50%, transparent 42%, rgba(0,0,0,0.72) 100%),
+    /* Corner burn — extra darkness in the four corners */
+    radial-gradient(ellipse at 0%   0%,   rgba(0,0,0,0.55) 0%, transparent 55%),
+    radial-gradient(ellipse at 100% 0%,   rgba(0,0,0,0.55) 0%, transparent 55%),
+    radial-gradient(ellipse at 0%   100%, rgba(0,0,0,0.55) 0%, transparent 55%),
+    radial-gradient(ellipse at 100% 100%, rgba(0,0,0,0.55) 0%, transparent 55%);
   pointer-events: none;
   z-index: 8887;
 }

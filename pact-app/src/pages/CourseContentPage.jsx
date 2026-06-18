@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import useAuthStore from '../store/authStore.js';
 import { motion } from 'motion/react';
 import { getCourseContent, getContentDownloadUrl } from '../api/pact.js';
 import DecryptText from '../components/DecryptText.jsx';
@@ -21,6 +22,8 @@ const MATERIAL_TYPES = ['slides', 'handout', 'agenda', 'form', 'resource'];
 const TYPE_ORDER = [...CAMPAIGN_TYPES, ...MATERIAL_TYPES];
 
 export default function CourseContentPage() {
+  const { user }  = useAuthStore();
+  const isAdmin   = user?.role === 'admin' || user?.role === 'instructor';
   const [items,   setItems]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter,  setFilter]  = useState('all');
@@ -73,7 +76,7 @@ export default function CourseContentPage() {
     <div className="cc-page">
       <div className="ops-dashboard" style={{ paddingBottom: 0, marginBottom: 20 }}>
         <div className="ops-dash-eyebrow"><DecryptText text="INTEL LIBRARY // CLASSIFIED MATERIALS" speed={18} hold={3} /></div>
-        <h1 className="ops-dash-name">Case File</h1>
+        <h1 className="ops-dash-name">Intel Library</h1>
       </div>
 
       {unlocked.length === 0 ? (
@@ -83,8 +86,12 @@ export default function CourseContentPage() {
               <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
             </svg>
           </div>
-          <div className="ops-empty-label">NO MATERIALS AUTHORIZED</div>
-          <div className="ops-empty-sub">Stand by for Command authorization.</div>
+          <div className="ops-empty-label">{isAdmin ? 'NO CONTENT ADDED YET' : 'NO MATERIALS AUTHORIZED'}</div>
+          <div className="ops-empty-sub">
+            {isAdmin
+              ? 'Add slides, handouts, or links via COMMAND → Content. These are separate from Assignments.'
+              : 'Stand by for Command authorization.'}
+          </div>
         </div>
       ) : (
         <>
