@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { verifyVaultPin } from '../api/pact.js';
 import DecryptText from '../components/DecryptText.jsx';
@@ -126,10 +126,15 @@ export default function VaultKeypad({ drop, onUnlock }) {
   const [attempts, setAttempts] = useState(0);
   const [shakeKey, setShakeKey] = useState(0);
   const [wrongMsg, setWrongMsg] = useState('');
+  const [keyFlash, setKeyFlash] = useState(false);
+  const flashTimer = useRef(null);
 
   const press = useCallback((char) => {
     if (status !== 'idle') return;
     setCode((c) => c.length < MAX_CODE_LEN ? c + char : c);
+    clearTimeout(flashTimer.current);
+    setKeyFlash(true);
+    flashTimer.current = setTimeout(() => setKeyFlash(false), 80);
   }, [status]);
 
   const backspace = useCallback(() => {
@@ -242,7 +247,7 @@ export default function VaultKeypad({ drop, onUnlock }) {
         {/* ── Code input display ── */}
         <motion.div
           key={shakeKey}
-          className={`vk-code-display${status === 'wrong' ? ' vk-code-wrong' : ''}${status === 'open' ? ' vk-code-open' : ''}`}
+          className={`vk-code-display${status === 'wrong' ? ' vk-code-wrong' : ''}${status === 'open' ? ' vk-code-open' : ''}${keyFlash ? ' vk-code-flash' : ''}`}
           animate={status === 'wrong' ? { x: [0, -10, 10, -7, 7, -4, 4, 0] } : { x: 0 }}
           transition={{ duration: 0.48 }}
           initial={{ opacity: 0, y: 8 }}

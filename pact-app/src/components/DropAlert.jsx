@@ -19,14 +19,32 @@ export default function DropAlert({ drop, onView, onDismiss }) {
           exit={{ opacity: 0, x: 80, scale: 0.92 }}
           transition={{ type: 'spring', stiffness: 300, damping: 24 }}
         >
+          {/* Scanline overlay */}
+          <div className="drop-alert-scanlines" />
+
+          {/* Pulsing border glow */}
+          <motion.div
+            className="drop-alert-glow"
+            animate={{ opacity: [0.4, 0.9, 0.4] }}
+            transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+          />
+
           {/* Header */}
           <div className="drop-alert-header">
             <div className="drop-alert-signal">
-              <motion.span
-                className="drop-alert-led"
-                animate={{ opacity: [1, 0.15, 1] }}
-                transition={{ duration: 0.8, repeat: Infinity }}
-              />
+              {/* LED with ring pulse */}
+              <span className="drop-alert-led-wrap">
+                <motion.span
+                  className="drop-alert-led-ring"
+                  animate={{ scale: [1, 2.2], opacity: [0.6, 0] }}
+                  transition={{ duration: 1, repeat: Infinity, ease: 'easeOut' }}
+                />
+                <motion.span
+                  className="drop-alert-led"
+                  animate={{ opacity: [1, 0.15, 1] }}
+                  transition={{ duration: 0.8, repeat: Infinity }}
+                />
+              </span>
               INCOMING TRANSMISSION
             </div>
             <button className="drop-alert-close" onClick={onDismiss} title="Dismiss">
@@ -36,9 +54,12 @@ export default function DropAlert({ drop, onView, onDismiss }) {
             </button>
           </div>
 
+          {/* Noise interference line */}
+          <div className="drop-alert-noise" />
+
           {/* Body */}
           <div className="drop-alert-body">
-            <div className="drop-alert-drop-label">DROP {drop.number}</div>
+            <div className="drop-alert-drop-label">DROP {String(drop.number).padStart(2,'0')}</div>
             {drop.title && (
               <div className="drop-alert-title">{drop.title.toUpperCase()}</div>
             )}
@@ -61,12 +82,12 @@ export default function DropAlert({ drop, onView, onDismiss }) {
             </button>
           </div>
 
-          {/* Animated border highlight */}
+          {/* Animated border sweep */}
           <motion.div
             className="drop-alert-border-sweep"
             initial={{ scaleX: 0 }}
             animate={{ scaleX: 1 }}
-            transition={{ duration: 0.6, ease: 'easeOut', delay: 0.15 }}
+            transition={{ duration: 0.55, ease: 'easeOut', delay: 0.1 }}
           />
         </motion.div>
       )}

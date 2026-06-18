@@ -3741,6 +3741,73 @@ body {
   animation: interference 5s linear 2.5s infinite;
 }
 
+/* ── Static pre-stage overlay ───────────────────────────────────────────── */
+.tx-static-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  pointer-events: none;
+}
+
+.tx-static-bars {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    transparent 3px,
+    rgba(0, 176, 255, 0.03) 3px,
+    rgba(0, 176, 255, 0.03) 4px
+  );
+  animation: txStaticFlicker 0.08s steps(1) infinite;
+}
+
+@keyframes txStaticFlicker {
+  0%   { transform: translateY(0px);  opacity: 0.9; }
+  14%  { transform: translateY(-3px); opacity: 0.5; }
+  28%  { transform: translateY(2px);  opacity: 1.0; }
+  42%  { transform: translateY(-1px); opacity: 0.7; }
+  57%  { transform: translateY(3px);  opacity: 0.85; }
+  71%  { transform: translateY(-2px); opacity: 0.6; }
+  85%  { transform: translateY(1px);  opacity: 0.95; }
+  100% { transform: translateY(0px);  opacity: 0.8; }
+}
+
+.tx-static-label {
+  position: relative;
+  z-index: 1;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .28em;
+  color: rgba(0, 176, 255, 0.9);
+  text-shadow: 0 0 20px rgba(0, 176, 255, 0.7), 0 0 40px rgba(0, 176, 255, 0.3);
+  animation: txLabelGlitch 0.12s steps(1) infinite;
+}
+
+@keyframes txLabelGlitch {
+  0%   { clip-path: none; transform: translateX(0); }
+  15%  { clip-path: inset(20% 0 60% 0); transform: translateX(-3px); }
+  30%  { clip-path: none; transform: translateX(0); }
+  45%  { clip-path: inset(55% 0 15% 0); transform: translateX(2px); }
+  60%  { clip-path: none; transform: translateX(0); }
+  100% { clip-path: none; transform: translateX(0); }
+}
+
+.tx-static-coords {
+  position: relative;
+  z-index: 1;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .18em;
+  color: rgba(0, 176, 255, 0.4);
+}
+
 /* ── Auth screen occasional flicker ── */
 .auth-root {
   animation: screen-flicker 6s infinite;
@@ -3987,12 +4054,14 @@ body {
   color: var(--primary, #00b0ff);
 }
 .drop-alert-led {
+  position: relative;
+  z-index: 1;
   display: inline-block;
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: var(--primary, #00b0ff);
-  box-shadow: 0 0 8px var(--primary, #00b0ff);
+  box-shadow: 0 0 10px var(--primary, #00b0ff), 0 0 20px rgba(0,176,255,0.4);
   flex-shrink: 0;
 }
 .drop-alert-close {
@@ -4083,8 +4152,67 @@ body {
   left: 0;
   height: 2px;
   width: 100%;
-  background: linear-gradient(90deg, var(--primary, #00b0ff), transparent);
+  background: linear-gradient(90deg, var(--primary, #00b0ff), rgba(0,176,255,0.3), transparent);
   transform-origin: left center;
+}
+
+/* Scanlines overlay on the card */
+.drop-alert-scanlines {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    transparent 3px,
+    rgba(0, 0, 0, 0.12) 3px,
+    rgba(0, 0, 0, 0.12) 4px
+  );
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 0;
+}
+
+/* Pulsing border glow */
+.drop-alert-glow {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  border: 1px solid var(--primary, #00b0ff);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* LED ring pulse */
+.drop-alert-led-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+}
+
+.drop-alert-led-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--primary, #00b0ff);
+  pointer-events: none;
+}
+
+/* Noise interference line between header and body */
+.drop-alert-noise {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0,176,255,0.4) 20%, rgba(255,255,255,0.15) 50%, rgba(0,176,255,0.4) 80%, transparent);
+  animation: dropAlertNoise 0.15s steps(1) infinite;
+}
+
+@keyframes dropAlertNoise {
+  0%   { opacity: 0.8; transform: scaleX(1); }
+  33%  { opacity: 0.3; transform: scaleX(0.95); }
+  66%  { opacity: 1.0; transform: scaleX(1.02); }
+  100% { opacity: 0.7; transform: scaleX(1); }
 }
 
 /* ══════════════════════════════════════════════════
@@ -5815,6 +5943,12 @@ body {
 .vk-code-display.vk-code-open {
   border-color: rgba(52, 211, 153, 0.4) !important;
   border-bottom-color: rgba(52, 211, 153, 0.7) !important;
+}
+
+.vk-code-display.vk-code-flash {
+  border-color: rgba(0, 176, 255, 0.65) !important;
+  border-bottom-color: rgba(0, 176, 255, 0.95) !important;
+  box-shadow: 0 0 12px rgba(0, 176, 255, 0.25), inset 0 0 8px rgba(0, 176, 255, 0.06) !important;
 }
 
 .vk-code-label {

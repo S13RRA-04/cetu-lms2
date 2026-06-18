@@ -39,23 +39,45 @@ function NoiseLine() {
   return <div className="tx-noise-line" />;
 }
 
+/* ── Static/glitch pre-stage ──────────────────────────────────────────────── */
+function TxStaticOverlay() {
+  return (
+    <motion.div
+      className="tx-static-overlay"
+      initial={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.35 }}
+    >
+      <div className="tx-static-bars" />
+      <div className="tx-static-label">
+        <DecryptText text="CARRIER SIGNAL DETECTED — DECRYPTING" speed={28} hold={1} />
+      </div>
+      <div className="tx-static-coords">
+        FREQ 14.235 MHz · BAND: ENCRYPTED · ORIGIN: CLASSIFIED
+      </div>
+    </motion.div>
+  );
+}
+
 export default function TransmissionInterceptor({ drop, onAcknowledge }) {
-  const [stage, setStage] = useState(0);
-  // Stages:
-  // 0 = blank
+  const [stage,      setStage]      = useState(0);
+  const [showStatic, setShowStatic] = useState(true);
+  // Stages (static clears at ~850ms, then reveal sequence begins):
+  // 0 = static overlay (pre-stage)
   // 1 = "INCOMING TRANSMISSION" signal
-  // 2 = origin header (OPERATION BRKR — COMMAND)
+  // 2 = origin header
   // 3 = drop title
   // 4 = narrative text
   // 5 = button
 
   useEffect(() => {
     const timers = [
-      setTimeout(() => setStage(1), 300),
-      setTimeout(() => setStage(2), 1100),
-      setTimeout(() => setStage(3), 2000),
-      setTimeout(() => setStage(4), 3000),
-      setTimeout(() => setStage(5), 4400),
+      setTimeout(() => setShowStatic(false), 850),
+      setTimeout(() => setStage(1),          950),
+      setTimeout(() => setStage(2),          1800),
+      setTimeout(() => setStage(3),          2700),
+      setTimeout(() => setStage(4),          3700),
+      setTimeout(() => setStage(5),          5100),
     ];
     return () => timers.forEach(clearTimeout);
   }, []);
@@ -65,6 +87,10 @@ export default function TransmissionInterceptor({ drop, onAcknowledge }) {
       <DataStream color="#00b0ff" opacity={0.10} fontSize={11} speedScale={1.6} />
       <div className="ind-scanlines" />
       <div className="tx-interference" />
+
+      <AnimatePresence>
+        {showStatic && <TxStaticOverlay />}
+      </AnimatePresence>
 
       <div className="tx-body">
 
