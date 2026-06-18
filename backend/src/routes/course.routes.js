@@ -10,6 +10,7 @@ const squadCtrl        = require('../controllers/squad.controller');
 const campaignCtrl     = require('../controllers/campaign.controller');
 const scenarioCtrl     = require('../controllers/scenario.controller');
 const courseContentCtrl = require('../controllers/courseContent.controller');
+const intelCtrl        = require('../controllers/intel.controller');
 const { requireAuth, requireInstructor, requireAdmin } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
 const { auditLog } = require('../middleware/audit');
@@ -132,5 +133,10 @@ router.delete('/:id/campaign/drops/:did',      requireAuth, requireInstructor, c
 router.post('/:id/campaign/drops/:did/release',  requireAuth, requireInstructor, campaignCtrl.releaseDrop);
 router.post('/:id/campaign/drops/:did/lock',     requireAuth, requireInstructor, campaignCtrl.lockDrop);
 router.post('/:id/campaign/drops/:did/verify-pin', requireAuth,                 campaignCtrl.verifyVaultPin);
+
+// Intel board (per-squad link analysis)
+router.get('/:id/intel',                requireAuth,                    intelCtrl.getBoard);
+router.put('/:id/intel',                requireAuth,                    intelCtrl.saveBoard);
+router.get('/:id/intel/squad/:squadId', requireAuth, requireInstructor, intelCtrl.getSquadBoard);
 
 module.exports = router;

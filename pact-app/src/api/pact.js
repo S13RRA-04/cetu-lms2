@@ -171,3 +171,13 @@ export const unlockContentItem = (id, cohortId) =>
 
 export const lockContentItem = (id, cohortId) =>
   client.post(`/courses/${COURSE_ID}/course-content/${id}/lock`, { cohort_id: cohortId }).then((r) => r.data);
+
+/* ── Intel Board ── */
+export const getIntelBoard = () =>
+  client.get(`/courses/${COURSE_ID}/intel`).then((r) => r.data).catch((err) => {
+    if (err.response?.status === 404) return { noSquad: true };
+    throw err;
+  });
+
+export const saveIntelBoard = (board) =>
+  client.put(`/courses/${COURSE_ID}/intel`, board).then((r) => r.data);

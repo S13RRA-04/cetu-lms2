@@ -6476,3 +6476,347 @@ body {
   gap: 7px;
   text-shadow: 0 0 12px rgba(0, 255, 157, 0.6);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INTEL WORKSTATION — Link analysis / node graph
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.intel-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+}
+
+/* ── Header strip ── */
+.intel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  height: 36px;
+  background: rgba(4, 7, 11, 0.7);
+  border-bottom: 1px solid rgba(0, 140, 220, 0.15);
+  flex-shrink: 0;
+}
+
+.intel-header-eyebrow {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .16em;
+  color: var(--primary, #00b0ff);
+  opacity: 0.8;
+}
+
+.intel-header-squad {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .1em;
+  color: rgba(148, 163, 184, 0.5);
+}
+
+.intel-header-spacer { flex: 1; }
+
+.intel-save-status {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .12em;
+  transition: color 0.3s;
+}
+
+.intel-save-idle   { color: transparent; }
+.intel-save-saving { color: rgba(148, 163, 184, 0.5); }
+.intel-save-saved  { color: #22c55e; }
+.intel-save-error  { color: #ef4444; }
+
+.intel-save-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: rgba(148, 163, 184, 0.4);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+  padding: 0;
+}
+.intel-save-btn:hover { color: rgba(0, 176, 255, 0.8); }
+.intel-save-btn svg { width: 14px; height: 14px; }
+
+/* ── Main area ── */
+.intel-main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Left sidebar toolbar ── */
+.intel-sidebar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  width: 52px;
+  background: rgba(4, 7, 11, 0.55);
+  border-right: 1px solid rgba(0, 140, 220, 0.12);
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
+.intel-tool-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.intel-tool-sep {
+  width: 28px;
+  height: 1px;
+  background: rgba(0, 140, 220, 0.12);
+  margin: 4px 0;
+}
+
+.intel-tool-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: rgba(148, 163, 184, 0.45);
+  transition: all 0.15s;
+  padding: 0;
+}
+.intel-tool-btn:hover {
+  color: rgba(148, 163, 184, 0.85);
+  background: rgba(0, 140, 220, 0.08);
+  border-color: rgba(0, 140, 220, 0.2);
+}
+.intel-tool-btn.intel-tool-active {
+  color: #00b0ff;
+  background: rgba(0, 176, 255, 0.1);
+  border-color: rgba(0, 176, 255, 0.35);
+}
+.intel-tool-btn.intel-tool-danger:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+.intel-tool-btn svg { width: 16px; height: 16px; }
+
+/* Node type legend */
+.intel-legend {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 140, 220, 0.1);
+  width: 100%;
+}
+.intel-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.intel-legend-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+.intel-legend-label {
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: .08em;
+  color: rgba(148, 163, 184, 0.4);
+  text-transform: uppercase;
+}
+
+/* ── SVG canvas area ── */
+.intel-canvas-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #03060a;
+  cursor: default;
+}
+.intel-canvas-wrap.intel-cursor-crosshair { cursor: crosshair; }
+.intel-canvas-wrap.intel-cursor-link      { cursor: cell; }
+
+.intel-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  user-select: none;
+}
+
+/* Mode hint toast */
+.intel-mode-hint {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 176, 255, 0.12);
+  border: 1px solid rgba(0, 176, 255, 0.25);
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .12em;
+  color: rgba(0, 176, 255, 0.85);
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+/* ── Node / Edge edit panel ── */
+.intel-node-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 248px;
+  height: 100%;
+  background: rgba(4, 7, 11, 0.92);
+  border-left: 1px solid rgba(0, 140, 220, 0.15);
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  backdrop-filter: blur(6px);
+  z-index: 20;
+}
+
+.intel-panel-type {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .2em;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.intel-panel-label {
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: .14em;
+  color: rgba(148, 163, 184, 0.45);
+  margin-bottom: 2px;
+  display: block;
+}
+
+.intel-panel-input {
+  width: 100%;
+  background: rgba(0, 140, 220, 0.06);
+  border: 1px solid rgba(0, 140, 220, 0.18);
+  border-radius: 4px;
+  padding: 7px 10px;
+  color: rgba(220, 232, 244, 0.9);
+  font-family: var(--mono);
+  font-size: 11px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.intel-panel-input:focus {
+  border-color: rgba(0, 176, 255, 0.45);
+}
+.intel-panel-input::placeholder {
+  color: rgba(148, 163, 184, 0.25);
+}
+
+.intel-panel-delete {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 4px;
+  padding: 8px 12px;
+  color: rgba(239, 68, 68, 0.6);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .12em;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.intel-panel-delete:hover {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #ef4444;
+}
+.intel-panel-delete svg { width: 12px; height: 12px; }
+
+/* ── Notes section ── */
+.intel-notes-section {
+  flex-shrink: 0;
+  border-top: 1px solid rgba(0, 140, 220, 0.15);
+  background: rgba(4, 7, 11, 0.6);
+  display: flex;
+  flex-direction: column;
+  max-height: 220px;
+  transition: max-height 0.2s ease;
+}
+.intel-notes-section.intel-notes-collapsed {
+  max-height: 34px;
+}
+
+.intel-notes-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  height: 34px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: rgba(148, 163, 184, 0.5);
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+.intel-notes-toggle:hover { color: rgba(148, 163, 184, 0.8); }
+
+.intel-notes-toggle-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .16em;
+  flex: 1;
+  text-align: left;
+}
+
+.intel-notes-textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 8px 16px 12px;
+  color: rgba(148, 163, 184, 0.8);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.6;
+  min-height: 80px;
+}
+.intel-notes-textarea::placeholder {
+  color: rgba(148, 163, 184, 0.2);
+}
+
+/* ── Loading state ── */
+.intel-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .16em;
+  color: rgba(148, 163, 184, 0.5);
+}

@@ -51,7 +51,8 @@ const IcBook   = () => <svg viewBox="0 0 24 24" {...S}><path d="M4 19.5A2.5 2.5 
 const IcChart  = () => <svg viewBox="0 0 24 24" {...S}><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>;
 const IcPodium = () => <svg viewBox="0 0 24 24" {...S}><rect x="4" y="14" width="4" height="7" rx="1"/><rect x="10" y="9" width="4" height="12" rx="1"/><rect x="16" y="11" width="4" height="10" rx="1"/></svg>;
 const IcShield = () => <svg viewBox="0 0 24 24" {...S}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>;
-const IcLogout = () => <svg viewBox="0 0 24 24" {...S}><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
+const IcLogout  = () => <svg viewBox="0 0 24 24" {...S}><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
+const IcNetwork = () => <svg viewBox="0 0 24 24" {...S}><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="12" y1="7" x2="5" y2="17"/><line x1="12" y1="7" x2="19" y2="17"/><line x1="5" y1="19" x2="19" y2="19"/></svg>;
 
 /* ── HUD bar ────────────────────────────────────────────────────────────────── */
 const HudBar = memo(function HudBar({ accent, squad }) {
@@ -228,6 +229,10 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
 
           <OpsNavItem to="/course-content" label="INTEL LIBRARY">
             <IcBook />
+          </OpsNavItem>
+
+          <OpsNavItem to="/intel" label="LINK ANALYSIS">
+            <IcNetwork />
           </OpsNavItem>
 
           <OpsNavItem to="/grades" label="OPERATOR RECORD">
