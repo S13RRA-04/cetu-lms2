@@ -5535,10 +5535,10 @@ body {
    IMMERSION LAYER — scanlines, vignette, ambient
    ══════════════════════════════════════════════════════════════════════════════ */
 
-/* CRT scanline overlay — fixed, covers everything inside ops-room */
+/* CRT scanline overlay */
 .ops-room::before {
   content: '';
-  position: fixed;
+  position: absolute;
   inset: 0;
   background: repeating-linear-gradient(
     0deg,
@@ -5548,24 +5548,23 @@ body {
     rgba(0, 0, 0, 0.028) 4px
   );
   pointer-events: none;
-  z-index: 8888;
+  z-index: 8;
 }
 
-/* Edge vignette — cinematic depth, leaves globe center clear */
+/* Edge vignette — cinematic depth, leaves globe center clear.
+   z-index: 9 keeps it below the left rail (z:10) so nav stays readable. */
 .ops-room::after {
   content: '';
-  position: fixed;
+  position: absolute;
   inset: 0;
   background:
-    /* Primary vignette — darkens the outer ring */
     radial-gradient(ellipse at 50% 50%, transparent 42%, rgba(0,0,0,0.72) 100%),
-    /* Corner burn — extra darkness in the four corners */
     radial-gradient(ellipse at 0%   0%,   rgba(0,0,0,0.55) 0%, transparent 55%),
     radial-gradient(ellipse at 100% 0%,   rgba(0,0,0,0.55) 0%, transparent 55%),
     radial-gradient(ellipse at 0%   100%, rgba(0,0,0,0.55) 0%, transparent 55%),
     radial-gradient(ellipse at 100% 100%, rgba(0,0,0,0.55) 0%, transparent 55%);
   pointer-events: none;
-  z-index: 8887;
+  z-index: 9;
 }
 
 /* ── Assignment page: Accessing classified document entry ─────────────────── */
