@@ -26,7 +26,7 @@ export default function DataStream({ color = '#00b0ff', opacity = 0.055, fontSiz
     init();
 
     const draw = () => {
-      ctx.fillStyle = 'rgba(7,10,13,0.18)';
+      ctx.fillStyle = 'rgba(3,5,8,0.88)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.font = `${fontSize}px monospace`;
 

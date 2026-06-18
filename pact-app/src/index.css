@@ -6091,6 +6091,84 @@ body {
   text-transform: uppercase;
 }
 
+/* ── Content wrapper ────────────────────────────────────────────────────── */
+.se-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+/* ── Frequency scanner pre-stage ───────────────────────────────────────── */
+.se-scanner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 0;
+}
+
+.se-scan-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .22em;
+  color: rgba(0, 255, 157, 0.5);
+  transition: color 0.4s;
+}
+
+.se-scan-acquired {
+  color: #00ff9d;
+  text-shadow: 0 0 12px rgba(0, 255, 157, 0.6);
+}
+
+.se-freq-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 56px;
+  width: 100%;
+  max-width: 380px;
+}
+
+.se-freq-bar {
+  flex: 1;
+  min-width: 0;
+  background: rgba(0, 255, 157, 0.55);
+  border-radius: 2px 2px 0 0;
+  transform-origin: bottom;
+  /* duration and delay set via inline style; name/timing set here */
+  animation-name: seBarPulse;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+  animation-fill-mode: both;
+  transition: background 0.4s, box-shadow 0.4s;
+}
+
+.se-freq-bars--lock .se-freq-bar {
+  background: #00ff9d;
+  box-shadow: 0 0 6px rgba(0, 255, 157, 0.7);
+  animation-name: seBarLock;
+}
+
+@keyframes seBarPulse {
+  from { transform: scaleY(calc(var(--bar-h, 0.5) * 0.15)); }
+  to   { transform: scaleY(var(--bar-h, 0.5)); }
+}
+
+@keyframes seBarLock {
+  from { transform: scaleY(calc(var(--bar-h, 0.5) * 0.8)); }
+  to   { transform: scaleY(var(--bar-h, 0.5)); }
+}
+
+.se-scan-meta {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .16em;
+  color: rgba(0, 255, 157, 0.35);
+}
+
 /* ── Signal wave ────────────────────────────────────────────────────────── */
 .se-wave {
   width: 100%;
@@ -6101,7 +6179,6 @@ body {
   width: 100%;
   height: 48px;
   color: #00ff9d;
-  opacity: 0.6;
   filter: drop-shadow(0 0 6px rgba(0, 255, 157, 0.4));
 }
 
