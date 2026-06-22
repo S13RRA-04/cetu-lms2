@@ -27,6 +27,8 @@ import {
   getSquadsByCohort,
   updateSquad,
   quickReleaseScenario,
+  updateScenario,
+  deleteScenario,
 } from '../api/pact.js';
 
 const TYPE_COLOR = {
@@ -517,9 +519,15 @@ function formatR2Size(bytes) {
 /* ── Content Gating Panel ── */
 
 function ContentGatingPanel({ assignments, cohorts, onAssignmentsChange, onContentPublished }) {
-  const [subTab, setSubTab] = useState('drops');
+  const [subTab, setSubTab]     = useState('drops');
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const gatingItems = assignments.filter((a) => a.type === 'assessment' || a.type === 'survey');
+
+  const handlePublished = () => {
+    setRefreshKey((k) => k + 1);
+    onContentPublished?.();
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
@@ -548,7 +556,8 @@ function ContentGatingPanel({ assignments, cohorts, onAssignmentsChange, onConte
               Browse R2 scenario packages. Release folders to specific cohorts and squads, with optional cipher challenge gates.
             </p>
           </div>
-          <R2PublishBrowser rootPrefix="" cohorts={cohorts} onPublished={onContentPublished} />
+          <R2PublishBrowser rootPrefix="" cohorts={cohorts} onPublished={handlePublished} />
+          <ReleasesManager key={refreshKey} onRefresh={() => setRefreshKey((k) => k + 1)} />
         </div>
       ) : (
         <AssessmentSurveyGating
@@ -558,6 +567,146 @@ function ContentGatingPanel({ assignments, cohorts, onAssignmentsChange, onConte
             onAssignmentsChange((prev) => prev.map((a) => a.id === id ? { ...a, unlocks } : a))
           }
         />
+      )}
+    </div>
+  );
+}
+
+/* ── Existing Releases Manager ── */
+function ReleasesManager({ onRefresh }) {
+  const [packages, setPackages] = useState(null);
+  const [open, setOpen]         = useState(false);
+  const [editing, setEditing]   = useState({});   // id → draft title string
+  const [saving, setSaving]     = useState({});    // id → bool
+  const [deleting, setDeleting] = useState({});    // id → bool
+
+  useEffect(() => {
+    getScenarios().then((d) => setPackages(Array.isArray(d) ? d : [])).catch(() => setPackages([]));
+  }, []);
+
+  if (!packages) return null;
+  if (packages.length === 0) return null;
+
+  // Group by scenario_name, sorted by release_number within each group
+  const scenarioMap = new Map();
+  for (const pkg of packages) {
+    const key = pkg.scenario_name || pkg.title;
+    if (!scenarioMap.has(key)) scenarioMap.set(key, []);
+    scenarioMap.get(key).push(pkg);
+  }
+  for (const arr of scenarioMap.values()) arr.sort((a, b) => a.release_number - b.release_number);
+  const groups = [...scenarioMap.entries()].sort(([a], [b]) => a.localeCompare(b));
+
+  const handleSave = async (pkg) => {
+    const newTitle = (editing[pkg.id] ?? pkg.title).trim();
+    if (!newTitle || newTitle === pkg.title) { setEditing((e) => { const n = { ...e }; delete n[pkg.id]; return n; }); return; }
+    setSaving((s) => ({ ...s, [pkg.id]: true }));
+    try {
+      await updateScenario(pkg.id, { title: newTitle });
+      setPackages((prev) => prev.map((p) => p.id === pkg.id ? { ...p, title: newTitle } : p));
+      setEditing((e) => { const n = { ...e }; delete n[pkg.id]; return n; });
+    } catch { /* ignore */ } finally {
+      setSaving((s) => { const n = { ...s }; delete n[pkg.id]; return n; });
+    }
+  };
+
+  const handleDelete = async (pkg) => {
+    if (!window.confirm(`Delete release "${pkg.title}"? This cannot be undone.`)) return;
+    setDeleting((d) => ({ ...d, [pkg.id]: true }));
+    try {
+      await deleteScenario(pkg.id);
+      setPackages((prev) => prev.filter((p) => p.id !== pkg.id));
+      onRefresh?.();
+    } catch { /* ignore */ } finally {
+      setDeleting((d) => { const n = { ...d }; delete n[pkg.id]; return n; });
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 24, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: 0, marginBottom: open ? 14 : 0 }}
+      >
+        <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)' }}>
+          EXISTING RELEASES
+        </span>
+        <span style={{ color: 'var(--muted)', fontSize: 10, fontFamily: 'var(--mono)' }}>
+          {open ? '▲' : '▼'} ({packages.length})
+        </span>
+      </button>
+
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {groups.map(([scenarioName, releases], gi) => (
+            <div key={scenarioName}>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', color: 'var(--muted)', marginBottom: 6, textTransform: 'uppercase' }}>
+                {scenarioName}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {releases.map((pkg, idx) => {
+                  const isEditing = pkg.id in editing;
+                  return (
+                    <div
+                      key={pkg.id}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }}
+                    >
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted)', minWidth: 28, flexShrink: 0 }}>
+                        {String(idx + 1).padStart(2, '0')}
+                      </span>
+                      {isEditing ? (
+                        <input
+                          autoFocus
+                          value={editing[pkg.id]}
+                          onChange={(e) => setEditing((d) => ({ ...d, [pkg.id]: e.target.value }))}
+                          onKeyDown={(e) => { if (e.key === 'Enter') handleSave(pkg); if (e.key === 'Escape') setEditing((d) => { const n = { ...d }; delete n[pkg.id]; return n; }); }}
+                          style={{ flex: 1, background: 'var(--bg)', border: '1px solid var(--primary)', borderRadius: 4, padding: '3px 7px', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit', outline: 'none' }}
+                        />
+                      ) : (
+                        <span style={{ flex: 1, color: 'var(--text)' }}>{pkg.title}</span>
+                      )}
+                      {isEditing ? (
+                        <>
+                          <button
+                            onClick={() => handleSave(pkg)}
+                            disabled={saving[pkg.id]}
+                            style={{ fontFamily: 'var(--mono)', fontSize: 10, padding: '3px 8px', background: 'var(--primary)', color: '#000', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                          >
+                            {saving[pkg.id] ? '...' : 'SAVE'}
+                          </button>
+                          <button
+                            onClick={() => setEditing((d) => { const n = { ...d }; delete n[pkg.id]; return n; })}
+                            style={{ fontFamily: 'var(--mono)', fontSize: 10, padding: '3px 8px', background: 'transparent', color: 'var(--muted)', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer' }}
+                          >
+                            ✕
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => setEditing((d) => ({ ...d, [pkg.id]: pkg.title }))}
+                            title="Edit title"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '2px 4px', fontSize: 13, lineHeight: 1 }}
+                          >
+                            ✎
+                          </button>
+                          <button
+                            onClick={() => handleDelete(pkg)}
+                            disabled={deleting[pkg.id]}
+                            title="Delete release"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '2px 4px', fontSize: 12, lineHeight: 1 }}
+                          >
+                            {deleting[pkg.id] ? '…' : '✕'}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

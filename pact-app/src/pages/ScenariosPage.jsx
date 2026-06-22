@@ -175,7 +175,7 @@ export default function ScenariosPage() {
 
                 {/* Release cards */}
                 <div className="ep-releases">
-                  {releases.map((pkg) => {
+                  {releases.map((pkg, releaseIdx) => {
                     const unlocked    = isAdmin || pkg.is_unlocked;
                     const files       = fileMap[pkg.id];
                     const expanded    = files !== undefined;
@@ -188,7 +188,7 @@ export default function ScenariosPage() {
                         <div className="ep-release-bar">
                           <div className="ep-release-bar-left">
                             <span className="ep-release-id">
-                              RELEASE {String(pkg.release_number).padStart(2, '0')}
+                              RELEASE {String(releaseIdx + 1).padStart(2, '0')}
                             </span>
                             {unlocked ? (
                               <span className="ep-auth-badge">
