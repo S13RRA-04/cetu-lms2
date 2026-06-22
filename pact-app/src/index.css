@@ -5551,21 +5551,6 @@ body {
   z-index: 8;
 }
 
-/* Edge vignette lives on the globe container — only darkens the globe area,
-   never touches the left rail or right-pane content layers. */
-.ops-globe-bg::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(ellipse at 50% 50%, transparent 42%, rgba(0,0,0,0.72) 100%),
-    radial-gradient(ellipse at 0%   0%,   rgba(0,0,0,0.55) 0%, transparent 55%),
-    radial-gradient(ellipse at 100% 0%,   rgba(0,0,0,0.55) 0%, transparent 55%),
-    radial-gradient(ellipse at 0%   100%, rgba(0,0,0,0.55) 0%, transparent 55%),
-    radial-gradient(ellipse at 100% 100%, rgba(0,0,0,0.55) 0%, transparent 55%);
-  z-index: 1;
-}
 
 /* ── Assignment page: Accessing classified document entry ─────────────────── */
 .ap-access-root {
