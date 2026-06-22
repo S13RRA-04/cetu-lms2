@@ -91,7 +91,7 @@ function TargetCard({ squad, enrollment, accent }) {
   const vc = (revealed && victim) ? victim.color : '#f59e0b';
 
   return (
-    <div className="ops-target-card" style={{ borderColor: `${vc}35`, position: 'relative', overflow: 'hidden' }}>
+    <div className="ops-target-card" style={{ borderColor: `${vc}35`, position: 'relative', overflow: 'hidden', isolation: 'isolate' }}>
       {revealed && victim && (
         <DataStream color={victim.color} opacity={0.055} fontSize={9} speedScale={0.7} />
       )}

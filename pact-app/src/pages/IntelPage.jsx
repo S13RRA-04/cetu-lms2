@@ -9,7 +9,7 @@ const NODE_CFG = {
   person:   { label: 'Person',   color: '#00b0ff', r: 30 },
   org:      { label: 'Org',      color: '#f59e0b', r: 30 },
   network:  { label: 'Network',  color: '#22c55e', r: 22 },
-  artifact: { label: 'Artifact', color: '#f97316', r: 28 },
+  artifact: { label: 'Artifact', color: '#a855f7', r: 28 },
 };
 const EDGE_COLOR = 'rgba(148,163,184,0.5)';
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -54,7 +54,7 @@ function NodeShape({ type, color, selected }) {
 }
 
 /* ── Toolbar button ─────────────────────────────────────────────────────── */
-function ToolBtn({ active, danger, onClick, title, children }) {
+function ToolBtn({ active, danger, onClick, title, label, children }) {
   return (
     <button
       className={`intel-tool-btn${active ? ' intel-tool-active' : ''}${danger ? ' intel-tool-danger' : ''}`}
@@ -62,6 +62,7 @@ function ToolBtn({ active, danger, onClick, title, children }) {
       title={title}
     >
       {children}
+      {label && <span className="intel-tool-label">{label}</span>}
     </button>
   );
 }
@@ -77,6 +78,7 @@ const IcPerson   = () => <svg viewBox="0 0 24 24" {...S}><circle cx="12" cy="7" 
 const IcBuilding = () => <svg viewBox="0 0 24 24" {...S}><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 22V12h6v10"/></svg>;
 const IcGlobe    = () => <svg viewBox="0 0 24 24" {...S}><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8M12 3a14.5 14.5 0 010 18"/></svg>;
 const IcFile     = () => <svg viewBox="0 0 24 24" {...S}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>;
+const IcPrint    = () => <svg viewBox="0 0 24 24" {...S}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>;
 
 /* ── Coordinate helpers ──────────────────────────────────────────────────── */
 function edgePoints(src, tgt) {
@@ -223,7 +225,8 @@ export default function IntelPage() {
     const addMatch = mode.match(/^add-(.+)/);
     if (addMatch) {
       const pos = svgPos(e.clientX, e.clientY);
-      const newNode = { id: uid(), type: addMatch[1], label: NODE_CFG[addMatch[1]]?.label ?? 'Node', sublabel: '', notes: '', x: Math.round(pos.x), y: Math.round(pos.y) };
+      const byName = user ? `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() : 'Unknown';
+      const newNode = { id: uid(), type: addMatch[1], label: NODE_CFG[addMatch[1]]?.label ?? 'Node', sublabel: '', notes: '', x: Math.round(pos.x), y: Math.round(pos.y), addedBy: byName, addedAt: new Date().toISOString() };
       setBoard(b => ({ ...b, nodes: [...b.nodes, newNode] }));
       setSelected({ kind: 'node', id: newNode.id });
       setEditLabel(newNode.label);
@@ -252,7 +255,8 @@ export default function IntelPage() {
       } else if (linkFrom !== node.id) {
         const exists = boardRef.current.edges.some(e2 => e2.source === linkFrom && e2.target === node.id);
         if (!exists) {
-          const newEdge = { id: uid(), source: linkFrom, target: node.id, label: '' };
+          const byName = user ? `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() : 'Unknown';
+          const newEdge = { id: uid(), source: linkFrom, target: node.id, label: '', addedBy: byName, addedAt: new Date().toISOString() };
           setBoard(b => ({ ...b, edges: [...b.edges, newEdge] }));
           setSelected({ kind: 'edge', id: newEdge.id });
           setDirty(true);
@@ -287,6 +291,63 @@ export default function IntelPage() {
     };
     transformRef.current = newT;
     setTransform(newT);
+  }
+
+  function handleExportPDF() {
+    const nodes = board.nodes;
+    if (!nodes.length) return;
+
+    const pad = 120;
+    const xs  = nodes.map(n => n.x);
+    const ys  = nodes.map(n => n.y);
+    const minX = Math.min(...xs) - pad;
+    const minY = Math.min(...ys) - pad;
+    const W    = Math.max(...xs) - minX + pad;
+    const H    = Math.max(...ys) - minY + pad;
+
+    const clone = svgRef.current.cloneNode(true);
+    clone.setAttribute('viewBox', `${minX} ${minY} ${W} ${H}`);
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    clone.removeAttribute('class');
+    clone.style.cssText = '';
+
+    // Reset pan/zoom transform
+    const tGroup = clone.querySelector('g[style]');
+    if (tGroup) tGroup.removeAttribute('style');
+
+    // Dark background behind everything
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('x', String(minX)); bg.setAttribute('y', String(minY));
+    bg.setAttribute('width', String(W)); bg.setAttribute('height', String(H));
+    bg.setAttribute('fill', '#03060a');
+    clone.insertBefore(bg, clone.firstChild);
+
+    const svgStr = new XMLSerializer().serializeToString(clone);
+    const date   = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html>
+<html><head>
+  <meta charset="utf-8"/>
+  <title>Intel Board — ${date}</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{background:#03060a;display:flex;align-items:center;justify-content:center;min-height:100vh}
+    svg{width:100vw;height:100vh;max-width:100%;max-height:100%}
+    #ctrl{position:fixed;top:12px;right:12px;display:flex;gap:8px;z-index:9}
+    #ctrl button{padding:6px 14px;border:none;cursor:pointer;font-family:monospace;font-size:11px;letter-spacing:.1em;border-radius:3px}
+    #pb{background:#00b0ff;color:#000}#cb{background:rgba(255,255,255,.08);color:#94a3b8;border:1px solid rgba(255,255,255,.12)}
+    @media print{#ctrl{display:none}}
+  </style>
+</head><body>
+  <div id="ctrl">
+    <button id="pb" onclick="window.print()">PRINT / SAVE AS PDF</button>
+    <button id="cb" onclick="window.close()">CLOSE</button>
+  </div>
+  ${svgStr}
+</body></html>`);
+    win.document.close();
   }
 
   function handleFit() {
@@ -366,6 +427,7 @@ export default function IntelPage() {
           <DecryptText text="INTEL WORKSTATION // LINK ANALYSIS" speed={18} hold={3} />
         </span>
         <span className="intel-header-squad">{user?.first_name ? `${user.first_name} ${user.last_name}` : ''}</span>
+        <span className="intel-header-squad-badge">SQUAD BOARD · ALL MEMBERS CAN VIEW &amp; EDIT</span>
         <span className="intel-header-spacer" />
         <span className={`intel-save-status intel-save-${saveStatus}`}>
           {saveStatus === 'saving' && 'SAVING...'}
@@ -384,44 +446,50 @@ export default function IntelPage() {
         {/* Left toolbar */}
         <div className="intel-sidebar">
           <div className="intel-tool-group">
-            <ToolBtn active={mode === 'select'} onClick={() => { setMode('select'); setLinkFrom(null); }} title="Select / Pan">
+            <ToolBtn active={mode === 'select'} onClick={() => { setMode('select'); setLinkFrom(null); }} title="Select / Pan" label="SELECT">
               <IcPointer />
             </ToolBtn>
           </div>
 
           <div className="intel-tool-sep" />
 
+          <div className="intel-sidebar-section-label">ADD NODE</div>
           <div className="intel-tool-group">
-            <ToolBtn active={addType === 'person'}   onClick={() => setMode('add-person')}   title="Add Person">
+            <ToolBtn active={addType === 'person'}   onClick={() => setMode('add-person')}   title="Add Person"                   label="PERSON">
               <IcPerson />
             </ToolBtn>
-            <ToolBtn active={addType === 'org'}      onClick={() => setMode('add-org')}      title="Add Organization">
+            <ToolBtn active={addType === 'org'}      onClick={() => setMode('add-org')}      title="Add Organization"             label="ORG">
               <IcBuilding />
             </ToolBtn>
-            <ToolBtn active={addType === 'network'}  onClick={() => setMode('add-network')}  title="Add Network / IP / Domain">
+            <ToolBtn active={addType === 'network'}  onClick={() => setMode('add-network')}  title="Add Network / IP / Domain"    label="NETWORK">
               <IcGlobe />
             </ToolBtn>
-            <ToolBtn active={addType === 'artifact'} onClick={() => setMode('add-artifact')} title="Add File / Artifact / Event">
+            <ToolBtn active={addType === 'artifact'} onClick={() => setMode('add-artifact')} title="Add File / Artifact / Event"  label="ARTIFACT">
               <IcFile />
             </ToolBtn>
           </div>
 
           <div className="intel-tool-sep" />
 
+          <div className="intel-sidebar-section-label">EDIT</div>
           <div className="intel-tool-group">
-            <ToolBtn active={mode === 'link'} onClick={() => { setMode('link'); setSelected(null); }} title="Draw connection">
+            <ToolBtn active={mode === 'link'} onClick={() => { setMode('link'); setSelected(null); }} title="Draw connection" label="LINK">
               <IcLink />
             </ToolBtn>
-            <ToolBtn danger onClick={handleDelete} title="Delete selected (Del)">
+            <ToolBtn danger onClick={handleDelete} title="Delete selected (Del)" label="DELETE">
               <IcTrash />
             </ToolBtn>
           </div>
 
           <div className="intel-tool-sep" />
 
+          <div className="intel-sidebar-section-label">VIEW</div>
           <div className="intel-tool-group">
-            <ToolBtn onClick={handleFit} title="Fit to screen">
+            <ToolBtn onClick={handleFit} title="Fit all nodes to screen" label="FIT">
               <IcFit />
+            </ToolBtn>
+            <ToolBtn onClick={handleExportPDF} title="Export to PDF" label="EXPORT">
+              <IcPrint />
             </ToolBtn>
           </div>
 
@@ -606,6 +674,20 @@ export default function IntelPage() {
                   placeholder="Role, IP, org, date..."
                 />
 
+                {selectedNode.addedBy && (
+                  <>
+                    <label className="intel-panel-label" style={{ marginTop: 10 }}>ADDED BY</label>
+                    <div className="intel-panel-meta">
+                      {selectedNode.addedBy}
+                      {selectedNode.addedAt && (
+                        <span className="intel-panel-meta-date">
+                          {new Date(selectedNode.addedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      )}
+                    </div>
+                  </>
+                )}
+
                 <button className="intel-panel-delete" onClick={handleDelete}>
                   <IcTrash /> REMOVE NODE
                 </button>
@@ -630,6 +712,20 @@ export default function IntelPage() {
                   onChange={e => handleEdgeLabel(selectedEdge.id, e.target.value)}
                   placeholder="e.g. employed at, controls..."
                 />
+
+                {selectedEdge.addedBy && (
+                  <>
+                    <label className="intel-panel-label" style={{ marginTop: 10 }}>ADDED BY</label>
+                    <div className="intel-panel-meta">
+                      {selectedEdge.addedBy}
+                      {selectedEdge.addedAt && (
+                        <span className="intel-panel-meta-date">
+                          {new Date(selectedEdge.addedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      )}
+                    </div>
+                  </>
+                )}
 
                 <button className="intel-panel-delete" onClick={handleDelete}>
                   <IcTrash /> REMOVE CONNECTION
