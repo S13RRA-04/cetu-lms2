@@ -9,14 +9,7 @@ import {
   unlockAssignment,
   lockAssignment,
   getScenarios,
-  updateScenario,
-  deleteScenario,
-  unlockScenario,
-  lockScenario,
   browseScenarioR2,
-  presignScenarioUpload,
-  deleteScenarioR2Object,
-  createScenario,
   getCourseContent,
   createContentLink,
   uploadContentFile,
@@ -156,10 +149,6 @@ export default function AdminPage() {
   // top-level admin panel: 'grading' | 'scenarios' | 'content' | 'library' | 'campaign'
   const [adminPanel, setAdminPanel] = useState('grading');
 
-  // scenarios state
-  const [scenarios,    setScenarios]    = useState([]);
-  const [scenariosLoaded, setScenariosLoaded] = useState(false);
-
   // course content state
   const [contentItems,   setContentItems]   = useState([]);
   const [contentLoaded,  setContentLoaded]  = useState(false);
@@ -179,15 +168,6 @@ export default function AdminPage() {
       setCohorts(Array.isArray(rawC) ? rawC : []);
     }).finally(() => setLoading(false));
   }, []);
-
-  const switchToScenarios = useCallback(() => {
-    setAdminPanel('scenarios');
-    if (!scenariosLoaded) {
-      getScenarios()
-        .then((data) => { setScenarios(Array.isArray(data) ? data : []); setScenariosLoaded(true); })
-        .catch(() => setScenariosLoaded(true));
-    }
-  }, [scenariosLoaded]);
 
   const switchToContent = useCallback(() => {
     setAdminPanel('content');
@@ -249,12 +229,6 @@ export default function AdminPage() {
           Grade Center
         </button>
         <button
-          className={`admin-panel-tab${adminPanel === 'scenarios' ? ' active' : ''}`}
-          onClick={switchToScenarios}
-        >
-          Scenario Gating
-        </button>
-        <button
           className={`admin-panel-tab${adminPanel === 'content' ? ' active' : ''}`}
           onClick={switchToContent}
         >
@@ -264,13 +238,15 @@ export default function AdminPage() {
           className={`admin-panel-tab${adminPanel === 'library' ? ' active' : ''}`}
           onClick={switchToLibrary}
         >
-          Scenario Drops
+          Content Gating
         </button>
       </div>
 
       {adminPanel === 'library' ? (
-        <ScenarioDropsPanel
+        <ContentGatingPanel
+          assignments={assignments}
           cohorts={cohorts}
+          onAssignmentsChange={setAssignments}
           onContentPublished={() => setContentLoaded(false)}
         />
       ) : adminPanel === 'content' ? (
@@ -279,13 +255,6 @@ export default function AdminPage() {
           cohorts={cohorts}
           loaded={contentLoaded}
           onItemsChange={setContentItems}
-        />
-      ) : adminPanel === 'scenarios' ? (
-        <ScenarioGatingPanel
-          scenarios={scenarios}
-          cohorts={cohorts}
-          loaded={scenariosLoaded}
-          onScenariosChange={setScenarios}
         />
       ) : (
       <div className="admin-layout">
@@ -539,176 +508,111 @@ function SquadSubmissions({ groups, grades, savedGrades, assignment, onSelect, o
   );
 }
 
-/* ── R2 File Browser ── */
-
-function R2FileBrowser({ rootPrefix }) {
-  const [prefix,  setPrefix]  = useState(rootPrefix);
-  const [data,    setData]    = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState('');
-
-  const load = useCallback((p) => {
-    setLoading(true);
-    setError('');
-    browseScenarioR2(p)
-      .then((d) => { setData(d); setPrefix(p); })
-      .catch(() => setError('Failed to load R2 contents.'))
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => { load(rootPrefix); }, [rootPrefix, load]);
-
-  /* breadcrumb segments from rootPrefix to current prefix */
-  const crumbs = (() => {
-    const rel   = prefix.slice(rootPrefix.length);
-    const parts = rel.split('/').filter(Boolean);
-    return [{ label: rootPrefix.split('/').filter(Boolean).pop() ?? 'root', prefix: rootPrefix }]
-      .concat(parts.map((p, i) => ({
-        label:  p,
-        prefix: rootPrefix + parts.slice(0, i + 1).join('/') + '/',
-      })));
-  })();
-
-  const handleDelete = async (key, name) => {
-    if (!window.confirm(`Delete "${name}"?`)) return;
-    try {
-      await deleteScenarioR2Object(key);
-      load(prefix);
-    } catch { setError('Delete failed.'); }
-  };
-
-  return (
-    <div className="r2-browser">
-      {/* breadcrumb */}
-      <div className="r2-breadcrumb">
-        {crumbs.map((c, i) => (
-          <span key={c.prefix}>
-            {i > 0 && <span className="r2-crumb-sep">/</span>}
-            <button
-              className={`r2-crumb${i === crumbs.length - 1 ? ' r2-crumb-active' : ''}`}
-              onClick={() => load(c.prefix)}
-              disabled={i === crumbs.length - 1}
-            >{c.label}</button>
-          </span>
-        ))}
-      </div>
-
-      {error && <div className="err-msg" style={{ marginBottom: 8 }}>{error}</div>}
-
-      {loading ? (
-        <div style={{ padding: 16, textAlign: 'center' }}><div className="spinner" /></div>
-      ) : data && (
-        <div className="r2-listing">
-          {data.folders.length === 0 && data.files.length === 0 && (
-            <p style={{ color: 'var(--muted)', fontSize: 13, padding: '8px 0' }}>Empty folder.</p>
-          )}
-          {data.folders.map((f) => (
-            <button key={f.prefix} className="r2-row r2-folder" onClick={() => load(f.prefix)}>
-              <span className="r2-icon">📁</span>
-              <span className="r2-name">{f.name}/</span>
-            </button>
-          ))}
-          {data.files.map((f) => (
-            <div key={f.key} className="r2-row r2-file">
-              <span className="r2-icon">📄</span>
-              <a href={f.url} target="_blank" rel="noopener noreferrer" className="r2-name r2-file-link">{f.name}</a>
-              {f.size != null && <span className="r2-size">{formatR2Size(f.size)}</span>}
-              <button className="r2-del-btn" onClick={() => handleDelete(f.key, f.name)} title="Delete">✕</button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <ScenarioUploadZone prefix={prefix} onUploaded={() => load(prefix)} />
-    </div>
-  );
-}
-
-function ScenarioUploadZone({ prefix, onUploaded }) {
-  const inputRef   = useRef();
-  const [uploading, setUploading] = useState(false);
-  const [progress,  setProgress]  = useState(null);
-  const [error,     setError]     = useState('');
-
-  const upload = async (file) => {
-    setUploading(true);
-    setProgress(0);
-    setError('');
-    try {
-      const key = prefix + file.name;
-      const { uploadUrl } = await presignScenarioUpload(key, file.type || 'application/octet-stream');
-
-      await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('PUT', uploadUrl);
-        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-        xhr.upload.onprogress = (e) => { if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100)); };
-        xhr.onload  = () => (xhr.status < 300 ? resolve() : reject(new Error(`Upload failed: ${xhr.status}`)));
-        xhr.onerror = () => reject(new Error('Upload failed'));
-        xhr.send(file);
-      });
-
-      setProgress(null);
-      onUploaded();
-    } catch (e) {
-      setError(e.message ?? 'Upload failed.');
-      setProgress(null);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const onDrop = (e) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file) upload(file);
-  };
-
-  return (
-    <div
-      className={`r2-upload-zone${uploading ? ' r2-uploading' : ''}`}
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={onDrop}
-      onClick={() => !uploading && inputRef.current?.click()}
-    >
-      <input ref={inputRef} type="file" style={{ display: 'none' }} onChange={(e) => { if (e.target.files[0]) upload(e.target.files[0]); }} />
-      {uploading ? (
-        <div className="r2-upload-progress">
-          <div className="r2-progress-bar"><div className="r2-progress-fill" style={{ width: `${progress ?? 0}%` }} /></div>
-          <span className="r2-progress-label">{progress != null ? `${progress}%` : 'Uploading…'}</span>
-        </div>
-      ) : (
-        <span>↑ Drop file here or click to upload into <code>{prefix}</code></span>
-      )}
-      {error && <div className="err-msg" style={{ marginTop: 6 }}>{error}</div>}
-    </div>
-  );
-}
-
 function formatR2Size(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/* ── Scenario Drops Panel ── */
+/* ── Content Gating Panel ── */
 
-function ScenarioDropsPanel({ cohorts, onContentPublished }) {
+function ContentGatingPanel({ assignments, cohorts, onAssignmentsChange, onContentPublished }) {
+  const [subTab, setSubTab] = useState('drops');
+
+  const gatingItems = assignments.filter((a) => a.type === 'assessment' || a.type === 'survey');
+
   return (
-    <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)', marginBottom: 4 }}>
-          SCENARIO DROP CONTROL
-        </div>
-        <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>
-          Browse R2 scenario packages. Release folders to specific cohorts and squads, with optional cipher challenge gates.
-        </p>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+      <div className="admin-mode-tabs" style={{ padding: '0 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+        <button
+          className={`admin-mode-tab${subTab === 'drops' ? ' active' : ''}`}
+          onClick={() => setSubTab('drops')}
+        >
+          Scenario Drops
+        </button>
+        <button
+          className={`admin-mode-tab${subTab === 'gates' ? ' active' : ''}`}
+          onClick={() => setSubTab('gates')}
+        >
+          Assessments &amp; Surveys
+        </button>
       </div>
-      <R2PublishBrowser
-        rootPrefix=""
-        cohorts={cohorts}
-        onPublished={onContentPublished}
-      />
+
+      {subTab === 'drops' ? (
+        <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)', marginBottom: 4 }}>
+              SCENARIO DROP CONTROL
+            </div>
+            <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>
+              Browse R2 scenario packages. Release folders to specific cohorts and squads, with optional cipher challenge gates.
+            </p>
+          </div>
+          <R2PublishBrowser rootPrefix="" cohorts={cohorts} onPublished={onContentPublished} />
+        </div>
+      ) : (
+        <AssessmentSurveyGating
+          assignments={gatingItems}
+          cohorts={cohorts}
+          onUnlocksChange={(id, unlocks) =>
+            onAssignmentsChange((prev) => prev.map((a) => a.id === id ? { ...a, unlocks } : a))
+          }
+        />
+      )}
+    </div>
+  );
+}
+
+function AssessmentSurveyGating({ assignments, cohorts, onUnlocksChange }) {
+  const [selected, setSelected] = useState(null);
+
+  return (
+    <div className="admin-layout">
+      <div className="admin-left">
+        {assignments.length === 0 && (
+          <p style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 16px' }}>
+            No assessments or surveys found.
+          </p>
+        )}
+        {assignments.map((a) => {
+          const color = TYPE_COLOR[a.type] ?? TYPE_COLOR.assessment;
+          return (
+            <button
+              key={a.id}
+              className={`admin-assign-btn${selected?.id === a.id ? ' active' : ''}`}
+              onClick={() => setSelected(a)}
+            >
+              <span className="admin-assign-type" style={{ color }}>{a.type.toUpperCase()}</span>
+              <span className="admin-assign-title">{a.title}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="admin-right">
+        {!selected ? (
+          <div className="admin-empty">
+            <p>Select an assessment or survey to manage cohort access.</p>
+          </div>
+        ) : (
+          <>
+            <div className="admin-right-header">
+              <div>
+                <div className="admin-right-title">{selected.title}</div>
+                <div className="admin-right-sub">{selected.type}</div>
+              </div>
+            </div>
+            <GatingPanel
+              key={selected.id}
+              assignment={selected}
+              cohorts={cohorts}
+              onUnlocksChange={(unlocks) => {
+                setSelected((s) => ({ ...s, unlocks }));
+                onUnlocksChange(selected.id, unlocks);
+              }}
+            />
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -838,18 +742,24 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
     return '';
   };
   const inferScenario = () => {
-    const parts = (currentPrefix).split('/').filter(Boolean);
-    // pact/scenarios/{scenario}/...
+    // Include folder.name so the scenario segment is captured even when releasing
+    // the top-level scenario folder itself (currentPrefix ends at 'scenarios/').
+    const parts = (currentPrefix + folder.name + '/').split('/').filter(Boolean);
     const idx = parts.findIndex((p) => p.toLowerCase() === 'scenarios');
-    return idx >= 0 && parts[idx + 1] ? parts[idx + 1] : '';
+    return idx >= 0 ? (parts[idx + 1] ?? '') : '';
   };
 
-  const defaultTitle   = folder.name.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  const defaultTitle = (() => {
+    const sc  = inferScenario().replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    const dn  = inferDropNum();
+    return sc && dn ? `${sc} — Drop ${dn}` : folder.name.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  })();
   const [cohortId,     setCohortId]     = useState(() => cohorts[0]?.id ?? '');
   const [squads,       setSquads]       = useState([]);
   const [squadNum,     setSquadNum]     = useState('all');
   const [matchedSquad, setMatchedSquad] = useState(null); // { squad, score }
   const [title,        setTitle]        = useState(defaultTitle);
+  const [description,  setDescription]  = useState('');
   const [releaseNum,   setReleaseNum]   = useState(inferDropNum);
   const [scenarioName, setScenarioName] = useState(inferScenario);
   const [cipher,       setCipher]       = useState('none');
@@ -908,6 +818,7 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
         cohort_id:     cohortId,
         r2_key:        folder.prefix,
         title:         title.trim(),
+        description:   description.trim() || undefined,
         scenario_name: scenarioName.trim() || folder.name,
         squad_number:  squadNum === 'all' ? null : Number(squadNum),
       });
@@ -1008,8 +919,8 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
 
         {/* Title */}
         <div className="form-field" style={{ margin: 0 }}>
-          <label>Title *</label>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} style={{ width: '100%' }} />
+          <label>Release title * <span style={{ fontWeight: 400, color: 'var(--muted)', fontSize: 11 }}>(shown to students)</span></label>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} style={{ width: '100%' }} placeholder="e.g. Operation BRKR — Drop 1" />
         </div>
 
         {/* Drop # */}
@@ -1018,6 +929,18 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
           <input type="number" min={1} max={6} value={releaseNum} onChange={(e) => setReleaseNum(e.target.value)}
             placeholder="e.g. 1" style={{ width: '100%' }} />
         </div>
+      </div>
+
+      {/* Description */}
+      <div className="form-field" style={{ margin: '0 0 10px' }}>
+        <label>Description <span style={{ fontWeight: 400, color: 'var(--muted)', fontSize: 11 }}>(optional — displayed below the release title)</span></label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={2}
+          placeholder="e.g. Network traffic captures and server artefacts from the initial breach window."
+          style={{ width: '100%', resize: 'vertical' }}
+        />
       </div>
 
       {/* Cipher challenge */}
@@ -1191,288 +1114,6 @@ function PublishFileForm({ file, onPublished, onCancel }) {
           {saving ? 'Publishing…' : 'Add to Course Content'}
         </button>
         <button className="btn-secondary" onClick={onCancel}>Cancel</button>
-      </div>
-    </div>
-  );
-}
-
-/* ── Scenario Gating Panel ── */
-
-const SQUAD_LABELS = { 1: 'Squad 1 — Redstone Memorial', 2: 'Squad 2 — Dogwood Hotel', 3: 'Squad 3 — CyberDyne', 4: 'Squad 4 — PixelPlay' };
-
-function ScenarioPackageForm({ initial, onSave, onCancel }) {
-  const [form, setForm] = useState({
-    title:          initial?.title          ?? '',
-    description:    initial?.description    ?? '',
-    scenario_name:  initial?.scenario_name  ?? '',
-    release_number: initial?.release_number ?? 1,
-    squad_number:   initial?.squad_number   ?? '',
-    is_published:   initial?.is_published   ?? false,
-  });
-  const [saving, setSaving] = useState(false);
-  const [err,    setErr]    = useState('');
-
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-
-  const handleSave = async () => {
-    if (!form.title.trim()) { setErr('Title is required.'); return; }
-    setSaving(true);
-    setErr('');
-    try {
-      await onSave({
-        ...form,
-        release_number: parseInt(form.release_number, 10) || 1,
-        squad_number:   form.squad_number !== '' ? parseInt(form.squad_number, 10) : null,
-      });
-    } catch (e) {
-      setErr(e.response?.data?.error?.message ?? 'Save failed');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="scenario-form">
-      <div className="scenario-form-row">
-        <label className="admin-grade-label">Title *</label>
-        <input className="admin-score-input" style={{ width: '100%' }} value={form.title}
-          onChange={(e) => set('title', e.target.value)} placeholder="e.g. Operation Nightfall" />
-      </div>
-      <div className="scenario-form-row">
-        <label className="admin-grade-label">Description</label>
-        <textarea className="admin-feedback-textarea" value={form.description}
-          onChange={(e) => set('description', e.target.value)} rows={2}
-          placeholder="Brief scenario overview…" />
-      </div>
-      <div className="scenario-form-row" style={{ display: 'flex', gap: 16 }}>
-        <div style={{ flex: 1 }}>
-          <label className="admin-grade-label">Release #</label>
-          <input type="number" min={1} className="admin-score-input" value={form.release_number}
-            onChange={(e) => set('release_number', e.target.value)} style={{ width: '100%' }} />
-        </div>
-        <div style={{ flex: 2 }}>
-          <label className="admin-grade-label">Squad (leave blank for all squads)</label>
-          <select
-            value={form.squad_number}
-            onChange={(e) => set('squad_number', e.target.value)}
-            style={{ width: '100%', padding: '7px 10px', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13 }}
-          >
-            <option value="">All squads</option>
-            {[1, 2, 3, 4].map((n) => (
-              <option key={n} value={n}>{SQUAD_LABELS[n]}</option>
-            ))}
-          </select>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, paddingBottom: 2 }}>
-          <input type="checkbox" id="sp-pub" checked={!!form.is_published}
-            onChange={(e) => set('is_published', e.target.checked)} />
-          <label htmlFor="sp-pub" style={{ fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>
-            Published
-          </label>
-        </div>
-      </div>
-      {err && <div className="err-msg" style={{ marginBottom: 8 }}>{err}</div>}
-      <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-        <button className="btn-submit" style={{ width: 'auto' }} onClick={handleSave} disabled={saving}>
-          {saving ? 'Saving…' : 'Save Changes'}
-        </button>
-        <button className="admin-back-btn" onClick={onCancel}>Cancel</button>
-      </div>
-    </div>
-  );
-}
-
-function ScenarioGatingPanel({ scenarios, cohorts, loaded, onScenariosChange }) {
-  const [selected,   setSelected]   = useState(null);
-  const [editTarget, setEditTarget] = useState(null);
-  const [deleting,   setDeleting]   = useState({});
-  const [rightTab,   setRightTab]   = useState('files'); // 'files' | 'access'
-
-  const handleUpdate = async (data) => {
-    const pkg = await updateScenario(editTarget.id, data);
-    onScenariosChange((prev) => prev.map((p) => p.id === pkg.id ? { ...p, ...pkg } : p));
-    const updated = { ...editTarget, ...pkg };
-    setEditTarget(null);
-    setSelected(updated);
-  };
-
-  const handleDelete = async (pkg) => {
-    if (!window.confirm(`Delete "${pkg.title}"? This cannot be undone.`)) return;
-    setDeleting((d) => ({ ...d, [pkg.id]: true }));
-    try {
-      await deleteScenario(pkg.id);
-      onScenariosChange((prev) => prev.filter((p) => p.id !== pkg.id));
-      if (selected?.id === pkg.id) setSelected(null);
-    } catch {}
-    setDeleting((d) => ({ ...d, [pkg.id]: false }));
-  };
-
-  if (!loaded) return <div style={{ padding: 32, textAlign: 'center' }}><div className="spinner" /></div>;
-
-  return (
-    <div className="admin-layout">
-      {/* Left: package list */}
-      <div className="admin-left">
-        <div className="scenario-sync-note">
-          Packages auto-populate from R2. Use the Files tab to upload and manage scenario files directly.
-        </div>
-
-        <div className="admin-assignment-list">
-          {scenarios.length === 0 && (
-            <p style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 16px' }}>
-              No files found in R2 yet.
-            </p>
-          )}
-          {scenarios.map((pkg) => (
-            <button
-              key={pkg.id}
-              className={`admin-assign-btn${selected?.id === pkg.id ? ' active' : ''}`}
-              onClick={() => { setSelected(pkg); setEditTarget(null); }}
-            >
-              <span className="admin-assign-type" style={{ color: 'var(--primary)' }}>
-                PKG {pkg.release_number}{pkg.squad_number ? ` · S${pkg.squad_number}` : ''}
-              </span>
-              <span className="admin-assign-title">{pkg.title}</span>
-              {!pkg.is_published && <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 4 }}>draft</span>}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Right: edit form or cohort gating */}
-      <div className="admin-right">
-        {editTarget && (
-          <>
-            <div className="admin-right-header">
-              <div className="admin-right-title">Edit Package</div>
-              <button className="admin-back-btn" onClick={() => setEditTarget(null)}>Cancel</button>
-            </div>
-            <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
-              <ScenarioPackageForm initial={editTarget} onSave={handleUpdate} onCancel={() => setEditTarget(null)} />
-            </div>
-          </>
-        )}
-
-        {!editTarget && !selected && (
-          <div className="admin-empty"><p>Select a package to manage cohort access.</p></div>
-        )}
-
-        {!editTarget && selected && (
-          <>
-            <div className="admin-right-header">
-              <div>
-                <div className="admin-right-title">{selected.title}</div>
-                <div className="admin-right-sub">
-                  Package {selected.release_number} · {selected.file_name}
-                  {!selected.is_published && ' · Draft'}
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                <button className="admin-back-btn" onClick={() => setEditTarget(selected)}>Edit</button>
-                <button
-                  className="admin-back-btn"
-                  style={{ color: '#ef4444', borderColor: '#ef4444' }}
-                  onClick={() => handleDelete(selected)}
-                  disabled={deleting[selected.id]}
-                >
-                  {deleting[selected.id] ? '…' : 'Delete'}
-                </button>
-              </div>
-            </div>
-
-            <div className="scenario-tabs">
-              <button className={`scenario-tab${rightTab === 'files' ? ' active' : ''}`} onClick={() => setRightTab('files')}>Files</button>
-              <button className={`scenario-tab${rightTab === 'access' ? ' active' : ''}`} onClick={() => setRightTab('access')}>Cohort Access</button>
-            </div>
-
-            {rightTab === 'files' && (
-              <div style={{ padding: '12px 16px', overflowY: 'auto', flex: 1 }}>
-                <R2FileBrowser key={selected.id} rootPrefix={selected.r2_key} />
-              </div>
-            )}
-
-            {rightTab === 'access' && (
-              <ScenarioGatingCohorts
-                key={selected.id}
-                pkg={selected}
-                cohorts={cohorts}
-                onUnlocksChange={(unlocks) => {
-                  const updated = { ...selected, unlocks };
-                  setSelected(updated);
-                  onScenariosChange((prev) => prev.map((p) => p.id === selected.id ? updated : p));
-                }}
-              />
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ScenarioGatingCohorts({ pkg, cohorts, onUnlocksChange }) {
-  const [unlockedIds, setUnlockedIds] = useState(
-    () => new Set((pkg.unlocks ?? []).map((u) => u.cohort_id))
-  );
-  const [busy,   setBusy]   = useState({});
-  const [errors, setErrors] = useState({});
-
-  const toggle = async (cohortId) => {
-    const isUnlocked = unlockedIds.has(cohortId);
-    setBusy((b) => ({ ...b, [cohortId]: true }));
-    setErrors((e) => ({ ...e, [cohortId]: null }));
-    try {
-      if (isUnlocked) {
-        await lockScenario(pkg.id, cohortId);
-        const next = new Set(unlockedIds);
-        next.delete(cohortId);
-        setUnlockedIds(next);
-        onUnlocksChange((pkg.unlocks ?? []).filter((u) => u.cohort_id !== cohortId));
-      } else {
-        await unlockScenario(pkg.id, cohortId);
-        setUnlockedIds((s) => new Set([...s, cohortId]));
-        onUnlocksChange([...(pkg.unlocks ?? []), { cohort_id: cohortId }]);
-      }
-    } catch (err) {
-      setErrors((e) => ({ ...e, [cohortId]: err.response?.data?.error?.message ?? 'Action failed' }));
-    } finally {
-      setBusy((b) => ({ ...b, [cohortId]: false }));
-    }
-  };
-
-  if (!cohorts.length) {
-    return <div className="admin-empty"><p>No cohorts found for this course.</p></div>;
-  }
-
-  return (
-    <div className="admin-gating">
-      <p className="admin-gating-desc">
-        Control which cohorts can download this scenario package.
-      </p>
-      <div className="admin-gating-list">
-        {cohorts.map((c) => {
-          const unlocked = unlockedIds.has(c.id);
-          return (
-            <div key={c.id} className="admin-gating-row">
-              <div className="admin-gating-info">
-                <span className="admin-gating-name">{c.name}</span>
-                <span className={`admin-gating-badge ${unlocked ? 'badge-unlocked' : 'badge-locked'}`}>
-                  {unlocked ? '🔓 Released' : '🔒 Locked'}
-                </span>
-              </div>
-              {errors[c.id] && (
-                <div className="err-msg" style={{ fontSize: 11, padding: '4px 0' }}>{errors[c.id]}</div>
-              )}
-              <button
-                className={`admin-gate-btn ${unlocked ? 'gate-lock' : 'gate-unlock'}`}
-                onClick={() => toggle(c.id)}
-                disabled={busy[c.id]}
-              >
-                {busy[c.id] ? '…' : unlocked ? 'Lock' : 'Release'}
-              </button>
-            </div>
-          );
-        })}
       </div>
     </div>
   );

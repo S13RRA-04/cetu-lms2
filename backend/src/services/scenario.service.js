@@ -119,15 +119,15 @@ async function listForStudent(courseId, userId) {
     order: [['release_number', 'ASC']],
   });
 
-  // Filter out packages assigned to a different squad
-  const visible = packages.filter(
-    (p) => p.squad_number == null || p.squad_number === studentSquadNumber
+  // Only show packages that are unlocked for this student's cohort,
+  // and only those assigned to their squad (or broadcast to all squads).
+  const unlocked = packages.filter(
+    (p) =>
+      unlockedSet.has(p.id) &&
+      (p.squad_number == null || p.squad_number === studentSquadNumber)
   );
 
-  return visible.map((p) => ({
-    ...p.toJSON(),
-    is_unlocked: unlockedSet.has(p.id),
-  }));
+  return unlocked.map((p) => ({ ...p.toJSON(), is_unlocked: true }));
 }
 
 async function listForAdmin(courseId) {
@@ -249,7 +249,7 @@ async function deleteR2Object(key) {
   immediately unlock it for the specified cohort. Assigns release_number
   as max(existing) + 1 across the course.
 */
-async function quickRelease(courseId, cohortId, { r2_key, title, scenario_name, squad_number, unlocker_id }) {
+async function quickRelease(courseId, cohortId, { r2_key, title, scenario_name, squad_number, unlocker_id, description }) {
   const cohort = await Cohort.findByPk(cohortId);
   if (!cohort) throw new (require('../utils/errors').NotFoundError)('Cohort');
 
@@ -262,6 +262,7 @@ async function quickRelease(courseId, cohortId, { r2_key, title, scenario_name, 
     course_id:      courseId,
     title:          title || file_name,
     scenario_name:  scenario_name || title || file_name,
+    description:    description || null,
     file_name,
     r2_key,
     release_number,

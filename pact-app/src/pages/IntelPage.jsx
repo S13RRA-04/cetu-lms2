@@ -484,7 +484,7 @@ export default function IntelPage() {
                   <circle cx="0" cy="0" r="1" fill="rgba(0,140,220,0.12)" />
                 </pattern>
               </defs>
-              <rect x="-9999" y="-9999" width="19998" height="19998" fill="url(#intel-grid)" />
+              <rect x="-9999" y="-9999" width="19998" height="19998" fill="url(#intel-grid)" pointerEvents="none" />
 
               {/* Edges */}
               {board.edges.map((edge) => {
