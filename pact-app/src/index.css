@@ -70,6 +70,106 @@
   --shadow-lg:  0 8px 32px rgba(0, 0, 0, 0.7);
 }
 
+/* ── Light mode ─────────────────────────────────────────────────────────────── */
+.ops-room.ops-light {
+  --bg:         #dce6f2;
+  --surface:    #eaf1f9;
+  --surface-2:  #e0ebf5;
+  --card:       #f4f8fd;
+  --card-hi:    #ffffff;
+  --border:     rgba(20, 60, 110, 0.13);
+  --border-hi:  rgba(20, 60, 110, 0.22);
+  --green-lt:   rgba(16, 185, 129, 0.12);
+  --warning-lt: rgba(245, 158, 11, 0.12);
+  --danger-lt:  rgba(239, 68, 68, 0.12);
+  --text:       #2e5070;
+  --bright:     #0e2540;
+  --muted:      #7090ae;
+  --shadow-sm:  0 2px 8px rgba(10, 50, 110, 0.1);
+  --shadow:     0 4px 20px rgba(10, 50, 110, 0.14);
+  --shadow-lg:  0 8px 32px rgba(10, 50, 110, 0.18);
+}
+
+/* Rail background + border */
+.ops-room.ops-light .ops-left-rail {
+  background: rgba(225, 236, 250, 0.97);
+  border-right-color: rgba(20, 60, 110, 0.12);
+}
+.ops-room.ops-light .ops-left-rail::after {
+  background: linear-gradient(180deg, transparent, rgba(30, 100, 200, 0.05) 50%, transparent);
+}
+/* Brand */
+.ops-room.ops-light .ops-brand { border-bottom-color: rgba(20, 60, 110, 0.09); }
+.ops-room.ops-light .ops-brand-sub { color: #7aa0c0; }
+/* Target card */
+.ops-room.ops-light .ops-target-body { background: rgba(255, 255, 255, 0.55); }
+.ops-room.ops-light .ops-target-sector { color: #6a90b8; }
+.ops-room.ops-light .ops-target-code { color: #8aaece; }
+.ops-room.ops-light .ops-target-redacted { color: rgba(14, 37, 64, 0.18); }
+.ops-room.ops-light .ops-target-pending { color: #c07820; }
+/* Section labels */
+.ops-room.ops-light .ops-rail-section-label { color: #7aa0c0; }
+/* Nav items */
+.ops-room.ops-light .ops-nav-item { color: #3a5e7e; }
+.ops-room.ops-light .ops-nav-item:hover { background: rgba(0, 0, 0, 0.05); color: #1a3e5e; }
+.ops-room.ops-light .ops-nav-active { background: rgba(0, 120, 200, 0.1); }
+/* Drop pills */
+.ops-room.ops-light .ops-drop-pill { background: rgba(0, 0, 0, 0.06); color: #3a5e7e; }
+/* Operator strip */
+.ops-room.ops-light .ops-operator { border-top-color: rgba(20, 60, 110, 0.09); }
+.ops-room.ops-light .ops-op-avatar { background: rgba(0, 0, 0, 0.06); }
+.ops-room.ops-light .ops-op-name { color: #1a3e5e; }
+.ops-room.ops-light .ops-op-role { color: #7aa0c0; }
+.ops-room.ops-light .ops-logout-btn { color: #5a7ea0; }
+/* HUD bar */
+.ops-room.ops-light .ops-hud {
+  background: rgba(215, 230, 248, 0.9);
+  border-bottom-color: rgba(20, 60, 110, 0.1);
+}
+.ops-room.ops-light .ops-hud-op  { color: #4a7090; }
+.ops-room.ops-light .ops-hud-div { color: #7a9ab8; }
+.ops-room.ops-light .ops-hud-status { color: #2a7a4a; }
+.ops-room.ops-light .ops-hud-clock  { color: #4a7090; }
+/* Globe — ghosted on light bg */
+.ops-room.ops-light .ops-globe-bg { opacity: 0.1; }
+/* DataStream canvas — subtle on light bg */
+.ops-room.ops-light .data-stream-canvas { opacity: 0.12; }
+
+/* ── Theme toggle button ─────────────────────────────────────────────────── */
+.ops-theme-toggle { padding: 4px 12px 8px; flex-shrink: 0; }
+.ops-theme-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 5px;
+  cursor: pointer;
+  color: #3a4a5a;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  transition: all .15s;
+}
+.ops-theme-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #6a8aaa;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.ops-theme-btn svg { width: 11px; height: 11px; flex-shrink: 0; }
+.ops-room.ops-light .ops-theme-btn {
+  border-color: rgba(20, 60, 110, 0.16);
+  color: #4a6a8a;
+}
+.ops-room.ops-light .ops-theme-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #1a3a5a;
+  border-color: rgba(20, 60, 110, 0.28);
+}
+
 html, body, #root { height: 100%; }
 
 body {

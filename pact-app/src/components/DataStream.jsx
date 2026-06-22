@@ -63,6 +63,7 @@ export default function DataStream({ color = '#00b0ff', opacity = 0.055, fontSiz
   return (
     <canvas
       ref={ref}
+      className="data-stream-canvas"
       style={{
         position: 'absolute', inset: 0,
         width: '100%', height: '100%',
