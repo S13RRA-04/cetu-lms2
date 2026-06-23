@@ -44,10 +44,11 @@ function useCountUp(target, duration = 800) {
 export default function DashboardHome() {
   const { user }      = useAuthStore();
   const navigate      = useNavigate();
-  const [enrollment,  setEnrollment]  = useState(null);
-  const [assignments, setAssignments] = useState([]);
-  const [drops,       setDrops]       = useState([]);
-  const [loading,     setLoading]     = useState(true);
+  const [enrollment,     setEnrollment]     = useState(null);
+  const [assignments,    setAssignments]    = useState([]);
+  const [drops,          setDrops]          = useState([]);
+  const [loading,        setLoading]        = useState(true);
+  const [activeSection,  setActiveSection]  = useState(null);
 
   useEffect(() => {
     getMyEnrollment().catch(() => null).then((enroll) => {
@@ -186,28 +187,45 @@ export default function DashboardHome() {
         )}
       </div>
 
-      {/* ── Tasking feed — grouped by type ── */}
-      {taskingSections.length > 0 && (
-        <div className="ops-tasking-block">
-          <div className="ops-section-label" style={{ marginBottom: 12 }}>ACTIVE TASKING</div>
-          {(() => {
-            let rowIdx = 0;
-            return taskingSections.map((s) => (
-              <div key={s.key} className="ops-tasking-group">
-                <div className="ops-tasking-group-label">{s.label}</div>
-                {s.items.map((a) => (
-                  <TaskingRow
-                    key={a.id}
-                    assignment={a}
-                    idx={rowIdx++}
-                    onOpen={a.is_unlocked !== false ? () => navigate(`/assignment/${a.id}`) : null}
-                  />
-                ))}
-              </div>
-            ));
-          })()}
-        </div>
-      )}
+      {/* ── Tasking feed — tabbed by type ── */}
+      {taskingSections.length > 0 && (() => {
+        const currentKey  = activeSection ?? taskingSections[0].key;
+        const currentSec  = taskingSections.find((s) => s.key === currentKey) ?? taskingSections[0];
+        return (
+          <div className="ops-tasking-block">
+            <div className="ops-section-label" style={{ marginBottom: 10 }}>ACTIVE TASKING</div>
+
+            {/* Tab bar */}
+            <div className="ops-type-tabs">
+              {taskingSections.map((s) => {
+                const unlocked = s.items.filter((a) => a.is_unlocked !== false).length;
+                return (
+                  <button
+                    key={s.key}
+                    className={`ops-type-tab${currentKey === s.key ? ' ops-type-tab-active' : ''}`}
+                    onClick={() => setActiveSection(s.key)}
+                  >
+                    {s.label}
+                    <span className="ops-type-tab-count">{unlocked}/{s.items.length}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Active section rows */}
+            <div className="ops-tasking-group" style={{ marginTop: 0 }}>
+              {currentSec.items.map((a, i) => (
+                <TaskingRow
+                  key={a.id}
+                  assignment={a}
+                  idx={i}
+                  onOpen={a.is_unlocked !== false ? () => navigate(`/assignment/${a.id}`) : null}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {assignments.length === 0 && (
         <div className="ops-empty-state">

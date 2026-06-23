@@ -5816,6 +5816,43 @@ body {
 .ops-tasking-block {
   margin-bottom: 24px;
 }
+.ops-type-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.ops-type-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  color: var(--muted);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.ops-type-tab:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.ops-type-tab.ops-type-tab-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #000;
+}
+.ops-type-tab-count {
+  font-size: 8px;
+  font-weight: 400;
+  opacity: 0.7;
+}
 .ops-section-label {
   font-family: var(--mono);
   font-size: 8px;
