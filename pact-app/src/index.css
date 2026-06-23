@@ -93,8 +93,9 @@
   background-color: var(--bg);
   background-image: radial-gradient(circle, rgba(20, 80, 160, 0.07) 1px, transparent 1px);
 }
-/* Hide dark globe entirely in light mode */
-.ops-room.ops-light .ops-globe-bg { display: none; }
+/* Globe is fine in light mode — canvas is already transparent (alpha: true).
+   Reduce opacity slightly so the arcs don't overpower the light background. */
+.ops-room.ops-light .ops-globe-bg { opacity: 0.35; }
 
 /* Rail background + border */
 .ops-room.ops-light .ops-left-rail {
@@ -1924,6 +1925,48 @@ body {
 .admin-assign-btn.active { background: var(--primary-lt); }
 .admin-assign-type  { font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .1em; }
 .admin-assign-title { font-size: 13px; color: var(--bright); }
+
+/* Nested assignment button (inside a group) */
+.admin-assign-btn--nested { padding-left: 24px; }
+
+/* Group header (collapsible scenario/drop label) */
+.admin-group-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px 7px 14px;
+  background: var(--surface-2);
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  text-align: left;
+  transition: background .12s;
+}
+.admin-group-header:hover { background: var(--card-hi); }
+.admin-group-label {
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.admin-group-badge {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--border);
+  color: var(--muted);
+}
+.admin-group-chevron {
+  font-size: 9px;
+  color: var(--muted);
+  opacity: 0.6;
+}
 
 .admin-right {
   background: var(--surface);

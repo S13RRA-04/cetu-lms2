@@ -519,34 +519,39 @@ function formatR2Size(bytes) {
 /* ── Content Gating Panel ── */
 
 function ContentGatingPanel({ assignments, cohorts, onAssignmentsChange, onContentPublished }) {
-  const [subTab, setSubTab]     = useState('drops');
+  const [subTab, setSubTab]         = useState('drops');
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const gatingItems = assignments.filter((a) => a.type === 'assessment' || a.type === 'survey');
+  const assessmentItems = assignments.filter((a) => a.type === 'assessment' || a.type === 'survey');
+  const moduleItems     = assignments.filter((a) => a.type === 'module');
+  const challengeItems  = assignments.filter((a) => a.type === 'challenge');
 
   const handlePublished = () => {
     setRefreshKey((k) => k + 1);
     onContentPublished?.();
   };
 
+  const handleUnlocksChange = (id, unlocks) =>
+    onAssignmentsChange((prev) => prev.map((a) => a.id === id ? { ...a, unlocks } : a));
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       <div className="admin-mode-tabs" style={{ padding: '0 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-        <button
-          className={`admin-mode-tab${subTab === 'drops' ? ' active' : ''}`}
-          onClick={() => setSubTab('drops')}
-        >
+        <button className={`admin-mode-tab${subTab === 'drops'      ? ' active' : ''}`} onClick={() => setSubTab('drops')}>
           Scenario Drops
         </button>
-        <button
-          className={`admin-mode-tab${subTab === 'gates' ? ' active' : ''}`}
-          onClick={() => setSubTab('gates')}
-        >
+        <button className={`admin-mode-tab${subTab === 'challenges' ? ' active' : ''}`} onClick={() => setSubTab('challenges')}>
+          Challenges
+        </button>
+        <button className={`admin-mode-tab${subTab === 'modules'    ? ' active' : ''}`} onClick={() => setSubTab('modules')}>
+          Modules
+        </button>
+        <button className={`admin-mode-tab${subTab === 'gates'      ? ' active' : ''}`} onClick={() => setSubTab('gates')}>
           Assessments &amp; Surveys
         </button>
       </div>
 
-      {subTab === 'drops' ? (
+      {subTab === 'drops' && (
         <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)', marginBottom: 4 }}>
@@ -559,13 +564,29 @@ function ContentGatingPanel({ assignments, cohorts, onAssignmentsChange, onConte
           <R2PublishBrowser rootPrefix="" cohorts={cohorts} onPublished={handlePublished} />
           <ReleasesManager key={refreshKey} onRefresh={() => setRefreshKey((k) => k + 1)} />
         </div>
-      ) : (
-        <AssessmentSurveyGating
-          assignments={gatingItems}
+      )}
+
+      {subTab === 'challenges' && (
+        <ChallengesGating
+          assignments={challengeItems}
           cohorts={cohorts}
-          onUnlocksChange={(id, unlocks) =>
-            onAssignmentsChange((prev) => prev.map((a) => a.id === id ? { ...a, unlocks } : a))
-          }
+          onUnlocksChange={handleUnlocksChange}
+        />
+      )}
+
+      {subTab === 'modules' && (
+        <ModulesGating
+          assignments={moduleItems}
+          cohorts={cohorts}
+          onUnlocksChange={handleUnlocksChange}
+        />
+      )}
+
+      {subTab === 'gates' && (
+        <AssessmentSurveyGating
+          assignments={assessmentItems}
+          cohorts={cohorts}
+          onUnlocksChange={(id, unlocks) => handleUnlocksChange(id, unlocks)}
         />
       )}
     </div>
@@ -708,6 +729,151 @@ function ReleasesManager({ onRefresh }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── Modules Gating ── (cohort-wide; no scenario grouping) */
+function ModulesGating({ assignments, cohorts, onUnlocksChange }) {
+  const [selected, setSelected] = useState(null);
+
+  return (
+    <div className="admin-layout">
+      <div className="admin-left">
+        {assignments.length === 0 && (
+          <p style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 16px' }}>
+            No modules found.
+          </p>
+        )}
+        {assignments.map((a) => (
+          <button
+            key={a.id}
+            className={`admin-assign-btn${selected?.id === a.id ? ' active' : ''}`}
+            onClick={() => setSelected(a)}
+          >
+            <span className="admin-assign-type" style={{ color: TYPE_COLOR.module }}>MODULE</span>
+            <span className="admin-assign-title">{a.title}</span>
+          </button>
+        ))}
+      </div>
+      <div className="admin-right">
+        {!selected ? (
+          <div className="admin-empty">
+            <p>Select a module to manage cohort access.</p>
+          </div>
+        ) : (
+          <>
+            <div className="admin-right-header">
+              <div>
+                <div className="admin-right-title">{selected.title}</div>
+                <div className="admin-right-sub">Module · cohort-wide</div>
+              </div>
+            </div>
+            <GatingPanel
+              key={selected.id}
+              assignment={selected}
+              cohorts={cohorts}
+              onUnlocksChange={(unlocks) => {
+                setSelected((s) => ({ ...s, unlocks }));
+                onUnlocksChange(selected.id, unlocks);
+              }}
+            />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Challenges Gating ── (grouped by scenario / drop number) */
+function ChallengesGating({ assignments, cohorts, onUnlocksChange }) {
+  const [selected,     setSelected]     = useState(null);
+  const [closedGroups, setClosedGroups] = useState(new Set()); // open by default
+
+  // Group by drop_number; null → 'Unassigned'
+  const grouped = new Map();
+  for (const a of assignments) {
+    const key = a.drop_number != null ? a.drop_number : '__unassigned__';
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(a);
+  }
+  // Sort: numeric drops ascending, unassigned last
+  const groups = [...grouped.entries()].sort(([a], [b]) => {
+    if (a === '__unassigned__') return 1;
+    if (b === '__unassigned__') return -1;
+    return Number(a) - Number(b);
+  });
+
+  const toggleGroup = (key) =>
+    setClosedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+
+  return (
+    <div className="admin-layout">
+      <div className="admin-left">
+        {assignments.length === 0 && (
+          <p style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 16px' }}>
+            No challenges found.
+          </p>
+        )}
+        {groups.map(([groupKey, items]) => {
+          const label   = groupKey === '__unassigned__' ? 'Unassigned' : `Scenario Drop ${groupKey}`;
+          const isOpen  = !closedGroups.has(groupKey);
+          return (
+            <div key={String(groupKey)}>
+              <button
+                className="admin-group-header"
+                onClick={() => toggleGroup(groupKey)}
+              >
+                <span className="admin-group-label">{label}</span>
+                <span className="admin-group-badge">{items.length}</span>
+                <span className="admin-group-chevron">{isOpen ? '▲' : '▼'}</span>
+              </button>
+              {isOpen && items.map((a) => (
+                <button
+                  key={a.id}
+                  className={`admin-assign-btn admin-assign-btn--nested${selected?.id === a.id ? ' active' : ''}`}
+                  onClick={() => setSelected(a)}
+                >
+                  <span className="admin-assign-type" style={{ color: TYPE_COLOR.challenge }}>CHALLENGE</span>
+                  <span className="admin-assign-title">{a.title}</span>
+                </button>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+      <div className="admin-right">
+        {!selected ? (
+          <div className="admin-empty">
+            <p>Select a challenge to manage cohort access.</p>
+          </div>
+        ) : (
+          <>
+            <div className="admin-right-header">
+              <div>
+                <div className="admin-right-title">{selected.title}</div>
+                <div className="admin-right-sub">
+                  Challenge
+                  {selected.drop_number != null && ` · Scenario Drop ${selected.drop_number}`}
+                </div>
+              </div>
+            </div>
+            <GatingPanel
+              key={selected.id}
+              assignment={selected}
+              cohorts={cohorts}
+              onUnlocksChange={(unlocks) => {
+                setSelected((s) => ({ ...s, unlocks }));
+                onUnlocksChange(selected.id, unlocks);
+              }}
+            />
+          </>
+        )}
+      </div>
     </div>
   );
 }
