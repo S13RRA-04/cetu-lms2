@@ -249,6 +249,7 @@ export default function AdminPage() {
         <ContentGatingPanel
           assignments={assignments}
           cohorts={cohorts}
+          contentItems={contentItems}
           onAssignmentsChange={setAssignments}
           onContentPublished={() => setContentLoaded(false)}
         />
@@ -258,6 +259,7 @@ export default function AdminPage() {
           cohorts={cohorts}
           loaded={contentLoaded}
           onItemsChange={setContentItems}
+          assignments={assignments}
         />
       ) : (
       <div className="admin-layout">
@@ -379,12 +381,14 @@ export default function AdminPage() {
                 >
                   Submissions
                 </button>
-                <button
-                  className={`admin-right-tab${rightTab === 'gating' ? ' active' : ''}`}
-                  onClick={() => { setRightTab('gating'); setSelectedSub(null); }}
-                >
-                  Access Gating
-                </button>
+                {selectedAssignment.type !== 'module' && (
+                  <button
+                    className={`admin-right-tab${rightTab === 'gating' ? ' active' : ''}`}
+                    onClick={() => { setRightTab('gating'); setSelectedSub(null); }}
+                  >
+                    Access Gating
+                  </button>
+                )}
               </div>
 
               {rightTab === 'gating' ? (
@@ -565,7 +569,7 @@ function formatR2Size(bytes) {
 
 /* ── Content Gating Panel ── */
 
-function ContentGatingPanel({ assignments, cohorts, onAssignmentsChange, onContentPublished }) {
+function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignmentsChange, onContentPublished }) {
   const [subTab, setSubTab]         = useState('drops');
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -626,6 +630,7 @@ function ContentGatingPanel({ assignments, cohorts, onAssignmentsChange, onConte
         <ModulesGating
           assignments={moduleItems}
           cohorts={cohorts}
+          contentItems={contentItems}
           onUnlocksChange={handleUnlocksChange}
         />
       )}
@@ -782,8 +787,12 @@ function ReleasesManager({ onRefresh }) {
 }
 
 /* ── Modules Gating ── (cohort-wide; no scenario grouping) */
-function ModulesGating({ assignments, cohorts, onUnlocksChange }) {
+function ModulesGating({ assignments, cohorts, contentItems = [], onUnlocksChange }) {
   const [selected, setSelected] = useState(null);
+
+  const linkedSlides = selected
+    ? contentItems.filter((ci) => ci.linked_assignment_id === selected.id)
+    : [];
 
   return (
     <div className="admin-layout">
@@ -826,6 +835,33 @@ function ModulesGating({ assignments, cohorts, onUnlocksChange }) {
                 onUnlocksChange(selected.id, unlocks);
               }}
             />
+            {linkedSlides.length > 0 && (
+              <div style={{ padding: '0 20px 20px' }}>
+                <div className="section-label" style={{ marginBottom: 8 }}>
+                  Intel Library — Linked Slide Decks
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
+                  These items auto-unlock with this module.
+                </div>
+                {linkedSlides.map((ci) => (
+                  <div key={ci.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '6px 10px', marginBottom: 4,
+                    background: 'rgba(0,176,255,0.05)',
+                    border: '1px solid rgba(0,176,255,0.15)',
+                    borderRadius: 4,
+                  }}>
+                    <span style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '.1em' }}>
+                      {CONTENT_TYPE_LABELS[ci.content_type] ?? ci.content_type}
+                    </span>
+                    <span style={{ fontSize: 13, color: 'var(--bright)', flex: 1 }}>{ci.title}</span>
+                    <span style={{ fontSize: 10, color: ci.is_published ? '#10b981' : 'var(--muted)' }}>
+                      {ci.is_published ? 'Published' : 'Draft'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
       </div>
@@ -2409,9 +2445,11 @@ const CONTENT_TYPE_LABELS = {
   resource:     'Resource',
 };
 
-function CourseContentPanel({ items, cohorts, loaded, onItemsChange }) {
+function CourseContentPanel({ items, cohorts, loaded, onItemsChange, assignments = [] }) {
   const [selected, setSelected] = useState(null);
   const [showForm, setShowForm] = useState(false);
+
+  const moduleAssignments = assignments.filter((a) => a.type === 'module');
 
   if (!loaded) return <div className="loading-screen"><div className="spinner" /></div>;
 
@@ -2452,6 +2490,7 @@ function CourseContentPanel({ items, cohorts, loaded, onItemsChange }) {
           <ContentItemDetail
             item={selected}
             cohorts={cohorts}
+            moduleAssignments={moduleAssignments}
             onUpdated={(updated) => { onItemsChange((p) => p.map((i) => i.id === updated.id ? updated : i)); setSelected(updated); }}
             onDeleted={(id) => { onItemsChange((p) => p.filter((i) => i.id !== id)); setSelected(null); }}
           />
@@ -3304,22 +3343,31 @@ function DropReleasePanel({ cohort }) {
   );
 }
 
-function ContentItemDetail({ item, cohorts, onUpdated, onDeleted }) {
-  const [editing,     setEditing]     = useState(false);
-  const [title,       setTitle]       = useState(item.title);
-  const [description, setDescription] = useState(item.description ?? '');
-  const [isPublished, setIsPublished] = useState(item.is_published);
-  const [saving,      setSaving]      = useState(false);
-  const [err,         setErr]         = useState('');
+function ContentItemDetail({ item, cohorts, moduleAssignments = [], onUpdated, onDeleted }) {
+  const [editing,           setEditing]           = useState(false);
+  const [title,             setTitle]             = useState(item.title);
+  const [description,       setDescription]       = useState(item.description ?? '');
+  const [isPublished,       setIsPublished]       = useState(item.is_published);
+  const [linkedAssignmentId, setLinkedAssignmentId] = useState(item.linked_assignment_id ?? '');
+  const [saving,            setSaving]            = useState(false);
+  const [err,               setErr]               = useState('');
 
   useEffect(() => {
-    setTitle(item.title); setDescription(item.description ?? ''); setIsPublished(item.is_published);
+    setTitle(item.title);
+    setDescription(item.description ?? '');
+    setIsPublished(item.is_published);
+    setLinkedAssignmentId(item.linked_assignment_id ?? '');
   }, [item.id]);
 
   const handleSave = async () => {
     setSaving(true); setErr('');
     try {
-      const updated = await updateContentItem(item.id, { title, description, is_published: isPublished });
+      const updated = await updateContentItem(item.id, {
+        title,
+        description,
+        is_published:        isPublished,
+        linked_assignment_id: linkedAssignmentId || null,
+      });
       onUpdated(updated); setEditing(false);
     } catch { setErr('Save failed'); }
     finally { setSaving(false); }
@@ -3352,6 +3400,15 @@ function ContentItemDetail({ item, cohorts, onUpdated, onDeleted }) {
           <div className="section-label" style={{ marginBottom: 12 }}>Edit Item</div>
           <div className="form-field"><label>Title</label><input value={title} onChange={(e) => setTitle(e.target.value)} /></div>
           <div className="form-field"><label>Description</label><input value={description} onChange={(e) => setDescription(e.target.value)} /></div>
+          <div className="form-field">
+            <label>Linked Module</label>
+            <select value={linkedAssignmentId} onChange={(e) => setLinkedAssignmentId(e.target.value)}>
+              <option value="">— None —</option>
+              {moduleAssignments.sort((a, b) => a.order_index - b.order_index).map((m) => (
+                <option key={m.id} value={m.id}>{m.title}</option>
+              ))}
+            </select>
+          </div>
           <div className="form-field">
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
               <input type="checkbox" checked={isPublished} onChange={(e) => setIsPublished(e.target.checked)} /> Published
@@ -3388,6 +3445,17 @@ function ContentItemDetail({ item, cohorts, onUpdated, onDeleted }) {
               <span style={{ fontSize: 12, fontFamily: 'var(--mono)' }}>📄 {item.file_name}</span>
             </div>
           )}
+          {(() => {
+            const linked = moduleAssignments.find((m) => m.id === item.linked_assignment_id);
+            return (
+              <div style={{ marginBottom: 16 }}>
+                <div className="section-label" style={{ marginBottom: 4 }}>Linked Module</div>
+                <span style={{ fontSize: 13, color: linked ? 'var(--bright)' : 'var(--muted)' }}>
+                  {linked ? linked.title : '— None —'}
+                </span>
+              </div>
+            );
+          })()}
           <div className="section-label" style={{ marginBottom: 8 }}>Cohort Access</div>
           <div className="scenario-gating-cohorts">
             {cohorts.map((c) => {

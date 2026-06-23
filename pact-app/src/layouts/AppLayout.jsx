@@ -132,35 +132,6 @@ function TargetCard({ squad, enrollment, accent }) {
   );
 }
 
-/* ── Drop status strip ──────────────────────────────────────────────────────── */
-function DropStrip({ assignments, accent }) {
-  const dropNums = [...new Set(
-    assignments.filter((a) => a.drop_number != null).map((a) => a.drop_number)
-  )].sort((a, b) => a - b);
-
-  if (!dropNums.length) return null;
-
-  const unlockedNums = new Set(
-    assignments.filter((a) => a.is_unlocked !== false && a.drop_number != null).map((a) => a.drop_number)
-  );
-
-  return (
-    <div className="ops-drop-strip">
-      <div className="ops-rail-section-label">INTEL DROPS</div>
-      <div className="ops-drop-pills">
-        {dropNums.map((n) => {
-          const active = unlockedNums.has(n);
-          return (
-            <span key={n} className={`ops-drop-pill${active ? ' ops-drop-pill-active' : ''}`}
-              style={active ? { background: accent, color: '#000' } : {}}>
-              DROP {n}
-            </span>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 /* ── Main layout ────────────────────────────────────────────────────────────── */
 export default function AppLayout({ assignments = [], enrollment = null }) {
@@ -268,9 +239,6 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
             </OpsNavItem>
           )}
         </nav>
-
-        {/* Drop status */}
-        <DropStrip assignments={assignments} accent={accent} />
 
         <div className="ops-rail-spacer" />
 

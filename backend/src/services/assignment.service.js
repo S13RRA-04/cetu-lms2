@@ -1,6 +1,6 @@
 'use strict';
 const { Op }             = require('sequelize');
-const { Assignment, AssignmentUnlock, Course, Cohort, Enrollment, User, Submission } = require('../models');
+const { Assignment, AssignmentUnlock, Course, Cohort, Enrollment, User, Submission, CourseContentItem, CourseContentUnlock } = require('../models');
 const { NotFoundError, AppError } = require('../utils/errors');
 const { paginate, paginatedResponse } = require('../utils/pagination');
 
@@ -62,13 +62,34 @@ async function unlockForCohort(assignmentId, cohortId, unlockerId, squadId = nul
     where:    { assignment_id: assignmentId, cohort_id: cohortId, squad_id: squadId },
     defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
   });
+
+  if (assignment.type === 'module') {
+    const linked = await CourseContentItem.findAll({ where: { linked_assignment_id: assignmentId } });
+    await Promise.all(linked.map((item) =>
+      CourseContentUnlock.findOrCreate({
+        where:    { content_id: item.id, cohort_id: cohortId },
+        defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
+      })
+    ));
+  }
+
   return unlock;
 }
 
 async function lockForCohort(assignmentId, cohortId, squadId = null) {
+  const assignment = await Assignment.findByPk(assignmentId);
   await AssignmentUnlock.destroy({
     where: { assignment_id: assignmentId, cohort_id: cohortId, squad_id: squadId },
   });
+
+  if (assignment?.type === 'module') {
+    const linked = await CourseContentItem.findAll({ where: { linked_assignment_id: assignmentId } });
+    if (linked.length) {
+      await CourseContentUnlock.destroy({
+        where: { content_id: linked.map((i) => i.id), cohort_id: cohortId },
+      });
+    }
+  }
 }
 
 async function getUnlockStatus(assignmentId) {
