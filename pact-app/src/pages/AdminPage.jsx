@@ -569,9 +569,19 @@ function formatR2Size(bytes) {
 
 /* ── Content Gating Panel ── */
 
+const R2_SCENARIOS_PREFIX = 'pact/scenarios/';
+
 function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignmentsChange, onContentPublished }) {
-  const [subTab, setSubTab]         = useState('drops');
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [subTab,            setSubTab]            = useState('drops');
+  const [refreshKey,        setRefreshKey]        = useState(0);
+  const [selectedScenario,  setSelectedScenario]  = useState(null);
+  const [scenarioFolders,   setScenarioFolders]   = useState(null); // null = loading
+
+  useEffect(() => {
+    browseScenarioR2(R2_SCENARIOS_PREFIX)
+      .then((d) => setScenarioFolders((d.folders ?? []).map((f) => f.name)))
+      .catch(() => setScenarioFolders([]));
+  }, []);
 
   const assessmentItems = assignments.filter((a) => a.type === 'assessment' || a.type === 'survey');
   const moduleItems     = assignments.filter((a) => a.type === 'module');
@@ -604,16 +614,74 @@ function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignm
 
       {subTab === 'drops' && (
         <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)', marginBottom: 4 }}>
-              SCENARIO DROP CONTROL
-            </div>
-            <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>
-              Browse R2 scenario packages. Release folders to specific cohorts and squads, with optional cipher challenge gates.
-            </p>
-          </div>
-          <R2PublishBrowser rootPrefix="" cohorts={cohorts} onPublished={handlePublished} />
-          <ReleasesManager key={refreshKey} onRefresh={() => setRefreshKey((k) => k + 1)} />
+          {!selectedScenario ? (
+            /* ── Scenario picker ── */
+            <>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)', marginBottom: 4 }}>
+                SELECT SCENARIO
+              </div>
+              <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 16px' }}>
+                Choose a scenario to browse and release R2 intel packages.
+              </p>
+              {scenarioFolders === null ? (
+                <div style={{ textAlign: 'center', padding: 24 }}><div className="spinner" /></div>
+              ) : scenarioFolders.length === 0 ? (
+                <p style={{ color: 'var(--muted)', fontSize: 13 }}>No scenario folders found at <code>{R2_SCENARIOS_PREFIX}</code>.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 420 }}>
+                  {scenarioFolders.map((name) => (
+                    <button
+                      key={name}
+                      onClick={() => setSelectedScenario(name)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '12px 16px', background: 'var(--surface)',
+                        border: '1px solid var(--border)', borderRadius: 6,
+                        cursor: 'pointer', textAlign: 'left',
+                      }}
+                    >
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: 18 }}>📁</span>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--bright)' }}>
+                          {scenarioLabel(name)}
+                        </div>
+                        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted)', marginTop: 2, letterSpacing: '.06em' }}>
+                          {R2_SCENARIOS_PREFIX}{name}/
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            /* ── Scoped scenario view ── */
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <button
+                  onClick={() => setSelectedScenario(null)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontSize: 12, fontFamily: 'var(--mono)', padding: 0, letterSpacing: '.06em' }}
+                >
+                  ← ALL SCENARIOS
+                </button>
+                <span style={{ color: 'var(--border)' }}>/</span>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 700, color: 'var(--bright)', letterSpacing: '.06em' }}>
+                  {scenarioLabel(selectedScenario)}
+                </span>
+              </div>
+              <R2PublishBrowser
+                key={selectedScenario}
+                rootPrefix={`${R2_SCENARIOS_PREFIX}${selectedScenario}/`}
+                cohorts={cohorts}
+                onPublished={handlePublished}
+              />
+              <ReleasesManager
+                key={refreshKey}
+                scenarioFilter={selectedScenario}
+                onRefresh={() => setRefreshKey((k) => k + 1)}
+              />
+            </>
+          )}
         </div>
       )}
 
@@ -647,9 +715,9 @@ function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignm
 }
 
 /* ── Existing Releases Manager ── */
-function ReleasesManager({ onRefresh }) {
+function ReleasesManager({ onRefresh, scenarioFilter = null }) {
   const [packages, setPackages] = useState(null);
-  const [open, setOpen]         = useState(false);
+  const [open, setOpen]         = useState(!!scenarioFilter);
   const [editing, setEditing]   = useState({});   // id → draft title string
   const [saving, setSaving]     = useState({});    // id → bool
   const [deleting, setDeleting] = useState({});    // id → bool
@@ -659,11 +727,16 @@ function ReleasesManager({ onRefresh }) {
   }, []);
 
   if (!packages) return null;
-  if (packages.length === 0) return null;
+
+  const visible = scenarioFilter
+    ? packages.filter((p) => p.scenario_name === scenarioFilter)
+    : packages;
+
+  if (visible.length === 0) return null;
 
   // Group by scenario_name, sorted by release_number within each group
   const scenarioMap = new Map();
-  for (const pkg of packages) {
+  for (const pkg of visible) {
     const key = pkg.scenario_name || pkg.title;
     if (!scenarioMap.has(key)) scenarioMap.set(key, []);
     scenarioMap.get(key).push(pkg);
@@ -703,19 +776,19 @@ function ReleasesManager({ onRefresh }) {
         style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: 0, marginBottom: open ? 14 : 0 }}
       >
         <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)' }}>
-          EXISTING RELEASES
+          {scenarioFilter ? `${scenarioLabel(scenarioFilter).toUpperCase()} — RELEASES` : 'EXISTING RELEASES'}
         </span>
         <span style={{ color: 'var(--muted)', fontSize: 10, fontFamily: 'var(--mono)' }}>
-          {open ? '▲' : '▼'} ({packages.length})
+          {open ? '▲' : '▼'} ({visible.length})
         </span>
       </button>
 
       {open && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {groups.map(([scenarioName, releases], gi) => (
-            <div key={scenarioName}>
+          {groups.map(([sn, releases]) => (
+            <div key={sn}>
               <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', color: 'var(--muted)', marginBottom: 6, textTransform: 'uppercase' }}>
-                {scenarioName}
+                {scenarioLabel(sn)}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {releases.map((pkg, idx) => {
@@ -1310,9 +1383,21 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
 
   return (
     <div className="publish-form" style={{ borderLeft: `3px solid ${squadColor}` }}>
-      {/* Path indicator */}
-      <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted)', letterSpacing: '.06em', marginBottom: 10 }}>
-        {folder.prefix}
+      {/* Scenario + path indicator */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        {scenarioName && (
+          <span style={{
+            fontFamily: 'var(--mono)', fontSize: 9, fontWeight: 700,
+            letterSpacing: '.14em', padding: '2px 8px', borderRadius: 3,
+            background: 'rgba(0,176,255,0.12)', color: 'var(--primary)',
+            border: '1px solid rgba(0,176,255,0.3)', textTransform: 'uppercase',
+          }}>
+            {scenarioLabel(scenarioName)}
+          </span>
+        )}
+        <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted)', letterSpacing: '.06em' }}>
+          {folder.prefix}
+        </span>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px', marginBottom: 10 }}>
