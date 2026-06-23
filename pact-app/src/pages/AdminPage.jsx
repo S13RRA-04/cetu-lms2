@@ -29,6 +29,7 @@ import {
   quickReleaseScenario,
   updateScenario,
   deleteScenario,
+  updateAssignment,
 } from '../api/pact.js';
 
 const TYPE_COLOR = {
@@ -283,20 +284,65 @@ export default function AdminPage() {
                 No {modeFilter} assignments.
               </p>
             )}
-            {filtered.map((a) => {
-              const color = TYPE_COLOR[a.type] ?? TYPE_COLOR.module;
-              const isActive = selectedAssignment?.id === a.id;
+            {(() => {
+              const nonChallenges = filtered.filter((a) => a.type !== 'challenge');
+              const challenges    = filtered.filter((a) => a.type === 'challenge');
+
+              // Group challenges by drop_number; nulls → '__unassigned__'
+              const dropMap = new Map();
+              for (const a of challenges) {
+                const key = a.drop_number != null ? a.drop_number : '__unassigned__';
+                if (!dropMap.has(key)) dropMap.set(key, []);
+                dropMap.get(key).push(a);
+              }
+              const dropGroups = [...dropMap.entries()].sort(([a], [b]) => {
+                if (a === '__unassigned__') return 1;
+                if (b === '__unassigned__') return -1;
+                return Number(a) - Number(b);
+              });
+
+              const renderBtn = (a) => {
+                const color    = TYPE_COLOR[a.type] ?? TYPE_COLOR.module;
+                const isActive = selectedAssignment?.id === a.id;
+                return (
+                  <button
+                    key={a.id}
+                    className={`admin-assign-btn${isActive ? ' active' : ''}`}
+                    onClick={() => openAssignment(a)}
+                  >
+                    <span className="admin-assign-type" style={{ color }}>{a.type.toUpperCase()}</span>
+                    <span className="admin-assign-title">{a.title}</span>
+                  </button>
+                );
+              };
+
               return (
-                <button
-                  key={a.id}
-                  className={`admin-assign-btn${isActive ? ' active' : ''}`}
-                  onClick={() => openAssignment(a)}
-                >
-                  <span className="admin-assign-type" style={{ color }}>{a.type.toUpperCase()}</span>
-                  <span className="admin-assign-title">{a.title}</span>
-                </button>
+                <>
+                  {nonChallenges.map(renderBtn)}
+
+                  {dropGroups.length > 0 && (
+                    <>
+                      {nonChallenges.length > 0 && (
+                        <div style={{ height: 1, background: 'var(--border)', margin: '6px 0' }} />
+                      )}
+                      {dropGroups.map(([key, items]) => (
+                        <div key={String(key)}>
+                          <div style={{
+                            padding: '6px 14px 3px',
+                            fontFamily: 'var(--mono)', fontSize: 9,
+                            letterSpacing: '.14em', color: 'var(--primary)',
+                            textTransform: 'uppercase',
+                          }}>
+                            {key === '__unassigned__' ? 'Challenges — Unassigned' : `Brokered Exit — Drop ${key}`}
+                          </div>
+                          {items.map(renderBtn)}
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </>
               );
-            })}
+            })()}
           </div>
         </div>
 
@@ -571,6 +617,7 @@ function ContentGatingPanel({ assignments, cohorts, onAssignmentsChange, onConte
           assignments={challengeItems}
           cohorts={cohorts}
           onUnlocksChange={handleUnlocksChange}
+          onAssignmentsChange={onAssignmentsChange}
         />
       )}
 
@@ -786,13 +833,17 @@ function ModulesGating({ assignments, cohorts, onUnlocksChange }) {
 }
 
 /* ── Challenges Gating ── (grouped by scenario / drop number) */
-function ChallengesGating({ assignments, cohorts, onUnlocksChange }) {
+function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignmentsChange }) {
   const [selected,     setSelected]     = useState(null);
   const [closedGroups, setClosedGroups] = useState(new Set()); // open by default
+  const [localItems,   setLocalItems]   = useState(assignments);
+
+  // Keep local list in sync when parent prop changes
+  useEffect(() => { setLocalItems(assignments); }, [assignments]);
 
   // Group by drop_number; null → 'Unassigned'
   const grouped = new Map();
-  for (const a of assignments) {
+  for (const a of localItems) {
     const key = a.drop_number != null ? a.drop_number : '__unassigned__';
     if (!grouped.has(key)) grouped.set(key, []);
     grouped.get(key).push(a);
@@ -811,10 +862,21 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange }) {
       return next;
     });
 
+  const handleDropChange = async (assignment, newDropNum) => {
+    const drop_number = newDropNum === '' ? null : Number(newDropNum);
+    try {
+      await updateAssignment(assignment.id, { drop_number });
+      const updated = { ...assignment, drop_number };
+      setLocalItems((prev) => prev.map((a) => a.id === assignment.id ? updated : a));
+      setSelected((s) => s?.id === assignment.id ? updated : s);
+      onAssignmentsChange?.((prev) => prev.map((a) => a.id === assignment.id ? updated : a));
+    } catch { /* ignore — server will reject invalid values */ }
+  };
+
   return (
     <div className="admin-layout">
       <div className="admin-left">
-        {assignments.length === 0 && (
+        {localItems.length === 0 && (
           <p style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 16px' }}>
             No challenges found.
           </p>
@@ -849,7 +911,7 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange }) {
       <div className="admin-right">
         {!selected ? (
           <div className="admin-empty">
-            <p>Select a challenge to manage cohort access.</p>
+            <p>Select a challenge to manage its scenario drop and cohort access.</p>
           </div>
         ) : (
           <>
@@ -862,6 +924,30 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange }) {
                 </div>
               </div>
             </div>
+
+            {/* ── Drop assignment ── */}
+            <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)', marginBottom: 8 }}>
+                BROKERED EXIT — SCENARIO DROP ASSIGNMENT
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <label style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>Assign to drop:</label>
+                <select
+                  value={selected.drop_number ?? ''}
+                  onChange={(e) => handleDropChange(selected, e.target.value)}
+                  style={{
+                    padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)',
+                    background: 'var(--surface)', color: 'var(--text)', fontSize: 13, cursor: 'pointer',
+                  }}
+                >
+                  <option value="">— Unassigned —</option>
+                  {[1, 2, 3, 4, 5, 6].map((n) => (
+                    <option key={n} value={n}>Drop {n}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <GatingPanel
               key={selected.id}
               assignment={selected}

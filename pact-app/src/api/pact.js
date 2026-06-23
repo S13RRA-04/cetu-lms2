@@ -104,6 +104,9 @@ export const presignScenarioUpload = (key, contentType) =>
 export const deleteScenarioR2Object = (key) =>
   client.delete(`/courses/${COURSE_ID}/scenarios/r2-object`, { data: { key } });
 
+export const updateAssignment = (assignmentId, data) =>
+  client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}`, data).then((r) => r.data);
+
 /* ── Assignment gating ── */
 export const unlockAssignment = (assignmentId, cohortId, squadId = null) =>
   client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/unlock`, { cohort_id: cohortId, squad_id: squadId }).then((r) => r.data);

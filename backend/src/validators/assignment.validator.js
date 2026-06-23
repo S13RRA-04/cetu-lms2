@@ -25,6 +25,7 @@ const updateAssignmentSchema = Joi.object({
   grading_mode: Joi.string().valid('individual', 'squad'),
   order_index:  Joi.number().integer().min(0),
   questions:    Joi.array(),
+  drop_number:  Joi.number().integer().min(1).max(10).allow(null),
 }).min(1);
 
 const gradeSchema = Joi.object({

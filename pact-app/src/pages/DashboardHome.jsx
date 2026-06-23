@@ -64,22 +64,28 @@ export default function DashboardHome() {
     }).finally(() => setLoading(false));
   }, []);
 
-  const role        = user?.professional_role ? PROF_ROLE_LABELS[user.professional_role] ?? user.professional_role : null;
-  const unlocked    = assignments.filter((a) => a.is_unlocked !== false).length;
-  const completed   = assignments.filter((a) => (a.progress ?? 0) >= 100).length;
-  const inProgress  = assignments.filter((a) => (a.progress ?? 0) > 0 && (a.progress ?? 0) < 100).length;
-  const total       = assignments.length;
-  const overallPct  = total > 0
-    ? Math.round(assignments.reduce((s, a) => s + (a.progress ?? 0), 0) / total) : 0;
+  const role = user?.professional_role ? PROF_ROLE_LABELS[user.professional_role] ?? user.professional_role : null;
 
-  const activeDrop  = [...drops].filter((d) => d.is_unlocked).sort((a, b) => b.number - a.number)[0] ?? null;
+  // An assignment is visible only when explicitly unlocked.
+  // Students get is_unlocked boolean; admins get an unlocks[] array — both must be non-empty.
+  const visibleAssignments = assignments.filter(
+    (a) => a.is_unlocked === true || (Array.isArray(a.unlocks) && a.unlocks.length > 0)
+  );
 
-  const cUnlocked   = useCountUp(unlocked);
+  const total      = visibleAssignments.length;
+  const completed  = visibleAssignments.filter((a) => (a.progress ?? 0) >= 100).length;
+  const inProgress = visibleAssignments.filter((a) => (a.progress ?? 0) > 0 && (a.progress ?? 0) < 100).length;
+  const overallPct = total > 0
+    ? Math.round(visibleAssignments.reduce((s, a) => s + (a.progress ?? 0), 0) / total) : 0;
+
+  const activeDrop = [...drops].filter((d) => d.is_unlocked).sort((a, b) => b.number - a.number)[0] ?? null;
+
   const cCompleted  = useCountUp(completed);
   const cProgress   = useCountUp(inProgress);
   const cPct        = useCountUp(overallPct);
+  const cTotal      = useCountUp(total);
 
-  /* Group all assignments by section for the tasking feed */
+  /* Group unlocked assignments by type for the tasking feed */
   const TYPE_SECTIONS = [
     { label: 'MODULES',     types: ['module'],                key: 'modules'     },
     { label: 'CHALLENGES',  types: ['challenge'],              key: 'challenges'  },
@@ -89,7 +95,7 @@ export default function DashboardHome() {
   ];
   const taskingSections = TYPE_SECTIONS.map((s) => ({
     ...s,
-    items: assignments.filter((a) => s.types.includes(a.type) && a.is_unlocked !== false),
+    items: visibleAssignments.filter((a) => s.types.includes(a.type)),
   })).filter((s) => s.items.length > 0);
 
   if (loading) {
@@ -142,7 +148,7 @@ export default function DashboardHome() {
       {/* ── Stat strip ── */}
       <div className="ops-stat-strip">
         {[
-          { val: cUnlocked,  label: 'ISSUED',      cls: '' },
+          { val: cTotal,     label: 'ISSUED',      cls: '' },
           { val: cCompleted, label: 'CLOSED',       cls: ' ops-stat-green' },
           { val: cProgress,  label: 'ACTIVE',       cls: ' ops-stat-amber' },
           { val: cPct,       label: 'CASE STATUS',  cls: ' ops-stat-primary', pct: true },
@@ -230,7 +236,7 @@ export default function DashboardHome() {
         );
       })()}
 
-      {assignments.length === 0 && (
+      {total === 0 && (
         <div className="ops-empty-state">
           <div className="ops-empty-icon">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
