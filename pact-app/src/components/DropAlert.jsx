@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 
-export default function DropAlert({ drop, onView, onDismiss }) {
+export default function DropAlert({
+  drop, onView, onDismiss,
+  header    = 'INCOMING TRANSMISSION',
+  dropLabel = null,
+  body      = 'Command has issued a new briefing package. Stand by for incoming intelligence.',
+  viewLabel = 'VIEW TRANSMISSION',
+}) {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
@@ -45,7 +51,7 @@ export default function DropAlert({ drop, onView, onDismiss }) {
                   transition={{ duration: 0.8, repeat: Infinity }}
                 />
               </span>
-              INCOMING TRANSMISSION
+              {header}
             </div>
             <button className="drop-alert-close" onClick={onDismiss} title="Dismiss">
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round">
@@ -59,13 +65,13 @@ export default function DropAlert({ drop, onView, onDismiss }) {
 
           {/* Body */}
           <div className="drop-alert-body">
-            <div className="drop-alert-drop-label">DROP {String(drop.number).padStart(2,'0')}</div>
+            <div className="drop-alert-drop-label">
+              {dropLabel ?? `DROP ${String(drop.number ?? '').padStart(2, '0')}`}
+            </div>
             {drop.title && (
               <div className="drop-alert-title">{drop.title.toUpperCase()}</div>
             )}
-            <div className="drop-alert-sub">
-              Command has issued a new briefing package. Stand by for incoming intelligence.
-            </div>
+            <div className="drop-alert-sub">{body}</div>
           </div>
 
           {/* Actions */}
@@ -75,7 +81,7 @@ export default function DropAlert({ drop, onView, onDismiss }) {
                 <polygon points="23 7 16 12 23 17 23 7"/>
                 <rect x="1" y="5" width="15" height="14" rx="2"/>
               </svg>
-              VIEW TRANSMISSION
+              {viewLabel}
             </button>
             <button className="drop-alert-btn-secondary" onClick={onDismiss}>
               ACKNOWLEDGE

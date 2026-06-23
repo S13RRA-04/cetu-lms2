@@ -59,7 +59,7 @@ function TxStaticOverlay() {
   );
 }
 
-export default function TransmissionInterceptor({ drop, onAcknowledge }) {
+export default function TransmissionInterceptor({ drop, onAcknowledge, idLine = null, narrativeLabel = 'COMMAND BRIEFING' }) {
   const [stage,      setStage]      = useState(0);
   const [showStatic, setShowStatic] = useState(true);
   // Stages (static clears at ~850ms, then reveal sequence begins):
@@ -135,7 +135,7 @@ export default function TransmissionInterceptor({ drop, onAcknowledge }) {
               transition={{ duration: 0.5, ease: 'easeOut' }}
             >
               <span className="tx-drop-num">
-                <DecryptText text={`DROP ${drop.number}`} speed={30} hold={3} />
+                <DecryptText text={idLine ?? `DROP ${drop.number}`} speed={30} hold={3} />
               </span>
               {drop.title && (
                 <span className="tx-drop-title chroma">
@@ -155,7 +155,7 @@ export default function TransmissionInterceptor({ drop, onAcknowledge }) {
               animate={{ opacity: 1 }}
               transition={{ duration: 0.6 }}
             >
-              <div className="tx-narrative-label">COMMAND BRIEFING</div>
+              <div className="tx-narrative-label">{narrativeLabel}</div>
               <p className="tx-narrative-body">{drop.narrative_intro}</p>
             </motion.div>
           )}

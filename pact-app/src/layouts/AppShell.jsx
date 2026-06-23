@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAssignments, getMyEnrollment, getCampaignDrops } from '../api/pact.js';
+import { getAssignments, getMyEnrollment, getCampaignDrops, getScenarios } from '../api/pact.js';
 import AppLayout          from './AppLayout.jsx';
 import InductionSequence  from '../pages/InductionSequence.jsx';
 import TransmissionInterceptor, { getSeenDropIds, markDropSeen, dropSeenId } from '../pages/TransmissionInterceptor.jsx';
@@ -45,12 +45,36 @@ function findNewDrop(drops, userId) {
     .sort((a, b) => a.number - b.number)[0] ?? null;
 }
 
+/* ── Scenario package seen tracking ────────────────────────────────────────── */
+function scenarioSeenKey(userId) {
+  return `pact_scenarios_seen_v1_${userId}`;
+}
+function getSeenScenarioIds(userId) {
+  try { return JSON.parse(localStorage.getItem(scenarioSeenKey(userId)) ?? '[]'); }
+  catch { return []; }
+}
+function markScenarioSeen(userId, pkg) {
+  const seen = getSeenScenarioIds(userId);
+  const key  = `${pkg.id}:${pkg.updatedAt ?? ''}`;
+  if (!seen.includes(key)) {
+    localStorage.setItem(scenarioSeenKey(userId), JSON.stringify([...seen, key]));
+  }
+}
+function findNewScenario(packages, userId) {
+  const seen = getSeenScenarioIds(userId);
+  return packages
+    .filter((p) => !seen.includes(`${p.id}:${p.updatedAt ?? ''}`))
+    .sort((a, b) => (a.release_number ?? 0) - (b.release_number ?? 0))[0] ?? null;
+}
+
 export default function AppShell() {
   const { user }  = useAuthStore();
   const [assignments,   setAssignments]   = useState([]);
   const [enrollment,    setEnrollment]    = useState(null);
   const [pendingDrop,   setPendingDrop]   = useState(null);
-  const [alertDrop,     setAlertDrop]     = useState(null); // in-app polling alert
+  const [alertDrop,      setAlertDrop]      = useState(null); // in-app polling alert
+  const [alertScenario,  setAlertScenario]  = useState(null); // scenario floating alert
+  const [pendingScenario,setPendingScenario] = useState(null); // scenario full-screen interceptor
   const [loading,       setLoading]       = useState(true);
   const enrollmentRef = useRef(null); // keep latest enrollment for polling
 
@@ -84,13 +108,20 @@ export default function AppShell() {
         if (isStudent && user?.id && !!localStorage.getItem(inductionKey(user.id))) {
           const cohortId = enroll?.cohort?.id;
           if (cohortId) {
-            getCampaignDrops(cohortId)
-              .then((drops) => {
-                const arr = Array.isArray(drops) ? drops : [];
-                const newDrop = findNewDrop(arr, user.id);
-                if (newDrop) setPendingDrop(newDrop);
-              })
-              .catch(() => {});
+            Promise.all([
+              getCampaignDrops(cohortId).catch(() => []),
+              getScenarios().catch(() => []),
+            ]).then(([drops, scenarios]) => {
+              const arr     = Array.isArray(drops)     ? drops     : [];
+              const scenArr = Array.isArray(scenarios) ? scenarios : [];
+              const newDrop = findNewDrop(arr, user.id);
+              if (newDrop) {
+                setPendingDrop(newDrop);
+              } else {
+                const newScenario = findNewScenario(scenArr, user.id);
+                if (newScenario) setPendingScenario(newScenario);
+              }
+            });
           }
         }
       })
@@ -105,14 +136,21 @@ export default function AppShell() {
       const enroll = enrollmentRef.current;
       const cohortId = enroll?.cohort?.id;
       if (!cohortId || !localStorage.getItem(inductionKey(user.id))) return;
-      getCampaignDrops(cohortId)
-        .then((drops) => {
-          const arr = Array.isArray(drops) ? drops : [];
-          const newDrop = findNewDrop(arr, user.id);
-          // Only show the floating alert if we're not already intercepting a drop
-          if (newDrop) setAlertDrop((prev) => prev ?? newDrop);
-        })
-        .catch(() => {});
+      Promise.all([
+        getCampaignDrops(cohortId).catch(() => []),
+        getScenarios().catch(() => []),
+      ]).then(([drops, scenarios]) => {
+        const arr     = Array.isArray(drops)     ? drops     : [];
+        const scenArr = Array.isArray(scenarios) ? scenarios : [];
+        const newDrop = findNewDrop(arr, user.id);
+        if (newDrop) {
+          setAlertDrop((prev) => prev ?? newDrop);
+        } else {
+          const newScenario = findNewScenario(scenArr, user.id);
+          if (newScenario) setAlertScenario((prev) => prev ?? newScenario);
+        }
+
+      });
     };
     const id = setInterval(poll, 45000);
     return () => clearInterval(id);
@@ -151,6 +189,20 @@ export default function AppShell() {
     if (user?.id && alertDrop) markDropSeen(user.id, alertDrop);
     setAlertDrop(null);
   }, [user?.id, alertDrop]);
+
+  const handleAlertScenarioView = useCallback(() => {
+    if (alertScenario) { setPendingScenario(alertScenario); setAlertScenario(null); }
+  }, [alertScenario]);
+
+  const handleAlertScenarioDismiss = useCallback(() => {
+    if (user?.id && alertScenario) markScenarioSeen(user.id, alertScenario);
+    setAlertScenario(null);
+  }, [user?.id, alertScenario]);
+
+  const handleScenarioAck = useCallback(() => {
+    if (user?.id && pendingScenario) markScenarioSeen(user.id, pendingScenario);
+    setPendingScenario(null);
+  }, [user?.id, pendingScenario]);
 
   const handleTimeout = useCallback(
     () => navigate('/logged-out', { replace: true }),
@@ -201,6 +253,22 @@ export default function AppShell() {
     );
   }
 
+  // Scenario release — full-screen transmission interceptor (no cipher gates)
+  if (isStudent && !pendingDrop && pendingScenario) {
+    return (
+      <TransmissionInterceptor
+        drop={{
+          number: pendingScenario.release_number,
+          title:  pendingScenario.title ?? pendingScenario.scenario_name,
+          narrative_intro: pendingScenario.description ?? null,
+        }}
+        idLine={`RELEASE ${String(pendingScenario.release_number ?? '').padStart(2, '0')}`}
+        narrativeLabel="CASE FILE BRIEFING"
+        onAcknowledge={handleScenarioAck}
+      />
+    );
+  }
+
   // Incoming transmission — student, inducted, new drop pending
   // Gate order: Signal → Vault → Transmission
   if (isStudent && pendingDrop) {
@@ -230,6 +298,16 @@ export default function AppShell() {
           drop={alertDrop}
           onView={handleAlertView}
           onDismiss={handleAlertDismiss}
+        />
+      )}
+      {/* Scenario package released alert — floating toast while browsing */}
+      {isStudent && !pendingDrop && !pendingScenario && !alertDrop && alertScenario && (
+        <DropAlert
+          drop={{ number: alertScenario.release_number, title: alertScenario.title ?? alertScenario.scenario_name }}
+          dropLabel={`RELEASE ${String(alertScenario.release_number ?? '').padStart(2, '0')}`}
+          body="New evidence package received. Stand by for incoming case file."
+          onView={handleAlertScenarioView}
+          onDismiss={handleAlertScenarioDismiss}
         />
       )}
       {warningVisible && (
