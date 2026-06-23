@@ -288,18 +288,19 @@ export default function AdminPage() {
               const nonChallenges = filtered.filter((a) => a.type !== 'challenge');
               const challenges    = filtered.filter((a) => a.type === 'challenge');
 
-              // Group challenges by drop_number; nulls → '__unassigned__'
-              const dropMap = new Map();
+              // Group challenges by scenario_name; null → '__unassigned__'
+              const scenMap = new Map();
               for (const a of challenges) {
-                const key = a.drop_number != null ? a.drop_number : '__unassigned__';
-                if (!dropMap.has(key)) dropMap.set(key, []);
-                dropMap.get(key).push(a);
+                const key = a.scenario_name ?? '__unassigned__';
+                if (!scenMap.has(key)) scenMap.set(key, []);
+                scenMap.get(key).push(a);
               }
-              const dropGroups = [...dropMap.entries()].sort(([a], [b]) => {
+              const scenGroups = [...scenMap.entries()].sort(([a], [b]) => {
                 if (a === '__unassigned__') return 1;
                 if (b === '__unassigned__') return -1;
-                return Number(a) - Number(b);
+                return a.localeCompare(b);
               });
+              for (const items of scenMap.values()) items.sort((a, b) => a.order_index - b.order_index);
 
               const renderBtn = (a) => {
                 const color    = TYPE_COLOR[a.type] ?? TYPE_COLOR.module;
@@ -320,12 +321,12 @@ export default function AdminPage() {
                 <>
                   {nonChallenges.map(renderBtn)}
 
-                  {dropGroups.length > 0 && (
+                  {scenGroups.length > 0 && (
                     <>
                       {nonChallenges.length > 0 && (
                         <div style={{ height: 1, background: 'var(--border)', margin: '6px 0' }} />
                       )}
-                      {dropGroups.map(([key, items]) => (
+                      {scenGroups.map(([key, items]) => (
                         <div key={String(key)}>
                           <div style={{
                             padding: '6px 14px 3px',
@@ -333,7 +334,7 @@ export default function AdminPage() {
                             letterSpacing: '.14em', color: 'var(--primary)',
                             textTransform: 'uppercase',
                           }}>
-                            {key === '__unassigned__' ? 'Challenges — Unassigned' : `Brokered Exit — Drop ${key}`}
+                            {scenarioLabel(key === '__unassigned__' ? null : key)}
                           </div>
                           {items.map(renderBtn)}
                         </div>
@@ -832,28 +833,34 @@ function ModulesGating({ assignments, cohorts, onUnlocksChange }) {
   );
 }
 
-/* ── Challenges Gating ── (grouped by scenario / drop number) */
+function scenarioLabel(name) {
+  if (!name) return 'Unassigned';
+  return name.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/* ── Challenges Gating ── (grouped by scenario_name) */
 function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignmentsChange }) {
   const [selected,     setSelected]     = useState(null);
-  const [closedGroups, setClosedGroups] = useState(new Set()); // open by default
+  const [closedGroups, setClosedGroups] = useState(new Set());
   const [localItems,   setLocalItems]   = useState(assignments);
 
-  // Keep local list in sync when parent prop changes
   useEffect(() => { setLocalItems(assignments); }, [assignments]);
 
-  // Group by drop_number; null → 'Unassigned'
+  // Group by scenario_name; null → '__unassigned__'
   const grouped = new Map();
   for (const a of localItems) {
-    const key = a.drop_number != null ? a.drop_number : '__unassigned__';
+    const key = a.scenario_name ?? '__unassigned__';
     if (!grouped.has(key)) grouped.set(key, []);
     grouped.get(key).push(a);
   }
-  // Sort: numeric drops ascending, unassigned last
+  // Named scenarios alphabetically, unassigned last
   const groups = [...grouped.entries()].sort(([a], [b]) => {
     if (a === '__unassigned__') return 1;
     if (b === '__unassigned__') return -1;
-    return Number(a) - Number(b);
+    return a.localeCompare(b);
   });
+  // Within each group sort by order_index
+  for (const items of grouped.values()) items.sort((a, b) => a.order_index - b.order_index);
 
   const toggleGroup = (key) =>
     setClosedGroups((prev) => {
@@ -862,15 +869,15 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
       return next;
     });
 
-  const handleDropChange = async (assignment, newDropNum) => {
-    const drop_number = newDropNum === '' ? null : Number(newDropNum);
+  const handleScenarioChange = async (assignment, newScenario) => {
+    const scenario_name = newScenario.trim() || null;
     try {
-      await updateAssignment(assignment.id, { drop_number });
-      const updated = { ...assignment, drop_number };
+      await updateAssignment(assignment.id, { scenario_name });
+      const updated = { ...assignment, scenario_name };
       setLocalItems((prev) => prev.map((a) => a.id === assignment.id ? updated : a));
       setSelected((s) => s?.id === assignment.id ? updated : s);
       onAssignmentsChange?.((prev) => prev.map((a) => a.id === assignment.id ? updated : a));
-    } catch { /* ignore — server will reject invalid values */ }
+    } catch { /* ignore */ }
   };
 
   return (
@@ -882,14 +889,11 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
           </p>
         )}
         {groups.map(([groupKey, items]) => {
-          const label   = groupKey === '__unassigned__' ? 'Unassigned' : `Scenario Drop ${groupKey}`;
-          const isOpen  = !closedGroups.has(groupKey);
+          const label  = scenarioLabel(groupKey === '__unassigned__' ? null : groupKey);
+          const isOpen = !closedGroups.has(groupKey);
           return (
             <div key={String(groupKey)}>
-              <button
-                className="admin-group-header"
-                onClick={() => toggleGroup(groupKey)}
-              >
+              <button className="admin-group-header" onClick={() => toggleGroup(groupKey)}>
                 <span className="admin-group-label">{label}</span>
                 <span className="admin-group-badge">{items.length}</span>
                 <span className="admin-group-chevron">{isOpen ? '▲' : '▼'}</span>
@@ -911,7 +915,7 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
       <div className="admin-right">
         {!selected ? (
           <div className="admin-empty">
-            <p>Select a challenge to manage its scenario drop and cohort access.</p>
+            <p>Select a challenge to manage cohort access.</p>
           </div>
         ) : (
           <>
@@ -920,30 +924,28 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
                 <div className="admin-right-title">{selected.title}</div>
                 <div className="admin-right-sub">
                   Challenge
-                  {selected.drop_number != null && ` · Scenario Drop ${selected.drop_number}`}
+                  {selected.scenario_name && ` · ${scenarioLabel(selected.scenario_name)}`}
                 </div>
               </div>
             </div>
 
-            {/* ── Drop assignment ── */}
+            {/* ── Scenario assignment ── */}
             <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)' }}>
               <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)', marginBottom: 8 }}>
-                BROKERED EXIT — SCENARIO DROP ASSIGNMENT
+                SCENARIO ASSIGNMENT
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <label style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>Assign to drop:</label>
+                <label style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>Scenario:</label>
                 <select
-                  value={selected.drop_number ?? ''}
-                  onChange={(e) => handleDropChange(selected, e.target.value)}
+                  value={selected.scenario_name ?? ''}
+                  onChange={(e) => handleScenarioChange(selected, e.target.value)}
                   style={{
                     padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)',
                     background: 'var(--surface)', color: 'var(--text)', fontSize: 13, cursor: 'pointer',
                   }}
                 >
                   <option value="">— Unassigned —</option>
-                  {[1, 2, 3, 4, 5, 6].map((n) => (
-                    <option key={n} value={n}>Drop {n}</option>
-                  ))}
+                  <option value="brokered-exit">Brokered Exit</option>
                 </select>
               </div>
             </div>
