@@ -193,6 +193,167 @@
   background: rgba(20, 60, 180, 0.05);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   TERMINAL / CRT MODE
+   Phosphor green on pitch-black — old-school VT100 aesthetic
+═══════════════════════════════════════════════════════════════════════════ */
+.ops-room.ops-terminal {
+  --bg:         #020801;
+  --surface:    #050e03;
+  --surface-2:  #091506;
+  --card:       #050e03;
+  --card-hi:    #0c1a09;
+  --border:     rgba(0, 210, 45, 0.22);
+  --border-hi:  rgba(0, 210, 45, 0.4);
+  --green-lt:   rgba(0, 210, 45, 0.12);
+  --warning-lt: rgba(0, 210, 45, 0.08);
+  --danger-lt:  rgba(0, 210, 45, 0.08);
+  --text:       #00bb2e;
+  --bright:     #00ee44;
+  --muted:      #1e5e12;
+  --shadow-sm:  0 0 8px rgba(0, 200, 40, 0.35);
+  --shadow:     0 0 24px rgba(0, 200, 40, 0.22);
+  --shadow-lg:  0 0 48px rgba(0, 200, 40, 0.16);
+  background-color: #020801;
+  background-image: radial-gradient(circle, rgba(0, 200, 40, 0.06) 1px, transparent 1px);
+}
+
+/* Hide globe — no 3D in terminal mode */
+.ops-room.ops-terminal .ops-globe-bg { display: none; }
+
+/* ── CRT scanline overlay ──────────────────────────────────────────── */
+.ops-room.ops-terminal::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.13) 0px,
+    rgba(0, 0, 0, 0.13) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  animation: crt-scan 8s linear infinite;
+}
+@keyframes crt-scan {
+  from { background-position: 0 0; }
+  to   { background-position: 0 48px; }
+}
+
+/* ── CRT vignette ──────────────────────────────────────────────────── */
+.ops-room.ops-terminal::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: radial-gradient(ellipse at 50% 50%, transparent 42%, rgba(0, 0, 0, 0.82) 100%);
+}
+
+/* ── Phosphor flicker ──────────────────────────────────────────────── */
+@keyframes phosphor-flicker {
+  0%, 97%, 100%           { opacity: 1; }
+  97.5%                   { opacity: 0.88; }
+  98%                     { opacity: 1; }
+  98.8%                   { opacity: 0.94; }
+  99%                     { opacity: 1; }
+}
+.ops-room.ops-terminal .ops-right-pane {
+  animation: phosphor-flicker 9s infinite;
+}
+
+/* Rail */
+.ops-room.ops-terminal .ops-left-rail {
+  background: rgba(2, 7, 1, 0.98);
+  border-right-color: rgba(0, 200, 40, 0.22);
+}
+.ops-room.ops-terminal .ops-left-rail::after {
+  background: linear-gradient(180deg, transparent, rgba(0, 200, 40, 0.06) 50%, transparent);
+}
+
+/* Brand */
+.ops-room.ops-terminal .ops-brand { border-bottom-color: rgba(0, 200, 40, 0.18); }
+.ops-room.ops-terminal .ops-brand-word {
+  text-shadow: 0 0 12px currentColor, 0 0 28px currentColor;
+}
+.ops-room.ops-terminal .ops-brand-sub { color: #1a5010; }
+
+/* Target card */
+.ops-room.ops-terminal .ops-target-body { background: rgba(0, 200, 40, 0.04); }
+.ops-room.ops-terminal .ops-target-name { text-shadow: 0 0 8px currentColor; }
+.ops-room.ops-terminal .ops-target-sector { color: #008820; }
+.ops-room.ops-terminal .ops-target-code { color: #005514; }
+.ops-room.ops-terminal .ops-target-redacted { color: rgba(0, 200, 40, 0.16); }
+.ops-room.ops-terminal .ops-target-pending { color: #00aa28; }
+/* DataStream: hide — phosphor glow from card border is enough */
+.ops-room.ops-terminal .data-stream-canvas { display: none; }
+
+/* Section labels */
+.ops-room.ops-terminal .ops-rail-section-label { color: #0a3808; }
+
+/* Nav */
+.ops-room.ops-terminal .ops-nav-item { color: #006814; }
+.ops-room.ops-terminal .ops-nav-item:hover {
+  background: rgba(0, 200, 40, 0.07);
+  color: #00aa28;
+}
+.ops-room.ops-terminal .ops-nav-active {
+  background: rgba(0, 200, 40, 0.1);
+  color: #00ee44;
+  text-shadow: 0 0 10px rgba(0, 220, 50, 0.8);
+}
+
+/* Drop pills */
+.ops-room.ops-terminal .ops-drop-pill {
+  background: rgba(0, 200, 40, 0.07);
+  color: #006814;
+}
+
+/* Operator strip */
+.ops-room.ops-terminal .ops-operator { border-top-color: rgba(0, 200, 40, 0.16); }
+.ops-room.ops-terminal .ops-op-avatar { background: rgba(0, 0, 0, 0.6); }
+.ops-room.ops-terminal .ops-op-name {
+  color: #00cc33;
+  text-shadow: 0 0 6px rgba(0, 200, 40, 0.55);
+}
+.ops-room.ops-terminal .ops-op-role { color: #0a3808; }
+.ops-room.ops-terminal .ops-logout-btn { color: #0a3808; }
+.ops-room.ops-terminal .ops-logout-btn:hover { color: #00ee44; }
+
+/* HUD bar */
+.ops-room.ops-terminal .ops-hud {
+  background: rgba(2, 7, 1, 0.92);
+  border-bottom-color: rgba(0, 200, 40, 0.2);
+}
+.ops-room.ops-terminal .ops-hud-op {
+  color: #00cc33;
+  text-shadow: 0 0 8px rgba(0, 200, 40, 0.6);
+}
+.ops-room.ops-terminal .ops-hud-div { color: #0a3808; }
+.ops-room.ops-terminal .ops-hud-status { color: #009920; }
+.ops-room.ops-terminal .ops-hud-clock { color: #006814; }
+
+/* Theme toggle btn in terminal mode */
+.ops-room.ops-terminal .ops-theme-btn {
+  border-color: rgba(0, 200, 40, 0.22);
+  color: #006814;
+}
+.ops-room.ops-terminal .ops-theme-btn:hover {
+  background: rgba(0, 200, 40, 0.08);
+  color: #00ee44;
+  border-color: rgba(0, 200, 40, 0.45);
+  text-shadow: 0 0 8px rgba(0, 220, 50, 0.6);
+}
+
+/* Phosphor glow on page headings */
+.ops-room.ops-terminal h1,
+.ops-room.ops-terminal h2,
+.ops-room.ops-terminal h3 {
+  text-shadow: 0 0 10px rgba(0, 200, 40, 0.55);
+}
+
 /* ── Theme toggle button ─────────────────────────────────────────────────── */
 .ops-theme-toggle { padding: 4px 12px 8px; flex-shrink: 0; }
 .ops-theme-btn {

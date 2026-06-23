@@ -52,9 +52,15 @@ const IcChart  = () => <svg viewBox="0 0 24 24" {...S}><path d="M12 2L2 7l10 5 1
 const IcPodium = () => <svg viewBox="0 0 24 24" {...S}><rect x="4" y="14" width="4" height="7" rx="1"/><rect x="10" y="9" width="4" height="12" rx="1"/><rect x="16" y="11" width="4" height="10" rx="1"/></svg>;
 const IcShield = () => <svg viewBox="0 0 24 24" {...S}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>;
 const IcLogout  = () => <svg viewBox="0 0 24 24" {...S}><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
-const IcSun     = () => <svg viewBox="0 0 24 24" {...S}><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.22" y1="4.22" x2="7.05" y2="7.05"/><line x1="16.95" y1="16.95" x2="19.78" y2="19.78"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.22" y1="19.78" x2="7.05" y2="16.95"/><line x1="16.95" y1="7.05" x2="19.78" y2="4.22"/></svg>;
-const IcMoon    = () => <svg viewBox="0 0 24 24" {...S}><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>;
-const IcNetwork = () => <svg viewBox="0 0 24 24" {...S}><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="12" y1="7" x2="5" y2="17"/><line x1="12" y1="7" x2="19" y2="17"/><line x1="5" y1="19" x2="19" y2="19"/></svg>;
+const IcSun      = () => <svg viewBox="0 0 24 24" {...S}><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.22" y1="4.22" x2="7.05" y2="7.05"/><line x1="16.95" y1="16.95" x2="19.78" y2="19.78"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.22" y1="19.78" x2="7.05" y2="16.95"/><line x1="16.95" y1="7.05" x2="19.78" y2="4.22"/></svg>;
+const IcMoon     = () => <svg viewBox="0 0 24 24" {...S}><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>;
+const IcTerminal = () => <svg viewBox="0 0 24 24" {...S}><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="6 8.5 9.5 12 6 15.5"/><line x1="12" y1="15.5" x2="16" y2="15.5"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>;
+
+const IcNetwork  = () => <svg viewBox="0 0 24 24" {...S}><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="12" y1="7" x2="5" y2="17"/><line x1="12" y1="7" x2="19" y2="17"/><line x1="5" y1="19" x2="19" y2="19"/></svg>;
+
+const THEME_NEXT  = { dark: 'light', light: 'terminal', terminal: 'dark' };
+const THEME_LABEL = { dark: 'LIGHT MODE', light: 'TERM MODE', terminal: 'DARK MODE' };
+const THEME_ICON  = { dark: <IcSun />, light: <IcTerminal />, terminal: <IcMoon /> };
 
 /* ── HUD bar ────────────────────────────────────────────────────────────────── */
 const HudBar = memo(function HudBar({ accent, squad }) {
@@ -164,21 +170,25 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
   const [theme, setTheme] = useState(() => localStorage.getItem('pact-theme') ?? 'dark');
 
   const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark';
+    const next = THEME_NEXT[theme];
     setTheme(next);
     localStorage.setItem('pact-theme', next);
   };
 
   const squadNum   = enrollment?.squad?.number ? ((Number(enrollment.squad.number) - 1) % 4) + 1 : null;
   const squadTheme = squadNum ? SQUAD_THEME[squadNum] : null;
-  const accent     = squadTheme?.primary ?? '#00b0ff';
+  const accent     = theme === 'terminal' ? '#00ee44' : (squadTheme?.primary ?? '#00b0ff');
   const squad      = enrollment?.squad ?? null;
-  const isAdmin  = user?.role === 'admin' || user?.role === 'instructor';
+  const isAdmin    = user?.role === 'admin' || user?.role === 'instructor';
 
-  /* Apply squad theme CSS vars */
+  /* Apply squad theme CSS vars — terminal mode forces phosphor green */
   useEffect(() => {
     const root = document.documentElement;
-    if (squadTheme) {
+    if (theme === 'terminal') {
+      root.style.setProperty('--primary',    '#00ee44');
+      root.style.setProperty('--primary-lt', 'rgba(0, 238, 68, 0.08)');
+      root.style.setProperty('--primary-md', 'rgba(0, 238, 68, 0.14)');
+    } else if (squadTheme) {
       root.style.setProperty('--primary',    squadTheme.primary);
       root.style.setProperty('--primary-lt', squadTheme.lt);
       root.style.setProperty('--primary-md', squadTheme.md);
@@ -192,7 +202,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
       root.style.removeProperty('--primary-lt');
       root.style.removeProperty('--primary-md');
     };
-  }, [squadTheme]);
+  }, [squadTheme, theme]);
 
   const handleLogout = async () => {
     try { await logout(); } catch {}
@@ -201,7 +211,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
   };
 
   return (
-    <div className={`ops-room${theme === 'light' ? ' ops-light' : ''}`}>
+    <div className={`ops-room${theme === 'light' ? ' ops-light' : ''}${theme === 'terminal' ? ' ops-terminal' : ''}`}>
 
       {/* Globe behind the right pane only */}
       <div className="ops-globe-bg">
@@ -264,12 +274,12 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
 
         <div className="ops-rail-spacer" />
 
-        {/* Theme toggle */}
+        {/* Theme toggle — cycles dark → light → terminal → dark */}
         <div className="ops-theme-toggle">
           <button className="ops-theme-btn" onClick={toggleTheme}
-            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
-            {theme === 'dark' ? <IcSun /> : <IcMoon />}
-            <span>{theme === 'dark' ? 'LIGHT MODE' : 'DARK MODE'}</span>
+            title={`Switch to ${THEME_NEXT[theme]} mode`}>
+            {THEME_ICON[theme]}
+            <span>{THEME_LABEL[theme]}</span>
           </button>
         </div>
 
