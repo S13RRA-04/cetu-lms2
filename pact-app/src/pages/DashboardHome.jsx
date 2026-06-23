@@ -89,7 +89,7 @@ export default function DashboardHome() {
   ];
   const taskingSections = TYPE_SECTIONS.map((s) => ({
     ...s,
-    items: assignments.filter((a) => s.types.includes(a.type)),
+    items: assignments.filter((a) => s.types.includes(a.type) && a.is_unlocked !== false),
   })).filter((s) => s.items.length > 0);
 
   if (loading) {
@@ -176,13 +176,19 @@ export default function DashboardHome() {
             transition={{ duration: 1.1, ease: 'easeOut', delay: 0.3 }}
           />
         </div>
-        {drops.length > 0 && (
+        {drops.some((d) => d.is_unlocked) && (
           <div className="ops-drop-markers">
-            {drops.map((d) => (
-              <span key={d.id} className={`ops-drop-marker${d.is_unlocked ? ' active' : ''}`}>
-                DROP {d.number}
-              </span>
-            ))}
+            {drops.filter((d) => d.is_unlocked).map((d) => {
+              const hasVault   = !!(d.vault_hint || d.vault_pin_length);
+              const vaultDone  = hasVault && !!localStorage.getItem(`pact_vault_v1_${user?.id}_${d.id}`);
+              const authorized = !hasVault || vaultDone;
+              return (
+                <span key={d.id} className={`ops-drop-marker ${authorized ? 'drop-authorized' : 'drop-encrypted'}`}>
+                  DROP {d.number}
+                  <span className="ops-drop-status-label">{authorized ? 'AUTHORIZED' : 'ENCRYPTED'}</span>
+                </span>
+              );
+            })}
           </div>
         )}
       </div>
@@ -197,19 +203,16 @@ export default function DashboardHome() {
 
             {/* Tab bar */}
             <div className="ops-type-tabs">
-              {taskingSections.map((s) => {
-                const unlocked = s.items.filter((a) => a.is_unlocked !== false).length;
-                return (
-                  <button
-                    key={s.key}
-                    className={`ops-type-tab${currentKey === s.key ? ' ops-type-tab-active' : ''}`}
-                    onClick={() => setActiveSection(s.key)}
-                  >
-                    {s.label}
-                    <span className="ops-type-tab-count">{unlocked}/{s.items.length}</span>
-                  </button>
-                );
-              })}
+              {taskingSections.map((s) => (
+                <button
+                  key={s.key}
+                  className={`ops-type-tab${currentKey === s.key ? ' ops-type-tab-active' : ''}`}
+                  onClick={() => setActiveSection(s.key)}
+                >
+                  {s.label}
+                  <span className="ops-type-tab-count">{s.items.length}</span>
+                </button>
+              ))}
             </div>
 
             {/* Active section rows */}
@@ -243,16 +246,14 @@ export default function DashboardHome() {
 }
 
 function TaskingRow({ assignment: a, idx = 0, onOpen }) {
-  const locked = !onOpen;
-  const pct    = a.progress ?? 0;
-  const done   = pct >= 100;
-  const color  = locked ? 'var(--muted)' : (TYPE_COLOR[a.type] ?? '#60a5fa');
+  const pct   = a.progress ?? 0;
+  const done  = pct >= 100;
+  const color = TYPE_COLOR[a.type] ?? '#60a5fa';
 
   return (
     <motion.button
-      className={`ops-tasking-row${done ? ' ops-tasking-done' : ''}${locked ? ' ops-tasking-locked' : ''}`}
-      onClick={locked ? undefined : onOpen}
-      disabled={locked}
+      className={`ops-tasking-row${done ? ' ops-tasking-done' : ''}`}
+      onClick={onOpen}
       initial={{ opacity: 0, x: -12 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.22, delay: 0.15 + idx * 0.055 }}
@@ -263,9 +264,7 @@ function TaskingRow({ assignment: a, idx = 0, onOpen }) {
         <span className="ops-tasking-drop">DROP {a.drop_number}</span>
       )}
       <div className="ops-tasking-right">
-        {locked ? (
-          <span className="ops-tasking-locked-label">🔒 LOCKED</span>
-        ) : done ? (
+        {done ? (
           <span className="ops-tasking-done-label">CLOSED</span>
         ) : pct > 0 ? (
           <div className="ops-tasking-prog-wrap">
@@ -278,11 +277,9 @@ function TaskingRow({ assignment: a, idx = 0, onOpen }) {
           <span className="ops-tasking-open-label">OPEN</span>
         )}
       </div>
-      {!locked && (
-        <svg className="ops-tasking-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="9 18 15 12 9 6"/>
-        </svg>
-      )}
+      <svg className="ops-tasking-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="9 18 15 12 9 6"/>
+      </svg>
     </motion.button>
   );
 }

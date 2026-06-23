@@ -239,10 +239,10 @@
   background: #000000;
   font-family: var(--mono);
   color: #00ff41;
-  /* CRT bezel: inset shadow fakes screen curvature; outer glow = phosphor bleed */
+  /* CRT bezel: very shallow inset edges only — doesn't reach content center */
   box-shadow:
-    inset 0 0 220px rgba(0, 0, 0, 0.9),
-    inset 0 0 80px  rgba(0, 0, 0, 0.6),
+    inset 0 0 60px  rgba(0, 0, 0, 0.55),
+    inset 0 0 20px  rgba(0, 0, 0, 0.3),
     0 0 0 3px #060a06,
     0 0 40px rgba(0, 255, 65, 0.07);
   border-radius: 6px;
@@ -335,12 +335,15 @@
   pointer-events: none;
   z-index: 9999;
   background:
-    radial-gradient(ellipse at 0%   0%,   rgba(0,0,0,0.92) 0%, transparent 32%),
-    radial-gradient(ellipse at 100% 0%,   rgba(0,0,0,0.92) 0%, transparent 32%),
-    radial-gradient(ellipse at 0%   100%, rgba(0,0,0,0.92) 0%, transparent 32%),
-    radial-gradient(ellipse at 100% 100%, rgba(0,0,0,0.92) 0%, transparent 32%),
-    radial-gradient(ellipse at 50%  50%,  transparent 48%, rgba(0,0,0,0.65) 100%),
-    linear-gradient(180deg, rgba(0,255,65,0.018) 0%, transparent 5%);
+    /* Corner darkening — CRT tube curvature (tight, doesn't reach content) */
+    radial-gradient(ellipse at 0%   0%,   rgba(0,0,0,0.78) 0%, transparent 22%),
+    radial-gradient(ellipse at 100% 0%,   rgba(0,0,0,0.78) 0%, transparent 22%),
+    radial-gradient(ellipse at 0%   100%, rgba(0,0,0,0.78) 0%, transparent 22%),
+    radial-gradient(ellipse at 100% 100%, rgba(0,0,0,0.78) 0%, transparent 22%),
+    /* Very subtle screen-edge fade — stops well before center */
+    radial-gradient(ellipse at 50%  50%,  transparent 60%, rgba(0,0,0,0.32) 100%),
+    /* Top-edge glass reflection */
+    linear-gradient(180deg, rgba(0,255,65,0.015) 0%, transparent 4%);
 }
 
 /* Rail */
@@ -476,7 +479,7 @@
 .ops-room.ops-terminal h1::before,
 .ops-room.ops-terminal h2::before { content: '// '; color: #005500; }
 
-/* Cards — flat black with green border glow */
+/* Cards — flat black with green border glow, no inner darkening */
 .ops-room.ops-terminal .card,
 .ops-room.ops-terminal [class*="-card"],
 .ops-room.ops-terminal [class*="-panel"],
@@ -486,8 +489,7 @@
   background: #000000;
   box-shadow:
     0 0 0 1px #004400,
-    0 0 12px rgba(0, 255, 65, 0.08),
-    inset 0 0 30px rgba(0, 0, 0, 0.6);
+    0 0 10px rgba(0, 255, 65, 0.07);
 }
 
 /* ── Submission entry (se-*) in terminal mode ──────────────────────── */
@@ -518,14 +520,13 @@
   text-shadow: none;
 }
 
-/* ── Phosphor glow: chromatic aberration + bloom on all text ────────── */
+/* ── Phosphor glow: chromatic aberration + tight bloom on all text ─── */
 .ops-room.ops-terminal *:not(canvas):not(.ops-nav-active) {
   text-shadow:
-    -0.4px 0 0.8px rgba(255, 60, 30, 0.09),
-     0.4px 0 0.8px rgba(30,  60, 255, 0.09),
-     0 0 4px  rgba(0, 255, 65, 0.7),
-     0 0 12px rgba(0, 255, 65, 0.28),
-     0 0 28px rgba(0, 255, 65, 0.1);
+    -0.3px 0 0.6px rgba(255, 60, 30, 0.07),
+     0.3px 0 0.6px rgba(30,  60, 255, 0.07),
+     0 0 3px  rgba(0, 255, 65, 0.65),
+     0 0 8px  rgba(0, 255, 65, 0.22);
 }
 /* Active nav is inverted (black on green) — no glow needed */
 .ops-room.ops-terminal .ops-nav-active {
@@ -5796,20 +5797,35 @@ body {
   flex-wrap: wrap;
 }
 .ops-drop-marker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-family: var(--mono);
   font-size: 8px;
   font-weight: 700;
   letter-spacing: .12em;
-  padding: 3px 8px;
+  padding: 4px 10px;
   border-radius: 3px;
-  background: rgba(255,255,255,0.03);
-  color: var(--muted);
   text-transform: uppercase;
-  transition: background .15s, color .15s;
+  border: 1px solid transparent;
 }
-.ops-drop-marker.active {
-  background: var(--primary);
-  color: #000;
+.ops-drop-marker.drop-authorized {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #10b981;
+}
+.ops-drop-marker.drop-encrypted {
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.3);
+  color: #fbbf24;
+}
+.ops-drop-status-label {
+  font-size: 7px;
+  font-weight: 600;
+  letter-spacing: .14em;
+  opacity: 0.75;
+  padding-left: 4px;
+  border-left: 1px solid currentColor;
 }
 
 /* Tasking feed */
