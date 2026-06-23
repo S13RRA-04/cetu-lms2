@@ -1,11 +1,9 @@
 'use strict';
 module.exports = {
-  async up(queryInterface, Sequelize) {
-    await queryInterface.addColumn('assignments', 'scenario_name', {
-      type:         Sequelize.STRING(255),
-      allowNull:    true,
-      defaultValue: null,
-    });
+  async up(queryInterface) {
+    await queryInterface.sequelize.query(
+      'ALTER TABLE assignments ADD COLUMN IF NOT EXISTS scenario_name VARCHAR(255) DEFAULT NULL'
+    );
   },
   async down(queryInterface) {
     await queryInterface.removeColumn('assignments', 'scenario_name');
