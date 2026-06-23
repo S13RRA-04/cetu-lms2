@@ -78,11 +78,18 @@ export default function DashboardHome() {
   const cProgress   = useCountUp(inProgress);
   const cPct        = useCountUp(overallPct);
 
-  /* Group unlocked assignments by drop number for the tasking feed */
-  const dropNums = [...new Set(
-    assignments.filter((a) => a.is_unlocked !== false && a.drop_number != null).map((a) => a.drop_number)
-  )].sort((a, b) => a - b);
-  const untagged = assignments.filter((a) => a.is_unlocked !== false && a.drop_number == null);
+  /* Group all assignments by section for the tasking feed */
+  const TYPE_SECTIONS = [
+    { label: 'MODULES',     types: ['module'],                key: 'modules'     },
+    { label: 'CHALLENGES',  types: ['challenge'],              key: 'challenges'  },
+    { label: 'ASSESSMENTS', types: ['assessment', 'survey'],  key: 'assessments' },
+    { label: 'CAPSTONES',   types: ['capstone'],               key: 'capstones'   },
+    { label: 'GAMES',       types: ['game'],                   key: 'games'       },
+  ];
+  const taskingSections = TYPE_SECTIONS.map((s) => ({
+    ...s,
+    items: assignments.filter((a) => s.types.includes(a.type)),
+  })).filter((s) => s.items.length > 0);
 
   if (loading) {
     return (
@@ -179,32 +186,25 @@ export default function DashboardHome() {
         )}
       </div>
 
-      {/* ── Active tasking feed ── */}
-      {(dropNums.length > 0 || untagged.length > 0) && (
+      {/* ── Tasking feed — grouped by type ── */}
+      {taskingSections.length > 0 && (
         <div className="ops-tasking-block">
           <div className="ops-section-label" style={{ marginBottom: 12 }}>ACTIVE TASKING</div>
-
           {(() => {
             let rowIdx = 0;
-            return (
-              <>
-                {dropNums.map((num) => {
-                  const items = assignments.filter((a) => a.is_unlocked !== false && a.drop_number === num);
-                  return (
-                    <div key={num} className="ops-tasking-group">
-                      <div className="ops-tasking-group-label">DROP {num}</div>
-                      {items.map((a) => <TaskingRow key={a.id} assignment={a} idx={rowIdx++} onOpen={() => navigate(`/assignment/${a.id}`)} />)}
-                    </div>
-                  );
-                })}
-                {untagged.length > 0 && (
-                  <div className="ops-tasking-group">
-                    <div className="ops-tasking-group-label">GENERAL</div>
-                    {untagged.map((a) => <TaskingRow key={a.id} assignment={a} idx={rowIdx++} onOpen={() => navigate(`/assignment/${a.id}`)} />)}
-                  </div>
-                )}
-              </>
-            );
+            return taskingSections.map((s) => (
+              <div key={s.key} className="ops-tasking-group">
+                <div className="ops-tasking-group-label">{s.label}</div>
+                {s.items.map((a) => (
+                  <TaskingRow
+                    key={a.id}
+                    assignment={a}
+                    idx={rowIdx++}
+                    onOpen={a.is_unlocked !== false ? () => navigate(`/assignment/${a.id}`) : null}
+                  />
+                ))}
+              </div>
+            ));
           })()}
         </div>
       )}
@@ -225,23 +225,29 @@ export default function DashboardHome() {
 }
 
 function TaskingRow({ assignment: a, idx = 0, onOpen }) {
-  const pct  = a.progress ?? 0;
-  const done = pct >= 100;
-  const color = TYPE_COLOR[a.type] ?? '#60a5fa';
+  const locked = !onOpen;
+  const pct    = a.progress ?? 0;
+  const done   = pct >= 100;
+  const color  = locked ? 'var(--muted)' : (TYPE_COLOR[a.type] ?? '#60a5fa');
 
   return (
     <motion.button
-      className={`ops-tasking-row${done ? ' ops-tasking-done' : ''}`}
-      onClick={onOpen}
+      className={`ops-tasking-row${done ? ' ops-tasking-done' : ''}${locked ? ' ops-tasking-locked' : ''}`}
+      onClick={locked ? undefined : onOpen}
+      disabled={locked}
       initial={{ opacity: 0, x: -12 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.22, delay: 0.15 + idx * 0.055 }}
     >
       <span className="ops-tasking-type-dot" style={{ background: color }} />
       <span className="ops-tasking-title">{a.title}</span>
-      <span className="ops-tasking-type" style={{ color }}>{a.type.toUpperCase()}</span>
+      {a.drop_number != null && (
+        <span className="ops-tasking-drop">DROP {a.drop_number}</span>
+      )}
       <div className="ops-tasking-right">
-        {done ? (
+        {locked ? (
+          <span className="ops-tasking-locked-label">🔒 LOCKED</span>
+        ) : done ? (
           <span className="ops-tasking-done-label">CLOSED</span>
         ) : pct > 0 ? (
           <div className="ops-tasking-prog-wrap">
@@ -254,9 +260,11 @@ function TaskingRow({ assignment: a, idx = 0, onOpen }) {
           <span className="ops-tasking-open-label">OPEN</span>
         )}
       </div>
-      <svg className="ops-tasking-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="9 18 15 12 9 6"/>
-      </svg>
+      {!locked && (
+        <svg className="ops-tasking-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      )}
     </motion.button>
   );
 }

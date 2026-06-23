@@ -77,14 +77,16 @@ async function upsertGrade(req, res, next) {
 
 async function unlockForCohort(req, res, next) {
   try {
-    const unlock = await assignmentService.unlockForCohort(req.params.aid, req.body.cohort_id, req.user.id);
+    const unlock = await assignmentService.unlockForCohort(
+      req.params.aid, req.body.cohort_id, req.user.id, req.body.squad_id ?? null,
+    );
     return res.status(201).json(unlock);
   } catch (err) { return next(err); }
 }
 
 async function lockForCohort(req, res, next) {
   try {
-    await assignmentService.lockForCohort(req.params.aid, req.body.cohort_id);
+    await assignmentService.lockForCohort(req.params.aid, req.body.cohort_id, req.body.squad_id ?? null);
     return res.status(204).end();
   } catch (err) { return next(err); }
 }

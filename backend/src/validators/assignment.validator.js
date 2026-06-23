@@ -34,6 +34,7 @@ const gradeSchema = Joi.object({
 
 const unlockSchema = Joi.object({
   cohort_id: Joi.string().uuid().required(),
+  squad_id:  Joi.string().uuid().allow(null).optional(),
 });
 
 module.exports = { createAssignmentSchema, updateAssignmentSchema, gradeSchema, unlockSchema };

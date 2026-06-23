@@ -177,7 +177,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
 
   const squadNum   = enrollment?.squad?.number ? ((Number(enrollment.squad.number) - 1) % 4) + 1 : null;
   const squadTheme = squadNum ? SQUAD_THEME[squadNum] : null;
-  const accent     = theme === 'terminal' ? '#00ee44' : (squadTheme?.primary ?? '#00b0ff');
+  const accent     = theme === 'terminal' ? '#00ff41' : (squadTheme?.primary ?? '#00b0ff');
   const squad      = enrollment?.squad ?? null;
   const isAdmin    = user?.role === 'admin' || user?.role === 'instructor';
 
@@ -185,9 +185,9 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
   useEffect(() => {
     const root = document.documentElement;
     if (theme === 'terminal') {
-      root.style.setProperty('--primary',    '#00ee44');
-      root.style.setProperty('--primary-lt', 'rgba(0, 238, 68, 0.08)');
-      root.style.setProperty('--primary-md', 'rgba(0, 238, 68, 0.14)');
+      root.style.setProperty('--primary',    '#00ff41');
+      root.style.setProperty('--primary-lt', '#001a00');
+      root.style.setProperty('--primary-md', '#002200');
     } else if (squadTheme) {
       root.style.setProperty('--primary',    squadTheme.primary);
       root.style.setProperty('--primary-lt', squadTheme.lt);

@@ -19,10 +19,18 @@ async function listByCourse(courseId, query) {
 }
 
 async function listForStudent(courseId, userId) {
-  const enrollment = await Enrollment.findOne({ where: { user_id: userId, course_id: courseId } });
+  const enrollment = await Enrollment.findOne({
+    where: { user_id: userId, course_id: courseId },
+    include: [{ association: 'squad', attributes: ['id'] }],
+  });
   if (!enrollment) throw new AppError('Not enrolled in this course', 403, 'FORBIDDEN');
 
-  const unlocks = await AssignmentUnlock.findAll({ where: { cohort_id: enrollment.cohort_id } });
+  // Unlocked if there's a cohort-wide record (squad_id IS NULL) OR a squad-specific record
+  const squadId = enrollment.squad?.id ?? null;
+  const orClauses = [{ cohort_id: enrollment.cohort_id, squad_id: null }];
+  if (squadId) orClauses.push({ squad_id: squadId });
+
+  const unlocks = await AssignmentUnlock.findAll({ where: { [Op.or]: orClauses } });
   const unlockedIds = new Set(unlocks.map((u) => u.assignment_id));
 
   const assignments = await Assignment.findAll({
@@ -43,7 +51,7 @@ async function listForStudent(courseId, userId) {
   }));
 }
 
-async function unlockForCohort(assignmentId, cohortId, unlockerId) {
+async function unlockForCohort(assignmentId, cohortId, unlockerId, squadId = null) {
   const assignment = await Assignment.findByPk(assignmentId);
   if (!assignment) throw new NotFoundError('Assignment');
 
@@ -51,14 +59,16 @@ async function unlockForCohort(assignmentId, cohortId, unlockerId) {
   if (!cohort) throw new NotFoundError('Cohort');
 
   const [unlock] = await AssignmentUnlock.findOrCreate({
-    where:    { assignment_id: assignmentId, cohort_id: cohortId },
+    where:    { assignment_id: assignmentId, cohort_id: cohortId, squad_id: squadId },
     defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
   });
   return unlock;
 }
 
-async function lockForCohort(assignmentId, cohortId) {
-  await AssignmentUnlock.destroy({ where: { assignment_id: assignmentId, cohort_id: cohortId } });
+async function lockForCohort(assignmentId, cohortId, squadId = null) {
+  await AssignmentUnlock.destroy({
+    where: { assignment_id: assignmentId, cohort_id: cohortId, squad_id: squadId },
+  });
 }
 
 async function getUnlockStatus(assignmentId) {
@@ -76,11 +86,15 @@ async function getById(id, userId = null) {
   if (!assignment) throw new NotFoundError('Assignment');
 
   if (userId) {
-    const enrollment = await Enrollment.findOne({ where: { user_id: userId, course_id: assignment.course_id } });
+    const enrollment = await Enrollment.findOne({
+      where: { user_id: userId, course_id: assignment.course_id },
+      include: [{ association: 'squad', attributes: ['id'] }],
+    });
     if (enrollment?.cohort_id) {
-      const unlock = await AssignmentUnlock.findOne({
-        where: { assignment_id: id, cohort_id: enrollment.cohort_id },
-      });
+      const squadId = enrollment.squad?.id ?? null;
+      const orClauses = [{ assignment_id: id, cohort_id: enrollment.cohort_id, squad_id: null }];
+      if (squadId) orClauses.push({ assignment_id: id, squad_id: squadId });
+      const unlock = await AssignmentUnlock.findOne({ where: { [Op.or]: orClauses } });
       return { ...assignment.toJSON(), is_unlocked: !!unlock };
     }
     return { ...assignment.toJSON(), is_unlocked: false };

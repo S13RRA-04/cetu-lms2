@@ -105,11 +105,11 @@ export const deleteScenarioR2Object = (key) =>
   client.delete(`/courses/${COURSE_ID}/scenarios/r2-object`, { data: { key } });
 
 /* ── Assignment gating ── */
-export const unlockAssignment = (assignmentId, cohortId) =>
-  client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/unlock`, { cohort_id: cohortId }).then((r) => r.data);
+export const unlockAssignment = (assignmentId, cohortId, squadId = null) =>
+  client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/unlock`, { cohort_id: cohortId, squad_id: squadId }).then((r) => r.data);
 
-export const lockAssignment = (assignmentId, cohortId) =>
-  client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/lock`, { cohort_id: cohortId }).then((r) => r.data);
+export const lockAssignment = (assignmentId, cohortId, squadId = null) =>
+  client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/lock`, { cohort_id: cohortId, squad_id: squadId }).then((r) => r.data);
 
 /* ── Campaign Drops ── */
 export const getCampaignDrops = (cohortId) =>

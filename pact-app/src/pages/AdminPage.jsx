@@ -1435,30 +1435,50 @@ function PublishFileForm({ file, onPublished, onCancel }) {
 }
 
 function GatingPanel({ assignment, cohorts, onUnlocksChange }) {
-  const [unlockedIds, setUnlockedIds] = useState(
-    () => new Set((assignment.unlocks ?? []).map((u) => u.cohort_id))
-  );
-  const [busy,   setBusy]   = useState({});
-  const [errors, setErrors] = useState({});
+  const [squadsByC,  setSquadsByC]  = useState({});   // cohortId → Squad[]
+  const [loadingC,   setLoadingC]   = useState({});   // cohortId → bool
+  const [busy,       setBusy]       = useState({});   // `${cohortId}:${squadId}` → bool
+  const [errors,     setErrors]     = useState({});
 
-  const toggle = async (cohortId) => {
-    const isUnlocked = unlockedIds.has(cohortId);
-    setBusy((b) => ({ ...b, [cohortId]: true }));
-    setErrors((e) => ({ ...e, [cohortId]: null }));
+  // Build sets from current unlock records for fast lookup
+  const unlockedSquadIds = new Set(
+    (assignment.unlocks ?? []).filter((u) => u.squad_id).map((u) => u.squad_id)
+  );
+  const unlockedCohortIds = new Set(
+    (assignment.unlocks ?? []).filter((u) => !u.squad_id).map((u) => u.cohort_id)
+  );
+
+  // Eager-load squads for all cohorts on mount / when cohorts change
+  useEffect(() => {
+    cohorts.forEach(async (c) => {
+      if (squadsByC[c.id] || loadingC[c.id]) return;
+      setLoadingC((l) => ({ ...l, [c.id]: true }));
+      try {
+        const squads = await getSquadsByCohort(c.id);
+        setSquadsByC((s) => ({ ...s, [c.id]: Array.isArray(squads) ? squads : (squads.data ?? []) }));
+      } catch {}
+      finally { setLoadingC((l) => ({ ...l, [c.id]: false })); }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cohorts]);
+
+  const toggle = async (cohort, squad) => {
+    const key       = `${cohort.id}:${squad.id}`;
+    const unlocked  = unlockedSquadIds.has(squad.id);
+    setBusy((b)   => ({ ...b, [key]: true }));
+    setErrors((e) => ({ ...e, [key]: null }));
     try {
-      if (isUnlocked) {
-        await lockAssignment(assignment.id, cohortId);
-        setUnlockedIds((s) => { const n = new Set(s); n.delete(cohortId); return n; });
-        onUnlocksChange((assignment.unlocks ?? []).filter((u) => u.cohort_id !== cohortId));
+      if (unlocked) {
+        await lockAssignment(assignment.id, cohort.id, squad.id);
+        onUnlocksChange((assignment.unlocks ?? []).filter((u) => u.squad_id !== squad.id));
       } else {
-        await unlockAssignment(assignment.id, cohortId);
-        setUnlockedIds((s) => new Set([...s, cohortId]));
-        onUnlocksChange([...(assignment.unlocks ?? []), { cohort_id: cohortId }]);
+        await unlockAssignment(assignment.id, cohort.id, squad.id);
+        onUnlocksChange([...(assignment.unlocks ?? []), { cohort_id: cohort.id, squad_id: squad.id }]);
       }
     } catch (err) {
-      setErrors((e) => ({ ...e, [cohortId]: err.response?.data?.error?.message ?? 'Action failed' }));
+      setErrors((e) => ({ ...e, [key]: err.response?.data?.error?.message ?? 'Action failed' }));
     } finally {
-      setBusy((b) => ({ ...b, [cohortId]: false }));
+      setBusy((b) => ({ ...b, [key]: false }));
     }
   };
 
@@ -1469,33 +1489,52 @@ function GatingPanel({ assignment, cohorts, onUnlocksChange }) {
   return (
     <div className="admin-gating">
       <p className="admin-gating-desc">
-        Control which cohorts can access this assignment. Locked cohorts see a "not yet unlocked" message.
+        Control which squads can access this assignment. Select individual squads across cohorts.
       </p>
-      <div className="admin-gating-list">
-        {cohorts.map((c) => {
-          const unlocked = unlockedIds.has(c.id);
-          return (
-            <div key={c.id} className="admin-gating-row">
-              <div className="admin-gating-info">
-                <span className="admin-gating-name">{c.name}</span>
-                <span className={`admin-gating-badge ${unlocked ? 'badge-unlocked' : 'badge-locked'}`}>
-                  {unlocked ? '🔓 Unlocked' : '🔒 Locked'}
-                </span>
-              </div>
-              {errors[c.id] && (
-                <div className="err-msg" style={{ fontSize: 11, padding: '4px 0' }}>{errors[c.id]}</div>
-              )}
-              <button
-                className={`admin-gate-btn ${unlocked ? 'gate-lock' : 'gate-unlock'}`}
-                onClick={() => toggle(c.id)}
-                disabled={busy[c.id]}
-              >
-                {busy[c.id] ? '…' : unlocked ? 'Lock' : 'Unlock'}
-              </button>
+      {cohorts.map((cohort) => {
+        const squads = squadsByC[cohort.id] ?? [];
+        const loading = loadingC[cohort.id];
+        const cohortWide = unlockedCohortIds.has(cohort.id);
+        return (
+          <div key={cohort.id} className="admin-gating-cohort">
+            <div className="admin-gating-cohort-header">
+              {cohort.name}
+              {cohortWide && <span className="admin-gating-badge badge-unlocked" style={{ marginLeft: 8, fontSize: 10 }}>All unlocked (legacy)</span>}
             </div>
-          );
-        })}
-      </div>
+            {loading ? (
+              <div className="admin-gating-loading">Loading squads…</div>
+            ) : squads.length === 0 ? (
+              <div className="admin-gating-loading">No squads in this cohort.</div>
+            ) : squads.map((squad) => {
+              const key      = `${cohort.id}:${squad.id}`;
+              const unlocked = cohortWide || unlockedSquadIds.has(squad.id);
+              return (
+                <div key={squad.id} className="admin-gating-row">
+                  <div className="admin-gating-info">
+                    <span className="admin-gating-name">
+                      Squad {squad.number}{squad.name ? ` · ${squad.name}` : ''}
+                    </span>
+                    <span className={`admin-gating-badge ${unlocked ? 'badge-unlocked' : 'badge-locked'}`}>
+                      {unlocked ? '🔓 Unlocked' : '🔒 Locked'}
+                    </span>
+                  </div>
+                  {errors[key] && (
+                    <div className="err-msg" style={{ fontSize: 11, padding: '4px 0' }}>{errors[key]}</div>
+                  )}
+                  <button
+                    className={`admin-gate-btn ${unlocked ? 'gate-lock' : 'gate-unlock'}`}
+                    onClick={() => toggle(cohort, squad)}
+                    disabled={busy[key] || cohortWide}
+                    title={cohortWide ? 'Cohort-wide unlock in effect' : undefined}
+                  >
+                    {busy[key] ? '…' : unlocked ? 'Lock' : 'Unlock'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
     </div>
   );
 }
