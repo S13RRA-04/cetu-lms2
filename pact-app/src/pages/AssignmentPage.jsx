@@ -200,7 +200,9 @@ export default function AssignmentPage() {
   const isSurvey   = assignment.type === 'survey';
   const hasQuiz    = !isLocked && !isSurvey && Array.isArray(assignment.questions) &&
     assignment.questions.some((q) => q.payload != null);
-  const isWorkshop = !isLocked && (assignment.type === 'challenge' || assignment.type === 'capstone');
+  // Workshop (free-text / prompt deliverables) only when no quiz-style questions present
+  const isWorkshop = !isLocked && !hasQuiz &&
+    (assignment.type === 'challenge' || assignment.type === 'capstone');
 
   return (
     <div className="assignment-page">
@@ -217,6 +219,11 @@ export default function AssignmentPage() {
             </span>
           )}
           {isSquad && <span className="squad-badge">Squad Tasking</span>}
+          {assignment.victim_name && (
+            <span className="type-badge" style={{ color: '#f87171', borderColor: '#f87171', fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 700 }}>
+              {assignment.victim_name.toUpperCase()}
+            </span>
+          )}
           {assignment.role_filters?.length > 0 && (
             <span className="squad-badge" style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--muted)' }}>
               {assignment.role_filters.join(' · ')}

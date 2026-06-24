@@ -1141,6 +1141,12 @@ function scenarioLabel(name) {
 }
 
 /* ── Challenges Gating ── (grouped by scenario_name) */
+const KNOWN_SCENARIOS = [
+  { value: 'packet-heist',  label: 'Packet Heist'  },
+  { value: 'brokered-exit', label: 'Brokered Exit' },
+  { value: 'left-on-red',   label: 'Left On Red'   },
+];
+
 function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignmentsChange }) {
   const [selected,     setSelected]     = useState(null);
   const [closedGroups, setClosedGroups] = useState(new Set());
@@ -1148,21 +1154,25 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
 
   useEffect(() => { setLocalItems(assignments); }, [assignments]);
 
-  // Group by scenario_name; null → '__unassigned__'
-  const grouped = new Map();
+  // Two-level grouping: scenario → victim (null victim → '__no_victim__')
+  // Top-level: scenario_name (null → '__unassigned__')
+  const scenarioMap = new Map(); // scenarioKey → Map<victimKey, Assignment[]>
   for (const a of localItems) {
-    const key = a.scenario_name ?? '__unassigned__';
-    if (!grouped.has(key)) grouped.set(key, []);
-    grouped.get(key).push(a);
+    const sKey = a.scenario_name ?? '__unassigned__';
+    const vKey = a.victim_name   ?? '__no_victim__';
+    if (!scenarioMap.has(sKey)) scenarioMap.set(sKey, new Map());
+    const vMap = scenarioMap.get(sKey);
+    if (!vMap.has(vKey)) vMap.set(vKey, []);
+    vMap.get(vKey).push(a);
   }
-  // Named scenarios alphabetically, unassigned last
-  const groups = [...grouped.entries()].sort(([a], [b]) => {
+  const scenarioGroups = [...scenarioMap.entries()].sort(([a], [b]) => {
     if (a === '__unassigned__') return 1;
     if (b === '__unassigned__') return -1;
     return a.localeCompare(b);
   });
-  // Within each group sort by order_index
-  for (const items of grouped.values()) items.sort((a, b) => a.order_index - b.order_index);
+  for (const [, vMap] of scenarioGroups) {
+    for (const items of vMap.values()) items.sort((a, b) => a.order_index - b.order_index);
+  }
 
   const toggleGroup = (key) =>
     setClosedGroups((prev) => {
@@ -1171,11 +1181,10 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
       return next;
     });
 
-  const handleScenarioChange = async (assignment, newScenario) => {
-    const scenario_name = newScenario.trim() || null;
+  const handleFieldChange = async (assignment, patch) => {
     try {
-      await updateAssignment(assignment.id, { scenario_name });
-      const updated = { ...assignment, scenario_name };
+      await updateAssignment(assignment.id, patch);
+      const updated = { ...assignment, ...patch };
       setLocalItems((prev) => prev.map((a) => a.id === assignment.id ? updated : a));
       setSelected((s) => s?.id === assignment.id ? updated : s);
       onAssignmentsChange?.((prev) => prev.map((a) => a.id === assignment.id ? updated : a));
@@ -1190,26 +1199,50 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
             No challenges found.
           </p>
         )}
-        {groups.map(([groupKey, items]) => {
-          const label  = scenarioLabel(groupKey === '__unassigned__' ? null : groupKey);
-          const isOpen = !closedGroups.has(groupKey);
+        {scenarioGroups.map(([sKey, vMap]) => {
+          const sLabel   = scenarioLabel(sKey === '__unassigned__' ? null : sKey);
+          const sCount   = [...vMap.values()].reduce((n, items) => n + items.length, 0);
+          const sIsOpen  = !closedGroups.has(sKey);
           return (
-            <div key={String(groupKey)}>
-              <button className="admin-group-header" onClick={() => toggleGroup(groupKey)}>
-                <span className="admin-group-label">{label}</span>
-                <span className="admin-group-badge">{items.length}</span>
-                <span className="admin-group-chevron">{isOpen ? '▲' : '▼'}</span>
+            <div key={sKey}>
+              <button className="admin-group-header" onClick={() => toggleGroup(sKey)}>
+                <span className="admin-group-label">{sLabel}</span>
+                <span className="admin-group-badge">{sCount}</span>
+                <span className="admin-group-chevron">{sIsOpen ? '▲' : '▼'}</span>
               </button>
-              {isOpen && items.map((a) => (
-                <button
-                  key={a.id}
-                  className={`admin-assign-btn admin-assign-btn--nested${selected?.id === a.id ? ' active' : ''}`}
-                  onClick={() => setSelected(a)}
-                >
-                  <span className="admin-assign-type" style={{ color: TYPE_COLOR.challenge }}>CHALLENGE</span>
-                  <span className="admin-assign-title">{a.title}</span>
-                </button>
-              ))}
+              {sIsOpen && [...vMap.entries()].sort(([a], [b]) => {
+                if (a === '__no_victim__') return 1;
+                if (b === '__no_victim__') return -1;
+                return a.localeCompare(b);
+              }).map(([vKey, items]) => {
+                const vLabel  = vKey === '__no_victim__' ? 'Unassigned Victim' : vKey;
+                const vGKey   = `${sKey}::${vKey}`;
+                const vIsOpen = !closedGroups.has(vGKey);
+                return (
+                  <div key={vGKey}>
+                    <button
+                      className="admin-group-header"
+                      style={{ paddingLeft: 24, background: 'transparent', fontSize: 10, color: 'var(--muted)', letterSpacing: '.12em' }}
+                      onClick={() => toggleGroup(vGKey)}
+                    >
+                      <span style={{ flex: 1, textAlign: 'left' }}>{vLabel.toUpperCase()}</span>
+                      <span className="admin-group-badge" style={{ fontSize: 9 }}>{items.length}</span>
+                      <span className="admin-group-chevron" style={{ fontSize: 9 }}>{vIsOpen ? '▲' : '▼'}</span>
+                    </button>
+                    {vIsOpen && items.map((a) => (
+                      <button
+                        key={a.id}
+                        className={`admin-assign-btn admin-assign-btn--nested${selected?.id === a.id ? ' active' : ''}`}
+                        style={{ paddingLeft: 36 }}
+                        onClick={() => setSelected(a)}
+                      >
+                        <span className="admin-assign-type" style={{ color: TYPE_COLOR.challenge }}>CHALLENGE</span>
+                        <span className="admin-assign-title">{a.title}</span>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })}
             </div>
           );
         })}
@@ -1227,28 +1260,38 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
                 <div className="admin-right-sub">
                   Challenge
                   {selected.scenario_name && ` · ${scenarioLabel(selected.scenario_name)}`}
+                  {selected.victim_name && ` · ${selected.victim_name}`}
                 </div>
               </div>
             </div>
 
-            {/* ── Scenario assignment ── */}
-            <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)', marginBottom: 8 }}>
-                SCENARIO ASSIGNMENT
+            {/* ── Scenario + Victim assignment ── */}
+            <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)' }}>
+                SCENARIO &amp; VICTIM
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <label style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>Scenario:</label>
+                <label style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', width: 56 }}>Scenario:</label>
                 <select
                   value={selected.scenario_name ?? ''}
-                  onChange={(e) => handleScenarioChange(selected, e.target.value)}
-                  style={{
-                    padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)',
-                    background: 'var(--surface)', color: 'var(--text)', fontSize: 13, cursor: 'pointer',
-                  }}
+                  onChange={(e) => handleFieldChange(selected, { scenario_name: e.target.value || null })}
+                  style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, cursor: 'pointer' }}
                 >
                   <option value="">— Unassigned —</option>
-                  <option value="brokered-exit">Brokered Exit</option>
+                  {KNOWN_SCENARIOS.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
                 </select>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <label style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', width: 56 }}>Victim:</label>
+                <input
+                  type="text"
+                  value={selected.victim_name ?? ''}
+                  onChange={(e) => handleFieldChange(selected, { victim_name: e.target.value || null })}
+                  placeholder="e.g. Redstone Memorial Hospital"
+                  style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, flex: 1 }}
+                />
               </div>
             </div>
 
