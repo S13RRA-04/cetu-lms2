@@ -50,7 +50,7 @@ async function lockForCohort(req, res, next) {
 
 async function download(req, res, next) {
   try {
-    const url = await svc.getDownloadUrl(req.params.cid, req.user.id);
+    const url = await svc.getDownloadUrl(req.params.cid, req.user.id, req.user.role);
     return res.redirect(302, url);
   } catch (err) { return next(err); }
 }

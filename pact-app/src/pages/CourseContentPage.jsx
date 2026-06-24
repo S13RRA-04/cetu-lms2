@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import useAuthStore from '../store/authStore.js';
 import { motion } from 'motion/react';
-import { getCourseContent, getContentDownloadUrl } from '../api/pact.js';
+import { getCourseContent } from '../api/pact.js';
 import DecryptText from '../components/DecryptText.jsx';
 
 const TYPE_META = {
@@ -171,10 +171,8 @@ function CaseCard({ item, idx = 0 }) {
   const [fetching, setFetching] = useState(false);
   const meta       = TYPE_META[item.content_type] ?? TYPE_META.resource;
   const isCampaign = CAMPAIGN_TYPES.includes(item.content_type);
-  const hasDownload = item.r2_key ? true : !!(item.download_url ?? item.url);
-  const downloadHref = item.r2_key
-    ? getContentDownloadUrl(item.id)
-    : (item.download_url ?? item.url);
+  const downloadHref = item.download_url ?? item.url ?? null;
+  const hasDownload  = !!downloadHref;
 
   const handleOpen = useCallback(() => {
     if (!hasDownload || fetching) return;

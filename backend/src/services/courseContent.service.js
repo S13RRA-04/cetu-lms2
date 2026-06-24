@@ -85,21 +85,23 @@ async function create(courseId, data, fileBuffer, fileName, mimeType) {
   });
 }
 
-async function getDownloadUrl(contentId, userId) {
+async function getDownloadUrl(contentId, userId, userRole = 'student') {
   const item = await CourseContentItem.findByPk(contentId);
   if (!item) throw new NotFoundError('CourseContentItem');
 
-  const { Enrollment: EnrollmentModel } = require('../models');
-  const enrollment = await EnrollmentModel.findOne({
-    where: { user_id: userId, course_id: item.course_id },
-  });
-  if (!enrollment) throw new ForbiddenError('Not enrolled');
-
-  if (enrollment.cohort_id) {
-    const unlock = await CourseContentUnlock.findOne({
-      where: { content_id: contentId, cohort_id: enrollment.cohort_id },
+  if (userRole === 'student') {
+    const { Enrollment: EnrollmentModel } = require('../models');
+    const enrollment = await EnrollmentModel.findOne({
+      where: { user_id: userId, course_id: item.course_id },
     });
-    if (!unlock) throw new ForbiddenError('Content not yet released for your cohort');
+    if (!enrollment) throw new ForbiddenError('Not enrolled');
+
+    if (enrollment.cohort_id) {
+      const unlock = await CourseContentUnlock.findOne({
+        where: { content_id: contentId, cohort_id: enrollment.cohort_id },
+      });
+      if (!unlock) throw new ForbiddenError('Content not yet released for your cohort');
+    }
   }
 
   const url = item.r2_key
