@@ -27,6 +27,7 @@ const updateAssignmentSchema = Joi.object({
   questions:    Joi.array(),
   drop_number:   Joi.number().integer().min(1).max(10).allow(null),
   scenario_name: Joi.string().max(255).allow('', null),
+  victim_name:   Joi.string().max(255).allow('', null),
 }).min(1);
 
 const gradeSchema = Joi.object({

@@ -23,7 +23,8 @@ const r2Client = new S3Client({
   },
 });
 
-const R2_BUCKET       = process.env.R2_BUCKET       ?? 'pact';
-const R2_DECKS_PREFIX = process.env.R2_DECKS_PREFIX ?? 'scenarios/';
+const R2_BUCKET         = process.env.R2_BUCKET         ?? 'pact';
+const R2_DECKS_PREFIX   = process.env.R2_DECKS_PREFIX   ?? 'scenarios/';
+const R2_SLIDES_PREFIX  = process.env.R2_SLIDES_PREFIX  ?? 'pact/decks/';
 
-module.exports = { r2Client, R2_BUCKET, R2_DECKS_PREFIX };
+module.exports = { r2Client, R2_BUCKET, R2_DECKS_PREFIX, R2_SLIDES_PREFIX };

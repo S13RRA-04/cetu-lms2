@@ -1,6 +1,6 @@
 'use strict';
-const { PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
-const { r2Client, R2_BUCKET } = require('../config/r2');
+const { ListObjectsV2Command, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { r2Client, R2_BUCKET, R2_SLIDES_PREFIX } = require('../config/r2');
 const { CourseContentItem, CourseContentUnlock, Course, Cohort, Enrollment } = require('../models');
 const { NotFoundError, ForbiddenError } = require('../utils/errors');
 const { v4: uuidv4 } = require('uuid');
@@ -140,4 +140,53 @@ async function lockForCohort(contentId, cohortId) {
   await CourseContentUnlock.destroy({ where: { content_id: contentId, cohort_id: cohortId } });
 }
 
-module.exports = { listForStudent, listForAdmin, create, update, remove, unlockForCohort, lockForCohort, getDownloadUrl };
+function titleFromKey(key, prefix) {
+  return key
+    .slice(prefix.length)
+    .replace(/\.[^.]+$/, '')
+    .replace(/[-_]/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+async function syncDecks(courseId) {
+  const prefix = R2_SLIDES_PREFIX;
+  const allKeys = [];
+  let continuationToken;
+
+  do {
+    const resp = await r2Client.send(new ListObjectsV2Command({
+      Bucket:             R2_BUCKET,
+      Prefix:             prefix,
+      ContinuationToken:  continuationToken,
+    }));
+    for (const obj of resp.Contents ?? []) {
+      if (obj.Key !== prefix) allKeys.push(obj.Key);
+    }
+    continuationToken = resp.IsTruncated ? resp.NextContinuationToken : undefined;
+  } while (continuationToken);
+
+  if (allKeys.length === 0) return { added: 0, skipped: 0, total: 0 };
+
+  const existing = await CourseContentItem.findAll({
+    where:      { course_id: courseId, r2_key: allKeys },
+    attributes: ['r2_key'],
+  });
+  const existingKeys = new Set(existing.map((e) => e.r2_key));
+
+  const toCreate = allKeys.filter((k) => !existingKeys.has(k));
+  await Promise.all(toCreate.map((key) =>
+    CourseContentItem.create({
+      course_id:    courseId,
+      title:        titleFromKey(key, prefix),
+      content_type: 'slides',
+      r2_key:       key,
+      url:          `${R2_PUBLIC_BASE_URL}/${key}`,
+      is_published: false,
+      order_index:  0,
+    })
+  ));
+
+  return { added: toCreate.length, skipped: existingKeys.size, total: allKeys.length };
+}
+
+module.exports = { listForStudent, listForAdmin, create, update, remove, unlockForCohort, lockForCohort, getDownloadUrl, syncDecks };

@@ -12,6 +12,7 @@ import {
   browseScenarioR2,
   getCourseContent,
   createContentLink,
+  syncDecksFromR2,
   uploadContentFile,
   updateContentItem,
   deleteContentItem,
@@ -906,15 +907,31 @@ function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignm
 
 /* ── Intel Library Gating ── */
 function IntelLibraryGating({ contentItems, cohorts, moduleAssignments = [], onItemAdded }) {
-  const [selected,   setSelected]   = useState(null);
-  const [showR2,     setShowR2]     = useState(false);
-  const [localItems, setLocalItems] = useState(contentItems);
+  const [selected,    setSelected]    = useState(null);
+  const [showR2,      setShowR2]      = useState(false);
+  const [localItems,  setLocalItems]  = useState(contentItems);
+  const [syncing,     setSyncing]     = useState(false);
+  const [syncResult,  setSyncResult]  = useState(null);
 
   useEffect(() => { setLocalItems(contentItems); }, [contentItems]);
 
   const handleItemAdded = () => {
     setShowR2(false);
     onItemAdded?.();
+  };
+
+  const handleSyncDecks = async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const result = await syncDecksFromR2();
+      setSyncResult(result);
+      if (result.added > 0) onItemAdded?.();
+    } catch {
+      setSyncResult({ error: true });
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const handleItemUpdated = (updated) => {
@@ -959,8 +976,8 @@ function IntelLibraryGating({ contentItems, cohorts, moduleAssignments = [], onI
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-      {/* R2 browser section */}
-      <div style={{ borderBottom: '1px solid var(--border)', padding: '8px 16px', flexShrink: 0 }}>
+      {/* R2 toolbar */}
+      <div style={{ borderBottom: '1px solid var(--border)', padding: '8px 16px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 20 }}>
         <button
           onClick={() => setShowR2((b) => !b)}
           style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: 0 }}
@@ -970,6 +987,27 @@ function IntelLibraryGating({ contentItems, cohorts, moduleAssignments = [], onI
           </span>
           <span style={{ color: 'var(--muted)', fontSize: 10, fontFamily: 'var(--mono)' }}>{showR2 ? '▲' : '▼'}</span>
         </button>
+
+        <button
+          onClick={handleSyncDecks}
+          disabled={syncing}
+          style={{ background: 'none', border: 'none', cursor: syncing ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: 0, opacity: syncing ? 0.6 : 1 }}
+        >
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--accent)' }}>
+            {syncing ? 'SYNCING…' : 'SYNC DECKS'}
+          </span>
+        </button>
+
+        {syncResult && !syncResult.error && (
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: syncResult.added > 0 ? '#10b981' : 'var(--muted)' }}>
+            {syncResult.added > 0
+              ? `+${syncResult.added} imported (${syncResult.skipped} already synced)`
+              : `All ${syncResult.total} deck${syncResult.total !== 1 ? 's' : ''} already synced`}
+          </span>
+        )}
+        {syncResult?.error && (
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: '#f87171' }}>Sync failed</span>
+        )}
       </div>
       {showR2 && (
         <div style={{ maxHeight: 380, overflowY: 'auto', borderBottom: '1px solid var(--border)', padding: '10px 16px', flexShrink: 0, background: 'var(--surface)' }}>
@@ -1329,8 +1367,10 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
   const [selected,     setSelected]     = useState(null);
   const [closedGroups, setClosedGroups] = useState(new Set());
   const [localItems,   setLocalItems]   = useState(assignments);
+  const [victimDraft,  setVictimDraft]  = useState('');
 
   useEffect(() => { setLocalItems(assignments); }, [assignments]);
+  useEffect(() => { setVictimDraft(selected?.victim_name ?? ''); }, [selected?.id]);
 
   // Two-level grouping: scenario → victim (null victim → '__no_victim__')
   // Top-level: scenario_name (null → '__unassigned__')
@@ -1359,13 +1399,12 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
       return next;
     });
 
-  const handleFieldChange = async (assignment, patch) => {
+  const handleFieldChange = async (assignmentId, patch) => {
     try {
-      await updateAssignment(assignment.id, patch);
-      const updated = { ...assignment, ...patch };
-      setLocalItems((prev) => prev.map((a) => a.id === assignment.id ? updated : a));
-      setSelected((s) => s?.id === assignment.id ? updated : s);
-      onAssignmentsChange?.((prev) => prev.map((a) => a.id === assignment.id ? updated : a));
+      await updateAssignment(assignmentId, patch);
+      setLocalItems((prev) => prev.map((a) => a.id === assignmentId ? { ...a, ...patch } : a));
+      setSelected((s) => s?.id === assignmentId ? { ...s, ...patch } : s);
+      onAssignmentsChange?.((prev) => prev.map((a) => a.id === assignmentId ? { ...a, ...patch } : a));
     } catch { /* ignore */ }
   };
 
@@ -1452,7 +1491,7 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
                 <label style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', width: 56 }}>Scenario:</label>
                 <select
                   value={selected.scenario_name ?? ''}
-                  onChange={(e) => handleFieldChange(selected, { scenario_name: e.target.value || null })}
+                  onChange={(e) => handleFieldChange(selected.id, { scenario_name: e.target.value || null })}
                   style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, cursor: 'pointer' }}
                 >
                   <option value="">— Unassigned —</option>
@@ -1465,8 +1504,10 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
                 <label style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', width: 56 }}>Victim:</label>
                 <input
                   type="text"
-                  value={selected.victim_name ?? ''}
-                  onChange={(e) => handleFieldChange(selected, { victim_name: e.target.value || null })}
+                  value={victimDraft}
+                  onChange={(e) => setVictimDraft(e.target.value)}
+                  onBlur={() => handleFieldChange(selected.id, { victim_name: victimDraft.trim() || null })}
+                  onKeyDown={(e) => e.key === 'Enter' && handleFieldChange(selected.id, { victim_name: victimDraft.trim() || null })}
                   placeholder="e.g. Redstone Memorial Hospital"
                   style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, flex: 1 }}
                 />

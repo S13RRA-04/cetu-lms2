@@ -55,4 +55,9 @@ async function download(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { list, create, update, remove, unlockForCohort, lockForCohort, download };
+async function syncDecks(req, res, next) {
+  try { return res.json(await svc.syncDecks(req.params.id)); }
+  catch (err) { return next(err); }
+}
+
+module.exports = { list, create, update, remove, unlockForCohort, lockForCohort, download, syncDecks };
