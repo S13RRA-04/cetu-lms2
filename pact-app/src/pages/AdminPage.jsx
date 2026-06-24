@@ -1270,11 +1270,36 @@ function ReleasesManager({ onRefresh, scenarioFilter = null }) {
 
 /* ── Modules Gating ── (cohort-wide; no scenario grouping) */
 function ModulesGating({ assignments, cohorts, contentItems = [], onUnlocksChange }) {
-  const [selected, setSelected] = useState(null);
+  const [selected,    setSelected]    = useState(null);
+  const [localItems,  setLocalItems]  = useState(contentItems);
+  const [showPicker,  setShowPicker]  = useState(false);
+  const [busy,        setBusy]        = useState({});
 
-  const linkedSlides = selected
-    ? contentItems.filter((ci) => ci.linked_assignment_id === selected.id)
-    : [];
+  useEffect(() => { setLocalItems(contentItems); }, [contentItems]);
+  useEffect(() => { setShowPicker(false); }, [selected?.id]);
+
+  const linkedSlides   = selected ? localItems.filter((ci) => ci.linked_assignment_id === selected.id) : [];
+  const availableDecks = localItems.filter((ci) => !ci.linked_assignment_id);
+
+  const handleLink = async (ci) => {
+    setBusy((b) => ({ ...b, [ci.id]: true }));
+    try {
+      await updateContentItem(ci.id, { linked_assignment_id: selected.id });
+      setLocalItems((prev) => prev.map((x) => x.id === ci.id ? { ...x, linked_assignment_id: selected.id } : x));
+    } catch { /* ignore */ } finally {
+      setBusy((b) => ({ ...b, [ci.id]: false }));
+    }
+  };
+
+  const handleUnlink = async (ci) => {
+    setBusy((b) => ({ ...b, [ci.id]: true }));
+    try {
+      await updateContentItem(ci.id, { linked_assignment_id: null });
+      setLocalItems((prev) => prev.map((x) => x.id === ci.id ? { ...x, linked_assignment_id: null } : x));
+    } catch { /* ignore */ } finally {
+      setBusy((b) => ({ ...b, [ci.id]: false }));
+    }
+  };
 
   return (
     <div className="admin-layout">
@@ -1317,33 +1342,84 @@ function ModulesGating({ assignments, cohorts, contentItems = [], onUnlocksChang
                 onUnlocksChange(selected.id, unlocks);
               }}
             />
-            {linkedSlides.length > 0 && (
-              <div style={{ padding: '0 20px 20px' }}>
-                <div className="section-label" style={{ marginBottom: 8 }}>
-                  Intel Library — Linked Slide Decks
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
-                  These items auto-unlock with this module.
-                </div>
-                {linkedSlides.map((ci) => (
-                  <div key={ci.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '6px 10px', marginBottom: 4,
-                    background: 'rgba(0,176,255,0.05)',
-                    border: '1px solid rgba(0,176,255,0.15)',
-                    borderRadius: 4,
-                  }}>
-                    <span style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '.1em' }}>
-                      {CONTENT_TYPE_LABELS[ci.content_type] ?? ci.content_type}
-                    </span>
-                    <span style={{ fontSize: 13, color: 'var(--bright)', flex: 1 }}>{ci.title}</span>
-                    <span style={{ fontSize: 10, color: ci.is_published ? '#10b981' : 'var(--muted)' }}>
-                      {ci.is_published ? 'Published' : 'Draft'}
-                    </span>
-                  </div>
-                ))}
+
+            {/* ── Linked slide decks ── */}
+            <div style={{ padding: '12px 20px 20px', borderTop: '1px solid var(--border)' }}>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)', marginBottom: 10 }}>
+                LINKED SLIDE DECKS
               </div>
-            )}
+
+              {linkedSlides.length === 0 && (
+                <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
+                  No slide decks linked. Add one below — it will auto-unlock with this module.
+                </p>
+              )}
+
+              {linkedSlides.map((ci) => (
+                <div key={ci.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '5px 8px', marginBottom: 4,
+                  background: 'rgba(0,176,255,0.05)',
+                  border: '1px solid rgba(0,176,255,0.15)',
+                  borderRadius: 4,
+                }}>
+                  <span style={{ fontSize: 9, fontFamily: 'var(--mono)', color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '.1em', flexShrink: 0 }}>
+                    {CONTENT_TYPE_LABELS[ci.content_type] ?? ci.content_type}
+                  </span>
+                  <span style={{ fontSize: 12, color: 'var(--bright)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ci.title}</span>
+                  <span style={{ fontSize: 9, color: ci.is_published ? '#10b981' : 'var(--muted)', flexShrink: 0 }}>
+                    {ci.is_published ? 'PUB' : 'DRAFT'}
+                  </span>
+                  <button
+                    onClick={() => handleUnlink(ci)}
+                    disabled={busy[ci.id]}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f87171', fontSize: 11, padding: '0 2px', flexShrink: 0 }}
+                    title="Unlink from this module"
+                  >
+                    {busy[ci.id] ? '…' : '✕'}
+                  </button>
+                </div>
+              ))}
+
+              {/* Add deck picker */}
+              <button
+                onClick={() => setShowPicker((b) => !b)}
+                style={{ marginTop: 6, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, padding: 0 }}
+              >
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', color: 'var(--accent)' }}>
+                  {showPicker ? '▲ CANCEL' : '+ ADD SLIDE DECK'}
+                </span>
+              </button>
+
+              {showPicker && (
+                <div style={{ marginTop: 8, maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 4 }}>
+                  {availableDecks.length === 0 ? (
+                    <p style={{ fontSize: 12, color: 'var(--muted)', padding: '10px 12px' }}>
+                      No unlinked slide decks. Sync from R2 in the Intel Library tab first.
+                    </p>
+                  ) : availableDecks.map((ci) => (
+                    <div key={ci.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '6px 10px',
+                      borderBottom: '1px solid var(--border)',
+                    }}>
+                      <span style={{ fontSize: 9, fontFamily: 'var(--mono)', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.1em', flexShrink: 0 }}>
+                        {CONTENT_TYPE_LABELS[ci.content_type] ?? ci.content_type}
+                      </span>
+                      <span style={{ fontSize: 12, color: 'var(--text)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ci.title}</span>
+                      <button
+                        onClick={() => handleLink(ci)}
+                        disabled={busy[ci.id]}
+                        className="btn-sm-primary"
+                        style={{ flexShrink: 0, fontSize: 10 }}
+                      >
+                        {busy[ci.id] ? '…' : 'Link'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>
