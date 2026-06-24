@@ -14,6 +14,7 @@ module.exports = (sequelize) => {
       graded_at:     { type: DataTypes.DATE,         allowNull: true },
       graded_by:     { type: DataTypes.UUID,         allowNull: true },
       lti_score_id:  { type: DataTypes.STRING(512),  allowNull: true },
+      prompt_scores: { type: DataTypes.JSONB,         allowNull: true },
     },
     { tableName: 'grades' }
   );

@@ -30,8 +30,9 @@ const updateAssignmentSchema = Joi.object({
 }).min(1);
 
 const gradeSchema = Joi.object({
-  score:    Joi.number().min(0).required(),
-  feedback: Joi.string().allow('', null),
+  score:        Joi.number().min(0).required(),
+  feedback:     Joi.string().allow('', null),
+  promptScores: Joi.object().pattern(Joi.string(), Joi.number().min(0)).allow(null),
 });
 
 const unlockSchema = Joi.object({

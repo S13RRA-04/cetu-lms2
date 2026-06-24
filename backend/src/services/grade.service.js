@@ -36,21 +36,23 @@ async function upsertGrade(assignmentId, userId, data, graderId) {
   const [grade, created] = await Grade.findOrCreate({
     where:    { assignment_id: assignmentId, user_id: userId },
     defaults: {
-      score:     data.score,
-      max_score: assignment.max_score,
-      feedback:  data.feedback || null,
-      graded_at: new Date(),
-      graded_by: graderId,
+      score:         data.score,
+      max_score:     assignment.max_score,
+      feedback:      data.feedback || null,
+      prompt_scores: data.promptScores ?? null,
+      graded_at:     new Date(),
+      graded_by:     graderId,
     },
   });
 
   if (!created) {
     await grade.update({
-      score:     data.score,
-      max_score: assignment.max_score,
-      feedback:  data.feedback ?? grade.feedback,
-      graded_at: new Date(),
-      graded_by: graderId,
+      score:         data.score,
+      max_score:     assignment.max_score,
+      feedback:      data.feedback ?? grade.feedback,
+      prompt_scores: data.promptScores ?? grade.prompt_scores,
+      graded_at:     new Date(),
+      graded_by:     graderId,
     });
   }
 
@@ -80,9 +82,9 @@ async function gradeSquad(assignmentId, squadId, data, graderId) {
   const grades = await Promise.all(enrollments.map(async (e) => {
     const [grade, created] = await Grade.findOrCreate({
       where:    { assignment_id: assignmentId, user_id: e.user_id },
-      defaults: { score: data.score, max_score: assignment.max_score, feedback: data.feedback || null, graded_at: new Date(), graded_by: graderId },
+      defaults: { score: data.score, max_score: assignment.max_score, feedback: data.feedback || null, prompt_scores: data.promptScores ?? null, graded_at: new Date(), graded_by: graderId },
     });
-    if (!created) await grade.update({ score: data.score, max_score: assignment.max_score, feedback: data.feedback ?? grade.feedback, graded_at: new Date(), graded_by: graderId });
+    if (!created) await grade.update({ score: data.score, max_score: assignment.max_score, feedback: data.feedback ?? grade.feedback, prompt_scores: data.promptScores ?? grade.prompt_scores, graded_at: new Date(), graded_by: graderId });
 
     if (assignment.lineitem_url) {
       ltiService.publishGradeAsync(assignment, e.user_id, data.score).catch((err) => {

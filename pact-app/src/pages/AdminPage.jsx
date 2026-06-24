@@ -45,7 +45,8 @@ const TYPE_COLOR = {
 function parseContent(content) {
   try {
     const p = JSON.parse(content ?? 'null');
-    if (p?.answers) return { type: 'quiz', data: p };
+    if (p?.answers)    return { type: 'quiz',        data: p };
+    if (p?.responses)  return { type: 'deliverable', data: p };
   } catch {}
   return { type: 'text', data: content };
 }
@@ -66,12 +67,176 @@ function QuizAnswerReview({ quizData, questions = [] }) {
           <div key={a.questionId} className={`admin-qa-row ${a.isCorrect ? 'qa-ok' : 'qa-no'}`}>
             <div className="admin-qa-num">Q{i + 1}</div>
             <div className="admin-qa-body">
-              <div className="admin-qa-stem">{q?.stem?.en ?? a.questionId}</div>
+              <div className="admin-qa-stem">{q?.stem ?? q?.stem?.en ?? a.questionId}</div>
               <div className="admin-qa-pts">{a.isCorrect ? '✓' : '✗'} {a.points}/{q?.scoring?.points ?? '?'} pts</div>
             </div>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function ChallengeDeliverableReview({ delivData, questions = [], maxScore, assignmentId, userId, squadId, isSquad, existingGrade, onGradeSaved }) {
+  const prompts = questions.filter((q) => q.kind === 'prompt');
+  const perPromptMax = prompts.length > 0 ? Math.round(maxScore / prompts.length) : maxScore;
+
+  const initScores = () => {
+    const ps = existingGrade?.promptScores ?? existingGrade?.prompt_scores;
+    if (ps) return ps;
+    return Object.fromEntries(prompts.map((_, i) => [i, '']));
+  };
+
+  const [promptScores, setPromptScores] = useState(initScores);
+  const [feedback,     setFeedback]     = useState(existingGrade?.feedback ?? '');
+  const [openRubric,   setOpenRubric]   = useState({});
+  const [saving,       setSaving]       = useState(false);
+  const [err,          setErr]          = useState('');
+
+  const total = prompts.reduce((sum, _, i) => {
+    const v = parseFloat(promptScores[i]);
+    return sum + (isNaN(v) ? 0 : v);
+  }, 0);
+  const allScored = prompts.every((_, i) => promptScores[i] !== '' && !isNaN(parseFloat(promptScores[i])));
+
+  const handleSave = async () => {
+    if (!allScored) { setErr('Score every deliverable before saving.'); return; }
+    const s = Math.min(total, maxScore);
+    setSaving(true);
+    setErr('');
+    try {
+      const gradeData = { score: s, feedback, promptScores };
+      if (isSquad && squadId) {
+        await submitSquadGrade(assignmentId, squadId, gradeData);
+      } else {
+        await submitGrade(assignmentId, userId, gradeData);
+      }
+      onGradeSaved(gradeData);
+    } catch (e) {
+      setErr(e.response?.data?.error?.message ?? 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleRubric = (i) => setOpenRubric((prev) => ({ ...prev, [i]: !prev[i] }));
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {prompts.map((q, i) => {
+        const response   = delivData.responses?.[i] ?? '';
+        const rubric     = q.rubric;
+        const scoreVal   = promptScores[i];
+        const pts        = q.points ?? perPromptMax;
+        const isRubricOpen = !!openRubric[i];
+        const scoreNum   = parseFloat(scoreVal);
+        const pct        = (!isNaN(scoreNum) && pts > 0) ? scoreNum / pts : null;
+        const scoreColor = pct === null ? 'var(--muted)' : pct >= 0.8 ? '#10b981' : pct >= 0.5 ? '#f59e0b' : '#ef4444';
+
+        return (
+          <div key={i} style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--surface-2, var(--surface))' }}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--primary)', letterSpacing: '.14em', whiteSpace: 'nowrap' }}>
+                {String(i + 1).padStart(2, '0')} / {String(prompts.length).padStart(2, '0')}
+              </span>
+              <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{q.text}</span>
+              {/* Per-prompt score */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                <input
+                  type="number"
+                  min={0}
+                  max={pts}
+                  value={scoreVal}
+                  onChange={(e) => setPromptScores((prev) => ({ ...prev, [i]: e.target.value }))}
+                  placeholder="—"
+                  style={{
+                    width: 52, padding: '3px 6px', textAlign: 'center', borderRadius: 4,
+                    border: `1px solid ${scoreColor}`, background: 'var(--surface)', color: scoreColor,
+                    fontSize: 13, fontFamily: 'var(--mono)', fontWeight: 700,
+                  }}
+                />
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)' }}>/ {pts}</span>
+              </div>
+            </div>
+
+            {/* Student response */}
+            <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: 'var(--muted)', marginBottom: 6 }}>SQUAD RESPONSE</div>
+              <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, color: 'var(--text)', lineHeight: 1.6, maxHeight: 200, overflowY: 'auto' }}>
+                {response || <span style={{ color: 'var(--muted)', fontStyle: 'italic' }}>No response submitted</span>}
+              </pre>
+            </div>
+
+            {/* Rubric toggle */}
+            {rubric && (
+              <div style={{ borderTop: '1px solid var(--border)' }}>
+                <button
+                  onClick={() => toggleRubric(i)}
+                  style={{ width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, color: 'var(--primary)' }}
+                >
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em' }}>
+                    {isRubricOpen ? '▲ HIDE' : '▼ RUBRIC GUIDANCE'}
+                  </span>
+                </button>
+                {isRubricOpen && (
+                  <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {rubric.keyElements?.length > 0 && (
+                      <div>
+                        <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: '#10b981', marginBottom: 6 }}>EXPECTED ELEMENTS</div>
+                        <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {rubric.keyElements.map((el, j) => (
+                            <li key={j} style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.5 }}>{el}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {rubric.commonErrors?.length > 0 && (
+                      <div>
+                        <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: '#ef4444', marginBottom: 6 }}>COMMON ERRORS TO FLAG</div>
+                        <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {rubric.commonErrors.map((er, j) => (
+                            <li key={j} style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>{er}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Score summary + feedback */}
+      <div style={{ border: '1px solid var(--border)', borderRadius: 6, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)' }}>TOTAL SCORE</span>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 18, fontWeight: 700, color: allScored ? '#10b981' : 'var(--muted)' }}>
+            {allScored ? total : '—'} / {maxScore}
+          </span>
+        </div>
+        <div>
+          <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: 'var(--muted)', marginBottom: 6 }}>INSTRUCTOR FEEDBACK (optional)</div>
+          <textarea
+            value={feedback}
+            onChange={(e) => setFeedback(e.target.value)}
+            placeholder="Overall feedback for the squad…"
+            rows={3}
+            style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, resize: 'vertical' }}
+          />
+        </div>
+        {err && <div className="err-msg">{err}</div>}
+        <button
+          className="btn-submit"
+          style={{ width: 'auto', alignSelf: 'flex-start' }}
+          onClick={handleSave}
+          disabled={saving || !allScored}
+        >
+          {saving ? 'Saving…' : existingGrade ? 'Update Grade' : 'Save Grade'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -290,27 +455,32 @@ export default function AdminPage() {
               const nonChallenges = filtered.filter((a) => a.type !== 'challenge');
               const challenges    = filtered.filter((a) => a.type === 'challenge');
 
-              // Group challenges by scenario_name; null → '__unassigned__'
-              const scenMap = new Map();
+              // Group challenges: scenario → victim (two levels)
+              const scenMap = new Map(); // scenKey → Map<victimKey, Assignment[]>
               for (const a of challenges) {
-                const key = a.scenario_name ?? '__unassigned__';
-                if (!scenMap.has(key)) scenMap.set(key, []);
-                scenMap.get(key).push(a);
+                const sk = a.scenario_name ?? '__unassigned__';
+                const vk = a.victim_name   ?? '__no_victim__';
+                if (!scenMap.has(sk)) scenMap.set(sk, new Map());
+                const vm = scenMap.get(sk);
+                if (!vm.has(vk)) vm.set(vk, []);
+                vm.get(vk).push(a);
               }
               const scenGroups = [...scenMap.entries()].sort(([a], [b]) => {
                 if (a === '__unassigned__') return 1;
                 if (b === '__unassigned__') return -1;
                 return a.localeCompare(b);
               });
-              for (const items of scenMap.values()) items.sort((a, b) => a.order_index - b.order_index);
+              for (const [, vm] of scenGroups)
+                for (const items of vm.values()) items.sort((a, b) => a.order_index - b.order_index);
 
-              const renderBtn = (a) => {
+              const renderBtn = (a, indent = false) => {
                 const color    = TYPE_COLOR[a.type] ?? TYPE_COLOR.module;
                 const isActive = selectedAssignment?.id === a.id;
                 return (
                   <button
                     key={a.id}
                     className={`admin-assign-btn${isActive ? ' active' : ''}`}
+                    style={indent ? { paddingLeft: 28 } : undefined}
                     onClick={() => openAssignment(a)}
                   >
                     <span className="admin-assign-type" style={{ color }}>{a.type.toUpperCase()}</span>
@@ -321,24 +491,32 @@ export default function AdminPage() {
 
               return (
                 <>
-                  {nonChallenges.map(renderBtn)}
+                  {nonChallenges.map((a) => renderBtn(a, false))}
 
                   {scenGroups.length > 0 && (
                     <>
                       {nonChallenges.length > 0 && (
                         <div style={{ height: 1, background: 'var(--border)', margin: '6px 0' }} />
                       )}
-                      {scenGroups.map(([key, items]) => (
-                        <div key={String(key)}>
-                          <div style={{
-                            padding: '6px 14px 3px',
-                            fontFamily: 'var(--mono)', fontSize: 9,
-                            letterSpacing: '.14em', color: 'var(--primary)',
-                            textTransform: 'uppercase',
-                          }}>
-                            {scenarioLabel(key === '__unassigned__' ? null : key)}
+                      {scenGroups.map(([sk, vm]) => (
+                        <div key={sk}>
+                          {/* Scenario heading */}
+                          <div style={{ padding: '6px 14px 2px', fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.14em', color: 'var(--primary)', textTransform: 'uppercase' }}>
+                            {scenarioLabel(sk === '__unassigned__' ? null : sk)}
                           </div>
-                          {items.map(renderBtn)}
+                          {[...vm.entries()].sort(([a], [b]) => {
+                            if (a === '__no_victim__') return 1;
+                            if (b === '__no_victim__') return -1;
+                            return a.localeCompare(b);
+                          }).map(([vk, items]) => (
+                            <div key={vk}>
+                              {/* Victim sub-heading */}
+                              <div style={{ padding: '3px 14px 2px 22px', fontFamily: 'var(--mono)', fontSize: 8, letterSpacing: '.1em', color: '#f87171', textTransform: 'uppercase' }}>
+                                {vk === '__no_victim__' ? 'Unassigned' : vk}
+                              </div>
+                              {items.map((a) => renderBtn(a, true))}
+                            </div>
+                          ))}
                         </div>
                       ))}
                     </>
@@ -1988,16 +2166,20 @@ function GatingPanel({ assignment, cohorts, onUnlocksChange }) {
 
 function SubmissionDetail({ sub, assignment, existingGrade, onGradeSaved }) {
   const [savedGrade, setSavedGrade] = useState(existingGrade);
-  const parsed = parseContent(sub.content);
+  const parsed    = parseContent(sub.content);
+  const isSquad   = assignment.grading_mode === 'squad';
+  const maxScore  = parseFloat(assignment.max_score ?? 100);
 
   const handleSaved = (result) => {
     setSavedGrade(result);
     onGradeSaved(result);
   };
 
+  const isDeliverable = parsed.type === 'deliverable';
+
   return (
     <div className="admin-detail">
-      {/* Student info */}
+      {/* Student / squad info */}
       <div className="admin-detail-header">
         <div className="admin-sub-avatar" style={{ width: 44, height: 44, fontSize: 16 }}>
           {sub.student?.first_name?.[0]}{sub.student?.last_name?.[0]}
@@ -2009,38 +2191,69 @@ function SubmissionDetail({ sub, assignment, existingGrade, onGradeSaved }) {
             {sub.squad && ` · Squad ${sub.squad.number}${sub.squad.name ? ` (${sub.squad.name})` : ''}`}
           </div>
         </div>
-        {savedGrade && (
+        {savedGrade != null && (
           <div className="admin-grade-chip" style={{ marginLeft: 'auto', color: '#10b981', fontSize: 15 }}>
-            {savedGrade.score}/{assignment.max_score}
+            {savedGrade.score}/{maxScore}
           </div>
         )}
       </div>
 
-      {/* Submission content */}
-      <div className="admin-content-box">
-        <div className="section-label" style={{ marginBottom: 12 }}>Submission</div>
-        {parsed.type === 'quiz' ? (
+      {/* Quiz auto-grade review (no separate grade form needed) */}
+      {parsed.type === 'quiz' && (
+        <div className="admin-content-box">
+          <div className="section-label" style={{ marginBottom: 12 }}>Assessment Results</div>
           <QuizAnswerReview quizData={parsed.data} questions={assignment.questions ?? []} />
-        ) : (
-          <pre className="admin-text-content">{parsed.data || '(no content)'}</pre>
-        )}
-      </div>
-
-      {/* Grade form */}
-      <div className="admin-content-box">
-        <div className="section-label" style={{ marginBottom: 12 }}>
-          {savedGrade ? 'Update Grade' : 'Grade Submission'}
         </div>
-        <GradeForm
-          assignmentId={assignment.id}
-          userId={sub.user_id}
-          squadId={sub.squad_id}
-          isSquad={assignment.grading_mode === 'squad'}
-          maxScore={parseFloat(assignment.max_score ?? 100)}
-          existingGrade={savedGrade}
-          onSaved={handleSaved}
-        />
-      </div>
+      )}
+
+      {/* Deliverable rubric review + per-prompt grading (replaces grade form) */}
+      {isDeliverable && (
+        <div className="admin-content-box">
+          <div className="section-label" style={{ marginBottom: 16 }}>
+            Rubric Review &amp; Grading
+            {assignment.victim_name && (
+              <span style={{ marginLeft: 10, fontFamily: 'var(--mono)', fontSize: 9, color: '#f87171', letterSpacing: '.1em' }}>
+                {assignment.victim_name.toUpperCase()}
+              </span>
+            )}
+          </div>
+          <ChallengeDeliverableReview
+            delivData={parsed.data}
+            questions={assignment.questions ?? []}
+            maxScore={maxScore}
+            assignmentId={assignment.id}
+            userId={sub.user_id}
+            squadId={sub.squad_id}
+            isSquad={isSquad}
+            existingGrade={savedGrade}
+            onGradeSaved={handleSaved}
+          />
+        </div>
+      )}
+
+      {/* Free-text submission + standard grade form */}
+      {parsed.type === 'text' && (
+        <>
+          <div className="admin-content-box">
+            <div className="section-label" style={{ marginBottom: 12 }}>Submission</div>
+            <pre className="admin-text-content">{parsed.data || '(no content)'}</pre>
+          </div>
+          <div className="admin-content-box">
+            <div className="section-label" style={{ marginBottom: 12 }}>
+              {savedGrade ? 'Update Grade' : 'Grade Submission'}
+            </div>
+            <GradeForm
+              assignmentId={assignment.id}
+              userId={sub.user_id}
+              squadId={sub.squad_id}
+              isSquad={isSquad}
+              maxScore={maxScore}
+              existingGrade={savedGrade}
+              onSaved={handleSaved}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }

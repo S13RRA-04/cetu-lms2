@@ -307,24 +307,111 @@ const analysisQuestions = [
 ───────────────────────────────────────────────────────────────────────────── */
 const deliverableQuestions = [
   {
-    kind: 'prompt',
-    text: 'Command Post Briefing Summary — Provide: (1) a 2-3 sentence incident summary, (2) confirmed affected systems, (3) systems confirmed NOT affected, and (4) the top outstanding unknowns your squad has identified.',
+    kind:   'prompt',
+    points: 20,
+    text:   'Command Post Briefing Summary — Provide: (1) a 2-3 sentence incident summary, (2) confirmed affected systems, (3) systems confirmed NOT affected, and (4) the top outstanding unknowns your squad has identified.',
+    rubric: {
+      keyElements: [
+        'Incident summary names RMH-FAC-SUP01 as the affected system and describes post-login unauthorized activity',
+        'Correctly identifies the system segment: non-clinical, vendor/administrative support — not a clinical server',
+        'Explicitly states EMR, patient-care systems, medical devices, and payment systems are NOT affected',
+        'Lists ≥3 meaningful unknowns: actor identity, how credentials were obtained, purpose of scheduled task, whether data was exfiltrated',
+      ],
+      commonErrors: [
+        'Stating PHI was or may have been exfiltrated without evidence',
+        'Implying clinical systems were affected or at risk',
+        'Failing to distinguish affected vs. unaffected systems',
+        'Omitting the unknowns entirely or listing only one',
+      ],
+    },
   },
   {
-    kind: 'prompt',
-    text: 'Actor Timeline — Build a preliminary timeline of the actor\'s post-login activity on RMH-FAC-SUP01. List each observed action in chronological order with approximate timestamps (if determinable from the packet), and briefly note what each action suggests about actor intent.',
+    kind:   'prompt',
+    points: 20,
+    text:   'Actor Timeline — Build a preliminary timeline of the actor\'s post-login activity on RMH-FAC-SUP01. List each observed action in chronological order with approximate timestamps (if determinable from the packet), and briefly note what each action suggests about actor intent.',
+    rubric: {
+      keyElements: [
+        'Remote logon via fac-vendor-svc17 (start of timeline)',
+        'PowerShell execution — command/code execution capability',
+        'Administrative share enumeration — discovery/reconnaissance of accessible shares',
+        'Scheduled task creation — likely persistence mechanism, flagged as suspicious',
+        'Directory listing file creation and compression — data staging behavior',
+        'Outbound TLS connection to external IP — C2 or exfiltration channel',
+        'Each action includes a brief statement of likely intent or significance',
+      ],
+      commonErrors: [
+        'Missing one or more of the 5 post-login actions',
+        'Attributing definitive intent without hedging (e.g., "exfiltrated data" vs. "consistent with data staging")',
+        'Reversing the order of events or omitting timestamps when available',
+        'Stating the scheduled task confirms persistence without noting it is a potential indicator',
+      ],
+    },
   },
   {
-    kind: 'prompt',
-    text: 'Investigative Gaps & Records Requests — List every gap identified from the Drop 1 packet. For each gap, specify the record or artifact you are requesting and explain what investigative question that record will help answer.',
+    kind:   'prompt',
+    points: 20,
+    text:   'Investigative Gaps & Records Requests — List every gap identified from the Drop 1 packet. For each gap, specify the record or artifact you are requesting and explain what investigative question that record will help answer.',
+    rubric: {
+      keyElements: [
+        'Gap: Account provenance → Request: Account creation records and ownership history for fac-vendor-svc17',
+        'Gap: Credential compromise vector → Request: Password reset history for fac-vendor-svc17',
+        'Gap: Prior access pattern → Request: Historical login and VPN/RDP logs for the account',
+        'Gap: Full scope of activity → Request: EDR telemetry for RMH-FAC-SUP01',
+        'Gap: C2 / exfiltration confirmation → Request: Firewall and proxy logs for outbound connection',
+        'Gap: Authorized vendor activity → Request: Vendor support records and maintenance tickets for the activity window',
+        'Each gap is paired with a clear investigative question (not just a record name)',
+      ],
+      commonErrors: [
+        'Listing records without explaining what investigative question they address',
+        'Requesting clinical/patient records without scope justification',
+        'Omitting the outbound connection / firewall logs',
+        'Omitting vendor records as a way to establish or exclude authorized activity',
+      ],
+    },
   },
   {
-    kind: 'prompt',
-    text: 'Account Analysis — What is known and unknown about account fac-vendor-svc17 based on the current evidence? Does its use narrow or eliminate any hypotheses about actor identity or affiliation? Explain your reasoning.',
+    kind:   'prompt',
+    points: 20,
+    text:   'Account Analysis — What is known and unknown about account fac-vendor-svc17 based on the current evidence? Does its use narrow or eliminate any hypotheses about actor identity or affiliation? Explain your reasoning.',
+    rubric: {
+      keyElements: [
+        'Known: fac-vendor-svc17 was used for the unauthorized remote logon',
+        'Known: The account appears to be a vendor service account (naming convention suggests facilities/vendor role)',
+        'Unknown: Who created the account, who owns it, whether it was compromised or borrowed',
+        'Unknown: Whether the account owner had knowledge of or involvement in the activity',
+        'Correctly states the account does NOT identify the actor — only the credential used',
+        'Does not prematurely attribute the account creator or owner as the intruder',
+        'Identifies what records would narrow attribution (creation records, HR/vendor mapping)',
+      ],
+      commonErrors: [
+        'Concluding the account creator is the intruder',
+        'Concluding the account owner is known without evidence',
+        'Failing to distinguish the account from the actor',
+        'Not identifying what records are needed to advance the account analysis',
+      ],
+    },
   },
   {
-    kind: 'prompt',
-    text: 'Scope Determination — Write your squad\'s formal scope statement for this incident. Address: (a) what is confirmed in scope, (b) what is confirmed out of scope, (c) what remains undetermined, and (d) whether any immediate escalation or notification steps are warranted at this stage and why.',
+    kind:   'prompt',
+    points: 20,
+    text:   'Scope Determination — Write your squad\'s formal scope statement for this incident. Address: (a) what is confirmed in scope, (b) what is confirmed out of scope, (c) what remains undetermined, and (d) whether any immediate escalation or notification steps are warranted at this stage and why.',
+    rubric: {
+      keyElements: [
+        'In scope: Unauthorized access to RMH-FAC-SUP01; post-login TTP activity (PowerShell, enum, scheduled task, staging, outbound)',
+        'Out of scope: EMR systems, clinical operations, medical devices, payment systems (no evidence of impact)',
+        'Undetermined: PHI exfiltration, data accessed/acquired, whether persistence was activated, actor identity',
+        'Escalation: No immediate public notification required — no confirmed PHI exfil; victim has been notified; investigation ongoing',
+        'Appropriate hedging throughout — avoids overstating certainty on undetermined items',
+        'Formal language consistent with an FBI investigative scope statement',
+      ],
+      commonErrors: [
+        'Including out-of-scope systems without evidentiary basis',
+        'Stating PHI was exfiltrated or at risk without evidence',
+        'Recommending public notification or HHS reporting without confirmed PHI breach',
+        'Failing to address undetermined items separately from confirmed out-of-scope items',
+        'Using casual language instead of investigative/formal framing',
+      ],
+    },
   },
 ];
 
