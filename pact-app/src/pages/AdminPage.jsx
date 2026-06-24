@@ -610,6 +610,9 @@ function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignm
         <button className={`admin-mode-tab${subTab === 'gates'      ? ' active' : ''}`} onClick={() => setSubTab('gates')}>
           Assessments &amp; Surveys
         </button>
+        <button className={`admin-mode-tab${subTab === 'library'    ? ' active' : ''}`} onClick={() => setSubTab('library')}>
+          Intel Library
+        </button>
       </div>
 
       {subTab === 'drops' && (
@@ -710,6 +713,196 @@ function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignm
           onUnlocksChange={(id, unlocks) => handleUnlocksChange(id, unlocks)}
         />
       )}
+
+      {subTab === 'library' && (
+        <IntelLibraryGating
+          contentItems={contentItems}
+          cohorts={cohorts}
+          moduleAssignments={moduleItems}
+          onItemAdded={onContentPublished}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ── Intel Library Gating ── */
+function IntelLibraryGating({ contentItems, cohorts, moduleAssignments = [], onItemAdded }) {
+  const [selected,   setSelected]   = useState(null);
+  const [showR2,     setShowR2]     = useState(false);
+  const [localItems, setLocalItems] = useState(contentItems);
+
+  useEffect(() => { setLocalItems(contentItems); }, [contentItems]);
+
+  const handleItemAdded = () => {
+    setShowR2(false);
+    onItemAdded?.();
+  };
+
+  const handleItemUpdated = (updated) => {
+    setLocalItems((prev) => prev.map((i) => i.id === updated.id ? updated : i));
+    setSelected(updated);
+  };
+
+  // Group items: by linked module first, then unlinked by content_type
+  const moduleMap = new Map();
+  const unlinked  = [];
+  for (const item of localItems) {
+    if (item.linked_assignment_id) {
+      const mod = moduleAssignments.find((m) => m.id === item.linked_assignment_id);
+      const key = mod ? mod.title : item.linked_assignment_id;
+      if (!moduleMap.has(key)) moduleMap.set(key, { mod, items: [] });
+      moduleMap.get(key).items.push(item);
+    } else {
+      unlinked.push(item);
+    }
+  }
+  const moduleGroups = [...moduleMap.entries()].sort(([a], [b]) => {
+    const ai = moduleAssignments.findIndex((m) => m.title === a);
+    const bi = moduleAssignments.findIndex((m) => m.title === b);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
+
+  const renderItem = (item) => (
+    <button
+      key={item.id}
+      className={`admin-assign-btn${selected?.id === item.id ? ' active' : ''}`}
+      onClick={() => setSelected(item)}
+    >
+      <span className="admin-assign-type" style={{ fontSize: 9 }}>
+        {(CONTENT_TYPE_LABELS[item.content_type] ?? item.content_type).toUpperCase()}
+      </span>
+      <span className="admin-assign-title">{item.title}</span>
+      {!item.is_published && (
+        <span style={{ fontSize: 9, color: 'var(--muted)', marginLeft: 4 }}>DRAFT</span>
+      )}
+    </button>
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+      {/* R2 browser section */}
+      <div style={{ borderBottom: '1px solid var(--border)', padding: '8px 16px', flexShrink: 0 }}>
+        <button
+          onClick={() => setShowR2((b) => !b)}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: 0 }}
+        >
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)' }}>
+            ADD FROM R2
+          </span>
+          <span style={{ color: 'var(--muted)', fontSize: 10, fontFamily: 'var(--mono)' }}>{showR2 ? '▲' : '▼'}</span>
+        </button>
+      </div>
+      {showR2 && (
+        <div style={{ maxHeight: 380, overflowY: 'auto', borderBottom: '1px solid var(--border)', padding: '10px 16px', flexShrink: 0, background: 'var(--surface)' }}>
+          <R2PublishBrowser
+            rootPrefix=""
+            cohorts={[]}
+            hideRelease
+            onPublished={handleItemAdded}
+          />
+        </div>
+      )}
+
+      {/* Items list + cohort access split */}
+      <div className="admin-layout" style={{ flex: 1, overflow: 'hidden' }}>
+        <div className="admin-left" style={{ overflowY: 'auto' }}>
+          {localItems.length === 0 && (
+            <p style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 16px' }}>
+              No items yet. Use <strong>ADD FROM R2</strong> to publish files.
+            </p>
+          )}
+
+          {moduleGroups.map(([modTitle, { items }]) => (
+            <div key={modTitle}>
+              <div style={{ padding: '6px 14px 3px', fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.14em', color: 'var(--primary)', textTransform: 'uppercase' }}>
+                {modTitle}
+              </div>
+              {items.map(renderItem)}
+            </div>
+          ))}
+
+          {unlinked.length > 0 && (
+            <div>
+              {moduleGroups.length > 0 && (
+                <div style={{ padding: '6px 14px 3px', fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.14em', color: 'var(--muted)', textTransform: 'uppercase' }}>
+                  Unlinked
+                </div>
+              )}
+              {unlinked.map(renderItem)}
+            </div>
+          )}
+        </div>
+
+        <div className="admin-right">
+          {!selected ? (
+            <div className="admin-empty">
+              <p>Select an item to manage cohort access.</p>
+            </div>
+          ) : (
+            <IntelItemCohortAccess
+              key={selected.id}
+              item={selected}
+              cohorts={cohorts}
+              onUpdated={handleItemUpdated}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function IntelItemCohortAccess({ item, cohorts, onUpdated }) {
+  const [err, setErr] = useState('');
+  const unlockedIds = new Set((item.unlocks ?? []).map((u) => u.cohort_id));
+
+  const handleToggle = async (cohortId) => {
+    setErr('');
+    try {
+      if (unlockedIds.has(cohortId)) {
+        await lockContentItem(item.id, cohortId);
+        onUpdated({ ...item, unlocks: (item.unlocks ?? []).filter((u) => u.cohort_id !== cohortId) });
+      } else {
+        await unlockContentItem(item.id, cohortId);
+        const cohort = cohorts.find((c) => c.id === cohortId);
+        onUpdated({ ...item, unlocks: [...(item.unlocks ?? []), { cohort_id: cohortId, cohort }] });
+      }
+    } catch { setErr('Toggle failed'); }
+  };
+
+  return (
+    <div>
+      <div className="admin-right-header">
+        <div>
+          <div className="admin-right-title">{item.title}</div>
+          <div className="admin-right-sub">
+            {CONTENT_TYPE_LABELS[item.content_type] ?? item.content_type}
+            {item.is_published ? ' · Published' : ' · Draft'}
+          </div>
+        </div>
+      </div>
+      <div className="section-label" style={{ margin: '16px 20px 8px' }}>Cohort Access</div>
+      <div style={{ padding: '0 20px' }}>
+        {cohorts.length === 0 && (
+          <p style={{ color: 'var(--muted)', fontSize: 13 }}>No cohorts found.</p>
+        )}
+        {cohorts.map((c) => {
+          const isUnlocked = unlockedIds.has(c.id);
+          return (
+            <div key={c.id} className="gating-cohort-row">
+              <span className="gating-cohort-name">{c.name}</span>
+              <button
+                className={`gating-toggle-btn ${isUnlocked ? 'unlocked' : 'locked'}`}
+                onClick={() => handleToggle(c.id)}
+              >
+                {isUnlocked ? '🔓 Released' : '🔒 Locked'}
+              </button>
+            </div>
+          );
+        })}
+        {err && <div className="err-msg" style={{ marginTop: 8 }}>{err}</div>}
+      </div>
     </div>
   );
 }
@@ -1129,7 +1322,7 @@ function AssessmentSurveyGating({ assignments, cohorts, onUnlocksChange }) {
   );
 }
 
-function R2PublishBrowser({ rootPrefix, cohorts = [], onPublished }) {
+function R2PublishBrowser({ rootPrefix, cohorts = [], onPublished, hideRelease = false }) {
   const [prefix,        setPrefix]        = useState(rootPrefix);
   const [data,          setData]          = useState(null);
   const [loading,       setLoading]       = useState(false);
@@ -1192,15 +1385,17 @@ function R2PublishBrowser({ rootPrefix, cohorts = [], onPublished }) {
                   <span className="r2-icon">📁</span>
                   <span className="r2-name">{f.name}/</span>
                 </button>
-                <button
-                  className={`btn-sm-primary${releasingKey === f.prefix ? ' active' : ''}`}
-                  style={{ marginLeft: 8, flexShrink: 0, fontSize: 11 }}
-                  onClick={() => setReleasingKey(releasingKey === f.prefix ? null : f.prefix)}
-                >
-                  {releasingKey === f.prefix ? 'Cancel' : '↓ Drop'}
-                </button>
+                {!hideRelease && (
+                  <button
+                    className={`btn-sm-primary${releasingKey === f.prefix ? ' active' : ''}`}
+                    style={{ marginLeft: 8, flexShrink: 0, fontSize: 11 }}
+                    onClick={() => setReleasingKey(releasingKey === f.prefix ? null : f.prefix)}
+                  >
+                    {releasingKey === f.prefix ? 'Cancel' : '↓ Drop'}
+                  </button>
+                )}
               </div>
-              {releasingKey === f.prefix && (
+              {!hideRelease && releasingKey === f.prefix && (
                 <FolderReleaseForm
                   folder={f}
                   cohorts={cohorts}
