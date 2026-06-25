@@ -320,8 +320,6 @@ export default function AdminPage() {
   const [contentItems,   setContentItems]   = useState([]);
   const [contentLoaded,  setContentLoaded]  = useState(false);
 
-  // right-panel tab: 'submissions' | 'gating'
-  const [rightTab, setRightTab] = useState('submissions');
 
   // filter: 'individual' | 'squad'
   const [modeFilter,    setModeFilter]    = useState('individual');
@@ -351,7 +349,6 @@ export default function AdminPage() {
   const openAssignment = useCallback(async (a) => {
     setSelectedAssignment(a);
     setSelectedSub(null);
-    setRightTab('submissions');
     setLoadingSubs(true);
     try {
       const [subs, gradeList] = await Promise.all([
@@ -575,42 +572,14 @@ export default function AdminPage() {
                     {' · '}{submissions.length} submission{submissions.length !== 1 ? 's' : ''}
                   </div>
                 </div>
-                {selectedSub && rightTab === 'submissions' && (
+                {selectedSub && (
                   <button className="admin-back-btn" onClick={() => setSelectedSub(null)}>
                     ← All Submissions
                   </button>
                 )}
               </div>
 
-              <div className="admin-right-tabs">
-                <button
-                  className={`admin-right-tab${rightTab === 'submissions' ? ' active' : ''}`}
-                  onClick={() => { setRightTab('submissions'); setSelectedSub(null); }}
-                >
-                  Submissions
-                </button>
-                {selectedAssignment.type !== 'module' && (
-                  <button
-                    className={`admin-right-tab${rightTab === 'gating' ? ' active' : ''}`}
-                    onClick={() => { setRightTab('gating'); setSelectedSub(null); }}
-                  >
-                    Access Gating
-                  </button>
-                )}
-              </div>
-
-              {rightTab === 'gating' ? (
-                <GatingPanel
-                  key={selectedAssignment.id}
-                  assignment={selectedAssignment}
-                  cohorts={cohorts}
-                  onUnlocksChange={(updatedUnlocks) =>
-                    setAssignments((prev) =>
-                      prev.map((a) => a.id === selectedAssignment.id ? { ...a, unlocks: updatedUnlocks } : a)
-                    )
-                  }
-                />
-              ) : loadingSubs ? (
+              {loadingSubs ? (
                 <div style={{ padding: 32, textAlign: 'center' }}><div className="spinner" /></div>
               ) : selectedSub ? (
                 /* ── Submission detail + grade form ── */
@@ -626,9 +595,7 @@ export default function AdminPage() {
                   groups={groupBySquad(submissions)}
                   grades={grades}
                   savedGrades={savedGrades}
-                  assignment={selectedAssignment}
                   onSelect={setSelectedSub}
-                  onGradeSaved={handleGradeSaved}
                 />
               ) : (
                 /* ── Individual submissions list ── */
@@ -687,82 +654,57 @@ function IndividualSubmissions({ submissions, grades, savedGrades, onSelect }) {
   );
 }
 
-function SquadSubmissions({ groups, grades, savedGrades, assignment, onSelect, onGradeSaved }) {
-  const [openSquad, setOpenSquad] = useState(null);
-
+function SquadSubmissions({ groups, grades, savedGrades, onSelect }) {
   if (groups.length === 0) {
     return <div className="admin-empty"><p>No submissions yet.</p></div>;
   }
 
   return (
-    <div className="admin-squad-list">
+    <div className="admin-sub-list">
       {groups.map((group) => {
-        const squadId   = group.squad?.id;
         const squadNum  = group.squad?.number ?? '?';
         const squadName = group.squad?.name;
-        const isOpen    = openSquad === squadId;
-        const anyGrade  = group.subs.some((s) => savedGrades[s.id] ?? grades[s.user_id]);
+
+        // Canonical submission: most recent submitted/graded one, else most recent overall
+        const canonical = [...group.subs]
+          .sort((a, b) => new Date(b.submitted_at ?? 0) - new Date(a.submitted_at ?? 0))
+          .find((s) => ['submitted', 'graded', 'returned'].includes(s.status))
+          ?? group.subs[0];
+
+        if (!canonical) return null;
+
+        // Grade: check in-session savedGrades first, then grades keyed by user_id
+        const grade  = savedGrades[canonical.id] ?? grades[canonical.user_id];
+        const graded = grade != null;
+        const pct    = graded ? Math.round((grade.score / (grade.max_score ?? 100)) * 100) : null;
+        const memberCount = group.subs.length;
 
         return (
-          <div key={squadId ?? 'unassigned'} className="admin-squad-group">
-            <button
-              className={`admin-squad-header${isOpen ? ' open' : ''}`}
-              onClick={() => setOpenSquad(isOpen ? null : squadId)}
-            >
-              <span className="admin-squad-label">
+          <button key={group.squad?.id ?? 'unassigned'} className="admin-sub-row" onClick={() => onSelect(canonical)}>
+            <div className="admin-sub-avatar" style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700 }}>
+              {group.squad ? `S${squadNum}` : '?'}
+            </div>
+            <div className="admin-sub-info">
+              <div className="admin-sub-name">
                 {group.squad ? `Squad ${squadNum}${squadName ? ` · ${squadName}` : ''}` : 'Unassigned'}
-              </span>
-              <span className="admin-squad-count">{group.subs.length} submission{group.subs.length !== 1 ? 's' : ''}</span>
-              {anyGrade && <span className="admin-squad-graded-dot" />}
-              <span className="admin-squad-chevron">{isOpen ? '⌄' : '›'}</span>
-            </button>
-
-            {isOpen && (
-              <div className="admin-squad-body">
-                {/* Squad-level grade form */}
-                {squadId && (
-                  <div className="admin-squad-grade-block">
-                    <div className="section-label" style={{ marginBottom: 10 }}>Grade entire squad</div>
-                    <GradeForm
-                      assignmentId={assignment.id}
-                      squadId={squadId}
-                      isSquad={true}
-                      maxScore={parseFloat(assignment.max_score ?? 100)}
-                      existingGrade={null}
-                      onSaved={(result) => {
-                        group.subs.forEach((s) => onGradeSaved(s, result));
-                      }}
-                    />
-                  </div>
-                )}
-
-                {/* Individual submissions within squad */}
-                <div className="section-label" style={{ margin: '16px 0 10px' }}>Submissions</div>
-                {group.subs.map((s) => {
-                  const grade  = savedGrades[s.id] ?? grades[s.user_id];
-                  const graded = grade != null;
-                  const pct    = graded ? Math.round((grade.score / (grade.max_score ?? 100)) * 100) : null;
-                  return (
-                    <button key={s.id} className="admin-sub-row" onClick={() => onSelect(s)}>
-                      <div className="admin-sub-avatar">
-                        {s.student?.first_name?.[0]}{s.student?.last_name?.[0]}
-                      </div>
-                      <div className="admin-sub-info">
-                        <div className="admin-sub-name">{s.student?.first_name} {s.student?.last_name}</div>
-                        <div className="admin-sub-meta">{s.status} · {s.submitted_at ? new Date(s.submitted_at).toLocaleDateString() : 'in progress'}</div>
-                      </div>
-                      <div className="admin-sub-grade">
-                        {graded
-                          ? <span className="admin-grade-chip" style={{ color: pct >= 70 ? '#10b981' : '#f59e0b' }}>{grade.score}/{grade.max_score} ({pct}%)</span>
-                          : <span className="admin-grade-chip ungraded">Not graded</span>
-                        }
-                      </div>
-                    </button>
-                  );
-                })}
               </div>
-            )}
-          </div>
+              <div className="admin-sub-meta">
+                {canonical.student?.first_name} {canonical.student?.last_name}
+                {memberCount > 1 && ` +${memberCount - 1} more`}
+                {' · '}{canonical.status}
+                {' · '}{canonical.submitted_at ? new Date(canonical.submitted_at).toLocaleDateString() : 'in progress'}
+              </div>
+            </div>
+            <div className="admin-sub-grade">
+              {graded ? (
+                <span className="admin-grade-chip" style={{ color: pct >= 70 ? '#10b981' : '#f59e0b' }}>
+                  {grade.score}/{grade.max_score} ({pct}%)
+                </span>
+              ) : (
+                <span className="admin-grade-chip ungraded">Not graded</span>
+              )}
+            </div>
+          </button>
         );
       })}
     </div>
