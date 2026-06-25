@@ -324,7 +324,8 @@ export default function AdminPage() {
   const [rightTab, setRightTab] = useState('submissions');
 
   // filter: 'individual' | 'squad'
-  const [modeFilter, setModeFilter] = useState('individual');
+  const [modeFilter,    setModeFilter]    = useState('individual');
+  const [pendingOnly,   setPendingOnly]   = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -373,7 +374,9 @@ export default function AdminPage() {
 
   if (loading) return <div className="loading-screen"><div className="spinner" /></div>;
 
-  const filtered = assignments.filter((a) => a.grading_mode === modeFilter);
+  const filtered = assignments
+    .filter((a) => a.grading_mode === modeFilter)
+    .filter((a) => !pendingOnly || (a.pending_count ?? 0) > 0);
 
   /* group squad assignments by squad */
   function groupBySquad(subs) {
@@ -442,6 +445,23 @@ export default function AdminPage() {
             >
               Squad
             </button>
+            <button
+              className={`admin-mode-tab${pendingOnly ? ' active' : ''}`}
+              style={pendingOnly ? { borderColor: '#f59e0b', color: '#f59e0b' } : { color: 'var(--muted)' }}
+              onClick={() => { setPendingOnly((v) => !v); setSelectedAssignment(null); }}
+              title="Show only assignments with ungraded submissions"
+            >
+              Pending
+              {assignments.filter((a) => a.grading_mode === modeFilter && (a.pending_count ?? 0) > 0).length > 0 && (
+                <span style={{
+                  marginLeft: 5, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  minWidth: 16, height: 16, borderRadius: 8, fontSize: 9, fontFamily: 'var(--mono)',
+                  background: '#f59e0b', color: '#000', fontWeight: 700, padding: '0 3px',
+                }}>
+                  {assignments.filter((a) => a.grading_mode === modeFilter && (a.pending_count ?? 0) > 0).length}
+                </span>
+              )}
+            </button>
           </div>
 
           <div className="admin-assignment-list">
@@ -475,6 +495,7 @@ export default function AdminPage() {
               const renderBtn = (a, indent = false) => {
                 const color    = TYPE_COLOR[a.type] ?? TYPE_COLOR.module;
                 const isActive = selectedAssignment?.id === a.id;
+                const pending  = a.pending_count ?? 0;
                 return (
                   <button
                     key={a.id}
@@ -484,6 +505,16 @@ export default function AdminPage() {
                   >
                     <span className="admin-assign-type" style={{ color }}>{a.type.toUpperCase()}</span>
                     <span className="admin-assign-title">{a.title}</span>
+                    {pending > 0 && (
+                      <span style={{
+                        marginLeft: 'auto', flexShrink: 0,
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        minWidth: 18, height: 18, borderRadius: 9, fontSize: 9, fontFamily: 'var(--mono)',
+                        background: '#f59e0b', color: '#000', fontWeight: 700, padding: '0 4px',
+                      }}>
+                        {pending}
+                      </span>
+                    )}
                   </button>
                 );
               };

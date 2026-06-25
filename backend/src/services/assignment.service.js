@@ -15,6 +15,21 @@ async function listByCourse(courseId, query) {
     limit, offset,
     order: [['order_index', 'ASC'], ['created_at', 'ASC']],
   });
+
+  // Attach pending_count (submitted but not yet graded) to each assignment
+  const assignmentIds = rows.map((r) => r.id);
+  if (assignmentIds.length > 0) {
+    const pendingSubs = await Submission.findAll({
+      where:      { assignment_id: assignmentIds, status: 'submitted' },
+      attributes: ['assignment_id'],
+    });
+    const pendingMap = {};
+    for (const s of pendingSubs) {
+      pendingMap[s.assignment_id] = (pendingMap[s.assignment_id] ?? 0) + 1;
+    }
+    rows.forEach((r) => { r.dataValues.pending_count = pendingMap[r.id] ?? 0; });
+  }
+
   return paginatedResponse(rows, count, { page, limit });
 }
 
