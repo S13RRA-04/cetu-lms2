@@ -1284,8 +1284,8 @@ function ModulesGating({ assignments, cohorts, contentItems = [], onUnlocksChang
   const handleLink = async (ci) => {
     setBusy((b) => ({ ...b, [ci.id]: true }));
     try {
-      await updateContentItem(ci.id, { linked_assignment_id: selected.id });
-      setLocalItems((prev) => prev.map((x) => x.id === ci.id ? { ...x, linked_assignment_id: selected.id } : x));
+      await updateContentItem(ci.id, { linked_assignment_id: selected.id, is_published: true });
+      setLocalItems((prev) => prev.map((x) => x.id === ci.id ? { ...x, linked_assignment_id: selected.id, is_published: true } : x));
     } catch { /* ignore */ } finally {
       setBusy((b) => ({ ...b, [ci.id]: false }));
     }
@@ -1367,9 +1367,7 @@ function ModulesGating({ assignments, cohorts, contentItems = [], onUnlocksChang
                     {CONTENT_TYPE_LABELS[ci.content_type] ?? ci.content_type}
                   </span>
                   <span style={{ fontSize: 12, color: 'var(--bright)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ci.title}</span>
-                  <span style={{ fontSize: 9, color: ci.is_published ? '#10b981' : 'var(--muted)', flexShrink: 0 }}>
-                    {ci.is_published ? 'PUB' : 'DRAFT'}
-                  </span>
+                  <span style={{ fontSize: 9, color: '#10b981', flexShrink: 0 }}>LIVE</span>
                   <button
                     onClick={() => handleUnlink(ci)}
                     disabled={busy[ci.id]}
@@ -1395,7 +1393,7 @@ function ModulesGating({ assignments, cohorts, contentItems = [], onUnlocksChang
                 <div style={{ marginTop: 8, maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 4 }}>
                   {availableDecks.length === 0 ? (
                     <p style={{ fontSize: 12, color: 'var(--muted)', padding: '10px 12px' }}>
-                      No unlinked slide decks. Sync from R2 in the Intel Library tab first.
+                      No unlinked slide decks available. Use <strong>SYNC DECKS</strong> in the Intel Library tab to import from R2.
                     </p>
                   ) : availableDecks.map((ci) => (
                     <div key={ci.id} style={{
