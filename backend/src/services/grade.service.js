@@ -135,6 +135,40 @@ async function getScoreboard(courseId) {
   }));
 }
 
+async function getSquadScoreboard(courseId) {
+  const { sequelize } = require('../config/database');
+  // Pick one representative enrollment per squad (DISTINCT ON so grades are counted once per squad, not per member)
+  const [rows] = await sequelize.query(
+    `WITH rep AS (
+       SELECT DISTINCT ON (e.squad_id) e.squad_id, e.user_id
+       FROM enrollments e
+       WHERE e.course_id = :courseId AND e.squad_id IS NOT NULL
+       ORDER BY e.squad_id, e.user_id
+     )
+     SELECT s.id           AS "squadId",
+            s.number       AS "squadNumber",
+            s.name         AS "squadName",
+            COALESCE(SUM(g.score),     0) AS "totalScore",
+            COALESCE(SUM(a.max_score), 0) AS "maxScore",
+            COUNT(g.id)                   AS "graded"
+     FROM squads s
+     JOIN rep ON rep.squad_id = s.id
+     JOIN assignments a ON a.course_id = :courseId AND a.grading_mode = 'squad'
+     LEFT JOIN grades g ON g.assignment_id = a.id AND g.user_id = rep.user_id
+     GROUP BY s.id, s.number, s.name
+     ORDER BY "totalScore" DESC`,
+    { replacements: { courseId } }
+  );
+  return rows.map((r) => ({
+    squadId:     r.squadId,
+    squadNumber: parseInt(r.squadNumber, 10),
+    squadName:   r.squadName ?? null,
+    totalScore:  Math.round(parseFloat(r.totalScore)),
+    maxScore:    Math.round(parseFloat(r.maxScore)),
+    graded:      parseInt(r.graded, 10),
+  }));
+}
+
 async function getCourseGrades(courseId, cohortId) {
   const { sequelize } = require('../config/database');
   const [rows] = await sequelize.query(
@@ -168,4 +202,4 @@ async function getCourseGrades(courseId, cohortId) {
   return rows;
 }
 
-module.exports = { getGradesForAssignment, getGradesForUser, upsertGrade, gradeSquad, getScoreboard, getCourseGrades };
+module.exports = { getGradesForAssignment, getGradesForUser, upsertGrade, gradeSquad, getScoreboard, getSquadScoreboard, getCourseGrades };

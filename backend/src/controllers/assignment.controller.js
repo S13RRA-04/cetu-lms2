@@ -14,6 +14,11 @@ async function getScoreboard(req, res, next) {
   catch (err) { return next(err); }
 }
 
+async function getSquadScoreboard(req, res, next) {
+  try { return res.json(await gradeService.getSquadScoreboard(req.params.id)); }
+  catch (err) { return next(err); }
+}
+
 async function getCourseGrades(req, res, next) {
   try { return res.json(await gradeService.getCourseGrades(req.params.id, req.query.cohort_id ?? null)); }
   catch (err) { return next(err); }
@@ -103,4 +108,4 @@ async function gradeSquad(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { listByCourse, getOne, create, update, remove, getGrades, upsertGrade, unlockForCohort, lockForCohort, getProgress, gradeSquad, getMyGrades, getScoreboard, getCourseGrades, getCourseAnalytics, getCourseEffectiveness };
+module.exports = { listByCourse, getOne, create, update, remove, getGrades, upsertGrade, unlockForCohort, lockForCohort, getProgress, gradeSquad, getMyGrades, getScoreboard, getSquadScoreboard, getCourseGrades, getCourseAnalytics, getCourseEffectiveness };

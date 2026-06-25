@@ -31,8 +31,10 @@ export const getMyGrades = () =>
   client.get(`/courses/${COURSE_ID}/grades/me`).then((r) => r.data);
 
 /* ── Scoreboard ── */
-export const getScoreboard = () =>
+export const getScoreboard      = () =>
   client.get(`/courses/${COURSE_ID}/scoreboard`).then((r) => r.data);
+export const getSquadScoreboard = () =>
+  client.get(`/courses/${COURSE_ID}/squad-scoreboard`).then((r) => r.data);
 
 /* ── Admin / instructor ── */
 export const getAdminAssignments = () =>

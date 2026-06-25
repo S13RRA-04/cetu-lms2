@@ -56,7 +56,8 @@ router.get('/:id/grades/me',  requireAuth,                    assignCtrl.getMyGr
 router.get('/:id/grades',     requireAuth, requireInstructor, assignCtrl.getCourseGrades);
 router.get('/:id/analytics',     requireAuth, requireInstructor, assignCtrl.getCourseAnalytics);
 router.get('/:id/effectiveness', requireAuth, requireInstructor, assignCtrl.getCourseEffectiveness);
-router.get('/:id/scoreboard', requireAuth,                    assignCtrl.getScoreboard);
+router.get('/:id/scoreboard',       requireAuth, assignCtrl.getScoreboard);
+router.get('/:id/squad-scoreboard', requireAuth, assignCtrl.getSquadScoreboard);
 
 // Assignments (nested under course)
 router.get('/:id/assignments',              requireAuth,                    assignCtrl.listByCourse);
