@@ -2774,7 +2774,7 @@ body {
   border-radius: var(--radius-sm);
   font-size: 13px;
   font-weight: 600;
-  background: rgba(255,255,255,.5);
+  background: rgba(0, 0, 0, 0.25);
   letter-spacing: .02em;
 }
 .challenge-squad-icon { font-size: 14px; }
@@ -2794,35 +2794,47 @@ body {
   align-items: baseline;
   gap: 10px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--bright);
+  line-height: 1.5;
 }
 .challenge-prompt-num {
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 700;
-  color: var(--muted);
-  letter-spacing: .08em;
+  color: var(--primary);
+  letter-spacing: .1em;
   flex-shrink: 0;
+  opacity: 0.7;
 }
 
 .challenge-textarea {
   width: 100%;
   padding: 12px 14px;
-  background: rgba(255,255,255,.7);
-  border: 1px solid rgba(0,0,0,.12);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-hi);
   border-radius: var(--radius-sm);
   font-size: 13px;
+  line-height: 1.65;
   font-family: inherit;
   color: var(--bright);
   resize: vertical;
-  transition: border-color .15s, box-shadow .15s;
+  min-height: 90px;
+  transition: border-color .15s, box-shadow .15s, background .15s;
   box-sizing: border-box;
+}
+.challenge-textarea::placeholder {
+  color: rgba(100, 140, 180, 0.35);
+  font-style: italic;
+}
+.challenge-textarea:hover {
+  border-color: rgba(0, 176, 255, 0.25);
 }
 .challenge-textarea:focus {
   outline: none;
+  background: rgba(0, 0, 0, 0.5);
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-md, rgba(37,99,235,.12));
+  box-shadow: 0 0 0 2px var(--primary-md), inset 0 0 24px rgba(0, 176, 255, 0.04);
 }
 .challenge-textarea-lg { min-height: 180px; }
 

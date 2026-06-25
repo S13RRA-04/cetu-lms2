@@ -45,15 +45,17 @@ async function getProgressForAssignment(assignmentId) {
 }
 
 async function _checkUnlocked(assignment, userId) {
-  if (!assignment.is_published) throw new AppError('Assignment is not published', 403, 'FORBIDDEN');
-
   const enrollment = await Enrollment.findOne({ where: { user_id: userId, course_id: assignment.course_id } });
   if (!enrollment) throw new AppError('Not enrolled in this course', 403, 'FORBIDDEN');
 
   if (!enrollment.cohort_id) throw new AppError('You are not assigned to a cohort yet', 403, 'FORBIDDEN');
 
   const unlock = await AssignmentUnlock.findOne({ where: { assignment_id: assignment.id, cohort_id: enrollment.cohort_id } });
-  if (!unlock) throw new AppError('This assignment has not been unlocked for your cohort yet', 403, 'LOCKED');
+
+  // An explicit squad/cohort unlock supersedes is_published — the instructor's unlock is the gate
+  if (!unlock) {
+    if (!assignment.is_published) throw new AppError('This assignment has not been unlocked for your cohort yet', 403, 'LOCKED');
+  }
 
   return enrollment;
 }
