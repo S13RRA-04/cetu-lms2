@@ -371,7 +371,7 @@ export default function AdminPage() {
       if (isNew) {
         setAssignments((as) => as.map((a) =>
           a.id === sub.assignment_id
-            ? { ...a, pending_count: Math.max(0, (a.pending_count ?? 1) - 1) }
+            ? { ...a, pending_count: Math.max(0, (a.pending_count ?? 1) - 1), graded_count: (a.graded_count ?? 0) + 1 }
             : a
         ));
       }
@@ -381,9 +381,9 @@ export default function AdminPage() {
 
   if (loading) return <div className="loading-screen"><div className="spinner" /></div>;
 
-  const filtered = assignments
-    .filter((a) => a.grading_mode === modeFilter)
-    .filter((a) => !pendingOnly || (a.pending_count ?? 0) > 0);
+  const filtered = pendingOnly
+    ? assignments.filter((a) => (a.pending_count ?? 0) > 0)
+    : assignments.filter((a) => a.grading_mode === modeFilter && (a.graded_count ?? 0) > 0);
 
   /* group squad assignments by squad */
   function groupBySquad(subs) {
@@ -459,13 +459,13 @@ export default function AdminPage() {
               title="Show only assignments with ungraded submissions"
             >
               Pending
-              {assignments.filter((a) => a.grading_mode === modeFilter && (a.pending_count ?? 0) > 0).length > 0 && (
+              {assignments.filter((a) => (a.pending_count ?? 0) > 0).length > 0 && (
                 <span style={{
                   marginLeft: 5, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                   minWidth: 16, height: 16, borderRadius: 8, fontSize: 9, fontFamily: 'var(--mono)',
                   background: '#f59e0b', color: '#000', fontWeight: 700, padding: '0 3px',
                 }}>
-                  {assignments.filter((a) => a.grading_mode === modeFilter && (a.pending_count ?? 0) > 0).length}
+                  {assignments.filter((a) => (a.pending_count ?? 0) > 0).length}
                 </span>
               )}
             </button>
