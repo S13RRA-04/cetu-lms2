@@ -79,7 +79,7 @@ function QuizAnswerReview({ quizData, questions = [] }) {
 }
 
 function ChallengeDeliverableReview({ delivData, questions = [], maxScore, assignmentId, userId, squadId, isSquad, existingGrade, onGradeSaved }) {
-  const prompts = questions.filter((q) => q.kind === 'prompt');
+  const prompts      = questions.filter((q) => q.kind === 'prompt');
   const perPromptMax = prompts.length > 0 ? Math.round(maxScore / prompts.length) : maxScore;
 
   const initScores = () => {
@@ -90,14 +90,10 @@ function ChallengeDeliverableReview({ delivData, questions = [], maxScore, assig
 
   const [promptScores, setPromptScores] = useState(initScores);
   const [feedback,     setFeedback]     = useState(existingGrade?.feedback ?? '');
-  const [openRubric,   setOpenRubric]   = useState({});
   const [saving,       setSaving]       = useState(false);
   const [err,          setErr]          = useState('');
 
-  const total = prompts.reduce((sum, _, i) => {
-    const v = parseFloat(promptScores[i]);
-    return sum + (isNaN(v) ? 0 : v);
-  }, 0);
+  const total     = prompts.reduce((sum, _, i) => { const v = parseFloat(promptScores[i]); return sum + (isNaN(v) ? 0 : v); }, 0);
   const allScored = prompts.every((_, i) => promptScores[i] !== '' && !isNaN(parseFloat(promptScores[i])));
 
   const handleSave = async () => {
@@ -107,11 +103,8 @@ function ChallengeDeliverableReview({ delivData, questions = [], maxScore, assig
     setErr('');
     try {
       const gradeData = { score: s, feedback, promptScores };
-      if (isSquad && squadId) {
-        await submitSquadGrade(assignmentId, squadId, gradeData);
-      } else {
-        await submitGrade(assignmentId, userId, gradeData);
-      }
+      if (isSquad && squadId) await submitSquadGrade(assignmentId, squadId, gradeData);
+      else                    await submitGrade(assignmentId, userId, gradeData);
       onGradeSaved(gradeData);
     } catch (e) {
       setErr(e.response?.data?.error?.message ?? 'Save failed');
@@ -120,102 +113,112 @@ function ChallengeDeliverableReview({ delivData, questions = [], maxScore, assig
     }
   };
 
-  const toggleRubric = (i) => setOpenRubric((prev) => ({ ...prev, [i]: !prev[i] }));
+  const setScore = (i, v) => setPromptScores((prev) => ({ ...prev, [i]: String(v) }));
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {prompts.map((q, i) => {
-        const response   = delivData.responses?.[i] ?? '';
-        const rubric     = q.rubric;
-        const scoreVal   = promptScores[i];
-        const pts        = q.points ?? perPromptMax;
-        const isRubricOpen = !!openRubric[i];
-        const scoreNum   = parseFloat(scoreVal);
-        const pct        = (!isNaN(scoreNum) && pts > 0) ? scoreNum / pts : null;
-        const scoreColor = pct === null ? 'var(--muted)' : pct >= 0.8 ? '#10b981' : pct >= 0.5 ? '#f59e0b' : '#ef4444';
+        const response  = delivData.responses?.[i] ?? '';
+        const rubric    = q.rubric;
+        const pts       = q.points ?? perPromptMax;
+        const scoreVal  = promptScores[i];
+        const scoreNum  = parseFloat(scoreVal);
+        const pct       = (!isNaN(scoreNum) && pts > 0) ? scoreNum / pts : null;
+        const scoreColor = pct === null ? 'var(--border-hi)' : pct >= 0.8 ? '#10b981' : pct >= 0.5 ? '#f59e0b' : '#ef4444';
+        const quickPts  = [...new Set([0, Math.round(pts * 0.5), Math.round(pts * 0.75), pts])];
 
         return (
           <div key={i} style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--surface-2, var(--surface))' }}>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--primary)', letterSpacing: '.14em', whiteSpace: 'nowrap' }}>
+
+            {/* ── Header: prompt text + score ── */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 14px', background: 'var(--surface-2, var(--surface))' }}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--primary)', letterSpacing: '.14em', paddingTop: 2, flexShrink: 0 }}>
                 {String(i + 1).padStart(2, '0')} / {String(prompts.length).padStart(2, '0')}
               </span>
-              <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{q.text}</span>
-              {/* Per-prompt score */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                <input
-                  type="number"
-                  min={0}
-                  max={pts}
-                  value={scoreVal}
-                  onChange={(e) => setPromptScores((prev) => ({ ...prev, [i]: e.target.value }))}
-                  placeholder="—"
-                  style={{
-                    width: 52, padding: '3px 6px', textAlign: 'center', borderRadius: 4,
-                    border: `1px solid ${scoreColor}`, background: 'var(--surface)', color: scoreColor,
-                    fontSize: 13, fontFamily: 'var(--mono)', fontWeight: 700,
-                  }}
-                />
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)' }}>/ {pts}</span>
+              <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--bright)', lineHeight: 1.5 }}>{q.text}</span>
+              {/* Score widget */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                  <input
+                    type="number"
+                    min={0}
+                    max={pts}
+                    value={scoreVal}
+                    onChange={(e) => setScore(i, e.target.value)}
+                    placeholder="—"
+                    style={{
+                      width: 52, padding: '4px 6px', textAlign: 'center', borderRadius: 4,
+                      border: `1.5px solid ${scoreColor}`, background: 'var(--surface)',
+                      color: pct === null ? 'var(--text)' : scoreColor,
+                      fontSize: 16, fontFamily: 'var(--mono)', fontWeight: 700,
+                    }}
+                  />
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text)', whiteSpace: 'nowrap' }}>/ {pts} pts</span>
+                </div>
+                {/* Quick-pick buttons */}
+                <div style={{ display: 'flex', gap: 3 }}>
+                  {quickPts.map((v) => {
+                    const active = parseFloat(scoreVal) === v;
+                    return (
+                      <button key={v} onClick={() => setScore(i, v)} style={{
+                        padding: '1px 6px', borderRadius: 3, border: `1px solid ${active ? scoreColor : 'var(--border-hi)'}`,
+                        background: active ? scoreColor : 'transparent',
+                        color: active ? '#fff' : 'var(--muted)',
+                        fontSize: 10, fontFamily: 'var(--mono)', cursor: 'pointer',
+                      }}>{v}</button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
-            {/* Student response */}
-            <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: 'var(--muted)', marginBottom: 6 }}>SQUAD RESPONSE</div>
-              <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, color: 'var(--text)', lineHeight: 1.6, maxHeight: 200, overflowY: 'auto' }}>
-                {response || <span style={{ color: 'var(--muted)', fontStyle: 'italic' }}>No response submitted</span>}
-              </pre>
-            </div>
+            {/* ── Body: response + rubric side-by-side ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: rubric ? '1fr 1fr' : '1fr', borderTop: '1px solid var(--border)' }}>
 
-            {/* Rubric toggle */}
-            {rubric && (
-              <div style={{ borderTop: '1px solid var(--border)' }}>
-                <button
-                  onClick={() => toggleRubric(i)}
-                  style={{ width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, color: 'var(--primary)' }}
-                >
-                  <span style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em' }}>
-                    {isRubricOpen ? '▲ HIDE' : '▼ RUBRIC GUIDANCE'}
-                  </span>
-                </button>
-                {isRubricOpen && (
-                  <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {rubric.keyElements?.length > 0 && (
-                      <div>
-                        <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: '#10b981', marginBottom: 6 }}>EXPECTED ELEMENTS</div>
-                        <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {rubric.keyElements.map((el, j) => (
-                            <li key={j} style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.5 }}>{el}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {rubric.commonErrors?.length > 0 && (
-                      <div>
-                        <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: '#ef4444', marginBottom: 6 }}>COMMON ERRORS TO FLAG</div>
-                        <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {rubric.commonErrors.map((er, j) => (
-                            <li key={j} style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>{er}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                )}
+              {/* Response */}
+              <div style={{ padding: '10px 14px' }}>
+                <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: 'var(--muted)', marginBottom: 6 }}>SQUAD RESPONSE</div>
+                <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 12, color: 'var(--text)', lineHeight: 1.65, maxHeight: 240, overflowY: 'auto' }}>
+                  {response || <span style={{ color: 'var(--muted)', fontStyle: 'italic' }}>No response submitted</span>}
+                </pre>
               </div>
-            )}
+
+              {/* Rubric — always visible, no toggle */}
+              {rubric && (
+                <div style={{ padding: '10px 14px', borderLeft: '1px solid var(--border)', background: 'rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {rubric.keyElements?.length > 0 && (
+                    <div>
+                      <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: '#10b981', marginBottom: 5 }}>EXPECTED ELEMENTS</div>
+                      <ul style={{ margin: 0, paddingLeft: 14, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        {rubric.keyElements.map((el, j) => (
+                          <li key={j} style={{ fontSize: 11, color: 'var(--text)', lineHeight: 1.5 }}>{el}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {rubric.commonErrors?.length > 0 && (
+                    <div>
+                      <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: '#ef4444', marginBottom: 5 }}>WATCH FOR</div>
+                      <ul style={{ margin: 0, paddingLeft: 14, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        {rubric.commonErrors.map((er, j) => (
+                          <li key={j} style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>{er}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         );
       })}
 
-      {/* Score summary + feedback */}
+      {/* ── Score summary + feedback + save ── */}
       <div style={{ border: '1px solid var(--border)', borderRadius: 6, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)' }}>TOTAL SCORE</span>
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 18, fontWeight: 700, color: allScored ? '#10b981' : 'var(--muted)' }}>
-            {allScored ? total : '—'} / {maxScore}
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 20, fontWeight: 700, color: allScored ? '#10b981' : 'var(--muted)' }}>
+            {allScored ? total : '—'} <span style={{ fontSize: 13, color: 'var(--muted)' }}>/ {maxScore}</span>
           </span>
         </div>
         <div>
@@ -229,12 +232,7 @@ function ChallengeDeliverableReview({ delivData, questions = [], maxScore, assig
           />
         </div>
         {err && <div className="err-msg">{err}</div>}
-        <button
-          className="btn-submit"
-          style={{ width: 'auto', alignSelf: 'flex-start' }}
-          onClick={handleSave}
-          disabled={saving || !allScored}
-        >
+        <button className="btn-submit" style={{ width: 'auto', alignSelf: 'flex-start' }} onClick={handleSave} disabled={saving || !allScored}>
           {saving ? 'Saving…' : existingGrade ? 'Update Grade' : 'Save Grade'}
         </button>
       </div>
