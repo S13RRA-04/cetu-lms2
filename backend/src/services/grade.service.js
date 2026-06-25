@@ -1,5 +1,5 @@
 'use strict';
-const { Grade, Assignment, User, Enrollment, Squad } = require('../models');
+const { Grade, Assignment, User, Enrollment, Squad, Submission } = require('../models');
 const { NotFoundError, AppError }                    = require('../utils/errors');
 const ltiService                                     = require('./lti.service');
 const logger                                         = require('../utils/logger');
@@ -63,6 +63,12 @@ async function upsertGrade(assignmentId, userId, data, graderId) {
     });
   }
 
+  // Mark the submission as graded so it no longer appears in pending counts
+  await Submission.update(
+    { status: 'graded' },
+    { where: { assignment_id: assignmentId, user_id: userId, status: 'submitted' } }
+  );
+
   return grade.reload({
     include: [{ model: User, as: 'student', attributes: ['id', 'email', 'first_name', 'last_name'] }],
   });
@@ -93,6 +99,12 @@ async function gradeSquad(assignmentId, squadId, data, graderId) {
     }
     return grade;
   }));
+
+  // Mark all squad members' submissions as graded
+  await Submission.update(
+    { status: 'graded' },
+    { where: { assignment_id: assignmentId, squad_id: squadId, status: 'submitted' } }
+  );
 
   return grades;
 }

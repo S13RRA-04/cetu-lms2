@@ -366,8 +366,18 @@ export default function AdminPage() {
   }, []);
 
   const handleGradeSaved = useCallback((sub, result) => {
-    setSavedGrades((s) => ({ ...s, [sub.id]: result }));
-  }, []);
+    setSavedGrades((prev) => {
+      const isNew = prev[sub.id] == null && grades[sub.user_id] == null;
+      if (isNew) {
+        setAssignments((as) => as.map((a) =>
+          a.id === sub.assignment_id
+            ? { ...a, pending_count: Math.max(0, (a.pending_count ?? 1) - 1) }
+            : a
+        ));
+      }
+      return { ...prev, [sub.id]: result };
+    });
+  }, [grades]);
 
   if (loading) return <div className="loading-screen"><div className="spinner" /></div>;
 
