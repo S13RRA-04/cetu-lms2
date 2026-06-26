@@ -102,11 +102,15 @@ async function getFilesForPackage(pkg, presigned = false) {
 async function listForStudent(courseId, userId) {
   const enrollment = await Enrollment.findOne({
     where:   { user_id: userId, course_id: courseId },
-    include: [{ model: Squad, as: 'squad', attributes: ['id', 'number'] }],
+    include: [
+      { model: Squad,  as: 'squad',  attributes: ['id', 'number'] },
+      { model: Cohort, as: 'cohort', attributes: ['id', 'scenario_name'] },
+    ],
   });
   if (!enrollment) throw new ForbiddenError('Not enrolled in this course');
 
   const studentSquadNumber = enrollment.squad?.number ?? null;
+  const cohortScenario     = enrollment.cohort?.scenario_name ?? null;
 
   const unlockedSet = new Set();
   if (enrollment.cohort_id) {
@@ -119,12 +123,13 @@ async function listForStudent(courseId, userId) {
     order: [['release_number', 'ASC']],
   });
 
-  // Only show packages that are unlocked for this student's cohort,
-  // and only those assigned to their squad (or broadcast to all squads).
+  // Show packages that are unlocked for the cohort, assigned to the student's squad
+  // (or broadcast), and match the cohort's scenario if one is set.
   const unlocked = packages.filter(
     (p) =>
       unlockedSet.has(p.id) &&
-      (p.squad_number == null || p.squad_number === studentSquadNumber)
+      (p.squad_number == null || p.squad_number === studentSquadNumber) &&
+      (cohortScenario == null || p.scenario_name === cohortScenario)
   );
 
   return unlocked.map((p) => ({ ...p.toJSON(), is_unlocked: true }));

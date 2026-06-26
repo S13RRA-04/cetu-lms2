@@ -313,7 +313,7 @@ export default function AdminPage() {
   const [selectedSub,        setSelectedSub]        = useState(null);
   const [savedGrades,        setSavedGrades]        = useState({});
 
-  // top-level admin panel: 'grading' | 'scenarios' | 'content' | 'library' | 'campaign'
+  // top-level admin panel: 'grading' | 'cohorts' | 'content' | 'library' | 'campaign'
   const [adminPanel, setAdminPanel] = useState('grading');
 
   // course content state
@@ -417,6 +417,12 @@ export default function AdminPage() {
         >
           Content Gating
         </button>
+        <button
+          className={`admin-panel-tab${adminPanel === 'cohorts' ? ' active' : ''}`}
+          onClick={() => setAdminPanel('cohorts')}
+        >
+          Cohorts
+        </button>
       </div>
 
       {adminPanel === 'library' ? (
@@ -426,6 +432,11 @@ export default function AdminPage() {
           contentItems={contentItems}
           onAssignmentsChange={setAssignments}
           onContentPublished={() => setContentLoaded(false)}
+        />
+      ) : adminPanel === 'cohorts' ? (
+        <CohortScenarioPanel
+          cohorts={cohorts}
+          onCohortsChange={setCohorts}
         />
       ) : adminPanel === 'content' ? (
         <CourseContentPanel
@@ -730,6 +741,112 @@ function formatR2Size(bytes) {
 /* ── Content Gating Panel ── */
 
 const R2_SCENARIOS_PREFIX = 'pact/scenarios/';
+
+/* ═══════════════════════════════════════════════════════════
+   COHORT SCENARIO PANEL
+═══════════════════════════════════════════════════════════ */
+function CohortScenarioPanel({ cohorts, onCohortsChange }) {
+  const [scenarioFolders, setScenarioFolders] = useState(null);
+  const [saving,          setSaving]          = useState({});
+  const [flash,           setFlash]           = useState({});
+
+  useEffect(() => {
+    browseScenarioR2(R2_SCENARIOS_PREFIX)
+      .then((d) => setScenarioFolders((d.folders ?? []).map((f) => f.name)))
+      .catch(() => setScenarioFolders([]));
+  }, []);
+
+  const handleScenarioChange = async (cohort, scenarioName) => {
+    setSaving((s) => ({ ...s, [cohort.id]: true }));
+    try {
+      await updateCohort(cohort.id, { scenario_name: scenarioName || null });
+      onCohortsChange((prev) => prev.map((c) => c.id === cohort.id ? { ...c, scenario_name: scenarioName || null } : c));
+      setFlash((f) => ({ ...f, [cohort.id]: 'saved' }));
+      setTimeout(() => setFlash((f) => ({ ...f, [cohort.id]: null })), 1800);
+    } catch {
+      setFlash((f) => ({ ...f, [cohort.id]: 'error' }));
+      setTimeout(() => setFlash((f) => ({ ...f, [cohort.id]: null })), 2500);
+    } finally {
+      setSaving((s) => ({ ...s, [cohort.id]: false }));
+    }
+  };
+
+  if (cohorts.length === 0) {
+    return (
+      <div style={{ padding: 32 }}>
+        <div className="ops-empty-label">NO COHORTS</div>
+        <div className="ops-empty-sub">Create cohorts via the enrollment panel first.</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: '20px 24px', maxWidth: 640 }}>
+      <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)', marginBottom: 4 }}>
+        COHORT SCENARIOS
+      </div>
+      <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 20px', lineHeight: 1.6 }}>
+        Assign a scenario to each cohort. Students in that cohort will only see scenario files and intel packages for their assigned scenario.
+      </p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {cohorts.map((cohort) => {
+          const isSaving    = !!saving[cohort.id];
+          const flashState  = flash[cohort.id];
+          const hasScenario = !!cohort.scenario_name;
+
+          return (
+            <div key={cohort.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)' }}>
+              {/* Cohort info */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--bright)', marginBottom: 2 }}>{cohort.name}</div>
+                <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.1em', color: hasScenario ? 'var(--primary)' : 'var(--muted)' }}>
+                  {hasScenario ? `◉ ${scenarioLabel(cohort.scenario_name)}` : '◌ NO SCENARIO ASSIGNED'}
+                </div>
+              </div>
+
+              {/* Scenario selector */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                {scenarioFolders === null ? (
+                  <div className="spinner" style={{ width: 16, height: 16 }} />
+                ) : (
+                  <select
+                    value={cohort.scenario_name ?? ''}
+                    onChange={(e) => handleScenarioChange(cohort, e.target.value)}
+                    disabled={isSaving}
+                    style={{
+                      padding: '5px 10px', borderRadius: 4, border: '1px solid var(--border)',
+                      background: 'var(--surface-2, var(--bg))', color: 'var(--text)',
+                      fontSize: 12, fontFamily: 'var(--mono)', cursor: 'pointer',
+                      minWidth: 180,
+                    }}
+                  >
+                    <option value="">— Unassigned —</option>
+                    {scenarioFolders.map((name) => (
+                      <option key={name} value={name}>{scenarioLabel(name)}</option>
+                    ))}
+                  </select>
+                )}
+
+                {/* Save feedback */}
+                {isSaving && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)' }}>SAVING…</span>}
+                {flashState === 'saved' && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: '#10b981' }}>◉ SAVED</span>}
+                {flashState === 'error' && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: '#ef4444' }}>FAILED</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ marginTop: 20, padding: '12px 14px', border: '1px solid var(--border-hi)', borderRadius: 6, background: 'rgba(0,176,255,.04)' }}>
+        <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: 'var(--primary)', marginBottom: 4 }}>HOW SCENARIO FILTERING WORKS</div>
+        <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 }}>
+          When a scenario is assigned, students in that cohort will only see unlocked intel packages tagged with that scenario. Unassigned cohorts see all unlocked packages regardless of scenario.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignmentsChange, onContentPublished }) {
   const [subTab,            setSubTab]            = useState('drops');

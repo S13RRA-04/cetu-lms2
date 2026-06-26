@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { loadDraftSync, clearDraftSync } from '../hooks/useDraft.js';
-import SubmitSequence   from './SubmitSequence.jsx';
-import SubmissionSuccess from './SubmissionSuccess.jsx';
+import SubmitSequence from './SubmitSequence.jsx';
 
 /*
   ChallengeFlow — squad workshop submission UI.
@@ -70,7 +70,7 @@ const IcUsers = () => (
   </svg>
 );
 
-export default function ChallengeFlow({ assignment, color, onComplete, submitted, existingContent }) {
+export default function ChallengeFlow({ assignment, color, onComplete, submitted, existingContent, grade }) {
   const explicitPrompts = (assignment.questions ?? [])
     .filter((q) => q.kind === 'prompt' && q.text)
     .map((q) => q.text);
@@ -134,11 +134,11 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
 
   if (submitted) {
     return (
-      <SubmissionSuccess
+      <ChallengeReview
         assignment={assignment}
         color={color}
-        label="SQUAD REPORT TRANSMITTED"
-        subtext="Command has received your squad's field report. Stand by for after-action assessment."
+        existingContent={existingContent}
+        grade={grade}
       />
     );
   }
@@ -227,6 +227,106 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
           )}
         </div>
       </form>
+    </div>
+  );
+}
+
+function ChallengeReview({ assignment, color, existingContent, grade }) {
+  let parsed = null;
+  try { parsed = JSON.parse(existingContent ?? 'null'); } catch {}
+
+  const prompts      = (assignment.questions ?? []).filter((q) => q.kind === 'prompt');
+  const maxScore     = parseFloat(assignment.max_score ?? 100);
+  const perPromptMax = prompts.length > 0 ? Math.round(maxScore / prompts.length) : maxScore;
+
+  // Use explicit prompts if available, else fall back to deliverables embedded in submission
+  const labels = prompts.length > 0
+    ? prompts.map((q) => q.text)
+    : (parsed?.deliverables ?? []);
+
+  const responses     = parsed?.responses ?? {};
+  const isGraded      = grade != null;
+  const promptScores  = grade?.prompt_scores ?? grade?.promptScores ?? {};
+  const pct           = isGraded ? Math.round((grade.score / (grade.max_score ?? 100)) * 100) : null;
+  const totalColor    = pct === null ? 'var(--muted)' : pct >= 80 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#ef4444';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+      {/* Status bar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 6, border: `1px solid ${isGraded ? 'rgba(16,185,129,.3)' : 'rgba(245,158,11,.25)'}`, background: isGraded ? 'rgba(16,185,129,.06)' : 'rgba(245,158,11,.05)', marginBottom: 4 }}>
+        <span style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.14em', color: isGraded ? '#10b981' : '#f59e0b' }}>
+          {isGraded ? '◉ AFTER-ACTION ASSESSMENT' : '◌ AWAITING ASSESSMENT'}
+        </span>
+        {isGraded && (
+          <span style={{ marginLeft: 'auto', fontFamily: 'var(--mono)', fontSize: 16, fontWeight: 700, color: totalColor }}>
+            {grade.score} / {grade.max_score ?? 100}
+            <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>({pct}%)</span>
+          </span>
+        )}
+        {!isGraded && (
+          <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--muted)' }}>
+            Feedback will appear here once reviewed by Command.
+          </span>
+        )}
+      </div>
+
+      {/* Per-prompt review */}
+      {labels.map((label, i) => {
+        const response = responses[i] ?? '';
+        const pts      = prompts[i]?.points ?? perPromptMax;
+        const ps       = promptScores[i];
+        const psPct    = ps !== undefined && pts > 0 ? ps / pts : null;
+        const psColor  = psPct === null ? 'var(--muted)' : psPct >= 0.8 ? '#10b981' : psPct >= 0.5 ? '#f59e0b' : '#ef4444';
+
+        return (
+          <div key={i} style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', background: 'var(--surface-2, var(--surface))' }}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color, letterSpacing: '.14em', paddingTop: 2, flexShrink: 0 }}>
+                {String(i + 1).padStart(2, '0')} / {String(labels.length).padStart(2, '0')}
+              </span>
+              <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--bright)', lineHeight: 1.5 }}>{label}</span>
+              {ps !== undefined && (
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 700, color: psColor, flexShrink: 0 }}>
+                  {ps} / {pts}
+                </span>
+              )}
+            </div>
+            <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: 'var(--muted)', marginBottom: 6 }}>YOUR RESPONSE</div>
+              <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, color: 'var(--text)', lineHeight: 1.65 }}>
+                {response || <span style={{ color: 'var(--muted)', fontStyle: 'italic' }}>No response recorded</span>}
+              </pre>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Freetext fallback (non-deliverable submission) */}
+      {labels.length === 0 && parsed?.response && (
+        <div style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+          <div style={{ padding: '8px 14px', background: 'var(--surface-2, var(--surface))' }}>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: 'var(--muted)' }}>SUBMITTED REPORT</span>
+          </div>
+          <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
+            <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, color: 'var(--text)', lineHeight: 1.65 }}>
+              {parsed.response}
+            </pre>
+          </div>
+        </div>
+      )}
+
+      {/* Instructor feedback */}
+      {isGraded && grade.feedback && (
+        <div style={{ border: '1px solid rgba(0,176,255,.2)', borderRadius: 6, padding: '14px 16px', background: 'rgba(0,176,255,.04)' }}>
+          <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: 'var(--primary)', marginBottom: 8 }}>COMMAND FEEDBACK</div>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--text)', lineHeight: 1.7 }}>{grade.feedback}</p>
+        </div>
+      )}
+
+      <Link to="/" style={{ display: 'inline-block', marginTop: 4, padding: '8px 18px', borderRadius: 4, background: color, color: '#000', textDecoration: 'none', fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '.1em', fontWeight: 700, textAlign: 'center', alignSelf: 'flex-start' }}>
+        ← OPERATIONS CENTER
+      </Link>
     </div>
   );
 }

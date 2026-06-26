@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { getAssignment, getMySubmission, submitAssignment, updateProgress } from '../api/pact.js';
+import { getAssignment, getMySubmission, getMyGrades, submitAssignment, updateProgress } from '../api/pact.js';
 import DecryptText      from '../components/DecryptText.jsx';
 import SubmitSequence   from '../components/SubmitSequence.jsx';
 import SubmissionSuccess from '../components/SubmissionSuccess.jsx';
@@ -65,6 +65,7 @@ export default function AssignmentPage() {
   const [error,        setError]        = useState('');
   const [quizResult,   setQuizResult]   = useState(null);
   const [quizStarted,  setQuizStarted]  = useState(false);
+  const [grade,        setGrade]        = useState(null);
 
   const { saveDebounced, load: loadDraft, clear: clearDraft } = useDraft(id);
 
@@ -79,11 +80,15 @@ export default function AssignmentPage() {
     setError('');
     setQuizResult(null);
     setQuizStarted(false);
+    setGrade(null);
 
     Promise.all([
       getAssignment(id),
       getMySubmission(id).catch(() => null),
-    ]).then(([a, sub]) => {
+      getMyGrades().catch(() => []),
+    ]).then(([a, sub, allGrades]) => {
+      const myGrade = (Array.isArray(allGrades) ? allGrades : []).find((g) => g.assignment_id === id);
+      if (myGrade) setGrade(myGrade);
       setAssignment(a);
       const alreadySubmitted = sub?.status === 'submitted' || sub?.status === 'graded';
       if (sub) {
@@ -280,6 +285,7 @@ export default function AssignmentPage() {
             color={color}
             submitted={submitted}
             existingContent={content}
+            grade={grade}
             onComplete={async (payload) => {
               setContent(payload);
               setProgress(100);
