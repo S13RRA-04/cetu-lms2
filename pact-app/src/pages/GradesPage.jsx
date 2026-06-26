@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
+import { Link } from 'react-router-dom';
 import { getMyGrades } from '../api/pact.js';
 import DecryptText from '../components/DecryptText.jsx';
 
@@ -84,10 +85,12 @@ export default function GradesPage() {
               return (
                 <motion.div
                   key={g.id}
-                  className="ops-perf-row"
+                  className="ops-perf-row ops-perf-row--link"
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.22, delay: i * 0.05 }}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => { if (g.Assignment?.id) window.location.href = `/assignment/${g.Assignment.id}`; }}
                 >
                   <span className="ops-perf-title">{g.Assignment?.title ?? '—'}</span>
                   <span className="ops-perf-val" style={{ color: rc }}>{g.score}</span>
@@ -105,10 +108,15 @@ export default function GradesPage() {
             <div className="ops-aar-block">
               <div className="ops-section-label" style={{ marginBottom: 12 }}>AFTER ACTION REVIEW</div>
               {grades.filter((g) => g.feedback).map((g) => (
-                <div key={g.id} className="ops-aar-item">
+                <Link
+                  key={g.id}
+                  to={`/assignment/${g.Assignment?.id}`}
+                  className="ops-aar-item ops-aar-item--link"
+                  style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}
+                >
                   <div className="ops-aar-assignment">{g.Assignment?.title}</div>
                   <div className="ops-aar-text">{g.feedback}</div>
-                </div>
+                </Link>
               ))}
             </div>
           )}

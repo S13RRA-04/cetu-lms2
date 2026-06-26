@@ -6120,6 +6120,15 @@ body {
   padding: 12px 16px;
   margin-bottom: 10px;
 }
+.ops-aar-item--link {
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.ops-aar-item--link:hover {
+  border-color: var(--primary);
+  background: var(--card-hi);
+}
+.ops-perf-row--link { cursor: pointer; }
 .ops-aar-assignment {
   font-family: var(--mono);
   font-size: 10px;
