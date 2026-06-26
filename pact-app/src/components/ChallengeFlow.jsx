@@ -98,6 +98,7 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
   const [confirmed, setConfirmed] = useState(false);
 
   useEffect(() => {
+    if (submitted) return;
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       try {
@@ -107,7 +108,7 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
         );
       } catch {}
     }, 700);
-  }, [answers, freetext, assignment.id]);
+  }, [answers, freetext, assignment.id, submitted]);
 
   const isSquad = assignment.grading_mode === 'squad';
 
@@ -246,7 +247,7 @@ function ChallengeReview({ assignment, color, existingContent, grade }) {
 
   const responses     = parsed?.responses ?? {};
   const isGraded      = grade != null;
-  const promptScores  = grade?.prompt_scores ?? grade?.promptScores ?? {};
+  const promptScores  = grade?.prompt_scores ?? {};
   const pct           = isGraded ? Math.round((grade.score / (grade.max_score ?? 100)) * 100) : null;
   const totalColor    = pct === null ? 'var(--muted)' : pct >= 80 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#ef4444';
 

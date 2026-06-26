@@ -46,9 +46,9 @@ export default function ScoreboardPage() {
     </div>
   );
 
-  const board     = tab === 'individual' ? individuals : squads;
-  const maxTotal  = Math.max(...board.map((e) => e.maxScore ?? 0), 1);
-  const isEmpty   = board.length === 0;
+  const board    = tab === 'individual' ? individuals : squads;
+  const maxTotal = board.reduce((m, e) => Math.max(m, e.maxScore ?? 0), 1);
+  const isEmpty  = board.length === 0;
 
   return (
     <div className="ops-dashboard">
