@@ -174,24 +174,32 @@ async function syncDecks(courseId) {
 
   const existing = await CourseContentItem.findAll({
     where:      { course_id: courseId, r2_key: allKeys },
-    attributes: ['r2_key'],
+    attributes: ['id', 'r2_key', 'url'],
   });
-  const existingKeys = new Set(existing.map((e) => e.r2_key));
+  const existingByKey = new Map(existing.map((e) => [e.r2_key, e]));
 
-  const toCreate = allKeys.filter((k) => !existingKeys.has(k));
+  const correctUrl = (key) => `${R2_PUBLIC_BASE_URL}/${key}`;
+
+  // Update URL on any existing record whose stored URL is now wrong (e.g. after env var change)
+  await Promise.all(existing
+    .filter((e) => e.url !== correctUrl(e.r2_key))
+    .map((e) => e.update({ url: correctUrl(e.r2_key) }))
+  );
+
+  const toCreate = allKeys.filter((k) => !existingByKey.has(k));
   await Promise.all(toCreate.map((key) =>
     CourseContentItem.create({
       course_id:    courseId,
       title:        titleFromKey(key, prefix),
       content_type: 'slides',
       r2_key:       key,
-      url:          `${R2_PUBLIC_BASE_URL}/${key}`,
+      url:          correctUrl(key),
       is_published: false,
       order_index:  0,
     })
   ));
 
-  return { added: toCreate.length, skipped: existingKeys.size, total: allKeys.length };
+  return { added: toCreate.length, skipped: existingByKey.size - existing.filter((e) => e.url !== correctUrl(e.r2_key)).length, total: allKeys.length };
 }
 
 module.exports = { listForStudent, listForAdmin, create, update, remove, unlockForCohort, lockForCohort, getDownloadUrl, syncDecks };
