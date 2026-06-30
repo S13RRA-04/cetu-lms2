@@ -6405,6 +6405,119 @@ body {
   50%       { opacity: 0.4; }
 }
 
+/* ── Course content: deck viewer ─────────────────────────────────────────── */
+.cc-viewer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 6, 10, 0.82);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.cc-viewer-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1100px;
+  height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 32px 80px rgba(0,0,0,.6);
+}
+.cc-viewer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.cc-viewer-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.cc-viewer-type {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.cc-viewer-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--bright);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cc-viewer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.cc-viewer-download-btn {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .1em;
+  color: var(--primary);
+  background: var(--primary-lt);
+  border: 1px solid var(--primary-md);
+  border-radius: 4px;
+  padding: 5px 12px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background .15s;
+}
+.cc-viewer-download-btn:hover { background: var(--primary-md); }
+.cc-viewer-close-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 4px;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color .15s, border-color .15s;
+}
+.cc-viewer-close-btn:hover { color: var(--bright); border-color: var(--muted); }
+.cc-viewer-body {
+  flex: 1;
+  overflow: hidden;
+  background: #fff;
+}
+.cc-viewer-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+.cc-card-arrow {
+  font-size: 16px;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+.cc-card-file {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 3px;
+  font-family: var(--mono);
+  letter-spacing: .04em;
+}
+
 /* ── Quiz card shake on wrong answer ─────────────────────────────────────── */
 @keyframes qz-shake {
   0%,  100% { transform: translateX(0); }

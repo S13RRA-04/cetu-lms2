@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import useAuthStore from '../store/authStore.js';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { getCourseContent } from '../api/pact.js';
 import DecryptText from '../components/DecryptText.jsx';
 
@@ -22,11 +22,12 @@ const MATERIAL_TYPES = ['slides', 'handout', 'agenda', 'form', 'resource'];
 const TYPE_ORDER = [...CAMPAIGN_TYPES, ...MATERIAL_TYPES];
 
 export default function CourseContentPage() {
-  const { user }  = useAuthStore();
-  const isAdmin   = user?.role === 'admin' || user?.role === 'instructor';
-  const [items,   setItems]   = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filter,  setFilter]  = useState('all');
+  const { user }     = useAuthStore();
+  const isAdmin      = user?.role === 'admin' || user?.role === 'instructor';
+  const [items,      setItems]      = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [filter,     setFilter]     = useState('all');
+  const [viewerItem, setViewerItem] = useState(null);
 
   useEffect(() => {
     getCourseContent()
@@ -139,7 +140,7 @@ export default function CourseContentPage() {
                 </div>
               )}
               <div className="cc-grid">
-                {dropItems.map((item, i) => <CaseCard key={item.id} item={item} idx={i} />)}
+                {dropItems.map((item, i) => <CaseCard key={item.id} item={item} idx={i} onOpen={setViewerItem} />)}
               </div>
             </div>
           ))}
@@ -157,49 +158,58 @@ export default function CourseContentPage() {
                 </div>
               )}
               <div className="cc-grid">
-                {materialItems.map((item, i) => <CaseCard key={item.id} item={item} idx={i} />)}
+                {materialItems.map((item, i) => <CaseCard key={item.id} item={item} idx={i} onOpen={setViewerItem} />)}
               </div>
             </>
           )}
         </>
       )}
+
+      <AnimatePresence>
+        {viewerItem && (
+          <DeckViewer item={viewerItem} onClose={() => setViewerItem(null)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-function CaseCard({ item, idx = 0 }) {
-  const [fetching, setFetching] = useState(false);
+function viewerType(item) {
+  const name = (item.file_name ?? item.url ?? '').toLowerCase();
+  if (/\.pptx?$/.test(name)) return 'office';
+  if (/\.docx?$/.test(name)) return 'office';
+  if (/\.pdf$/.test(name))   return 'pdf';
+  return 'external';
+}
+
+function CaseCard({ item, idx = 0, onOpen }) {
   const meta       = TYPE_META[item.content_type] ?? TYPE_META.resource;
   const isCampaign = CAMPAIGN_TYPES.includes(item.content_type);
-  const downloadHref = item.download_url ?? item.url ?? null;
-  const hasDownload  = !!downloadHref;
+  const href       = item.download_url ?? item.url ?? null;
+  const canView    = !!href;
+  const type       = viewerType(item);
 
-  const handleOpen = useCallback(() => {
-    if (!hasDownload || fetching) return;
-    setFetching(true);
-    setTimeout(() => {
-      window.open(downloadHref, '_blank', 'noopener');
-      setFetching(false);
-    }, 680);
-  }, [hasDownload, fetching, downloadHref]);
+  const handleClick = useCallback(() => {
+    if (!canView) return;
+    if (type === 'external') {
+      window.open(href, '_blank', 'noopener');
+    } else {
+      onOpen(item);
+    }
+  }, [canView, type, href, item, onOpen]);
 
   return (
     <motion.div
       className="cc-card"
-      onClick={handleOpen}
+      onClick={handleClick}
       style={{
-        cursor: hasDownload ? 'pointer' : 'default',
+        cursor: canView ? 'pointer' : 'default',
         borderLeft: isCampaign ? `3px solid ${meta.color}` : undefined,
       }}
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.24, delay: idx * 0.06 }}
     >
-      {fetching && (
-        <div className="cc-card-fetching-overlay">
-          <span className="cc-card-fetching-text">RETRIEVING CLASSIFIED FILE...</span>
-        </div>
-      )}
       <div className="cc-card-icon" style={{ color: meta.color }}>{meta.icon}</div>
       <div className="cc-card-body">
         <div className="cc-card-type" style={{ color: meta.color }}>{meta.label}</div>
@@ -207,9 +217,88 @@ function CaseCard({ item, idx = 0 }) {
         {item.description && <div className="cc-card-desc">{item.description}</div>}
         {item.file_name && <div className="cc-card-file">{item.file_name}</div>}
       </div>
-      {hasDownload && !fetching && (
-        <div className="cc-card-arrow" style={{ color: meta.color }}>→</div>
+      {canView && (
+        <div className="cc-card-arrow" style={{ color: meta.color }}>
+          {type === 'external' ? '↗' : '▶'}
+        </div>
       )}
+    </motion.div>
+  );
+}
+
+function DeckViewer({ item, onClose }) {
+  const href = item.download_url ?? item.url ?? null;
+  const type = viewerType(item);
+  const meta = TYPE_META[item.content_type] ?? TYPE_META.resource;
+
+  const officeEmbedUrl = type === 'office'
+    ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(href)}`
+    : null;
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  return (
+    <motion.div
+      className="cc-viewer-backdrop"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <motion.div
+        className="cc-viewer-panel"
+        initial={{ opacity: 0, scale: 0.97, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.97, y: 16 }}
+        transition={{ duration: 0.2 }}
+      >
+        {/* Header */}
+        <div className="cc-viewer-header">
+          <div className="cc-viewer-title-row">
+            <span className="cc-viewer-type" style={{ color: meta.color }}>{meta.label}</span>
+            <span className="cc-viewer-title">{item.title}</span>
+          </div>
+          <div className="cc-viewer-actions">
+            <a
+              href={href}
+              download
+              target="_blank"
+              rel="noopener noreferrer"
+              className="cc-viewer-download-btn"
+            >
+              ↓ Download
+            </a>
+            <button className="cc-viewer-close-btn" onClick={onClose} title="Close (Esc)">✕</button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="cc-viewer-body">
+          {type === 'office' && (
+            <iframe
+              src={officeEmbedUrl}
+              title={item.title}
+              className="cc-viewer-iframe"
+              frameBorder="0"
+              allowFullScreen
+            />
+          )}
+          {type === 'pdf' && (
+            <iframe
+              src={href}
+              title={item.title}
+              className="cc-viewer-iframe"
+              frameBorder="0"
+            />
+          )}
+        </div>
+      </motion.div>
     </motion.div>
   );
 }
