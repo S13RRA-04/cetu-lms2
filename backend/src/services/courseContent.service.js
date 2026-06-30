@@ -6,6 +6,9 @@ const { NotFoundError, ForbiddenError } = require('../utils/errors');
 const { v4: uuidv4 } = require('uuid');
 
 const R2_PUBLIC_BASE_URL = (process.env.R2_PUBLIC_BASE_URL ?? '').replace(/\/$/, '');
+if (!R2_PUBLIC_BASE_URL) {
+  console.warn('[courseContent] R2_PUBLIC_BASE_URL is not set — slide deck download URLs will be broken relative paths');
+}
 const CONTENT_PREFIX     = 'course-content/';
 
 /* Upload a buffer to R2, returns the public URL */

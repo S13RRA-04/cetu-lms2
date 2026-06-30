@@ -19,3 +19,13 @@ services:
         sync: false   # set manually in dashboard; must be exactly 32 chars
       - key: FRONTEND_URL
         sync: false   # set to your Render service URL after first deploy
+      - key: R2_ENDPOINT
+        sync: false   # Cloudflare R2 S3-compatible endpoint
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        value: pact
+      - key: R2_PUBLIC_BASE_URL
+        sync: false   # public CDN URL for R2 bucket (no trailing slash) — REQUIRED for slide deck downloads

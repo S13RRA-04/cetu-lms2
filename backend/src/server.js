@@ -150,6 +150,14 @@ async function bootstrap() {
     logger.info('Database connection established');
 
     await lti.deploy({ serverless: true });
+    // Guard: only let ltijs handle its own protocol paths.
+    // Without this, any unmatched request (favicon, missing assets, etc.) falls
+    // through to lti.app and gets a confusing 401 NO_LTIK_OR_IDTOKEN_FOUND.
+    const LTI_PATHS = ['/login', '/keys', '/sessionTimeout', '/invalidToken'];
+    app.use((req, res, next) => {
+      if (LTI_PATHS.includes(req.path)) return next();
+      return res.status(404).end();
+    });
     app.use(lti.app);
     logger.info('LTI provider deployed');
 
