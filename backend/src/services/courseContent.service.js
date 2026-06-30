@@ -50,11 +50,15 @@ async function listForStudent(courseId, userId) {
 }
 
 async function listForAdmin(courseId) {
-  return CourseContentItem.findAll({
+  const items = await CourseContentItem.findAll({
     where:   { course_id: courseId },
     include: [{ model: CourseContentUnlock, as: 'unlocks', include: [{ model: Cohort, attributes: ['id', 'name'] }] }],
     order:   [['order_index', 'ASC'], ['created_at', 'ASC']],
   });
+  return items.map((item) => ({
+    ...item.toJSON(),
+    download_url: item.r2_key ? `${R2_PUBLIC_BASE_URL}/${item.r2_key}` : item.url,
+  }));
 }
 
 async function create(courseId, data, fileBuffer, fileName, mimeType) {
