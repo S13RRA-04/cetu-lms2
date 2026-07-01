@@ -196,7 +196,7 @@ function CaseCard({ item, idx = 0, onOpen }) {
     } else {
       onOpen(item);
     }
-  }, [canView, type, href, item, onOpen]);
+  }, [canView, href, type, item, onOpen]);
 
   return (
     <motion.div
@@ -231,8 +231,8 @@ function DeckViewer({ item, onClose }) {
   const type = viewerType(item);
   const meta = TYPE_META[item.content_type] ?? TYPE_META.resource;
 
-  const officeEmbedUrl = type === 'office'
-    ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(href)}`
+  const embedUrl = (type === 'office' || type === 'pdf')
+    ? `https://docs.google.com/gviewer?url=${encodeURIComponent(href)}&embedded=true`
     : null;
 
   // Close on Escape
@@ -249,14 +249,13 @@ function DeckViewer({ item, onClose }) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.18 }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <motion.div
         className="cc-viewer-panel"
-        initial={{ opacity: 0, scale: 0.97, y: 16 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.97, y: 16 }}
-        transition={{ duration: 0.2 }}
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 12 }}
+        transition={{ duration: 0.18 }}
       >
         {/* Header */}
         <div className="cc-viewer-header">
@@ -280,21 +279,13 @@ function DeckViewer({ item, onClose }) {
 
         {/* Content */}
         <div className="cc-viewer-body">
-          {type === 'office' && (
+          {embedUrl && (
             <iframe
-              src={officeEmbedUrl}
+              src={embedUrl}
               title={item.title}
               className="cc-viewer-iframe"
               frameBorder="0"
               allowFullScreen
-            />
-          )}
-          {type === 'pdf' && (
-            <iframe
-              src={href}
-              title={item.title}
-              className="cc-viewer-iframe"
-              frameBorder="0"
             />
           )}
         </div>
