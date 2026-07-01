@@ -2204,6 +2204,8 @@ function PublishFileForm({ file, onPublished, onCancel }) {
         content_type: contentType,
         url:          file.url,
         r2_key:       file.key,
+        file_name:    file.name,
+        file_size:    file.size ?? undefined,
         drop_number:  dropNumber ? Number(dropNumber) : undefined,
         is_published: isPublished,
       });

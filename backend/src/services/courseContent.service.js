@@ -159,7 +159,7 @@ function titleFromKey(key, prefix) {
 
 async function syncDecks(courseId) {
   const prefix = R2_SLIDES_PREFIX;
-  const allKeys = [];
+  const allObjects = [];
   let continuationToken;
 
   do {
@@ -169,12 +169,15 @@ async function syncDecks(courseId) {
       ContinuationToken:  continuationToken,
     }));
     for (const obj of resp.Contents ?? []) {
-      if (obj.Key !== prefix) allKeys.push(obj.Key);
+      if (obj.Key !== prefix) allObjects.push({ key: obj.Key, size: obj.Size ?? null });
     }
     continuationToken = resp.IsTruncated ? resp.NextContinuationToken : undefined;
   } while (continuationToken);
 
-  if (allKeys.length === 0) return { added: 0, skipped: 0, total: 0 };
+  if (allObjects.length === 0) return { added: 0, skipped: 0, total: 0 };
+
+  const allKeys = allObjects.map((o) => o.key);
+  const sizeByKey = new Map(allObjects.map((o) => [o.key, o.size]));
 
   const existing = await CourseContentItem.findAll({
     where:      { course_id: courseId, r2_key: allKeys },
@@ -197,13 +200,15 @@ async function syncDecks(courseId) {
       title:        titleFromKey(key, prefix),
       content_type: 'slides',
       r2_key:       key,
+      file_name:    key.split('/').pop(),
+      file_size:    sizeByKey.get(key) ?? null,
       url:          correctUrl(key),
       is_published: false,
       order_index:  0,
     })
   ));
 
-  return { added: toCreate.length, skipped: existingByKey.size - existing.filter((e) => e.url !== correctUrl(e.r2_key)).length, total: allKeys.length };
+  return { added: toCreate.length, skipped: existingByKey.size - existing.filter((e) => e.url !== correctUrl(e.r2_key)).length, total: allObjects.length };
 }
 
 module.exports = { listForStudent, listForAdmin, create, update, remove, unlockForCohort, lockForCohort, getDownloadUrl, syncDecks };

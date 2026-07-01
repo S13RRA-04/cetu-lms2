@@ -3,6 +3,7 @@ const { Router } = require('express');
 const { GetObjectCommand, HeadObjectCommand } = require('@aws-sdk/client-s3');
 const { r2Client, R2_BUCKET } = require('../config/r2');
 const { CourseContentItem } = require('../models');
+const logger = require('../utils/logger');
 
 const router = Router();
 
@@ -19,12 +20,18 @@ router.get('/files/:id', async (req, res, next) => {
     const item = await findItem(req.params.id);
     if (!item?.r2_key) return res.status(404).end();
 
-    let size = item.file_size || 0;
+    let size = Number(item.file_size) || 0;
     if (!size) {
       try {
         const head = await r2Client.send(new HeadObjectCommand({ Bucket: R2_BUCKET, Key: item.r2_key }));
         size = head.ContentLength || 0;
-      } catch {}
+        // Cache the size so future CheckFileInfo calls skip the HEAD request
+        if (size) item.update({ file_size: size }).catch(() => {});
+      } catch (headErr) {
+        logger.warn('[WOPI] HeadObject failed — Size will be 0, viewer may be empty', {
+          key: item.r2_key, error: headErr.message,
+        });
+      }
     }
 
     return res.json({
