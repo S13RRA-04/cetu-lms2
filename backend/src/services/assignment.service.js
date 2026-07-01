@@ -3,9 +3,19 @@ const { Op }             = require('sequelize');
 const { Assignment, AssignmentUnlock, Course, Cohort, Enrollment, User, Submission, CourseContentItem, CourseContentUnlock } = require('../models');
 const { NotFoundError, AppError } = require('../utils/errors');
 const { paginate, paginatedResponse } = require('../utils/pagination');
+const TtlCache = require('../utils/ttlCache');
+
+// Admin assignment list is the same for every instructor request.
+// 15-second TTL absorbs thundering-herd without hiding new submissions long.
+const listCache = new TtlCache(15_000);
 
 async function listByCourse(courseId, query) {
   const { limit, offset, page } = paginate(query);
+  const cacheKey = `listByCourse:${courseId}:${limit}:${offset}`;
+  return listCache.get(cacheKey, () => _queryListByCourse(courseId, { limit, offset, page }));
+}
+
+async function _queryListByCourse(courseId, { limit, offset, page }) {
   const { rows, count } = await Assignment.findAndCountAll({
     where:   { course_id: courseId },
     include: [{ model: AssignmentUnlock, as: 'unlocks', include: [{ model: Cohort, attributes: ['id', 'name'] }] }],
@@ -15,7 +25,6 @@ async function listByCourse(courseId, query) {
 
   if (rows.length > 0) {
     const assignmentIds = rows.map((r) => r.id);
-    // Single query for both status buckets instead of two parallel fetches
     const subs = await Submission.findAll({
       where:      { assignment_id: assignmentIds, status: { [Op.in]: ['submitted', 'graded'] } },
       attributes: ['assignment_id', 'status'],
@@ -36,29 +45,33 @@ async function listByCourse(courseId, query) {
 }
 
 async function listForStudent(courseId, userId) {
-  const enrollment = await Enrollment.findOne({
-    where: { user_id: userId, course_id: courseId },
-    include: [{ association: 'squad', attributes: ['id'] }],
-  });
+  // Round-trip 1: enrollment and assignment list are independent — run in parallel
+  const [enrollment, assignments] = await Promise.all([
+    Enrollment.findOne({
+      where:   { user_id: userId, course_id: courseId },
+      include: [{ association: 'squad', attributes: ['id'] }],
+    }),
+    Assignment.findAll({
+      where: { course_id: courseId, is_published: true },
+      order: [['order_index', 'ASC'], ['created_at', 'ASC']],
+    }),
+  ]);
   if (!enrollment) throw new AppError('Not enrolled in this course', 403, 'FORBIDDEN');
 
-  // Unlocked if there's a cohort-wide record (squad_id IS NULL) OR a squad-specific record
-  const squadId = enrollment.squad?.id ?? null;
+  const squadId   = enrollment.squad?.id ?? null;
   const orClauses = [{ cohort_id: enrollment.cohort_id, squad_id: null }];
   if (squadId) orClauses.push({ squad_id: squadId });
 
-  const unlocks = await AssignmentUnlock.findAll({ where: { [Op.or]: orClauses } });
+  // Round-trip 2: unlocks (needs enrollment) + submissions (needs assignment IDs) — run in parallel
+  const assignmentIds = assignments.map((a) => a.id);
+  const [unlocks, submissions] = await Promise.all([
+    AssignmentUnlock.findAll({ where: { [Op.or]: orClauses } }),
+    assignmentIds.length
+      ? Submission.findAll({ where: { assignment_id: assignmentIds, user_id: userId }, attributes: ['assignment_id', 'progress', 'status'] })
+      : [],
+  ]);
+
   const unlockedIds = new Set(unlocks.map((u) => u.assignment_id));
-
-  const assignments = await Assignment.findAll({
-    where: { course_id: courseId, is_published: true },
-    order: [['order_index', 'ASC'], ['created_at', 'ASC']],
-  });
-
-  const submissions = await Submission.findAll({
-    where: { assignment_id: assignments.map((a) => a.id), user_id: userId },
-    attributes: ['assignment_id', 'progress', 'status'],
-  });
   const progressMap = Object.fromEntries(submissions.map((s) => [s.assignment_id, s.progress ?? 0]));
 
   return assignments.map((a) => ({
