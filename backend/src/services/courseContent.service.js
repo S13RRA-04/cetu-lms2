@@ -4,6 +4,9 @@ const { r2Client, R2_BUCKET, R2_SLIDES_PREFIX } = require('../config/r2');
 const { CourseContentItem, CourseContentUnlock, Course, Cohort, Enrollment } = require('../models');
 const { NotFoundError, ForbiddenError } = require('../utils/errors');
 const { v4: uuidv4 } = require('uuid');
+const TtlCache = require('../utils/ttlCache');
+
+const contentCache = new TtlCache(15_000);
 
 const R2_PUBLIC_BASE_URL = (process.env.R2_PUBLIC_BASE_URL ?? '').replace(/\/$/, '');
 if (!R2_PUBLIC_BASE_URL) {
@@ -28,17 +31,18 @@ async function listForStudent(courseId, userId) {
   const enrollment = await Enrollment.findOne({ where: { user_id: userId, course_id: courseId } });
   if (!enrollment) throw new ForbiddenError('Not enrolled');
 
-  const unlockedSet = new Set();
-  if (enrollment.cohort_id) {
-    const unlocks = await CourseContentUnlock.findAll({ where: { cohort_id: enrollment.cohort_id } });
-    unlocks.forEach((u) => unlockedSet.add(u.content_id));
-  }
+  // Items list is the same for all students in a course; cohort_id scopes unlock visibility
+  const [items, unlocks] = await Promise.all([
+    contentCache.get(`listItems:${courseId}`, () => CourseContentItem.findAll({
+      where: { course_id: courseId, is_published: true },
+      order: [['order_index', 'ASC'], ['created_at', 'ASC']],
+    })),
+    enrollment.cohort_id
+      ? CourseContentUnlock.findAll({ where: { cohort_id: enrollment.cohort_id } })
+      : Promise.resolve([]),
+  ]);
 
-  const items = await CourseContentItem.findAll({
-    where: { course_id: courseId, is_published: true },
-    order: [['order_index', 'ASC'], ['created_at', 'ASC']],
-  });
-
+  const unlockedSet = new Set(unlocks.map((u) => u.content_id));
   return items.map((item) => {
     const unlocked = unlockedSet.has(item.id);
     return {
@@ -50,15 +54,17 @@ async function listForStudent(courseId, userId) {
 }
 
 async function listForAdmin(courseId) {
-  const items = await CourseContentItem.findAll({
-    where:   { course_id: courseId },
-    include: [{ model: CourseContentUnlock, as: 'unlocks', include: [{ model: Cohort, attributes: ['id', 'name'] }] }],
-    order:   [['order_index', 'ASC'], ['created_at', 'ASC']],
+  return contentCache.get(`listForAdmin:${courseId}`, async () => {
+    const items = await CourseContentItem.findAll({
+      where:   { course_id: courseId },
+      include: [{ model: CourseContentUnlock, as: 'unlocks', include: [{ model: Cohort, attributes: ['id', 'name'] }] }],
+      order:   [['order_index', 'ASC'], ['created_at', 'ASC']],
+    });
+    return items.map((item) => ({
+      ...item.toJSON(),
+      download_url: item.r2_key ? `${R2_PUBLIC_BASE_URL}/${item.r2_key}` : item.url,
+    }));
   });
-  return items.map((item) => ({
-    ...item.toJSON(),
-    download_url: item.r2_key ? `${R2_PUBLIC_BASE_URL}/${item.r2_key}` : item.url,
-  }));
 }
 
 async function create(courseId, data, fileBuffer, fileName, mimeType) {
@@ -76,7 +82,7 @@ async function create(courseId, data, fileBuffer, fileName, mimeType) {
     r2Key = data.r2_key ?? null;
   }
 
-  return CourseContentItem.create({
+  const item = await CourseContentItem.create({
     course_id:    courseId,
     title:        data.title,
     description:  data.description ?? null,
@@ -90,6 +96,9 @@ async function create(courseId, data, fileBuffer, fileName, mimeType) {
     ...(data.drop_number != null          ? { drop_number:          Number(data.drop_number) } : {}),
     ...(data.linked_assignment_id != null ? { linked_assignment_id: data.linked_assignment_id } : {}),
   });
+  contentCache.invalidate(`listForAdmin:${courseId}`);
+  contentCache.invalidate(`listItems:${courseId}`);
+  return item;
 }
 
 async function getDownloadUrl(contentId, userId, userRole = 'student') {
@@ -121,7 +130,10 @@ async function getDownloadUrl(contentId, userId, userRole = 'student') {
 async function update(id, data) {
   const item = await CourseContentItem.findByPk(id);
   if (!item) throw new NotFoundError('CourseContentItem');
-  return item.update(data);
+  const updated = await item.update(data);
+  contentCache.invalidate(`listForAdmin:${item.course_id}`);
+  contentCache.invalidate(`listItems:${item.course_id}`);
+  return updated;
 }
 
 async function remove(id) {
@@ -130,7 +142,10 @@ async function remove(id) {
   if (item.r2_key) {
     try { await r2Client.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: item.r2_key })); } catch {}
   }
+  const courseId = item.course_id;
   await item.destroy();
+  contentCache.invalidate(`listForAdmin:${courseId}`);
+  contentCache.invalidate(`listItems:${courseId}`);
 }
 
 async function unlockForCohort(contentId, cohortId, unlockerId) {
@@ -142,11 +157,14 @@ async function unlockForCohort(contentId, cohortId, unlockerId) {
     where:    { content_id: contentId, cohort_id: cohortId },
     defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
   });
+  contentCache.invalidate(`listForAdmin:${item.course_id}`);
   return unlock;
 }
 
 async function lockForCohort(contentId, cohortId) {
+  const item = await CourseContentItem.findByPk(contentId);
   await CourseContentUnlock.destroy({ where: { content_id: contentId, cohort_id: cohortId } });
+  if (item) contentCache.invalidate(`listForAdmin:${item.course_id}`);
 }
 
 function titleFromKey(key, prefix) {
