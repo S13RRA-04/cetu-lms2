@@ -18,6 +18,12 @@ module.exports = (err, req, res, next) => {
     return res.status(422).json({ error: { message: 'Validation failed', code: 'VALIDATION_ERROR', details } });
   }
 
+  if (err.name === 'SequelizeDatabaseError') {
+    const dbMsg = err.parent?.message ?? err.message;
+    logger.error('Database error', { error: dbMsg, sql: err.sql, path: req.path });
+    return res.status(500).json({ error: { message: dbMsg, code: 'DATABASE_ERROR' } });
+  }
+
   if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
     return res.status(401).json({ error: { message: 'Invalid or expired token', code: 'INVALID_TOKEN' } });
   }

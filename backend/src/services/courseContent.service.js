@@ -79,16 +79,16 @@ async function create(courseId, data, fileBuffer, fileName, mimeType) {
   return CourseContentItem.create({
     course_id:    courseId,
     title:        data.title,
-    description:  data.description,
+    description:  data.description ?? null,
     content_type: data.content_type ?? 'resource',
     order_index:  Number(data.order_index  ?? 0),
     is_published: data.is_published === true || data.is_published === 'true',
-    drop_number:          data.drop_number          ? Number(data.drop_number) : null,
-    linked_assignment_id: data.linked_assignment_id ?? null,
     url,
     r2_key:    r2Key,
     file_name: fileName ?? data.file_name ?? null,
     file_size: fileSize ?? (data.file_size ? Number(data.file_size) : null),
+    ...(data.drop_number != null          ? { drop_number:          Number(data.drop_number) } : {}),
+    ...(data.linked_assignment_id != null ? { linked_assignment_id: data.linked_assignment_id } : {}),
   });
 }
 
