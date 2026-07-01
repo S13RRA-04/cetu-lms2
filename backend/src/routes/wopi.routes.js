@@ -1,9 +1,11 @@
 'use strict';
+const https  = require('https');
+const http   = require('http');
 const { Router } = require('express');
-const { GetObjectCommand, HeadObjectCommand } = require('@aws-sdk/client-s3');
-const { r2Client, R2_BUCKET } = require('../config/r2');
 const { CourseContentItem } = require('../models');
 const logger = require('../utils/logger');
+
+const R2_PUBLIC_BASE_URL = (process.env.R2_PUBLIC_BASE_URL ?? '').replace(/\/$/, '');
 
 const router = Router();
 
@@ -14,6 +16,34 @@ async function findItem(id) {
   });
 }
 
+/* Fetch file metadata (HEAD) from the public R2 CDN URL */
+function headR2(url) {
+  return new Promise((resolve) => {
+    const lib = url.startsWith('https') ? https : http;
+    lib.request(url, { method: 'HEAD' }, (res) => {
+      resolve({ status: res.statusCode, contentLength: Number(res.headers['content-length']) || 0 });
+      res.resume();
+    }).on('error', (err) => {
+      logger.warn('[WOPI] HEAD failed', { url, error: err.message });
+      resolve({ status: 0, contentLength: 0 });
+    }).end();
+  });
+}
+
+/* Stream file content from the public R2 CDN URL */
+function getR2Stream(url) {
+  return new Promise((resolve, reject) => {
+    const lib = url.startsWith('https') ? https : http;
+    lib.get(url, (res) => {
+      if (res.statusCode >= 400) {
+        res.resume();
+        return reject(Object.assign(new Error(`R2 fetch failed: ${res.statusCode}`), { statusCode: res.statusCode }));
+      }
+      resolve(res);
+    }).on('error', reject);
+  });
+}
+
 // CheckFileInfo
 router.get('/files/:id', async (req, res, next) => {
   try {
@@ -21,27 +51,20 @@ router.get('/files/:id', async (req, res, next) => {
     if (!item?.r2_key) return res.status(404).end();
 
     let size = Number(item.file_size) || 0;
-    if (!size) {
-      try {
-        const head = await r2Client.send(new HeadObjectCommand({ Bucket: R2_BUCKET, Key: item.r2_key }));
-        size = head.ContentLength || 0;
-        // Cache the size so future CheckFileInfo calls skip the HEAD request
-        if (size) item.update({ file_size: size }).catch(() => {});
-      } catch (headErr) {
-        logger.warn('[WOPI] HeadObject failed — Size will be 0, viewer may be empty', {
-          key: item.r2_key, error: headErr.message,
-        });
-      }
+    if (!size && R2_PUBLIC_BASE_URL) {
+      const { contentLength } = await headR2(`${R2_PUBLIC_BASE_URL}/${item.r2_key}`);
+      size = contentLength;
+      if (size) item.update({ file_size: size }).catch(() => {});
     }
 
     return res.json({
-      BaseFileName:        item.file_name || item.r2_key.split('/').pop(),
-      Size:                size,
-      UserId:              'anonymous',
-      Version:             String(item.id),
-      ReadOnly:            true,
-      UserCanWrite:        false,
-      DisableTranslation:  true,
+      BaseFileName:       item.file_name || item.r2_key.split('/').pop(),
+      Size:               size,
+      UserId:             'anonymous',
+      Version:            String(item.id),
+      ReadOnly:           true,
+      UserCanWrite:       false,
+      DisableTranslation: true,
     });
   } catch (err) { return next(err); }
 });
@@ -52,11 +75,26 @@ router.get('/files/:id/contents', async (req, res, next) => {
     const item = await findItem(req.params.id);
     if (!item?.r2_key) return res.status(404).end();
 
-    const obj = await r2Client.send(new GetObjectCommand({ Bucket: R2_BUCKET, Key: item.r2_key }));
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
-    if (obj.ContentLength) res.setHeader('Content-Length', String(obj.ContentLength));
+    if (!R2_PUBLIC_BASE_URL) {
+      logger.error('[WOPI] R2_PUBLIC_BASE_URL not set — cannot serve file');
+      return res.status(503).end();
+    }
+
+    const fileUrl = `${R2_PUBLIC_BASE_URL}/${item.r2_key}`;
+    const stream  = await getR2Stream(fileUrl);
+
+    const ext = (item.file_name || item.r2_key).split('.').pop().toLowerCase();
+    const MIME = {
+      pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      ppt:  'application/vnd.ms-powerpoint',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      pdf:  'application/pdf',
+    };
+    res.setHeader('Content-Type', MIME[ext] ?? 'application/octet-stream');
+    if (stream.headers['content-length']) res.setHeader('Content-Length', stream.headers['content-length']);
     res.setHeader('X-WOPI-ItemVersion', String(item.id));
-    obj.Body.pipe(res);
+
+    stream.pipe(res);
   } catch (err) { return next(err); }
 });
 
