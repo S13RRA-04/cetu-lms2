@@ -4,6 +4,11 @@ const { NotFoundError, AppError }                    = require('../utils/errors'
 const ltiService                                     = require('./lti.service');
 const logger                                         = require('../utils/logger');
 const { sequelize }                                  = require('../config/database');
+const TtlCache                                       = require('../utils/ttlCache');
+
+// Scoreboard changes only when grades are upserted — cache for 20 s to absorb
+// the thundering-herd of 35 students loading simultaneously.
+const scoreboardCache = new TtlCache(20_000);
 
 async function getGradesForAssignment(assignmentId) {
   const assignment = await Assignment.findByPk(assignmentId);
@@ -64,6 +69,9 @@ async function upsertGrade(assignmentId, userId, data, graderId) {
     return g;
   });
 
+  // Invalidate scoreboard cache so the next fetch reflects this grade
+  scoreboardCache.invalidate(`scoreboard:${assignment.course_id}`);
+
   // Fire-and-forget AGS passback (outside transaction — non-critical)
   if (assignment.lineitem_url) {
     ltiService.publishGradeAsync(assignment, userId, data.score).catch((err) => {
@@ -119,6 +127,10 @@ async function gradeSquad(assignmentId, squadId, data, graderId) {
 }
 
 async function getScoreboard(courseId) {
+  return scoreboardCache.get(`scoreboard:${courseId}`, () => _queryScoreboard(courseId));
+}
+
+async function _queryScoreboard(courseId) {
   const [rows] = await sequelize.query(
     `SELECT u.id AS "userId", u.first_name AS "firstName", u.last_name AS "lastName",
             COALESCE(SUM(g.score), 0)     AS "totalScore",

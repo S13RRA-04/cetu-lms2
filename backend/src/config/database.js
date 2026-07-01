@@ -7,7 +7,7 @@ const logger = require('../utils/logger');
 const opts = {
   dialect: 'postgres',
   logging: (msg) => { if (process.env.NODE_ENV === 'development') logger.debug(msg); },
-  pool:    { max: 10, min: 2, acquire: 30000, idle: 10000 },
+  pool:    { max: 5, min: 1, acquire: 30000, idle: 10000 },
   define:  { underscored: true, timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' },
   dialectOptions: process.env.DATABASE_URL ? { ssl: { require: true, rejectUnauthorized: false } } : {},
 };

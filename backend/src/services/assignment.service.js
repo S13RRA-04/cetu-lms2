@@ -5,9 +5,6 @@ const { NotFoundError, AppError } = require('../utils/errors');
 const { paginate, paginatedResponse } = require('../utils/pagination');
 
 async function listByCourse(courseId, query) {
-  const course = await Course.findByPk(courseId);
-  if (!course) throw new NotFoundError('Course');
-
   const { limit, offset, page } = paginate(query);
   const { rows, count } = await Assignment.findAndCountAll({
     where:   { course_id: courseId },
@@ -16,21 +13,23 @@ async function listByCourse(courseId, query) {
     order: [['order_index', 'ASC'], ['created_at', 'ASC']],
   });
 
-  // Attach pending_count and graded_count to each assignment
-  const assignmentIds = rows.map((r) => r.id);
-  if (assignmentIds.length > 0) {
-    const [pendingSubs, gradedSubs] = await Promise.all([
-      Submission.findAll({ where: { assignment_id: assignmentIds, status: 'submitted'  }, attributes: ['assignment_id'] }),
-      Submission.findAll({ where: { assignment_id: assignmentIds, status: 'graded'    }, attributes: ['assignment_id'] }),
-    ]);
+  if (rows.length > 0) {
+    const assignmentIds = rows.map((r) => r.id);
+    // Single query for both status buckets instead of two parallel fetches
+    const subs = await Submission.findAll({
+      where:      { assignment_id: assignmentIds, status: { [Op.in]: ['submitted', 'graded'] } },
+      attributes: ['assignment_id', 'status'],
+    });
     const pendingMap = {};
-    for (const s of pendingSubs) pendingMap[s.assignment_id] = (pendingMap[s.assignment_id] ?? 0) + 1;
     const gradedMap  = {};
-    for (const s of gradedSubs)  gradedMap[s.assignment_id]  = (gradedMap[s.assignment_id]  ?? 0) + 1;
-    rows.forEach((r) => {
+    for (const s of subs) {
+      if (s.status === 'submitted') pendingMap[s.assignment_id] = (pendingMap[s.assignment_id] ?? 0) + 1;
+      else                          gradedMap[s.assignment_id]  = (gradedMap[s.assignment_id]  ?? 0) + 1;
+    }
+    for (const r of rows) {
       r.dataValues.pending_count = pendingMap[r.id] ?? 0;
       r.dataValues.graded_count  = gradedMap[r.id]  ?? 0;
-    });
+    }
   }
 
   return paginatedResponse(rows, count, { page, limit });
