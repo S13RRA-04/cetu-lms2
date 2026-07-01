@@ -231,10 +231,11 @@ function DeckViewer({ item, onClose }) {
   const type = viewerType(item);
   const meta = TYPE_META[item.content_type] ?? TYPE_META.resource;
 
-  const wopiSrc  = `${window.location.origin}/wopi/files/${item.id}`;
-  const embedUrl = type === 'office'
-    ? `https://view.officeapps.live.com/op/embed.aspx?WOPISrc=${encodeURIComponent(wopiSrc)}&access_token=${item.id}&access_token_ttl=0`
-    : type === 'pdf'
+  // Office Online direct embed — passes the public R2 URL directly to Microsoft's
+  // viewer so their servers fetch the file. No WOPI protocol needed.
+  const embedUrl = type === 'office' && href
+    ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(href)}`
+    : type === 'pdf' && href
     ? href
     : null;
 
