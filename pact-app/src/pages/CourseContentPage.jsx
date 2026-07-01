@@ -231,17 +231,21 @@ function DeckViewer({ item, onClose }) {
   const type = viewerType(item);
   const meta = TYPE_META[item.content_type] ?? TYPE_META.resource;
 
+  const wopiSrc  = `${window.location.origin}/wopi/files/${item.id}`;
   const embedUrl = type === 'office'
-    ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(href)}`
+    ? `https://view.officeapps.live.com/op/embed.aspx?WOPISrc=${encodeURIComponent(wopiSrc)}&access_token=${item.id}&access_token_ttl=0`
     : type === 'pdf'
     ? href
     : null;
 
-  // Close on Escape
   useEffect(() => {
+    document.body.classList.add('deck-viewer-open');
     const handler = (e) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    return () => {
+      document.body.classList.remove('deck-viewer-open');
+      window.removeEventListener('keydown', handler);
+    };
   }, [onClose]);
 
   return (

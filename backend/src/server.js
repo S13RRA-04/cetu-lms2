@@ -21,6 +21,7 @@ const courseRoutes      = require('./routes/course.routes');
 const userRoutes        = require('./routes/user.routes');
 const ltiRoutes         = require('./routes/lti.routes');
 const kcrRoutes         = require('./routes/kcr.routes');
+const wopiRoutes        = require('./routes/wopi.routes');
 const ltiService        = require('./services/lti.service');
 
 const PORT = parseInt(process.env.PORT, 10) || 3001;
@@ -104,6 +105,7 @@ app.use('/api/v1/courses', courseRoutes);
 app.use('/api/v1/users',   userRoutes);
 app.use('/api/v1/lti',     ltiRoutes);
 app.use('/api/v1/kcr',     kcrRoutes);
+app.use('/wopi',           wopiRoutes);
 
 app.get('/api/v1/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 

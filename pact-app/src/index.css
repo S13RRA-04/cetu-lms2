@@ -6405,6 +6405,12 @@ body {
   50%       { opacity: 0.4; }
 }
 
+/* Suppress CRT overlays while deck viewer is open */
+.deck-viewer-open .ops-room::before,
+.deck-viewer-open .ops-room::after,
+.deck-viewer-open .ops-room.ops-terminal::before,
+.deck-viewer-open .ops-room.ops-terminal::after { display: none !important; }
+
 /* ── Course content: deck viewer ─────────────────────────────────────────── */
 .cc-viewer-backdrop {
   position: fixed;
