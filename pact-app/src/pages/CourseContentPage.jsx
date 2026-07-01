@@ -231,8 +231,10 @@ function DeckViewer({ item, onClose }) {
   const type = viewerType(item);
   const meta = TYPE_META[item.content_type] ?? TYPE_META.resource;
 
-  const embedUrl = (type === 'office' || type === 'pdf')
-    ? `https://docs.google.com/gviewer?url=${encodeURIComponent(href)}&embedded=true`
+  const embedUrl = type === 'office'
+    ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(href)}`
+    : type === 'pdf'
+    ? href
     : null;
 
   // Close on Escape
