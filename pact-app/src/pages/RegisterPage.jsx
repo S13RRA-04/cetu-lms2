@@ -15,7 +15,7 @@ export default function RegisterPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (form.password !== form.confirm) { setError('ACCESS CODES DO NOT MATCH'); return; }
+    if (form.password !== form.confirm) { setError('PASSWORDS DO NOT MATCH'); return; }
     setLoading(true);
     try {
       await register({
@@ -114,7 +114,7 @@ export default function RegisterPage() {
                 />
               </div>
               <div className="auth-field">
-                <label className="auth-label">ACCESS CODE</label>
+                <label className="auth-label">PASSWORD (ACCESS CODE)</label>
                 <input
                   type="password"
                   value={form.password}
@@ -127,7 +127,7 @@ export default function RegisterPage() {
                 />
               </div>
               <div className="auth-field">
-                <label className="auth-label">CONFIRM ACCESS CODE</label>
+                <label className="auth-label">CONFIRM PASSWORD</label>
                 <input
                   type="password"
                   value={form.confirm}
