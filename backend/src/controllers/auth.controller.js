@@ -23,6 +23,9 @@ const COOKIE_OPTS = {
   httpOnly:  true,
   sameSite:  process.env.NODE_ENV === 'production' ? 'Strict' : 'Lax',
   secure:    process.env.NODE_ENV === 'production',
+  // Shared across pact/lair/kcr subdomains + the LMS apex so a session started
+  // on one app can be silently resumed on another via the refresh cookie.
+  domain:    process.env.NODE_ENV === 'production' ? '.cetu.online' : undefined,
   maxAge:    7 * 24 * 60 * 60 * 1000,
   path:      '/',
 };
@@ -81,7 +84,7 @@ async function logout(req, res, next) {
     const raw = req.cookies?.refresh_token;
     if (raw) await authService.logout(raw);
 
-    res.clearCookie('refresh_token', { path: '/' });
+    res.clearCookie('refresh_token', { path: '/', domain: COOKIE_OPTS.domain });
     return res.status(200).json({ message: 'Logged out successfully' });
   } catch (err) {
     return next(err);

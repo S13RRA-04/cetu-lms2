@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { login } from '../api/pact.js';
 import useAuthStore from '../store/authStore.js';
@@ -169,6 +169,9 @@ export default function LoginPage() {
             <p className="auth-notice">
               System may enter standby after periods of inactivity.
               Initial access following standby may require up to 60 seconds.
+            </p>
+            <p className="auth-notice">
+              No credentials? <Link to="/register">Request access</Link>
             </p>
           </motion.div>
         )}

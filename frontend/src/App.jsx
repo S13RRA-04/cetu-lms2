@@ -1,4 +1,7 @@
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import * as authApi from './api/auth.js';
+import useAuthStore from './store/authStore.js';
 import ProtectedRoute, { AdminRoute } from './components/common/ProtectedRoute.jsx';
 import Layout from './components/layout/Layout.jsx';
 import LoginPage from './pages/LoginPage.jsx';
@@ -18,7 +21,36 @@ import ProfilePage from './pages/ProfilePage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import OnboardingPage from './pages/OnboardingPage.jsx';
 
+/* Decode a JWT payload without verifying the signature (client-side expiry check only) */
+function jwtExp(token) {
+  try { return JSON.parse(atob(token.split('.')[1]))?.exp ?? 0; }
+  catch { return 0; }
+}
+
+function isTokenStale(token) {
+  if (!token) return true;
+  // Treat as stale if it expires within the next 60 seconds
+  return jwtExp(token) - 60 < Date.now() / 1000;
+}
+
 export default function App() {
+  const { accessToken, setAuth } = useAuthStore();
+  const [ready, setReady]        = useState(false);
+
+  useEffect(() => {
+    if (!isTokenStale(accessToken)) { setReady(true); return; }
+
+    /* No (or stale) local access token — try to resume a session from the shared
+       refresh_token cookie (set by PACT/LAIR/KCR on the same .cetu.online domain)
+       before ProtectedRoute redirects to /login. */
+    authApi.refresh()
+      .then(({ accessToken: newToken, user }) => { if (user) setAuth(user, newToken); })
+      .catch(() => { /* no valid cookie — fall through to normal login */ })
+      .finally(() => setReady(true));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!ready) return null;
+
   return (
     <BrowserRouter>
       <Routes>

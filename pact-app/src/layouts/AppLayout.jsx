@@ -57,6 +57,10 @@ const IcMoon     = () => <svg viewBox="0 0 24 24" {...S}><path d="M21 12.79A9 9 
 const IcTerminal = () => <svg viewBox="0 0 24 24" {...S}><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="6 8.5 9.5 12 6 15.5"/><line x1="12" y1="15.5" x2="16" y2="15.5"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>;
 
 const IcNetwork  = () => <svg viewBox="0 0 24 24" {...S}><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="12" y1="7" x2="5" y2="17"/><line x1="12" y1="7" x2="19" y2="17"/><line x1="5" y1="19" x2="19" y2="19"/></svg>;
+const IcExternal = () => <svg viewBox="0 0 24 24" {...S}><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>;
+
+/* PACT is served from its own subdomain — the LMS lives at the apex domain */
+const LMS_URL = 'https://cetu.online';
 
 const THEME_NEXT  = { dark: 'light', light: 'terminal', terminal: 'dark' };
 const THEME_LABEL = { dark: 'LIGHT MODE', light: 'TERM MODE', terminal: 'DARK MODE' };
@@ -241,6 +245,13 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
         </nav>
 
         <div className="ops-rail-spacer" />
+
+        {/* Cross-navigate back to the main LMS site */}
+        <a href={LMS_URL} className="ops-nav-item">
+          <span className="ops-nav-icon"><IcExternal /></span>
+          <span className="ops-nav-label">RETURN TO LMS</span>
+          <span className="ops-nav-bar" />
+        </a>
 
         {/* Theme toggle — cycles dark → light → terminal → dark */}
         <div className="ops-theme-toggle">

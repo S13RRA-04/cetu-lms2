@@ -2,6 +2,7 @@ import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 import { useEffect, useState } from 'react';
 import useAuthStore from './store/authStore.js';
 import LoginPage      from './pages/LoginPage.jsx';
+import RegisterPage   from './pages/RegisterPage.jsx';
 import DashboardHome  from './pages/DashboardHome.jsx';
 import AssignmentPage from './pages/AssignmentPage.jsx';
 import GradesPage     from './pages/GradesPage.jsx';
@@ -27,6 +28,7 @@ function AdminGuard({ children }) {
 
 const router = createBrowserRouter([
   { path: '/login',      element: <LoginPage /> },
+  { path: '/register',   element: <RegisterPage /> },
   { path: '/logged-out', element: <LoggedOutPage /> },
   {
     element: <Guard><AppShell /></Guard>,
