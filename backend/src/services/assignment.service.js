@@ -9,6 +9,14 @@ const TtlCache = require('../utils/ttlCache');
 // 15-second TTL absorbs thundering-herd without hiding new submissions long.
 const listCache = new TtlCache(15_000);
 
+// Per-student assignment list — hit on every dashboard/AppShell load. Short TTL,
+// invalidated on the student's own submit/progress writes (see submission.service.js).
+const studentListCache = new TtlCache(10_000);
+
+function invalidateStudentCache(courseId, userId) {
+  studentListCache.invalidate(`listForStudent:${courseId}:${userId}`);
+}
+
 async function listByCourse(courseId, query) {
   const { limit, offset, page } = paginate(query);
   const cacheKey = `listByCourse:${courseId}:${limit}:${offset}`;
@@ -45,6 +53,10 @@ async function _queryListByCourse(courseId, { limit, offset, page }) {
 }
 
 async function listForStudent(courseId, userId) {
+  return studentListCache.get(`listForStudent:${courseId}:${userId}`, () => _queryListForStudent(courseId, userId));
+}
+
+async function _queryListForStudent(courseId, userId) {
   // Round-trip 1: enrollment and assignment list are independent — run in parallel
   const [enrollment, assignments] = await Promise.all([
     Enrollment.findOne({
@@ -172,4 +184,4 @@ async function remove(id) {
   await assignment.destroy();
 }
 
-module.exports = { listByCourse, listForStudent, getById, create, update, remove, unlockForCohort, lockForCohort, getUnlockStatus };
+module.exports = { listByCourse, listForStudent, getById, create, update, remove, unlockForCohort, lockForCohort, getUnlockStatus, invalidateStudentCache };

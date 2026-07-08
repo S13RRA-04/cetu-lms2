@@ -8,6 +8,7 @@ import SubmissionSuccess from '../components/SubmissionSuccess.jsx';
 import QuizFlow         from '../components/QuizFlow.jsx';
 import ChallengeFlow    from '../components/ChallengeFlow.jsx';
 import useDraft         from '../hooks/useDraft.js';
+import { TYPE_DEFINITIONS } from './DashboardHome.jsx';
 
 const TYPE_COLOR = {
   module:     '#60a5fa',
@@ -66,6 +67,7 @@ export default function AssignmentPage() {
   const [quizResult,   setQuizResult]   = useState(null);
   const [quizStarted,  setQuizStarted]  = useState(false);
   const [grade,        setGrade]        = useState(null);
+  const [progressSaveError, setProgressSaveError] = useState(false);
 
   const { saveDebounced, load: loadDraft, clear: clearDraft } = useDraft(id);
 
@@ -130,7 +132,12 @@ export default function AssignmentPage() {
   const handleProgressStep = useCallback(async (pct) => {
     setProgress(pct);
     saveDebounced({ content, progress: pct }, 0);
-    try { await updateProgress(id, pct); } catch {}
+    try {
+      await updateProgress(id, pct);
+      setProgressSaveError(false);
+    } catch {
+      setProgressSaveError(true);
+    }
   }, [id, content, saveDebounced]);
 
   const handleSubmit = async (e) => {
@@ -157,6 +164,8 @@ export default function AssignmentPage() {
   };
 
   const handleQuizComplete = useCallback(async (result) => {
+    if (saving) return; // guard against a double-click firing this twice before re-render
+    setSaving(true);
     setQuizResult(result);
     const json = JSON.stringify(result);
     setContent(json);
@@ -168,8 +177,10 @@ export default function AssignmentPage() {
     } catch (err) {
       const msg = err.response?.data?.error?.message ?? '';
       setError(msg || 'Submission failed. Please try again.');
+    } finally {
+      setSaving(false);
     }
-  }, [id, clearDraft]);
+  }, [id, clearDraft, saving]);
 
   if (loading) {
     return (
@@ -215,7 +226,11 @@ export default function AssignmentPage() {
         <Link to="/" className="back-link">← Operations Center</Link>
 
         <div className="assignment-meta">
-          <span className="type-badge" style={{ color, borderColor: color }}>
+          <span
+            className="type-badge"
+            style={{ color, borderColor: color }}
+            title={TYPE_DEFINITIONS[assignment.type ?? 'module']}
+          >
             {(assignment.type ?? 'module').toUpperCase()}
           </span>
           {assignment.drop_number != null && (
@@ -287,10 +302,16 @@ export default function AssignmentPage() {
             existingContent={content}
             grade={grade}
             onComplete={async (payload) => {
-              setContent(payload);
-              setProgress(100);
-              await submitAssignment(id, payload);
-              setSubmitted(true);
+              if (saving) return; // guard against a double-click firing this twice before re-render
+              setSaving(true);
+              try {
+                setContent(payload);
+                setProgress(100);
+                await submitAssignment(id, payload);
+                setSubmitted(true);
+              } finally {
+                setSaving(false);
+              }
             }}
           />
         ) : hasQuiz ? (
@@ -307,6 +328,7 @@ export default function AssignmentPage() {
                 assignmentId={id}
                 color={color}
                 onComplete={handleQuizComplete}
+                submitting={saving}
               />
             </>
           )
@@ -331,6 +353,11 @@ export default function AssignmentPage() {
                 ))}
                 <span className="pct-display">{progress}%</span>
               </div>
+              {progressSaveError && (
+                <div className="err-msg" style={{ marginTop: 10, fontSize: 12.5 }}>
+                  Progress isn't syncing to the server right now — it's saved on this device and will sync automatically once the connection recovers.
+                </div>
+              )}
             </div>
 
             <hr className="divider" />

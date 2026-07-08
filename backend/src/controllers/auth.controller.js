@@ -39,12 +39,15 @@ async function login(req, res, next) {
     return res.status(200).json({
       accessToken,
       user: {
-        id:         user.id,
-        email:      user.email,
-        username:   user.username,
-        first_name: user.first_name,
-        last_name:  user.last_name,
-        role:       user.role,
+        id:                  user.id,
+        email:               user.email,
+        username:            user.username,
+        first_name:          user.first_name,
+        last_name:           user.last_name,
+        role:                user.role,
+        onboarding_complete: user.onboarding_complete,
+        professional_role:   user.professional_role,
+        certifications:      user.certifications,
       },
     });
   } catch (err) {
@@ -66,12 +69,15 @@ async function refresh(req, res, next) {
     return res.status(200).json({
       accessToken,
       user: {
-        id:         user.id,
-        email:      user.email,
-        username:   user.username,
-        first_name: user.first_name,
-        last_name:  user.last_name,
-        role:       user.role,
+        id:                  user.id,
+        email:               user.email,
+        username:            user.username,
+        first_name:          user.first_name,
+        last_name:           user.last_name,
+        role:                user.role,
+        onboarding_complete: user.onboarding_complete,
+        professional_role:   user.professional_role,
+        certifications:      user.certifications,
       },
     });
   } catch (err) {

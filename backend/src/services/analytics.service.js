@@ -23,9 +23,7 @@ async function getCourseAnalytics(courseId, cohortId) {
          ROUND(AVG(g.score)::numeric, 1)                                  AS "avgScore",
          MIN(g.score)                                                      AS "minScore",
          MAX(g.score)                                                      AS "maxScore2",
-         CASE WHEN a.max_score > 0
-           THEN ROUND(AVG(g.score / a.max_score * 100)::numeric, 1)
-         END                                                               AS "avgPct"
+         ROUND(AVG(g.score / NULLIF(g.max_score, 0) * 100)::numeric, 1)   AS "avgPct"
        FROM assignments a
        JOIN enrollments e ON e.course_id = a.course_id
        JOIN users u ON u.id = e.user_id AND u.role = 'student'
@@ -220,14 +218,14 @@ async function getCourseEffectiveness(courseId, cohortId) {
        COUNT(DISTINCT s.user_id)
          FILTER (WHERE s.status IN ('submitted','graded') AND g.user_id IS NULL)   AS "ungradedCount",
 
-       /* pass rate: scored >= 60 % of max_score */
+       /* pass rate: scored >= 60 % of the grade's own max_score */
        COUNT(DISTINCT g.user_id)
          FILTER (WHERE g.score IS NOT NULL
-                   AND a.max_score > 0
-                   AND g.score / a.max_score >= 0.6)                               AS "passedCount",
+                   AND g.max_score > 0
+                   AND g.score / g.max_score >= 0.6)                               AS "passedCount",
 
        /* average grade % (for score-progression curve) */
-       ROUND(AVG(g.score / NULLIF(a.max_score, 0) * 100)::numeric, 1)             AS "avgPct",
+       ROUND(AVG(g.score / NULLIF(g.max_score, 0) * 100)::numeric, 1)             AS "avgPct",
 
        /* manual grading turnaround (hours) — excludes auto-grades where graded_by IS NULL */
        ROUND(AVG(

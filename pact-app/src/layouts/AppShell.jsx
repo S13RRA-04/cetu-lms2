@@ -9,6 +9,7 @@ import VaultKeypad        from '../pages/VaultKeypad.jsx';
 import SignalEntry        from '../pages/SignalEntry.jsx';
 import SessionTimeoutWarning from '../components/SessionTimeoutWarning.jsx';
 import DropAlert          from '../components/DropAlert.jsx';
+import EvidenceDrawer     from '../components/EvidenceDrawer.jsx';
 import useSessionTimeout  from '../hooks/useSessionTimeout.js';
 import useAuthStore       from '../store/authStore.js';
 
@@ -292,6 +293,8 @@ export default function AppShell() {
   return (
     <>
       <AppLayout assignments={assignments} enrollment={enrollment} />
+      {/* Global evidence access — accessible from any page, per student feedback */}
+      <EvidenceDrawer />
       {/* Floating in-app drop alert — shown while user is active in the app */}
       {isStudent && !pendingDrop && alertDrop && (
         <DropAlert

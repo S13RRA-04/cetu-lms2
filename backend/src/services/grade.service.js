@@ -10,6 +10,11 @@ const TtlCache                                       = require('../utils/ttlCach
 // the thundering-herd of 35 students loading simultaneously.
 const scoreboardCache = new TtlCache(20_000);
 
+// Squad scoreboard and the admin gradebook query are both raw-SQL and hit
+// repeatedly during live grading/leaderboard checks — short TTL, no
+// invalidation needed (same trade-off as assignment.service.js's admin listCache).
+const gradesCache = new TtlCache(15_000);
+
 async function getGradesForAssignment(assignmentId) {
   const assignment = await Assignment.findByPk(assignmentId);
   if (!assignment) throw new NotFoundError('Assignment');
@@ -156,6 +161,10 @@ async function _queryScoreboard(courseId) {
 }
 
 async function getSquadScoreboard(courseId) {
+  return gradesCache.get(`squadScoreboard:${courseId}`, () => _querySquadScoreboard(courseId));
+}
+
+async function _querySquadScoreboard(courseId) {
   // Pick one representative enrollment per squad (DISTINCT ON so grades are counted once per squad, not per member)
   const [rows] = await sequelize.query(
     `WITH rep AS (
@@ -189,6 +198,10 @@ async function getSquadScoreboard(courseId) {
 }
 
 async function getCourseGrades(courseId, cohortId) {
+  return gradesCache.get(`courseGrades:${courseId}:${cohortId ?? 'all'}`, () => _queryCourseGrades(courseId, cohortId));
+}
+
+async function _queryCourseGrades(courseId, cohortId) {
   const [rows] = await sequelize.query(
     `SELECT
        u.id           AS "userId",
@@ -202,6 +215,7 @@ async function getCourseGrades(courseId, cohortId) {
        a.max_score    AS "assignmentMax",
        a.order_index  AS "orderIndex",
        g.score,
+       g.max_score    AS "gradeMax",
        g.feedback,
        g.graded_at    AS "gradedAt",
        s.status       AS "submissionStatus",

@@ -3,6 +3,7 @@ const { Submission, Assignment, AssignmentUnlock, Enrollment, Squad, User, Grade
 const { NotFoundError, AppError } = require('../utils/errors');
 const ltiService = require('./lti.service');
 const logger     = require('../utils/logger');
+const { invalidateStudentCache } = require('./assignment.service');
 
 async function listByAssignment(assignmentId) {
   const assignment = await Assignment.findByPk(assignmentId);
@@ -76,6 +77,7 @@ async function updateProgress(assignmentId, userId, progress) {
   if (sub.status === 'submitted' || sub.status === 'graded') return sub;
 
   await sub.update({ progress: Math.min(100, Math.max(0, progress)), status: 'in_progress' });
+  invalidateStudentCache(assignment.course_id, userId);
   return sub;
 }
 
@@ -90,15 +92,23 @@ async function submit(assignmentId, userId, content) {
     throw new AppError('You must be assigned to a squad to submit this assignment', 400, 'NO_SQUAD');
   }
 
-  // For squad assignments: upsert on (assignment_id, user_id) — any member can submit
-  const existing = await Submission.findOne({ where: { assignment_id: assignmentId, user_id: userId } });
-  let submission;
-  if (existing) {
-    await existing.update({ content, submitted_at: new Date(), status: 'submitted', progress: 100, squad_id: squadId });
-    submission = existing;
-  } else {
-    submission = await Submission.create({ assignment_id: assignmentId, user_id: userId, squad_id: squadId, content, submitted_at: new Date(), status: 'submitted', progress: 100 });
-  }
+  // Atomic upsert on (assignment_id, user_id) — a plain findOne+create/update here
+  // raced under double-submits (two concurrent requests both see no existing row
+  // and both create one); the DB-level unique constraint + upsert closes that race.
+  const [submission] = await Submission.upsert(
+    {
+      assignment_id: assignmentId,
+      user_id:       userId,
+      squad_id:      squadId,
+      content,
+      submitted_at:  new Date(),
+      status:        'submitted',
+      progress:      100,
+    },
+    { conflictFields: ['assignment_id', 'user_id'] }
+  );
+
+  invalidateStudentCache(assignment.course_id, userId);
 
   // Auto-grade quiz submissions: QuizFlow embeds totalScore + maxScore in the content JSON
   try {
@@ -109,7 +119,14 @@ async function submit(assignmentId, userId, content) {
         defaults: { score: parsed.totalScore, max_score: parsed.maxScore, graded_at: new Date(), graded_by: null },
       });
       if (!created) {
-        await grade.update({ score: parsed.totalScore, max_score: parsed.maxScore, graded_at: new Date() });
+        // Keep the student's best attempt — a resubmission (retry, or the
+        // double-submit bug) should never silently overwrite a better grade
+        // with a worse one.
+        const existingPct = grade.max_score > 0 ? grade.score / grade.max_score : 0;
+        const newPct       = parsed.maxScore  > 0 ? parsed.totalScore / parsed.maxScore : 0;
+        if (newPct >= existingPct) {
+          await grade.update({ score: parsed.totalScore, max_score: parsed.maxScore, graded_at: new Date() });
+        }
       }
       if (assignment.lineitem_url) {
         ltiService.publishGradeAsync(assignment, userId, parsed.totalScore).catch((err) => {

@@ -24,6 +24,16 @@ const TYPE_COLOR = {
   capstone:   '#fb923c',
 };
 
+/* Plain-language definitions — students asked what this terminology means */
+export const TYPE_DEFINITIONS = {
+  module:     'A short lesson with a quiz at the end, covering one concept.',
+  game:       'A scored, interactive exercise reinforcing a concept through play.',
+  assessment: 'A graded quiz — usually the pre-test or post-test for the course.',
+  survey:     'An ungraded questionnaire for feedback — no points involved.',
+  challenge:  'A hands-on task where you apply skills to part of the case.',
+  capstone:   'A larger, final exercise pulling together everything from the case.',
+};
+
 function useCountUp(target, duration = 800) {
   const [val, setVal]   = useState(0);
   const started         = useRef(false);
@@ -49,6 +59,7 @@ export default function DashboardHome() {
   const [drops,          setDrops]          = useState([]);
   const [loading,        setLoading]        = useState(true);
   const [activeSection,  setActiveSection]  = useState(null);
+  const [showGlossary,   setShowGlossary]   = useState(false);
 
   useEffect(() => {
     getMyEnrollment().catch(() => null).then((enroll) => {
@@ -95,6 +106,7 @@ export default function DashboardHome() {
   ];
   const taskingSections = TYPE_SECTIONS.map((s) => ({
     ...s,
+    title: s.types.map((t) => TYPE_DEFINITIONS[t]).join(' '),
     items: visibleAssignments.filter((a) => s.types.includes(a.type)),
   })).filter((s) => s.items.length > 0);
 
@@ -205,7 +217,29 @@ export default function DashboardHome() {
         const currentSec  = taskingSections.find((s) => s.key === currentKey) ?? taskingSections[0];
         return (
           <div className="ops-tasking-block">
-            <div className="ops-section-label" style={{ marginBottom: 10 }}>ACTIVE TASKING</div>
+            <div className="ops-section-label-row">
+              <div className="ops-section-label" style={{ marginBottom: 10 }}>ACTIVE TASKING</div>
+              <button
+                className="ops-glossary-btn"
+                onClick={() => setShowGlossary((v) => !v)}
+                title="What do these terms mean?"
+              >
+                ?
+              </button>
+            </div>
+
+            {showGlossary && (
+              <div className="ops-glossary-panel">
+                {Object.entries(TYPE_DEFINITIONS).map(([type, def]) => (
+                  <div key={type} className="ops-glossary-row">
+                    <span className="ops-glossary-term" style={{ color: TYPE_COLOR[type] }}>
+                      {type.toUpperCase()}
+                    </span>
+                    <span className="ops-glossary-def">{def}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Tab bar */}
             <div className="ops-type-tabs">
@@ -214,6 +248,7 @@ export default function DashboardHome() {
                   key={s.key}
                   className={`ops-type-tab${currentKey === s.key ? ' ops-type-tab-active' : ''}`}
                   onClick={() => setActiveSection(s.key)}
+                  title={s.title}
                 >
                   {s.label}
                   <span className="ops-type-tab-count">{s.items.length}</span>

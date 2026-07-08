@@ -86,8 +86,10 @@ export default function AdminGradesPage() {
       });
     }
     if (r.score !== null && r.score !== undefined) {
+      // Prefer the grade's own max_score — the assignment's static max_score
+      // can diverge from an auto-graded quiz's real point total (see grade.service.js).
       studentMap.get(r.userId).grades[r.assignmentId] = {
-        score: parseFloat(r.score), max: parseFloat(r.assignmentMax ?? 0),
+        score: parseFloat(r.score), max: parseFloat(r.gradeMax ?? r.assignmentMax ?? 0),
         feedback: r.feedback, gradedAt: r.gradedAt,
         submissionStatus: r.submissionStatus,
       };
@@ -281,7 +283,7 @@ export default function AdminGradesPage() {
                 <tbody>
                   {students.map((stu, si) => {
                     const totalEarned = assignments.reduce((s, a) => s + (stu.grades[a.id]?.score ?? 0), 0);
-                    const totalMax    = assignments.reduce((s, a) => s + a.max, 0);
+                    const totalMax    = assignments.reduce((s, a) => s + (stu.grades[a.id]?.max ?? a.max), 0);
                     const totalPct    = totalMax > 0 ? Math.round((totalEarned / totalMax) * 100) : null;
                     const rowBg       = si % 2 === 0 ? '#ffffff' : '#fafbfc';
 
@@ -361,10 +363,10 @@ export default function AdminGradesPage() {
                             );
                           }
 
-                          const p   = a.max > 0 ? Math.round((g.score / a.max) * 100) : 0;
+                          const p   = g.max > 0 ? Math.round((g.score / g.max) * 100) : 0;
                           const tip = [
                             `${a.title}`,
-                            `Score: ${g.score} / ${a.max}  (${p}%)`,
+                            `Score: ${g.score} / ${g.max}  (${p}%)`,
                             g.feedback   ? `Feedback: ${g.feedback}` : null,
                             g.gradedAt   ? `Graded: ${new Date(g.gradedAt).toLocaleDateString()}` : null,
                           ].filter(Boolean).join('\n');

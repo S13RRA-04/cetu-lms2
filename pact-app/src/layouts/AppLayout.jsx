@@ -59,8 +59,8 @@ const IcTerminal = () => <svg viewBox="0 0 24 24" {...S}><rect x="2" y="3" width
 const IcNetwork  = () => <svg viewBox="0 0 24 24" {...S}><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="12" y1="7" x2="5" y2="17"/><line x1="12" y1="7" x2="19" y2="17"/><line x1="5" y1="19" x2="19" y2="19"/></svg>;
 const IcExternal = () => <svg viewBox="0 0 24 24" {...S}><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>;
 
-/* PACT is served from its own subdomain — the LMS lives at the apex domain */
-const LMS_URL = 'https://cetu.online';
+/* PACT is served from its own subdomain; the LMS lives at lms.cetu.online */
+const LMS_URL = 'https://lms.cetu.online';
 
 const THEME_NEXT  = { dark: 'light', light: 'terminal', terminal: 'dark' };
 const THEME_LABEL = { dark: 'LIGHT MODE', light: 'TERM MODE', terminal: 'DARK MODE' };

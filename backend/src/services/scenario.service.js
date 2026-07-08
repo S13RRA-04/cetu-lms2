@@ -4,8 +4,19 @@ const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { r2Client, R2_BUCKET, R2_DECKS_PREFIX } = require('../config/r2');
 const { ScenarioPackage, ScenarioPackageUnlock, Course, Cohort, Enrollment, Squad } = require('../models');
 const { NotFoundError, ForbiddenError } = require('../utils/errors');
+const TtlCache = require('../utils/ttlCache');
 
 const R2_PUBLIC_BASE_URL = (process.env.R2_PUBLIC_BASE_URL ?? '').replace(/\/$/, '');
+
+// Package list per course, and unlock list per cohort — shared across every
+// student in the course/cohort, so a short TTL absorbs the 45s AppShell poll
+// from every logged-in student without hiding a new release for long.
+const packageListCache = new TtlCache(20_000);
+const unlockListCache  = new TtlCache(20_000);
+
+// R2 sync is a full bucket walk — throttle it instead of running it on every
+// single admin page load.
+const r2SyncCache = new TtlCache(30_000);
 
 /* Convert a folder slug like "brokered-exit" → "Brokered Exit" */
 function slugToTitle(slug) {
@@ -114,14 +125,20 @@ async function listForStudent(courseId, userId) {
 
   const unlockedSet = new Set();
   if (enrollment.cohort_id) {
-    const unlocks = await ScenarioPackageUnlock.findAll({ where: { cohort_id: enrollment.cohort_id } });
+    const unlocks = await unlockListCache.get(
+      `unlocks:${enrollment.cohort_id}`,
+      () => ScenarioPackageUnlock.findAll({ where: { cohort_id: enrollment.cohort_id } })
+    );
     unlocks.forEach((u) => unlockedSet.add(u.package_id));
   }
 
-  const packages = await ScenarioPackage.findAll({
-    where: { course_id: courseId, is_published: true },
-    order: [['release_number', 'ASC']],
-  });
+  const packages = await packageListCache.get(
+    `packages:${courseId}`,
+    () => ScenarioPackage.findAll({
+      where: { course_id: courseId, is_published: true },
+      order: [['release_number', 'ASC']],
+    })
+  );
 
   // Show packages that are unlocked for the cohort, assigned to the student's squad
   // (or broadcast), and match the cohort's scenario if one is set.
@@ -136,7 +153,7 @@ async function listForStudent(courseId, userId) {
 }
 
 async function listForAdmin(courseId) {
-  await syncFromR2(courseId);
+  await r2SyncCache.get(`sync:${courseId}`, () => syncFromR2(courseId));
   return ScenarioPackage.findAll({
     where:   { course_id: courseId },
     include: [{
@@ -176,12 +193,15 @@ async function getFilesAdmin(packageId) {
 async function create(courseId, data) {
   const course = await Course.findByPk(courseId);
   if (!course) throw new NotFoundError('Course');
-  return ScenarioPackage.create({ ...data, course_id: courseId });
+  const pkg = await ScenarioPackage.create({ ...data, course_id: courseId });
+  packageListCache.invalidate(`packages:${courseId}`);
+  return pkg;
 }
 
 async function update(id, data) {
   const pkg = await ScenarioPackage.findByPk(id);
   if (!pkg) throw new NotFoundError('ScenarioPackage');
+  packageListCache.invalidate(`packages:${pkg.course_id}`);
   return pkg.update(data);
 }
 
@@ -200,11 +220,13 @@ async function unlockForCohort(packageId, cohortId, unlockerId) {
     where:    { package_id: packageId, cohort_id: cohortId },
     defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
   });
+  unlockListCache.invalidate(`unlocks:${cohortId}`);
   return unlock;
 }
 
 async function lockForCohort(packageId, cohortId) {
   await ScenarioPackageUnlock.destroy({ where: { package_id: packageId, cohort_id: cohortId } });
+  unlockListCache.invalidate(`unlocks:${cohortId}`);
 }
 
 /* Browse one level of R2 at the given prefix (delimiter = '/') */
@@ -280,6 +302,8 @@ async function quickRelease(courseId, cohortId, { r2_key, title, scenario_name, 
     defaults: { unlocked_by: unlocker_id ?? null, unlocked_at: new Date() },
   });
 
+  packageListCache.invalidate(`packages:${courseId}`);
+  unlockListCache.invalidate(`unlocks:${cohortId}`);
   return pkg;
 }
 

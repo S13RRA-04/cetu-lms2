@@ -120,7 +120,7 @@ function TrueFalse({ q, selected, onSelect, revealed, forced }) {
   );
 }
 
-function DragMatch({ q, matchState, onMatch, revealed, forced, partialFeedback }) {
+function DragMatch({ q, targets, matchState, onMatch, revealed, forced, partialFeedback }) {
   const [dragging, setDragging] = useState(null);
   const [pending,  setPending]  = useState(null);
 
@@ -188,7 +188,7 @@ function DragMatch({ q, matchState, onMatch, revealed, forced, partialFeedback }
 
       <div className="qz-dm-col">
         <div className="qz-dm-label">Tactics</div>
-        {q.payload.targets.map((tgt) => {
+        {(targets ?? q.payload.targets).map((tgt) => {
           const placedSrcId = assignedByTarget[tgt.id];
           const placedSrc   = q.payload.sources.find((s) => s.id === placedSrcId);
           let slotCls = 'qz-dm-target';
@@ -254,12 +254,23 @@ function FillBlank({ q, value, onChange, revealed, forced }) {
 
 /* ── main component ── */
 
-export default function QuizFlow({ questions, assignmentId, color, onComplete }) {
+export default function QuizFlow({ questions, assignmentId, color, onComplete, submitting = false }) {
+  /* Randomize presentation order so the correct answer's position can't be
+     guessed from the option/target list alone (e.g. "always A", dropdowns
+     always in correct order). Shuffle is opt-out, not opt-in — a question
+     must explicitly set shuffle: false to keep a fixed order. */
   const shuffledOpts = useMemo(() =>
     questions.map((q) =>
-      q.payload.kind === 'multiple_choice' && q.payload.shuffle
+      q.payload.kind === 'multiple_choice' && q.payload.shuffle !== false
         ? shuffle(q.payload.options)
         : (q.payload.options ?? [])
+    ), [questions]);
+
+  const shuffledTargets = useMemo(() =>
+    questions.map((q) =>
+      q.payload.kind === 'drag_match' && q.payload.shuffle !== false
+        ? shuffle(q.payload.targets)
+        : (q.payload.targets ?? [])
     ), [questions]);
 
   /* Restore draft on mount — load synchronously inside initializers */
@@ -274,7 +285,17 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
 
   const [qIdx,    setQIdx]    = useState(draft?.qIdx    ?? 0);
   const [answers, setAnswers] = useState(draft?.answers ?? {});
+  const [saveError, setSaveError] = useState(false);
   const cardRef = useRef(null);
+
+  /* Progress is also drafted to localStorage on every change (below), so a failed
+     server sync doesn't lose the student's answers — but it should still be visible
+     rather than silently swallowed. */
+  const saveProgress = useCallback((pct) => {
+    updateProgress(assignmentId, pct)
+      .then(() => setSaveError(false))
+      .catch(() => setSaveError(true));
+  }, [assignmentId]);
 
   const [qStates, setQStates] = useState(() =>
     draft?.qStates ?? Object.fromEntries(questions.map((q) => [q.id, {
@@ -357,7 +378,7 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
     if (correct) {
       setQStates((s) => ({ ...s, [q.id]: { ...s[q.id], revealed: true, lastWrong: false } }));
       const pct = Math.round(((answered + 1) / questions.length) * 100);
-      updateProgress(assignmentId, pct).catch(() => {});
+      saveProgress(pct);
     } else {
       /* shake the card */
       if (cardRef.current) {
@@ -370,15 +391,8 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
         const newAvail = Math.max(0, cur.available - 2);
         const doForce  = newAvail <= 0;
 
-        /* clear selection on wrong (except drag_match — show placements) */
-        if (!doForce && q.payload.kind !== 'drag_match') {
-          setAnswers((a) => {
-            const next = { ...a };
-            if (q.payload.kind === 'true_false')  delete next[q.id];
-            else                                   next[q.id] = q.payload.kind === 'fill_blank' ? '' : [];
-            return next;
-          });
-        }
+        /* Keep the student's selection in place on a wrong attempt — they should
+           be able to adjust their answer, not re-enter it from scratch. */
 
         return {
           ...s,
@@ -393,10 +407,10 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
       });
       if (qs.available - 2 <= 0) {
         const pct = Math.round(((answered + 1) / questions.length) * 100);
-        updateProgress(assignmentId, pct).catch(() => {});
+        saveProgress(pct);
       }
     }
-  }, [q, raw, qs, answered, questions.length, assignmentId]);
+  }, [q, raw, qs, answered, questions.length, saveProgress]);
 
   /* ── advance to next / complete ── */
   const handleNext = useCallback(() => {
@@ -452,6 +466,11 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
           <span className="qz-score-running" style={{ color }}>{totalEarned} pts</span>
         )}
       </div>
+      {saveError && (
+        <div className="qz-save-warning">
+          Progress isn't syncing to the server right now — your answers are safe on this device and will sync automatically once the connection recovers.
+        </div>
+      )}
 
       {/* question card with slide transition between questions */}
       <AnimatePresence mode="wait">
@@ -528,6 +547,7 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
             {q.payload.kind === 'drag_match' && (
               <DragMatch
                 q={q}
+                targets={shuffledTargets[qIdx]}
                 matchState={raw}
                 onMatch={updateAnswer}
                 revealed={qs.revealed}
@@ -566,8 +586,13 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete })
       {/* action buttons */}
       <div className="qz-actions">
         {locked ? (
-          <button className="btn-submit" onClick={handleNext} style={{ background: color }}>
-            {isLast ? 'COMPLETE ASSESSMENT →' : 'NEXT →'}
+          <button
+            className="btn-submit"
+            onClick={handleNext}
+            disabled={isLast && submitting}
+            style={(isLast && submitting) ? {} : { background: color }}
+          >
+            {isLast ? (submitting ? 'SUBMITTING…' : 'COMPLETE ASSESSMENT →') : 'NEXT →'}
           </button>
         ) : (
           <>

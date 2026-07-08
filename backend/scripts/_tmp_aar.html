@@ -1,0 +1,793 @@
+<title>PACT AAR — May 2026 Cohort</title>
+<style>
+  :root {
+    --paper:        #F1EFE9;
+    --paper-raised: #E8E4DB;
+    --ink:          #23282E;
+    --ink-soft:     #565C61;
+    --ink-mute:     #8A8C86;
+    --rule:         #D2CDC1;
+    --accent:       #2F5D62;
+    --accent-soft:  #E1E6E1;
+    --accent-ink:   #1D4247;
+    --good:         #0ca30c;
+    --good-tint:    #9BCB9B;
+    --bad:          #d03b3b;
+    --bad-tint:     #E9AEA9;
+    --neutral-fill: #D5D0C4;
+    --card:         #FBFAF7;
+    --shadow:       rgba(35,40,46,0.08);
+  }
+  :root[data-theme="dark"] {
+    --paper:        #15181A;
+    --paper-raised: #1D2124;
+    --ink:          #E9E6DE;
+    --ink-soft:     #B7B4AB;
+    --ink-mute:     #83807A;
+    --rule:         #33383B;
+    --accent:       #6FAEB3;
+    --accent-soft:  #1E2C2C;
+    --accent-ink:   #9BCBD0;
+    --good:         #3FBF4A;
+    --good-tint:    #365B3B;
+    --bad:          #E2685F;
+    --bad-tint:     #5B3230;
+    --neutral-fill: #3A3E3F;
+    --card:         #1B1F21;
+    --shadow:       rgba(0,0,0,0.35);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:        #15181A;
+      --paper-raised: #1D2124;
+      --ink:          #E9E6DE;
+      --ink-soft:     #B7B4AB;
+      --ink-mute:     #83807A;
+      --rule:         #33383B;
+      --accent:       #6FAEB3;
+      --accent-soft:  #1E2C2C;
+      --accent-ink:   #9BCBD0;
+      --good:         #3FBF4A;
+      --good-tint:    #365B3B;
+      --bad:          #E2685F;
+      --bad-tint:     #5B3230;
+      --neutral-fill: #3A3E3F;
+      --card:         #1B1F21;
+      --shadow:       rgba(0,0,0,0.35);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Times New Roman', serif;
+    line-height: 1.55;
+    margin: 0;
+    padding: 0 20px 96px;
+  }
+  .doc {
+    max-width: 760px;
+    margin: 0 auto;
+  }
+  .sans {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+  .mono {
+    font-family: 'SF Mono', 'Consolas', 'Menlo', 'Courier New', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- Masthead ---------- */
+  .banner {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    text-align: center;
+    color: var(--accent-ink);
+    background: var(--accent-soft);
+    border-top: 1px solid var(--accent);
+    border-bottom: 1px solid var(--accent);
+    padding: 8px 12px;
+    margin: 0 0 40px;
+  }
+  .masthead {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-bottom: 22px;
+    border-bottom: 2px solid var(--ink);
+    margin-bottom: 30px;
+  }
+  .eyebrow {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+  }
+  h1.title {
+    font-size: 34px;
+    margin: 2px 0 4px;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+  .subtitle {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    color: var(--ink-soft);
+  }
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 28px;
+    margin-top: 14px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 12.5px;
+  }
+  .meta-row dt {
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 10.5px;
+    margin: 0;
+  }
+  .meta-row dd {
+    margin: 0;
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .meta-item { display: flex; flex-direction: column; gap: 2px; }
+
+  /* ---------- Section chrome ---------- */
+  section.block { margin: 46px 0; }
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .section-head .num {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 11px;
+    color: var(--accent-ink);
+    background: var(--accent-soft);
+    border-radius: 3px;
+    padding: 3px 7px;
+    letter-spacing: 0.04em;
+  }
+  h2.section-title {
+    font-size: 21px;
+    margin: 0;
+    flex: 1;
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 10px;
+    text-wrap: balance;
+  }
+  p.lede {
+    font-size: 15.5px;
+    color: var(--ink-soft);
+    max-width: 62ch;
+  }
+
+  /* ---------- Executive summary strip ---------- */
+  .exec-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .exec-cell {
+    background: var(--card);
+    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .exec-cell .label {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .exec-cell .value {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 27px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  .exec-cell .value.low { color: var(--bad); }
+  .exec-cell .sub {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 11.5px;
+    color: var(--ink-soft);
+  }
+
+  /* ---------- Bottom line box ---------- */
+  .bottom-line {
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-left: 4px solid var(--accent);
+    border-radius: 4px;
+    padding: 18px 20px;
+    margin-top: 18px;
+    font-size: 15.5px;
+  }
+  .bottom-line strong { color: var(--accent-ink); }
+
+  /* ---------- Diverging Likert chart ---------- */
+  .chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    align-items: center;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    margin-bottom: 14px;
+  }
+  .chart-legend .swatch {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .chart-legend .dot {
+    width: 9px; height: 9px; border-radius: 2px; display: inline-block;
+  }
+  .likert-row {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) 76px 52px;
+    align-items: center;
+    gap: 14px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .likert-row:last-child { border-bottom: none; }
+  .likert-label {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 13.5px;
+    color: var(--ink);
+  }
+  .likert-track {
+    display: flex;
+    height: 15px;
+    border-radius: 3px;
+    overflow: hidden;
+    background: var(--paper-raised);
+    position: relative;
+  }
+  .likert-track::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: -3px; bottom: -3px;
+    width: 1px;
+    background: var(--ink-mute);
+    opacity: 0.45;
+  }
+  .seg { height: 100%; }
+  .seg + .seg { margin-left: 2px; }
+  .seg.sd { background: var(--bad); }
+  .seg.d  { background: var(--bad-tint); }
+  .seg.n  { background: var(--neutral-fill); }
+  .seg.a  { background: var(--good-tint); }
+  .seg.sa { background: var(--good); }
+  .likert-mean {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    color: var(--ink);
+  }
+  .likert-mean .of5 {
+    font-weight: 400;
+    color: var(--ink-mute);
+    font-size: 11px;
+  }
+  .chart-card {
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 18px 20px 8px;
+  }
+  .chart-card + .chart-card { margin-top: 20px; }
+  .chart-card h3 {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 12.5px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+    margin: 0 0 4px;
+  }
+  .chart-card .avg-line {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    color: var(--ink-mute);
+    margin: 0 0 14px;
+  }
+
+  /* ---------- Quotes ---------- */
+  .quote {
+    border-left: 3px solid var(--accent);
+    padding: 2px 0 2px 16px;
+    margin: 16px 0;
+    font-size: 15px;
+    font-style: italic;
+    color: var(--ink);
+  }
+  .quote .attrib {
+    display: block;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-style: normal;
+    font-size: 11.5px;
+    color: var(--ink-mute);
+    margin-top: 5px;
+    letter-spacing: 0.02em;
+  }
+  .theme-list {
+    margin: 14px 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .theme-list li {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 14.5px;
+    padding-left: 18px;
+    position: relative;
+  }
+  .theme-list li::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 8px;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .theme-list .tag {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink-mute);
+  }
+
+  /* ---------- Recommendations ---------- */
+  .rec-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 13.5px;
+  }
+  .rec-table th {
+    text-align: left;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    padding: 0 12px 8px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .rec-table td {
+    padding: 12px 12px 12px 0;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  .rec-table tr:last-child td { border-bottom: none; }
+  .prio {
+    display: inline-block;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .prio.p1 { background: var(--bad-tint); color: var(--bad); }
+  .prio.p2 { background: var(--accent-soft); color: var(--accent-ink); }
+  .prio.p3 { background: var(--neutral-fill); color: var(--ink-soft); }
+
+  /* ---------- Data integrity callout ---------- */
+  .callout {
+    background: var(--paper-raised);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 18px 20px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 13.5px;
+    color: var(--ink-soft);
+  }
+  .callout .callout-title {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink);
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: block;
+  }
+  .callout code {
+    font-family: 'SF Mono', 'Consolas', monospace;
+    font-size: 12px;
+    background: var(--paper);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  /* ---------- Appendix table ---------- */
+  .table-wrap { overflow-x: auto; }
+  table.appendix {
+    width: 100%;
+    min-width: 640px;
+    border-collapse: collapse;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 12.5px;
+  }
+  table.appendix th {
+    text-align: left;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--ink);
+    position: sticky; top: 0; background: var(--paper);
+  }
+  table.appendix td {
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--rule);
+  }
+  table.appendix td.num { font-variant-numeric: tabular-nums; text-align: right; }
+  table.appendix tr.section-divider td {
+    padding-top: 16px;
+    font-weight: 700;
+    color: var(--accent-ink);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  footer.docfoot {
+    margin-top: 60px;
+    padding-top: 18px;
+    border-top: 1px solid var(--rule);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 11px;
+    color: var(--ink-mute);
+    text-align: center;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  a { color: var(--accent-ink); }
+
+  @media (max-width: 560px) {
+    .exec-grid { grid-template-columns: repeat(2, 1fr); }
+    .likert-row { grid-template-columns: minmax(0,1fr) 60px 44px; gap: 8px; }
+  }
+</style>
+
+<div class="banner">Unclassified // Training Feedback Analysis // For Internal Program Use</div>
+
+<div class="doc">
+
+  <div class="masthead">
+    <span class="eyebrow sans">After-Action Report</span>
+    <h1 class="title">PACT Course — May 2026 Cohort</h1>
+    <p class="subtitle">Post-course survey analysis &amp; program recommendations</p>
+    <dl class="meta-row">
+      <div class="meta-item"><dt>Cohort</dt><dd>pact-may-2026-2</dd></div>
+      <div class="meta-item"><dt>Course dates</dt><dd>18–22 May 2026</dd></div>
+      <div class="meta-item"><dt>Respondents</dt><dd>42 (deduplicated)</dd></div>
+      <div class="meta-item"><dt>Survey window</dt><dd>22 May 2026, 17:34–18:15</dd></div>
+    </dl>
+  </div>
+
+  <!-- ================= EXECUTIVE SUMMARY ================= -->
+  <section class="block">
+    <div class="section-head"><span class="num sans">01</span><h2 class="section-title">Executive Summary</h2></div>
+    <p class="lede">Forty-two students completed the post-course survey at the end of the May 18–22 cohort. Course content and instruction land solidly positive; the application itself is the clear drag on the experience, and the free-text responses point to a single fixable root cause behind most of it.</p>
+
+    <div class="exec-grid">
+      <div class="exec-cell">
+        <span class="label">Course Content</span>
+        <span class="value">3.19<span style="font-size:15px;color:var(--ink-mute)"> / 5</span></span>
+        <span class="sub">objectives, pacing, hands-on value</span>
+      </div>
+      <div class="exec-cell">
+        <span class="label">Instruction &amp; Support</span>
+        <span class="value">3.60<span style="font-size:15px;color:var(--ink-mute)"> / 5</span></span>
+        <span class="sub">highest-rated dimension</span>
+      </div>
+      <div class="exec-cell">
+        <span class="label">Logistics</span>
+        <span class="value">3.32<span style="font-size:15px;color:var(--ink-mute)"> / 5</span></span>
+        <span class="sub">schedule, comms, classroom setup</span>
+      </div>
+      <div class="exec-cell">
+        <span class="label">Application Experience</span>
+        <span class="value low">2.46<span style="font-size:15px;color:var(--ink-mute)"> / 5</span></span>
+        <span class="sub">lowest-rated — reliability drove this</span>
+      </div>
+    </div>
+
+    <div class="bottom-line">
+      <strong>Bottom line:</strong> 50% of students would recommend PACT to another analyst, 24% would not. The gap is not the curriculum — 74% agreed they can apply what they learned to real-world work, the strongest score in the survey. The gap is the delivery platform: 76% disagreed the application performed reliably during exercises, and a large share of the write-in feedback describes lost work, un-saved answers, and repeat submissions. Fix the reliability layer and the recommend-rate has real room to move.
+    </div>
+  </section>
+
+  <!-- ================= COURSE CONTENT ================= -->
+  <section class="block">
+    <div class="section-head"><span class="num sans">02</span><h2 class="section-title">Course Content</h2></div>
+    <p class="lede">Students see clear real-world value in the material, but the pacing and hands-on exercises did not keep up with the volume of content packed into the week.</p>
+
+    <div class="chart-card">
+      <div class="chart-legend">
+        <span class="swatch"><span class="dot" style="background:var(--bad)"></span>Strongly disagree</span>
+        <span class="swatch"><span class="dot" style="background:var(--bad-tint)"></span>Disagree</span>
+        <span class="swatch"><span class="dot" style="background:var(--neutral-fill)"></span>Neutral</span>
+        <span class="swatch"><span class="dot" style="background:var(--good-tint)"></span>Agree</span>
+        <span class="swatch"><span class="dot" style="background:var(--good)"></span>Strongly agree</span>
+      </div>
+
+      <div class="likert-row" title="Strongly disagree 7% · Disagree 31% · Neutral 7% · Agree 43% · Strongly agree 12%">
+        <span class="likert-label">Course objectives were clear from the beginning</span>
+        <div class="likert-track"><div class="seg sd" style="flex:7"></div><div class="seg d" style="flex:31"></div><div class="seg n" style="flex:7"></div><div class="seg a" style="flex:43"></div><div class="seg sa" style="flex:12"></div></div>
+        <span class="likert-mean">3.21<span class="of5">/5</span></span>
+      </div>
+      <div class="likert-row" title="Strongly disagree 0% · Disagree 14% · Neutral 24% · Agree 45% · Strongly agree 17%">
+        <span class="likert-label">Course material was relevant to my role and goals</span>
+        <div class="likert-track"><div class="seg sd" style="flex:0"></div><div class="seg d" style="flex:14"></div><div class="seg n" style="flex:24"></div><div class="seg a" style="flex:45"></div><div class="seg sa" style="flex:17"></div></div>
+        <span class="likert-mean">3.64<span class="of5">/5</span></span>
+      </div>
+      <div class="likert-row" title="Strongly disagree 12% · Disagree 38% · Neutral 17% · Agree 24% · Strongly agree 10%">
+        <span class="likert-label">Pacing of the course was appropriate</span>
+        <div class="likert-track"><div class="seg sd" style="flex:12"></div><div class="seg d" style="flex:38"></div><div class="seg n" style="flex:17"></div><div class="seg a" style="flex:24"></div><div class="seg sa" style="flex:10"></div></div>
+        <span class="likert-mean">2.81<span class="of5">/5</span></span>
+      </div>
+      <div class="likert-row" title="Strongly disagree 14% · Disagree 26% · Neutral 31% · Agree 21% · Strongly agree 7%">
+        <span class="likert-label">Hands-on exercises reinforced key concepts</span>
+        <div class="likert-track"><div class="seg sd" style="flex:14"></div><div class="seg d" style="flex:26"></div><div class="seg n" style="flex:31"></div><div class="seg a" style="flex:21"></div><div class="seg sa" style="flex:7"></div></div>
+        <span class="likert-mean">2.81<span class="of5">/5</span></span>
+      </div>
+      <div class="likert-row" title="Strongly disagree 2% · Disagree 12% · Neutral 12% · Agree 50% · Strongly agree 24%">
+        <span class="likert-label">I can apply what I learned to real-world security work</span>
+        <div class="likert-track"><div class="seg sd" style="flex:2"></div><div class="seg d" style="flex:12"></div><div class="seg n" style="flex:12"></div><div class="seg a" style="flex:50"></div><div class="seg sa" style="flex:24"></div></div>
+        <span class="likert-mean">3.81<span class="of5">/5</span></span>
+      </div>
+      <div class="likert-row" title="Strongly disagree 14% · Disagree 29% · Neutral 24% · Agree 21% · Strongly agree 12%">
+        <span class="likert-label">Challenge difficulty progression felt appropriate</span>
+        <div class="likert-track"><div class="seg sd" style="flex:14"></div><div class="seg d" style="flex:29"></div><div class="seg n" style="flex:24"></div><div class="seg a" style="flex:21"></div><div class="seg sa" style="flex:12"></div></div>
+        <span class="likert-mean">2.88<span class="of5">/5</span></span>
+      </div>
+      <div class="likert-row" title="Strongly disagree 5% · Disagree 19% · Neutral 26% · Agree 33% · Strongly agree 17%">
+        <span class="likert-label">I would recommend this course to another analyst</span>
+        <div class="likert-track"><div class="seg sd" style="flex:5"></div><div class="seg d" style="flex:19"></div><div class="seg n" style="flex:26"></div><div class="seg a" style="flex:33"></div><div class="seg sa" style="flex:17"></div></div>
+        <span class="likert-mean">3.38<span class="of5">/5</span></span>
+      </div>
+    </div>
+
+    <ul class="theme-list">
+      <li><span class="tag">Volume vs. time</span> By far the most repeated critique: the case scenario carried more documents and "injects" than could be reasonably triaged in the time allotted. Several respondents independently estimated the material needed 25–50% trimming, or a longer course, to be absorbed properly.</li>
+      <li><span class="tag">Question quality</span> Multiple, independent respondents flagged that multiple-choice answers were suspiciously often "A" and dropdown options were pre-ordered correctly — several explicitly attributed this to AI-generated question content that wasn't reviewed by a human afterward.</li>
+      <li><span class="tag">National security track</span> Several NS-role students felt the curriculum leaned criminal-investigation by default, with national security content compressed into a single hour near the end.</li>
+    </ul>
+
+    <blockquote class="quote">"I have never taken a course designed to be as hands-on in my Bureau career… I wouldn't get rid of the practical exercises or student interface/app in future iterations. The exercises challenged me to put pieces of evidence together with critical thinking and problem solving, and that is exactly where I notice my cyber knowledge most tested in the field."<span class="attrib sans">— Q9, most valuable part of the course</span></blockquote>
+    <blockquote class="quote">"The AI generated course content needs full human review and rewriting… Drop down answers were always in order. Multiple choice questions were always answer A."<span class="attrib sans">— Q10, what should be improved</span></blockquote>
+  </section>
+
+  <!-- ================= INSTRUCTION & SUPPORT ================= -->
+  <section class="block">
+    <div class="section-head"><span class="num sans">03</span><h2 class="section-title">Instruction &amp; Support</h2></div>
+    <p class="lede">This is the strongest dimension in the survey, and it's carried almost entirely by the instructors themselves — the open-text comments are close to unanimous in praising them by name.</p>
+
+    <div class="chart-card">
+      <h3 class="sans">Overall, how effective was the instructional experience?</h3>
+      <p class="avg-line sans">N=42 · mean 3.60 / 5 · 52% agree or strongly agree · 17% disagree</p>
+      <div class="likert-row" title="Strongly disagree 5% · Disagree 12% · Neutral 31% · Agree 24% · Strongly agree 29%">
+        <span class="likert-label sans" style="visibility:hidden">spacer</span>
+        <div class="likert-track"><div class="seg sd" style="flex:5"></div><div class="seg d" style="flex:12"></div><div class="seg n" style="flex:31"></div><div class="seg a" style="flex:24"></div><div class="seg sa" style="flex:29"></div></div>
+        <span class="likert-mean">3.60<span class="of5">/5</span></span>
+      </div>
+    </div>
+
+    <ul class="theme-list">
+      <li><span class="tag">Named praise</span> Instructors Jeff, Ron, Kyle, Brett, and Cody were each called out by name for real-world case knowledge and delivery — the single most consistent positive signal in the entire survey.</li>
+      <li><span class="tag">Mentor read-in</span> Several respondents noted the breakout-room mentor instructors were not as familiar with the scenario as the lead instructors, which slowed groups down during exercises.</li>
+      <li><span class="tag">Requested follow-through</span> The most requested resource, by a wide margin, is a maintained SharePoint or one-pager of the tools and databases covered in class — students want something to reference back at their home office.</li>
+    </ul>
+
+    <blockquote class="quote">"Jeff is amazing. His delivery is truly unique and his content extremely valuable. Brett did a great job in the middle of difficult circumstances. Loved Ron's case examples, grounding the material in cases. All told, super glad I came."<span class="attrib sans">— Q16, instruction and facilitation</span></blockquote>
+    <blockquote class="quote">"A sharepoint updated with lists of tools and their application to case work would be amazing."<span class="attrib sans">— Q15, follow-up support requested</span></blockquote>
+  </section>
+
+  <!-- ================= LOGISTICS ================= -->
+  <section class="block">
+    <div class="section-head"><span class="num sans">04</span><h2 class="section-title">Logistics</h2></div>
+    <p class="lede">The schedule itself tested fine — students weren't objecting to when things happened. The complaint is that they didn't know what was coming next until it was already happening.</p>
+
+    <div class="chart-card">
+      <div class="chart-legend">
+        <span class="swatch"><span class="dot" style="background:var(--bad)"></span>Strongly disagree</span>
+        <span class="swatch"><span class="dot" style="background:var(--bad-tint)"></span>Disagree</span>
+        <span class="swatch"><span class="dot" style="background:var(--neutral-fill)"></span>Neutral</span>
+        <span class="swatch"><span class="dot" style="background:var(--good-tint)"></span>Agree</span>
+        <span class="swatch"><span class="dot" style="background:var(--good)"></span>Strongly agree</span>
+      </div>
+      <div class="likert-row" title="Strongly disagree 5% · Disagree 17% · Neutral 7% · Agree 40% · Strongly agree 31%">
+        <span class="likert-label">Schedule and timing worked well for me</span>
+        <div class="likert-track"><div class="seg sd" style="flex:5"></div><div class="seg d" style="flex:17"></div><div class="seg n" style="flex:7"></div><div class="seg a" style="flex:40"></div><div class="seg sa" style="flex:31"></div></div>
+        <span class="likert-mean">3.76<span class="of5">/5</span></span>
+      </div>
+      <div class="likert-row" title="Strongly disagree 5% · Disagree 21% · Neutral 14% · Agree 31% · Strongly agree 29%">
+        <span class="likert-label">Classroom setup and provided tools were sufficient</span>
+        <div class="likert-track"><div class="seg sd" style="flex:5"></div><div class="seg d" style="flex:21"></div><div class="seg n" style="flex:14"></div><div class="seg a" style="flex:31"></div><div class="seg sa" style="flex:29"></div></div>
+        <span class="likert-mean">3.57<span class="of5">/5</span></span>
+      </div>
+      <div class="likert-row" title="Strongly disagree 21% · Disagree 29% · Neutral 10% · Agree 19% · Strongly agree 21%">
+        <span class="likert-label">Workload was manageable during the course</span>
+        <div class="likert-track"><div class="seg sd" style="flex:21"></div><div class="seg d" style="flex:29"></div><div class="seg n" style="flex:10"></div><div class="seg a" style="flex:19"></div><div class="seg sa" style="flex:21"></div></div>
+        <span class="likert-mean">2.90<span class="of5">/5</span></span>
+      </div>
+      <div class="likert-row" title="Strongly disagree 12% · Disagree 29% · Neutral 21% · Agree 19% · Strongly agree 19%">
+        <span class="likert-label">Class communications and updates were timely and clear</span>
+        <div class="likert-track"><div class="seg sd" style="flex:12"></div><div class="seg d" style="flex:29"></div><div class="seg n" style="flex:21"></div><div class="seg a" style="flex:19"></div><div class="seg sa" style="flex:19"></div></div>
+        <span class="likert-mean">3.05<span class="of5">/5</span></span>
+      </div>
+    </div>
+
+    <ul class="theme-list">
+      <li><span class="tag">No upfront agenda</span> The single most repeated logistics complaint: students received a full week agenda only on the final day, or not at all, and describe learning the course structure "through trial and error."</li>
+      <li><span class="tag">UK partner support</span> International partner students had unresolved badge/access issues into day two, and were reportedly asked to share their perspective only a handful of times over the week.</li>
+      <li><span class="tag">Praise where earned</span> Hotel and vehicle coordination were called out specifically and positively — this is a logistics function that's working and shouldn't be touched.</li>
+    </ul>
+
+    <blockquote class="quote">"On the last day of the course, we were told there was an agenda for the week. I, along with several other students, were unaware of an agenda… We often times had to ask multiple clarifying questions."<span class="attrib sans">— Q21, logistics feedback</span></blockquote>
+  </section>
+
+  <!-- ================= APPLICATION EXPERIENCE ================= -->
+  <section class="block">
+    <div class="section-head"><span class="num sans">05</span><h2 class="section-title">Application Experience</h2></div>
+    <p class="lede">This is where the survey is unambiguous. Every application question scored below the survey's overall average, and the write-in responses converge on one specific, fixable failure mode.</p>
+
+    <div class="chart-card">
+      <div class="chart-legend">
+        <span class="swatch"><span class="dot" style="background:var(--bad)"></span>Strongly disagree</span>
+        <span class="swatch"><span class="dot" style="background:var(--bad-tint)"></span>Disagree</span>
+        <span class="swatch"><span class="dot" style="background:var(--neutral-fill)"></span>Neutral</span>
+        <span class="swatch"><span class="dot" style="background:var(--good-tint)"></span>Agree</span>
+        <span class="swatch"><span class="dot" style="background:var(--good)"></span>Strongly agree</span>
+      </div>
+      <div class="likert-row" title="Strongly disagree 33% · Disagree 43% · Neutral 12% · Agree 7% · Strongly agree 5%">
+        <span class="likert-label">Application performed reliably during class exercises</span>
+        <div class="likert-track"><div class="seg sd" style="flex:33"></div><div class="seg d" style="flex:43"></div><div class="seg n" style="flex:12"></div><div class="seg a" style="flex:7"></div><div class="seg sa" style="flex:5"></div></div>
+        <span class="likert-mean">2.07<span class="of5">/5</span></span>
+      </div>
+      <div class="likert-row" title="Strongly disagree 29% · Disagree 29% · Neutral 24% · Agree 14% · Strongly agree 5%">
+        <span class="likert-label">Pages and workflows loaded fast enough for class use</span>
+        <div class="likert-track"><div class="seg sd" style="flex:29"></div><div class="seg d" style="flex:29"></div><div class="seg n" style="flex:24"></div><div class="seg a" style="flex:14"></div><div class="seg sa" style="flex:5"></div></div>
+        <span class="likert-mean">2.38<span class="of5">/5</span></span>
+      </div>
+      <div class="likert-row" title="Strongly disagree 21% · Disagree 24% · Neutral 29% · Agree 21% · Strongly agree 5%">
+        <span class="likert-label">CTF and challenge tools were responsive</span>
+        <div class="likert-track"><div class="seg sd" style="flex:21"></div><div class="seg d" style="flex:24"></div><div class="seg n" style="flex:29"></div><div class="seg a" style="flex:21"></div><div class="seg sa" style="flex:5"></div></div>
+        <span class="likert-mean">2.64<span class="of5">/5</span></span>
+      </div>
+      <div class="likert-row" title="Strongly disagree 33% · Disagree 17% · Neutral 10% · Agree 24% · Strongly agree 17%">
+        <span class="likert-label">I liked the application interface and usability</span>
+        <div class="likert-track"><div class="seg sd" style="flex:33"></div><div class="seg d" style="flex:17"></div><div class="seg n" style="flex:10"></div><div class="seg a" style="flex:24"></div><div class="seg sa" style="flex:17"></div></div>
+        <span class="likert-mean">2.74<span class="of5">/5</span></span>
+      </div>
+    </div>
+
+    <ul class="theme-list">
+      <li><span class="tag">Root cause: silent save failures</span> The dominant, specific complaint is that submitted answers did not reliably save — students describe having to resubmit repeatedly, losing group work to refreshes, and switching to Word/Notepad as a workaround because "the application couldn't be trusted to save or submit our work."</li>
+      <li><span class="tag">This survey reproduced the bug live</span> Of the 74 raw survey submissions received, 32 were exact-duplicate re-submissions of the same answers seconds to minutes apart — the true respondent count is 42. One respondent explicitly wrote: <em>"Even for this survey it refreshed multiple times and did not save my submission."</em> The bug the survey is measuring is the same one that generated the duplicate data underneath it.</li>
+      <li><span class="tag">Content discovery</span> Several students had trouble locating release documents and evidence items scattered across scenario, modules, and workshop tabs — a navigation/IA gap distinct from the save-reliability issue.</li>
+    </ul>
+
+    <blockquote class="quote">"When completing assessments, challenges, or modules, the work completed by a user doesn't save. It often times takes several times to submit something. Therefore, when working as a group, we were often saving work to Microsoft Word or Notepad, because the application couldn't be trusted to save or submit our work."<span class="attrib sans">— Q27, app issue that affected them most</span></blockquote>
+  </section>
+
+  <!-- ================= RECOMMENDATIONS ================= -->
+  <section class="block">
+    <div class="section-head"><span class="num sans">06</span><h2 class="section-title">Recommendations</h2></div>
+    <div class="table-wrap">
+      <table class="rec-table">
+        <thead><tr><th>Priority</th><th>Action</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="prio p1">P1</span></td>
+            <td>Fix answer-submission reliability with a confirmed-save indicator and idempotent submit handling.</td>
+            <td>Lowest-rated item in the survey (2.07/5, 76% disagree); directly named in the largest share of write-in comments; demonstrably duplicated 32 of this survey's own 74 submissions.</td>
+          </tr>
+          <tr>
+            <td><span class="prio p1">P1</span></td>
+            <td>Publish a full day-by-day agenda before the course starts, not during it.</td>
+            <td>The single most repeated logistics and content complaint across four different open-text questions.</td>
+          </tr>
+          <tr>
+            <td><span class="prio p2">P2</span></td>
+            <td>Human-review all auto-generated quiz/module questions and answer-key ordering.</td>
+            <td>Multiple independent respondents identified the same tell (dropdowns pre-ordered, MC answers clustering on "A") without prompting each other.</td>
+          </tr>
+          <tr>
+            <td><span class="prio p2">P2</span></td>
+            <td>Trim the capstone scenario's document volume, or extend the time allotted to work through it.</td>
+            <td>Directly suppressed the hands-on-exercise (2.81/5) and pacing (2.81/5) scores — the two weakest Course Content items.</td>
+          </tr>
+          <tr>
+            <td><span class="prio p3">P3</span></td>
+            <td>Stand up a maintained post-course resource hub (tools, terminology, case templates).</td>
+            <td>The most-requested single item across three separate open-text questions.</td>
+          </tr>
+          <tr>
+            <td><span class="prio p3">P3</span></td>
+            <td>Brief breakout-room mentor instructors on the scenario ahead of the cohort.</td>
+            <td>Named gap between lead-instructor and mentor-instructor scenario familiarity.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= DATA INTEGRITY ================= -->
+  <section class="block">
+    <div class="section-head"><span class="num sans">07</span><h2 class="section-title">Data &amp; Methodology Note</h2></div>
+    <div class="callout">
+      <span class="callout-title">How this report was built</span>
+      Source: MongoDB <code>PACTv4.pactSurveySubmissions</code>, filtered to <code>cohortId: "pact-may-2026-2"</code>. 74 raw submission records were retrieved, all timestamped between 17:34 and 18:15 on 22 May 2026. Comparing full-response signatures found <strong>32 exact duplicates</strong> — same answers to all 28 questions, submitted seconds to minutes apart — consistent with the save/submit reliability bug students independently reported in Section 05. All statistics in this report use the deduplicated set of <strong>42 unique respondents</strong> (first submission kept per unique response signature). The survey is anonymous — there is no way to verify unique respondents beyond content matching, and 42 modestly exceeds the ~31–33 known course roster, plausibly reflecting UK partner students and instructional staff who also completed the survey. Three literal <code>"test"</code> placeholder answers were excluded from the free-text synthesis.
+    </div>
+  </section>
+
+  <!-- ================= APPENDIX ================= -->
+  <section class="block">
+    <div class="section-head"><span class="num sans">08</span><h2 class="section-title">Appendix — Full Rating Detail</h2></div>
+    <div class="table-wrap">
+      <table class="appendix">
+        <thead>
+          <tr><th>Question</th><th class="num">N</th><th class="num">Mean /5</th><th class="num">% Agree</th><th class="num">% Disagree</th></tr>
+        </thead>
+        <tbody>
+          <tr class="section-divider"><td colspan="5">Course Content</td></tr>
+          <tr><td>Course objectives were clear from the beginning</td><td class="num">42</td><td class="num">3.21</td><td class="num">54.8%</td><td class="num">38.1%</td></tr>
+          <tr><td>Course material was relevant to my role and goals</td><td class="num">42</td><td class="num">3.64</td><td class="num">61.9%</td><td class="num">14.3%</td></tr>
+          <tr><td>Pacing of the course was appropriate</td><td class="num">42</td><td class="num">2.81</td><td class="num">33.3%</td><td class="num">50.0%</td></tr>
+          <tr><td>Hands-on exercises reinforced key concepts</td><td class="num">42</td><td class="num">2.81</td><td class="num">28.6%</td><td class="num">40.5%</td></tr>
+          <tr><td>Instructor explanations were clear and actionable</td><td class="num">42</td><td class="num">3.00</td><td class="num">33.3%</td><td class="num">35.7%</td></tr>
+          <tr><td>Can apply what I learned to real-world security work</td><td class="num">42</td><td class="num">3.81</td><td class="num">73.8%</td><td class="num">14.3%</td></tr>
+          <tr><td>Challenge difficulty progression felt appropriate</td><td class="num">42</td><td class="num">2.88</td><td class="num">33.3%</td><td class="num">42.9%</td></tr>
+          <tr><td>Would recommend this course to another analyst</td><td class="num">42</td><td class="num">3.38</td><td class="num">50.0%</td><td class="num">23.8%</td></tr>
+
+          <tr class="section-divider"><td colspan="5">Instruction &amp; Support</td></tr>
+          <tr><td>Overall, how effective was the instructional experience</td><td class="num">42</td><td class="num">3.60</td><td class="num">52.4%</td><td class="num">16.7%</td></tr>
+
+          <tr class="section-divider"><td colspan="5">Logistics</td></tr>
+          <tr><td>Schedule and timing worked well for me</td><td class="num">42</td><td class="num">3.76</td><td class="num">71.4%</td><td class="num">21.4%</td></tr>
+          <tr><td>Classroom setup and provided tools were sufficient</td><td class="num">42</td><td class="num">3.57</td><td class="num">59.5%</td><td class="num">26.2%</td></tr>
+          <tr><td>Workload was manageable during the course</td><td class="num">42</td><td class="num">2.90</td><td class="num">40.5%</td><td class="num">50.0%</td></tr>
+          <tr><td>Class communications and updates were timely and clear</td><td class="num">42</td><td class="num">3.05</td><td class="num">38.1%</td><td class="num">40.5%</td></tr>
+
+          <tr class="section-divider"><td colspan="5">Application Experience</td></tr>
+          <tr><td>Application performed reliably during class exercises</td><td class="num">42</td><td class="num">2.07</td><td class="num">11.9%</td><td class="num">76.2%</td></tr>
+          <tr><td>Pages and workflows loaded fast enough for class use</td><td class="num">42</td><td class="num">2.38</td><td class="num">19.0%</td><td class="num">57.1%</td></tr>
+          <tr><td>CTF and challenge tools were responsive</td><td class="num">42</td><td class="num">2.64</td><td class="num">26.2%</td><td class="num">45.2%</td></tr>
+          <tr><td>I liked the application interface and usability</td><td class="num">42</td><td class="num">2.74</td><td class="num">40.5%</td><td class="num">50.0%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="docfoot">CETU Cyber Operations Division · PACT Program · Prepared from LMS/PACT survey data</footer>
+
+</div>
