@@ -7,6 +7,7 @@ export const createCohort   = (courseId, data)              => api.post(`/course
 export const updateCohort   = (courseId, cohortId, data)    => api.put(`/courses/${courseId}/cohorts/${cohortId}`, data).then(r => r.data);
 export const deleteCohort   = (courseId, cohortId)          => api.delete(`/courses/${courseId}/cohorts/${cohortId}`);
 export const addMember      = (courseId, cohortId, userId)  => api.post(`/courses/${courseId}/cohorts/${cohortId}/members`, { user_id: userId }).then(r => r.data);
+export const addMembers     = (courseId, cohortId, userIds) => api.post(`/courses/${courseId}/cohorts/${cohortId}/members/bulk`, { user_ids: userIds }).then(r => r.data);
 export const removeMember   = (courseId, cohortId, userId)  => api.delete(`/courses/${courseId}/cohorts/${cohortId}/members/${userId}`);
 
 // Squads

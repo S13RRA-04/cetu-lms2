@@ -43,6 +43,14 @@ async function addMember(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function addMembers(req, res, next) {
+  try {
+    const userIds = Array.isArray(req.body.user_ids) ? req.body.user_ids : [];
+    const cohort  = await cohortService.addMembers(req.params.cid, userIds);
+    res.json(cohort);
+  } catch (err) { next(err); }
+}
+
 async function removeMember(req, res, next) {
   try {
     await cohortService.removeMember(req.params.cid, req.params.uid);
@@ -50,4 +58,4 @@ async function removeMember(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listByCourse, getOne, create, update, remove, addMember, removeMember };
+module.exports = { listByCourse, getOne, create, update, remove, addMember, addMembers, removeMember };

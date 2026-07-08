@@ -11,7 +11,7 @@ import {
   getCourseGrades,
 } from '../../api/courses.js';
 import {
-  listCohorts, createCohort, updateCohort, deleteCohort, addMember, removeMember,
+  listCohorts, createCohort, updateCohort, deleteCohort, addMembers, removeMember,
   listSquads, createSquad, deleteSquad, assignToSquad, removeFromSquad,
 } from '../../api/cohorts.js';
 import { getUsers } from '../../api/users.js';
@@ -892,10 +892,11 @@ function CohortForm({ courseId, initial, onSave, onClose }) {
 
 // ── Add Member Modal ──────────────────────────────────────────────────────────
 function AddMemberModal({ courseId, cohort, onSave, onClose }) {
-  const [query,   setQuery]   = useState('');
-  const [users,   setUsers]   = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [adding,  setAdding]  = useState(null);
+  const [query,    setQuery]    = useState('');
+  const [users,    setUsers]    = useState([]);
+  const [loading,  setLoading]  = useState(false);
+  const [adding,   setAdding]   = useState(false);
+  const [selected, setSelected] = useState(new Set());
 
   const memberIds = new Set((cohort.members ?? []).map((m) => m.id));
 
@@ -914,14 +915,36 @@ function AddMemberModal({ courseId, cohort, onSave, onClose }) {
     return () => clearTimeout(t);
   }, [query, search]);
 
-  const handleAdd = async (userId) => {
-    setAdding(userId);
-    try { await addMember(courseId, cohort.id, userId); onSave(); }
-    finally { setAdding(null); }
+  const selectableUsers = users.filter((u) => !memberIds.has(u.id));
+  const allSelected = selectableUsers.length > 0 && selectableUsers.every((u) => selected.has(u.id));
+
+  const toggleUser = (userId) => {
+    setSelected((s) => {
+      const next = new Set(s);
+      if (next.has(userId)) next.delete(userId); else next.add(userId);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelected((s) => {
+      if (allSelected) return new Set();
+      return new Set(selectableUsers.map((u) => u.id));
+    });
+  };
+
+  const handleAddSelected = async () => {
+    if (selected.size === 0) return;
+    setAdding(true);
+    try {
+      await addMembers(courseId, cohort.id, [...selected]);
+      setSelected(new Set());
+      onSave();
+    } finally { setAdding(false); }
   };
 
   return (
-    <Modal title={`Add Member — ${cohort.name}`} onClose={onClose}>
+    <Modal title={`Add Members — ${cohort.name}`} onClose={onClose}>
       <div className="form-group">
         <input
           placeholder="Search by name or email, or browse the list below…"
@@ -934,22 +957,50 @@ function AddMemberModal({ courseId, cohort, onSave, onClose }) {
       {!loading && users.length > 0 && (
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Name</th><th>Email</th><th></th></tr></thead>
+            <thead>
+              <tr>
+                <th style={{ width: 28 }}>
+                  {selectableUsers.length > 0 && (
+                    <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} title="Select all" />
+                  )}
+                </th>
+                <th>Name</th><th>Email</th><th></th>
+              </tr>
+            </thead>
             <tbody>
-              {users.map((u) => (
-                <tr key={u.id}>
-                  <td>{u.first_name} {u.last_name}</td>
-                  <td className="text-sm text-muted">{u.email}</td>
-                  <td>
-                    {memberIds.has(u.id)
-                      ? <span className="badge badge-green">Enrolled</span>
-                      : <button className="btn btn-primary btn-xs" disabled={adding === u.id} onClick={() => handleAdd(u.id)}>{adding === u.id ? '…' : 'Add'}</button>
-                    }
-                  </td>
-                </tr>
-              ))}
+              {users.map((u) => {
+                const isMember = memberIds.has(u.id);
+                return (
+                  <tr key={u.id}>
+                    <td>
+                      {!isMember && (
+                        <input
+                          type="checkbox"
+                          checked={selected.has(u.id)}
+                          onChange={() => toggleUser(u.id)}
+                        />
+                      )}
+                    </td>
+                    <td>{u.first_name} {u.last_name}</td>
+                    <td className="text-sm text-muted">{u.email}</td>
+                    <td>
+                      {isMember && <span className="badge badge-green">Enrolled</span>}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
+        </div>
+      )}
+      {!loading && selectableUsers.length > 0 && (
+        <div className="flex-end" style={{ gap: 8, marginTop: 12 }}>
+          <span className="text-sm text-muted" style={{ marginRight: 'auto' }}>
+            {selected.size} selected
+          </span>
+          <button className="btn btn-primary btn-sm" disabled={selected.size === 0 || adding} onClick={handleAddSelected}>
+            {adding ? 'Adding…' : `Add ${selected.size || ''} Selected`.trim()}
+          </button>
         </div>
       )}
       {!loading && users.length === 0 && (

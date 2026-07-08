@@ -98,6 +98,7 @@ router.get('/:id/cohorts/:cid',               requireAuth, requireInstructor, co
 router.put('/:id/cohorts/:cid',               requireAuth, requireInstructor, auditLog('update', 'cohort'), cohortCtrl.update);
 router.delete('/:id/cohorts/:cid',            requireAuth, requireInstructor, auditLog('delete', 'cohort'), cohortCtrl.remove);
 router.post('/:id/cohorts/:cid/members',      requireAuth, requireInstructor, cohortCtrl.addMember);
+router.post('/:id/cohorts/:cid/members/bulk', requireAuth, requireInstructor, cohortCtrl.addMembers);
 router.delete('/:id/cohorts/:cid/members/:uid', requireAuth, requireInstructor, cohortCtrl.removeMember);
 
 // Scenario packages

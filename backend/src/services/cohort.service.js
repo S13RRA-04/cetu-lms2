@@ -39,25 +39,39 @@ async function remove(cohortId) {
   await cohort.destroy();
 }
 
-async function addMember(cohortId, userId) {
-  const cohort = await Cohort.findByPk(cohortId);
-  if (!cohort) throw new NotFoundError('Cohort');
-
+async function _enrollUser(cohort, userId) {
   const user = await User.findByPk(userId);
   if (!user) throw new NotFoundError('User');
 
   const existing = await Enrollment.findOne({ where: { user_id: userId, course_id: cohort.course_id } });
 
   if (existing) {
-    await existing.update({ cohort_id: cohortId, status: 'active' });
+    await existing.update({ cohort_id: cohort.id, status: 'active' });
   } else {
     await Enrollment.create({
       user_id:   userId,
       course_id: cohort.course_id,
-      cohort_id: cohortId,
+      cohort_id: cohort.id,
       role:      'student',
       status:    'active',
     });
+  }
+}
+
+async function addMember(cohortId, userId) {
+  const cohort = await Cohort.findByPk(cohortId);
+  if (!cohort) throw new NotFoundError('Cohort');
+
+  await _enrollUser(cohort, userId);
+  return getById(cohortId);
+}
+
+async function addMembers(cohortId, userIds) {
+  const cohort = await Cohort.findByPk(cohortId);
+  if (!cohort) throw new NotFoundError('Cohort');
+
+  for (const userId of userIds) {
+    await _enrollUser(cohort, userId);
   }
 
   return getById(cohortId);
@@ -73,4 +87,4 @@ async function removeMember(cohortId, userId) {
   await enrollment.destroy();
 }
 
-module.exports = { listByCourse, getById, create, update, remove, addMember, removeMember };
+module.exports = { listByCourse, getById, create, update, remove, addMember, addMembers, removeMember };
