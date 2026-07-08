@@ -900,11 +900,12 @@ function AddMemberModal({ courseId, cohort, onSave, onClose }) {
   const memberIds = new Set((cohort.members ?? []).map((m) => m.id));
 
   const search = useCallback(async (q) => {
-    if (!q.trim()) { setUsers([]); return; }
     setLoading(true);
     try {
-      const res = await getUsers({ search: q, is_active: true, limit: 20 });
-      setUsers(res.data ?? res.users ?? res ?? []);
+      // No query yet — browse a list of active users instead of showing nothing
+      const res = await getUsers(q.trim() ? { search: q, is_active: true, limit: 20 } : { is_active: true, limit: 50 });
+      const list = res.data ?? res.users ?? res ?? [];
+      setUsers([...list].sort((a, b) => `${a.last_name}${a.first_name}`.localeCompare(`${b.last_name}${b.first_name}`)));
     } finally { setLoading(false); }
   }, []);
 
@@ -923,7 +924,7 @@ function AddMemberModal({ courseId, cohort, onSave, onClose }) {
     <Modal title={`Add Member — ${cohort.name}`} onClose={onClose}>
       <div className="form-group">
         <input
-          placeholder="Search by name or email…"
+          placeholder="Search by name or email, or browse the list below…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           autoFocus
@@ -951,8 +952,10 @@ function AddMemberModal({ courseId, cohort, onSave, onClose }) {
           </table>
         </div>
       )}
-      {!loading && query.trim() && users.length === 0 && (
-        <p className="text-muted text-sm">No matching students found.</p>
+      {!loading && users.length === 0 && (
+        <p className="text-muted text-sm">
+          {query.trim() ? 'No matching users found.' : 'No active users found.'}
+        </p>
       )}
     </Modal>
   );
