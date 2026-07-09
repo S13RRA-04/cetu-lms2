@@ -7888,6 +7888,18 @@ body {
   box-shadow: -2px 0 12px rgba(0, 0, 0, 0.15);
 }
 .chd-tab-icon { font-size: 13px; }
+.chd-tab-badge {
+  writing-mode: horizontal-tb;
+  transform: rotate(180deg);
+  background: #ef4444;
+  color: #fff;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  min-width: 16px;
+  text-align: center;
+}
 .chd-tabs {
   display: flex;
   gap: 6px;
@@ -7895,19 +7907,59 @@ body {
 }
 .chd-chan-tab {
   flex: 1;
-  padding: 6px 10px;
+  display: flex;
+  align-items: stretch;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.chd-chan-tab-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 6px 10px;
   color: var(--muted);
   font-family: var(--mono);
   font-size: 10.5px;
   letter-spacing: .08em;
   cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .chd-chan-tab-active {
-  color: var(--primary);
   border-color: var(--primary);
+}
+.chd-chan-tab-active .chd-chan-tab-btn {
+  color: var(--primary);
+}
+.chd-chan-tab-x {
+  background: none;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 7px;
+  font-size: 13px;
+  line-height: 1;
+}
+.chd-chan-tab-x:hover {
+  color: #ef4444;
+}
+.chd-chan-tab-new {
+  flex: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  color: var(--primary);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  cursor: pointer;
+  white-space: nowrap;
 }
 .chd-body {
   flex: 1;
@@ -7918,11 +7970,6 @@ body {
 }
 .chd-body .str-chat {
   height: 100%;
-}
-.chd-chan-tab-new {
-  flex: none;
-  color: var(--primary);
-  font-weight: 700;
 }
 .chd-directory {
   display: flex;

@@ -22,6 +22,7 @@ export default function ChatDrawer() {
   const [dmChannels, setDmChannels] = useState([]);   // opened this session
   const [activeKey, setActiveKey] = useState(null);   // channelId of the active tab
   const [activeChannel, setActiveChannel] = useState(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const [directoryOpen, setDirectoryOpen]   = useState(false);
   const [directoryUsers, setDirectoryUsers] = useState([]);
@@ -33,46 +34,48 @@ export default function ChatDrawer() {
   const watchChannel = useCallback(async (channelId, key) => {
     if (!clientRef.current) return;
     const ch = clientRef.current.channel(channelType, channelId);
-    await ch.watch();
+    await ch.watch({ presence: true });
     setActiveKey(key);
     setActiveChannel(ch);
+    // Viewing a channel clears its contribution to the unread badge
+    ch.markRead().catch(() => {});
   }, [channelType]);
 
-  const load = useCallback(() => {
-    if (loaded || loading) return;
+  // Connect as soon as the app mounts (not on first drawer open) so the
+  // unread badge on the floating tab works even before the student opens
+  // chat — matches how Slack/Discord-style unread badges behave.
+  useEffect(() => {
     setLoading(true);
-    setError('');
     getChatToken()
       .then(async ({ apiKey, userToken, userId, channelType: ct, channels: chans }) => {
         const c = StreamChat.getInstance(apiKey);
         clientRef.current = c;
-        await c.connectUser({ id: userId }, userToken);
+        const connectResponse = await c.connectUser({ id: userId }, userToken);
+        setUnreadCount(connectResponse?.me?.total_unread_count ?? 0);
+        c.on((event) => {
+          if (typeof event.total_unread_count === 'number') setUnreadCount(event.total_unread_count);
+        });
         setClient(c);
         setChannelType(ct);
         setChannels(chans);
-        if (chans.length > 0) {
-          const first = c.channel(ct, chans[0].channelId);
-          await first.watch();
-          setActiveKey(chans[0].channelId);
-          setActiveChannel(first);
-        }
         setLoaded(true);
       })
       .catch(() => setError('Could not connect to chat. Try again shortly.'))
       .finally(() => setLoading(false));
-  }, [loaded, loading]);
 
-  // Disconnect only when the app unmounts entirely — not on every drawer close,
-  // so the connection (and unread state) persists while browsing other pages.
-  useEffect(() => () => { clientRef.current?.disconnectUser(); }, []);
+    return () => { clientRef.current?.disconnectUser(); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const toggle = () => {
-    setOpen((o) => {
-      const next = !o;
-      if (next) load();
-      return next;
-    });
-  };
+  // Once connected, load the first channel's messages the first time the
+  // drawer is actually opened — no need to fetch message history just to
+  // show the unread badge.
+  useEffect(() => {
+    if (open && loaded && !activeChannel && channels.length > 0) {
+      watchChannel(channels[0].channelId, channels[0].channelId);
+    }
+  }, [open, loaded, activeChannel, channels, watchChannel]);
+
+  const toggle = () => setOpen((o) => !o);
 
   const openDirectory = () => {
     setDirectoryOpen(true);
@@ -102,6 +105,19 @@ export default function ChatDrawer() {
     }
   };
 
+  const closeDM = (chan) => {
+    setDmChannels((prev) => prev.filter((d) => d.channelId !== chan.channelId));
+    if (activeKey !== chan.channelId) return;
+    // Closing the active tab — fall back to the first remaining one, or none
+    const remaining = [...channels, ...dmChannels.filter((d) => d.channelId !== chan.channelId)];
+    if (remaining.length > 0) {
+      watchChannel(remaining[0].channelId, remaining[0].channelId);
+    } else {
+      setActiveChannel(null);
+      setActiveKey(null);
+    }
+  };
+
   const allTabs = [...channels, ...dmChannels];
   const filteredUsers = directoryUsers.filter((u) =>
     u.name.toLowerCase().includes(directoryQuery.trim().toLowerCase())
@@ -112,6 +128,7 @@ export default function ChatDrawer() {
       <button className="chd-tab" onClick={toggle} title="Squad, cohort, and direct messages">
         <span className="chd-tab-icon">◈</span>
         <span className="chd-tab-label">CHAT</span>
+        {unreadCount > 0 && <span className="chd-tab-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
       </button>
 
       <AnimatePresence>
@@ -147,13 +164,17 @@ export default function ChatDrawer() {
               {loaded && !directoryOpen && (
                 <div className="chd-tabs">
                   {allTabs.map((c) => (
-                    <button
+                    <span
                       key={c.channelId}
-                      className={`chd-chan-tab${activeKey === c.channelId ? ' chd-chan-tab-active' : ''}`}
-                      onClick={() => watchChannel(c.channelId, c.channelId)}
+                      className={`chd-chan-tab${activeKey === c.channelId ? ' chd-chan-tab-active' : ''}${c.type === 'dm' ? ' chd-chan-tab-dm' : ''}`}
                     >
-                      {tabLabel(c)}
-                    </button>
+                      <button className="chd-chan-tab-btn" onClick={() => watchChannel(c.channelId, c.channelId)}>
+                        {tabLabel(c)}
+                      </button>
+                      {c.type === 'dm' && (
+                        <button className="chd-chan-tab-x" onClick={() => closeDM(c)} title="Close conversation">×</button>
+                      )}
+                    </span>
                   ))}
                   <button className="chd-chan-tab chd-chan-tab-new" onClick={openDirectory} title="Start a direct message">
                     + DM
