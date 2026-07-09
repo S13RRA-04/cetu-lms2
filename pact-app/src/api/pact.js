@@ -76,6 +76,12 @@ export const updateSquad = (cohortId, squadId, data) =>
 export const getChatToken = () =>
   client.get(`/courses/${COURSE_ID}/chat/token`).then((r) => r.data);
 
+export const getChatUsers = () =>
+  client.get(`/courses/${COURSE_ID}/chat/users`).then((r) => r.data);
+
+export const startChatDM = (userId) =>
+  client.post(`/courses/${COURSE_ID}/chat/dm`, { user_id: userId }).then((r) => r.data);
+
 /* ── Scenarios ── */
 export const getScenarios = () =>
   client.get(`/courses/${COURSE_ID}/scenarios`).then((r) => r.data);

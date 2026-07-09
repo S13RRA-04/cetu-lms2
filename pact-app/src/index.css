@@ -7919,3 +7919,29 @@ body {
 .chd-body .str-chat {
   height: 100%;
 }
+.chd-chan-tab-new {
+  flex: none;
+  color: var(--primary);
+  font-weight: 700;
+}
+.chd-directory {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  padding-bottom: 10px;
+}
+.chd-back-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-align: left;
+  cursor: pointer;
+  padding: 8px 18px 0;
+}
+.chd-back-btn:hover {
+  color: var(--primary);
+}

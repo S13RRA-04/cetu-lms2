@@ -61,4 +61,24 @@ async function getCredentials(user, enrollment) {
   };
 }
 
-module.exports = { getCredentials };
+/* Get-or-create a 1:1 DM channel. Omitting an explicit channel id makes this a
+   "distinct" channel — Stream deterministically reuses the same channel for
+   the same pair of members instead of creating duplicates on repeat calls. */
+async function getOrCreateDM(currentUser, otherUserId, otherUserName) {
+  const client = getClient();
+
+  await client.upsertUsers([
+    { id: currentUser.id, name: `${currentUser.first_name} ${currentUser.last_name}`.trim() },
+    { id: otherUserId,    name: otherUserName },
+  ]);
+
+  const channel = client.channel(CHANNEL_TYPE, {
+    members:       [currentUser.id, otherUserId],
+    created_by_id: currentUser.id,
+  });
+  await channel.create();
+
+  return { channelId: channel.id, name: otherUserName };
+}
+
+module.exports = { getCredentials, getOrCreateDM };

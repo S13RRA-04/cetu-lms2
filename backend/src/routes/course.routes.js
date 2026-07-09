@@ -48,6 +48,8 @@ router.delete('/:id/enrollments/:uid',  requireAuth, requireInstructor, enrollCt
 
 // Chat (Stream) — mint a user token scoped to the caller's squad/cohort channels
 router.get('/:id/chat/token',           requireAuth,                    chatCtrl.getToken);
+router.get('/:id/chat/users',           requireAuth,                    chatCtrl.listUsers);
+router.post('/:id/chat/dm',             requireAuth,                    chatCtrl.startDM);
 
 // Content items (nested under module)
 router.get('/:id/modules/:mid/content',       requireAuth,                    contentCtrl.list);
