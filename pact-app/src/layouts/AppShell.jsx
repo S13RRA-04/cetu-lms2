@@ -10,6 +10,7 @@ import SignalEntry        from '../pages/SignalEntry.jsx';
 import SessionTimeoutWarning from '../components/SessionTimeoutWarning.jsx';
 import DropAlert          from '../components/DropAlert.jsx';
 import EvidenceDrawer     from '../components/EvidenceDrawer.jsx';
+import ChatDrawer         from '../components/ChatDrawer.jsx';
 import useSessionTimeout  from '../hooks/useSessionTimeout.js';
 import useAuthStore       from '../store/authStore.js';
 
@@ -295,6 +296,8 @@ export default function AppShell() {
       <AppLayout assignments={assignments} enrollment={enrollment} />
       {/* Global evidence access — accessible from any page, per student feedback */}
       <EvidenceDrawer />
+      {/* Squad/cohort chat — popout, stacked above the Evidence tab */}
+      <ChatDrawer />
       {/* Floating in-app drop alert — shown while user is active in the app */}
       {isStudent && !pendingDrop && alertDrop && (
         <DropAlert

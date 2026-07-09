@@ -11,6 +11,7 @@ const campaignCtrl     = require('../controllers/campaign.controller');
 const scenarioCtrl     = require('../controllers/scenario.controller');
 const courseContentCtrl = require('../controllers/courseContent.controller');
 const intelCtrl        = require('../controllers/intel.controller');
+const chatCtrl         = require('../controllers/chat.controller');
 const { requireAuth, requireInstructor, requireAdmin } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
 const { auditLog } = require('../middleware/audit');
@@ -44,6 +45,9 @@ router.get('/:id/enrollments',          requireAuth, requireInstructor, enrollCt
 router.post('/:id/enroll',              requireAuth,                    enrollCtrl.enroll);
 router.put('/:id/enrollments/:uid',     requireAuth, requireInstructor, enrollCtrl.updateEnrollment);
 router.delete('/:id/enrollments/:uid',  requireAuth, requireInstructor, enrollCtrl.unenroll);
+
+// Chat (Stream) — mint a user token scoped to the caller's squad/cohort channels
+router.get('/:id/chat/token',           requireAuth,                    chatCtrl.getToken);
 
 // Content items (nested under module)
 router.get('/:id/modules/:mid/content',       requireAuth,                    contentCtrl.list);
