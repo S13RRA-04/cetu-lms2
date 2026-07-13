@@ -179,6 +179,7 @@ function viewerType(item) {
   if (/\.pptx?$/.test(name)) return 'office';
   if (/\.docx?$/.test(name)) return 'office';
   if (/\.pdf$/.test(name))   return 'pdf';
+  if (!name && item.description) return 'text';
   return 'external';
 }
 
@@ -186,8 +187,8 @@ function CaseCard({ item, idx = 0, onOpen }) {
   const meta       = TYPE_META[item.content_type] ?? TYPE_META.resource;
   const isCampaign = CAMPAIGN_TYPES.includes(item.content_type);
   const href       = item.download_url ?? item.url ?? null;
-  const canView    = !!href;
   const type       = viewerType(item);
+  const canView    = !!href || type === 'text';
 
   const handleClick = useCallback(() => {
     if (!canView) return;
@@ -271,15 +272,17 @@ function DeckViewer({ item, onClose }) {
             <span className="cc-viewer-title">{item.title}</span>
           </div>
           <div className="cc-viewer-actions">
-            <a
-              href={href}
-              download
-              target="_blank"
-              rel="noopener noreferrer"
-              className="cc-viewer-download-btn"
-            >
-              ↓ Download
-            </a>
+            {href && (
+              <a
+                href={href}
+                download
+                target="_blank"
+                rel="noopener noreferrer"
+                className="cc-viewer-download-btn"
+              >
+                ↓ Download
+              </a>
+            )}
             <button className="cc-viewer-close-btn" onClick={onClose} title="Close (Esc)">✕</button>
           </div>
         </div>
@@ -294,6 +297,9 @@ function DeckViewer({ item, onClose }) {
               frameBorder="0"
               allowFullScreen
             />
+          )}
+          {type === 'text' && (
+            <div className="cc-viewer-text">{item.description}</div>
           )}
         </div>
       </motion.div>
