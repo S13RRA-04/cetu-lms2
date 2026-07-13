@@ -6221,6 +6221,14 @@ body {
   transition: background 0.15s;
 }
 .ops-board-entry:hover { background: var(--card-hi); }
+.ops-board-divider {
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: .3em;
+  color: var(--muted);
+  padding: 2px 0;
+}
 .ops-board-me {
   border-color: var(--primary);
   background: var(--primary-lt);
