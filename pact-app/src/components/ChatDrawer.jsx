@@ -5,11 +5,20 @@ import { Chat, Channel, Window, ChannelHeader, MessageList, MessageComposer } fr
 import { getChatToken, getChatUsers, startChatDM } from '../api/pact.js';
 import 'stream-chat-react/dist/css/index.css';
 
-function tabLabel(chan) {
-  if (chan.type === 'squad')  return 'SQUAD';
-  if (chan.type === 'cohort') return 'COHORT';
-  return chan.name?.toUpperCase() ?? 'DM';
+// Backend already gives every channel a distinguishing name (e.g. "Squad 1",
+// or "PACT July 26 · Squad 1" for management accounts watching multiple
+// cohorts) — this used to be discarded in favor of a generic "SQUAD"/"COHORT"
+// label, which made every tab identical once there was more than one of a
+// given type (any admin/instructor account watching several cohorts).
+function channelName(chan) {
+  if (chan.name) return chan.name;
+  if (chan.type === 'squad')  return 'Squad';
+  if (chan.type === 'cohort') return 'Cohort';
+  return 'DM';
 }
+
+const SECTION_LABEL = { cohort: 'COHORT', squad: 'SQUAD', dm: 'DIRECT MESSAGES' };
+const TYPE_ICON     = { cohort: '◈', squad: '◆', dm: '●' };
 
 export default function ChatDrawer() {
   const [open, setOpen]         = useState(false);
@@ -24,6 +33,7 @@ export default function ChatDrawer() {
   const [activeChannel, setActiveChannel] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
+  const [switcherOpen, setSwitcherOpen]     = useState(false);
   const [directoryOpen, setDirectoryOpen]   = useState(false);
   const [directoryUsers, setDirectoryUsers] = useState([]);
   const [directoryLoading, setDirectoryLoading] = useState(false);
@@ -37,6 +47,7 @@ export default function ChatDrawer() {
     await ch.watch({ presence: true });
     setActiveKey(key);
     setActiveChannel(ch);
+    setSwitcherOpen(false);
     // Viewing a channel clears its contribution to the unread badge
     ch.markRead().catch(() => {});
   }, [channelType]);
@@ -78,6 +89,7 @@ export default function ChatDrawer() {
   const toggle = () => setOpen((o) => !o);
 
   const openDirectory = () => {
+    setSwitcherOpen(false);
     setDirectoryOpen(true);
     if (directoryUsers.length === 0 && !directoryLoading) {
       setDirectoryLoading(true);
@@ -118,7 +130,13 @@ export default function ChatDrawer() {
     }
   };
 
-  const allTabs = [...channels, ...dmChannels];
+  const allTabs   = [...channels, ...dmChannels];
+  const activeTab = allTabs.find((c) => c.channelId === activeKey);
+  const grouped   = {
+    cohort: channels.filter((c) => c.type === 'cohort'),
+    squad:  channels.filter((c) => c.type === 'squad'),
+    dm:     dmChannels,
+  };
   const filteredUsers = directoryUsers.filter((u) =>
     u.name.toLowerCase().includes(directoryQuery.trim().toLowerCase())
   );
@@ -162,23 +180,64 @@ export default function ChatDrawer() {
               </div>
 
               {loaded && !directoryOpen && (
-                <div className="chd-tabs">
-                  {allTabs.map((c) => (
-                    <span
-                      key={c.channelId}
-                      className={`chd-chan-tab${activeKey === c.channelId ? ' chd-chan-tab-active' : ''}${c.type === 'dm' ? ' chd-chan-tab-dm' : ''}`}
+                <div className="chd-switcher">
+                  <div className="chd-switcher-bar">
+                    <button
+                      className={`chd-switcher-current${switcherOpen ? ' chd-switcher-current-open' : ''}`}
+                      onClick={() => setSwitcherOpen((o) => !o)}
+                      disabled={allTabs.length === 0}
                     >
-                      <button className="chd-chan-tab-btn" onClick={() => watchChannel(c.channelId, c.channelId)}>
-                        {tabLabel(c)}
-                      </button>
-                      {c.type === 'dm' && (
-                        <button className="chd-chan-tab-x" onClick={() => closeDM(c)} title="Close conversation">×</button>
+                      <span className="chd-switcher-icon">{TYPE_ICON[activeTab?.type] ?? '◈'}</span>
+                      <span className="chd-switcher-name">{activeTab ? channelName(activeTab) : 'Select a channel'}</span>
+                      {unreadCount > 0 && (
+                        <span className="chd-switcher-unread">{unreadCount > 9 ? '9+' : unreadCount}</span>
                       )}
-                    </span>
-                  ))}
-                  <button className="chd-chan-tab chd-chan-tab-new" onClick={openDirectory} title="Start a direct message">
-                    + DM
-                  </button>
+                      {allTabs.length > 0 && (
+                        <svg className={`chd-switcher-chevron${switcherOpen ? ' chd-switcher-chevron-open' : ''}`} width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                      )}
+                    </button>
+                    <button className="chd-switcher-dm-btn" onClick={openDirectory} title="Start a direct message">
+                      + DM
+                    </button>
+                  </div>
+
+                  <AnimatePresence>
+                    {switcherOpen && (
+                      <motion.div
+                        className="chd-switcher-list"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.15 }}
+                      >
+                        {['cohort', 'squad', 'dm'].map((groupKey) => {
+                          const items = grouped[groupKey];
+                          if (items.length === 0) return null;
+                          return (
+                            <div key={groupKey} className="chd-switcher-group">
+                              <div className="chd-switcher-section">{SECTION_LABEL[groupKey]}</div>
+                              {items.map((c) => (
+                                <div
+                                  key={c.channelId}
+                                  className={`chd-switcher-row${activeKey === c.channelId ? ' chd-switcher-row-active' : ''}`}
+                                >
+                                  <button className="chd-switcher-row-btn" onClick={() => watchChannel(c.channelId, c.channelId)}>
+                                    <span className="chd-switcher-row-icon">{TYPE_ICON[groupKey]}</span>
+                                    <span className="chd-switcher-row-name">{channelName(c)}</span>
+                                  </button>
+                                  {groupKey === 'dm' && (
+                                    <button className="chd-switcher-row-x" onClick={() => closeDM(c)} title="Close conversation">×</button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               )}
 

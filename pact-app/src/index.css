@@ -8076,59 +8076,66 @@ body {
   min-width: 16px;
   text-align: center;
 }
-.chd-tabs {
+/* Channel switcher — a single current-channel button that expands into a
+   grouped dropdown list (Cohort / Squad / Direct Messages), instead of a
+   horizontal row of equal-width tabs that collapse into unreadable slivers
+   once there's more than a couple of channels (e.g. any admin/instructor
+   account, which gets a channel per cohort AND per squad). */
+.chd-switcher {
+  padding: 10px 18px 0;
+  flex-shrink: 0;
+}
+.chd-switcher-bar {
   display: flex;
   gap: 6px;
-  padding: 10px 18px 0;
 }
-.chd-chan-tab {
+.chd-switcher-current {
   flex: 1;
   display: flex;
-  align-items: stretch;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-.chd-chan-tab-btn {
-  flex: 1;
-  background: none;
-  border: none;
-  padding: 6px 10px;
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: .08em;
+  padding: 8px 10px;
+  color: var(--text);
   cursor: pointer;
+  text-align: left;
+}
+.chd-switcher-current:disabled { cursor: default; opacity: .6; }
+.chd-switcher-current-open { border-color: var(--primary); }
+.chd-switcher-icon { flex-shrink: 0; font-size: 11px; color: var(--primary); }
+.chd-switcher-name {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .04em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.chd-chan-tab-active {
-  border-color: var(--primary);
+.chd-switcher-unread {
+  flex-shrink: 0;
+  background: #ef4444;
+  color: #fff;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  min-width: 16px;
+  text-align: center;
 }
-.chd-chan-tab-active .chd-chan-tab-btn {
-  color: var(--primary);
-}
-.chd-chan-tab-x {
-  background: none;
-  border: none;
-  border-left: 1px solid var(--border);
-  color: var(--muted);
-  cursor: pointer;
-  padding: 0 7px;
-  font-size: 13px;
-  line-height: 1;
-}
-.chd-chan-tab-x:hover {
-  color: #ef4444;
-}
-.chd-chan-tab-new {
-  flex: none;
+.chd-switcher-chevron { flex-shrink: 0; color: var(--muted); transition: transform .15s; }
+.chd-switcher-chevron-open { transform: rotate(180deg); }
+.chd-switcher-dm-btn {
+  flex-shrink: 0;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 6px 10px;
+  padding: 8px 12px;
   color: var(--primary);
   font-family: var(--mono);
   font-size: 10.5px;
@@ -8137,6 +8144,62 @@ body {
   cursor: pointer;
   white-space: nowrap;
 }
+.chd-switcher-list {
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden auto;
+  max-height: 260px;
+  background: var(--surface);
+}
+.chd-switcher-group + .chd-switcher-group { border-top: 1px solid var(--border); }
+.chd-switcher-section {
+  padding: 7px 12px 4px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .12em;
+  color: var(--muted);
+}
+.chd-switcher-row {
+  display: flex;
+  align-items: stretch;
+}
+.chd-switcher-row-btn {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  padding: 7px 12px;
+  color: var(--text);
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+}
+.chd-switcher-row:hover .chd-switcher-row-btn { background: var(--card-hi); }
+.chd-switcher-row-active .chd-switcher-row-btn { color: var(--primary); font-weight: 600; }
+.chd-switcher-row-icon { flex-shrink: 0; font-size: 10px; color: var(--muted); }
+.chd-switcher-row-active .chd-switcher-row-icon { color: var(--primary); }
+.chd-switcher-row-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chd-switcher-row-x {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 12px;
+  font-size: 14px;
+  line-height: 1;
+}
+.chd-switcher-row-x:hover { color: #ef4444; }
 .chd-body {
   flex: 1;
   display: flex;
