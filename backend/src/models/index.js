@@ -28,6 +28,7 @@ const KcrRoom               = require('./KcrRoom')(sequelize);
 const KcrArtifact           = require('./KcrArtifact')(sequelize);
 const KcrPlacement          = require('./KcrPlacement')(sequelize);
 const IntelBoard            = require('./IntelBoard')(sequelize);
+const SquadChallengeState   = require('./SquadChallengeState')(sequelize);
 
 // ── User ↔ Course (instructor relationship) ────────────────────────────────
 Course.belongsTo(User, { as: 'instructor', foreignKey: 'instructor_id' });
@@ -150,6 +151,10 @@ CourseContentUnlock.belongsTo(User, { as: 'unlocker', foreignKey: 'unlocked_by' 
 IntelBoard.belongsTo(Squad,  { foreignKey: 'squad_id',  as: 'squad'  });
 IntelBoard.belongsTo(Course, { foreignKey: 'course_id', as: 'course' });
 
+// ── SquadChallengeState associations ──────────────────────────────────────────
+SquadChallengeState.belongsTo(Assignment, { foreignKey: 'assignment_id', as: 'assignment' });
+SquadChallengeState.belongsTo(Squad,      { foreignKey: 'squad_id',      as: 'squad'      });
+
 module.exports = {
   sequelize,
   User,
@@ -179,4 +184,5 @@ module.exports = {
   KcrArtifact,
   KcrPlacement,
   IntelBoard,
+  SquadChallengeState,
 };

@@ -55,6 +55,13 @@ export const submitGrade = (assignmentId, userId, data) =>
 export const submitSquadGrade = (assignmentId, squadId, data) =>
   client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/grades/squad/${squadId}`, data).then((r) => r.data);
 
+/* ── Squad-shared challenge state ── */
+export const getSquadChallengeState = (assignmentId) =>
+  client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/squad-state`).then((r) => r.data);
+
+export const saveSquadChallengeState = (assignmentId, state) =>
+  client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/squad-state`, state).then((r) => r.data);
+
 /* ── Live progress ── */
 export const getLiveOverview = () =>
   client.get(`/courses/${COURSE_ID}/live-progress`).then((r) => r.data);

@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { updateProgress } from '../api/pact.js';
+import { updateProgress, getSquadChallengeState, saveSquadChallengeState } from '../api/pact.js';
 import { loadDraftSync, clearDraftSync } from '../hooks/useDraft.js';
 
 /* ── helpers ── */
@@ -12,6 +12,55 @@ function shuffle(arr) {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+}
+
+/* ── squad-shared state merge ──────────────────────────────────────────────
+   Mirrors backend/src/services/squadChallengeState.service.js exactly — a
+   question's state is owned by whichever side has resolved it (revealed or
+   forced); if neither side has, the side with more attempts spent (lower
+   `available`) wins so a stale push from one squad member can't clobber a
+   teammate's further-along attempt on the same question. Hint usage is a
+   one-way OR: once anyone in the squad spends the hint, it stays spent. */
+function isResolved(qs) {
+  return !!(qs && (qs.revealed || qs.forced));
+}
+
+function mergeQState(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  const aResolved = isResolved(a);
+  const bResolved = isResolved(b);
+  if (aResolved && !bResolved) return a;
+  if (bResolved && !aResolved) return b;
+  if (aResolved && bResolved) return b;
+  const winner = (a.available ?? Infinity) <= (b.available ?? Infinity) ? a : b;
+  return { ...winner, hintUsed: !!(a.hintUsed || b.hintUsed) };
+}
+
+function mergeQuizState(local, remote, questions) {
+  const localQ  = local?.qStates ?? {};
+  const remoteQ = remote?.qStates ?? {};
+  const localA  = local?.answers ?? {};
+  const remoteA = remote?.answers ?? {};
+
+  const qStates = {};
+  const answers = {};
+  for (const q of questions) {
+    const a = localQ[q.id];
+    const b = remoteQ[q.id];
+    const merged = mergeQState(a, b);
+    if (merged) qStates[q.id] = merged;
+    answers[q.id] = merged === a ? localA[q.id] : remoteA[q.id];
+  }
+
+  let qIdx = questions.findIndex((q) => !isResolved(qStates[q.id]));
+  if (qIdx === -1) qIdx = Math.max(0, questions.length - 1);
+
+  return { qIdx, answers, qStates };
+}
+
+function sameQuizState(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 function isAnswerCorrect(q, raw) {
@@ -254,7 +303,7 @@ export function FillBlank({ q, value, onChange, revealed, forced }) {
 
 /* ── main component ── */
 
-export default function QuizFlow({ questions, assignmentId, color, onComplete, submitting = false }) {
+export default function QuizFlow({ questions, assignmentId, color, onComplete, submitting = false, squadShared = false, initialSquadState = null }) {
   /* Randomize presentation order so the correct answer's position can't be
      guessed from the option/target list alone (e.g. "always A", dropdowns
      always in correct order). Shuffle is opt-out, not opt-in — a question
@@ -273,13 +322,22 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete, s
         : (q.payload.targets ?? [])
     ), [questions]);
 
-  /* Restore draft on mount — load synchronously inside initializers */
+  /* Restore draft on mount — load synchronously inside initializers. Squad-
+     shared challenges seed from the squad's server-side state (fetched by
+     AssignmentPage before mount) instead of this device's own localStorage
+     draft — the whole point is starting wherever the squad collectively left
+     off, not wherever this one student last was. */
   const draft = useMemo(() => {
+    const currentIds = questions.map((q) => q.id).sort().join(',');
+    if (squadShared) {
+      if (!initialSquadState?.qStates) return null;
+      const ids = Object.keys(initialSquadState.qStates).sort().join(',');
+      return ids === currentIds ? initialSquadState : null;
+    }
     const d = loadDraftSync(assignmentId);
     if (!d?.qStates) return null;
     /* Discard draft if question set has changed */
-    const draftIds   = Object.keys(d.qStates).sort().join(',');
-    const currentIds = questions.map((q) => q.id).sort().join(',');
+    const draftIds = Object.keys(d.qStates).sort().join(',');
     return draftIds === currentIds ? d : null;
   }, []); // intentionally run once on mount
 
@@ -309,13 +367,58 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete, s
     }]))
   );
 
-  /* Persist quiz state after every change */
+  /* Persist quiz state after every change — locally always, and to the squad's
+     shared server state for squad-graded challenges. The push mirrors the
+     server's own merge (mergeQuizState above), so this converges rather than
+     loops: once the state we're about to push matches what we already know
+     the server has, we stop pushing until something actually changes again. */
+  const lastSyncedRef = useRef(null);
   useEffect(() => {
     try {
       const data = JSON.stringify({ qIdx, answers, qStates, _ts: Date.now() });
       localStorage.setItem(`pact_draft_${assignmentId}`, data);
     } catch {}
-  }, [qIdx, answers, qStates, assignmentId]);
+
+    if (!squadShared) return;
+    const payload    = { qIdx, answers, qStates };
+    const payloadKey = JSON.stringify(payload);
+    if (payloadKey === lastSyncedRef.current) return;
+    lastSyncedRef.current = payloadKey;
+
+    saveSquadChallengeState(assignmentId, payload).then((merged) => {
+      if (!merged) return;
+      const mergedState = { qIdx: merged.qIdx, answers: merged.answers, qStates: merged.qStates };
+      lastSyncedRef.current = JSON.stringify(mergedState);
+      if (sameQuizState(mergedState, payload)) return;
+      setQIdx(mergedState.qIdx);
+      setAnswers(mergedState.answers);
+      setQStates(mergedState.qStates);
+    }).catch(() => {});
+  }, [qIdx, answers, qStates, assignmentId, squadShared]);
+
+  /* Live-poll for progress made by other squad members — merges in anything
+     the squad has resolved since the last sync so a teammate solving the
+     question currently on screen auto-advances this student too, not just on
+     next page load. */
+  const liveStateRef = useRef({ qIdx, answers, qStates });
+  useEffect(() => { liveStateRef.current = { qIdx, answers, qStates }; }, [qIdx, answers, qStates]);
+
+  useEffect(() => {
+    if (!squadShared) return;
+    const poll = () => {
+      getSquadChallengeState(assignmentId).then((remote) => {
+        if (!remote?.qStates) return;
+        const cur    = liveStateRef.current;
+        const merged = mergeQuizState(cur, remote, questions);
+        if (sameQuizState(merged, cur)) return;
+        setQIdx(merged.qIdx);
+        setAnswers(merged.answers);
+        setQStates(merged.qStates);
+      }).catch(() => {});
+    };
+    const t = setInterval(poll, 10_000);
+    return () => clearInterval(t);
+  }, [assignmentId, squadShared, questions]);
 
   const q   = questions[qIdx];
   const qs  = q ? qStates[q.id] : null;

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { getAssignment, getMySubmission, getMyGrades, submitAssignment, updateProgress } from '../api/pact.js';
+import { getAssignment, getMySubmission, getMyGrades, submitAssignment, updateProgress, getSquadChallengeState } from '../api/pact.js';
 import DecryptText      from '../components/DecryptText.jsx';
 import SubmitSequence   from '../components/SubmitSequence.jsx';
 import SubmissionSuccess from '../components/SubmissionSuccess.jsx';
@@ -68,6 +68,7 @@ export default function AssignmentPage() {
   const [quizStarted,  setQuizStarted]  = useState(false);
   const [grade,        setGrade]        = useState(null);
   const [progressSaveError, setProgressSaveError] = useState(false);
+  const [squadState,   setSquadState]   = useState(null);
 
   const { saveDebounced, load: loadDraft, clear: clearDraft } = useDraft(id);
 
@@ -83,12 +84,13 @@ export default function AssignmentPage() {
     setQuizResult(null);
     setQuizStarted(false);
     setGrade(null);
+    setSquadState(null);
 
     Promise.all([
       getAssignment(id),
       getMySubmission(id).catch(() => null),
       getMyGrades().catch(() => []),
-    ]).then(([a, sub, allGrades]) => {
+    ]).then(async ([a, sub, allGrades]) => {
       const myGrade = (Array.isArray(allGrades) ? allGrades : []).find((g) => g.assignment_id === id);
       if (myGrade) setGrade(myGrade);
       setAssignment(a);
@@ -113,6 +115,16 @@ export default function AssignmentPage() {
             setContent(draft.content);
             setProgress(draft.progress ?? sub?.progress ?? 0);
           }
+        }
+
+        // Squad-shared challenges resume wherever the squad collectively left
+        // off, not just this student's own device — fetched before the
+        // loading gate clears so QuizFlow mounts with the real starting point
+        // already known (its initial state is only computed once, on mount).
+        const isSquadQuiz = a?.grading_mode === 'squad' && Array.isArray(a.questions) && a.questions.length > 0;
+        if (isSquadQuiz) {
+          try { setSquadState(await getSquadChallengeState(id)); }
+          catch { setSquadState(null); }
         }
       }
     }).finally(() => {
@@ -329,6 +341,8 @@ export default function AssignmentPage() {
                 color={color}
                 onComplete={handleQuizComplete}
                 submitting={saving}
+                squadShared={assignment.grading_mode === 'squad'}
+                initialSquadState={squadState}
               />
             </>
           )

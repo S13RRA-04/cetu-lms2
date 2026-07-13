@@ -12,6 +12,7 @@ const scenarioCtrl     = require('../controllers/scenario.controller');
 const courseContentCtrl = require('../controllers/courseContent.controller');
 const intelCtrl        = require('../controllers/intel.controller');
 const chatCtrl         = require('../controllers/chat.controller');
+const squadStateCtrl   = require('../controllers/squadChallengeState.controller');
 const { requireAuth, requireInstructor, requireAdmin } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
 const { auditLog } = require('../middleware/audit');
@@ -82,6 +83,10 @@ router.put('/:id/assignments/:aid/submissions/:sid',       requireAuth, requireI
 router.put('/:id/assignments/:aid/progress',               requireAuth,                    subCtrl.updateProgress);
 router.get('/:id/assignments/:aid/progress',               requireAuth, requireInstructor, assignCtrl.getProgress);
 router.get('/:id/live-progress',                            requireAuth, requireInstructor, assignCtrl.getLiveOverview);
+
+// Squad-shared challenge state (question progress/answers/hints shared across a squad)
+router.get('/:id/assignments/:aid/squad-state', requireAuth, squadStateCtrl.getState);
+router.put('/:id/assignments/:aid/squad-state', requireAuth, squadStateCtrl.saveState);
 
 // Assignment unlock/lock (per cohort)
 router.post('/:id/assignments/:aid/unlock',  requireAuth, requireInstructor, validate(unlockSchema), auditLog('unlock', 'assignment'), assignCtrl.unlockForCohort);
