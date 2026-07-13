@@ -14,3 +14,9 @@ export const refresh = () =>
 
 export const getLaunchUrl = (target = 'pact') =>
   client.post('/auth/launch-token', { target }).then((r) => r.data.launchUrl);
+
+export const requestPasswordReset = (email) =>
+  client.post('/auth/forgot-password', { email }).then((r) => r.data);
+
+export const confirmPasswordReset = (token, newPassword) =>
+  client.post('/auth/reset-password', { token, new_password: newPassword }).then((r) => r.data);

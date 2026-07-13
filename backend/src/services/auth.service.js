@@ -2,11 +2,13 @@
 const jwt    = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const { User, RefreshToken } = require('../models');
+const { User, RefreshToken, PasswordResetToken } = require('../models');
 const { AppError }           = require('../utils/errors');
+const logger                 = require('../utils/logger');
 
 const ACCESS_EXPIRY         = '15m';
 const REFRESH_EXPIRY_MS     = 7 * 24 * 60 * 60 * 1000;
+const RESET_TOKEN_TTL_MS    = 30 * 60 * 1000; // 30 minutes
 
 function generateAccessToken(user) {
   return jwt.sign(
@@ -105,4 +107,55 @@ async function adminResetPassword(userId, newPassword) {
   await RefreshToken.update({ revoked: true }, { where: { user_id: userId } });
 }
 
-module.exports = { login, logout, generateAccessToken, generateRefreshToken, rotateRefreshToken, changePassword, adminResetPassword };
+/* Self-service forgot-password: always resolves the same way whether or not
+   the email matches a user — the controller must not be able to tell the
+   difference, or this becomes a user-enumeration vector. */
+async function requestPasswordReset(email) {
+  const user = await User.unscoped().findOne({ where: { email } });
+  if (!user || !user.is_active) return;
+
+  const raw  = crypto.randomBytes(32).toString('hex');
+  const hash = crypto.createHash('sha256').update(raw).digest('hex');
+
+  await PasswordResetToken.create({
+    user_id:    user.id,
+    token_hash: hash,
+    expires_at: new Date(Date.now() + RESET_TOKEN_TTL_MS),
+    used:       false,
+  });
+
+  const base = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+  const resetUrl = `${base}/reset-password?token=${raw}`;
+
+  try {
+    const mailService = require('./mail.service');
+    await mailService.sendPasswordResetEmail(user, resetUrl);
+  } catch (err) {
+    // Don't leak send failures to the caller — same generic response either way.
+    logger.error('Failed to send password reset email', { error: err.message, userId: user.id });
+  }
+}
+
+async function resetPasswordWithToken(rawToken, newPassword) {
+  const hash   = crypto.createHash('sha256').update(rawToken).digest('hex');
+  const record = await PasswordResetToken.findOne({ where: { token_hash: hash, used: false } });
+
+  if (!record || record.expires_at < new Date()) {
+    throw new AppError('Invalid or expired reset link', 400, 'INVALID_TOKEN');
+  }
+
+  const user = await User.scope('withPassword').findByPk(record.user_id);
+  if (!user) throw new AppError('Invalid or expired reset link', 400, 'INVALID_TOKEN');
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  await user.update({ password_hash: passwordHash });
+  await record.update({ used: true });
+
+  // Revoke all existing refresh tokens for security
+  await RefreshToken.update({ revoked: true }, { where: { user_id: user.id } });
+}
+
+module.exports = {
+  login, logout, generateAccessToken, generateRefreshToken, rotateRefreshToken,
+  changePassword, adminResetPassword, requestPasswordReset, resetPasswordWithToken,
+};

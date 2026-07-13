@@ -13,6 +13,7 @@ const Assignment          = require('./Assignment')(sequelize);
 const Submission          = require('./Submission')(sequelize);
 const Grade               = require('./Grade')(sequelize);
 const RefreshToken        = require('./RefreshToken')(sequelize);
+const PasswordResetToken  = require('./PasswordResetToken')(sequelize);
 const AuditLog            = require('./AuditLog')(sequelize);
 const LtiToolRegistration   = require('./LtiToolRegistration')(sequelize);
 const ScenarioPackage       = require('./ScenarioPackage')(sequelize);
@@ -94,6 +95,10 @@ User.hasMany(Grade,                      { foreignKey: 'user_id' });
 User.hasMany(RefreshToken,  { foreignKey: 'user_id', onDelete: 'CASCADE' });
 RefreshToken.belongsTo(User, { foreignKey: 'user_id' });
 
+// ── User ↔ PasswordResetToken ───────────────────────────────────────────────
+User.hasMany(PasswordResetToken,   { foreignKey: 'user_id', onDelete: 'CASCADE' });
+PasswordResetToken.belongsTo(User, { foreignKey: 'user_id' });
+
 // ── User ↔ AuditLog ────────────────────────────────────────────────────────
 User.hasMany(AuditLog,  { foreignKey: 'user_id' });
 AuditLog.belongsTo(User, { foreignKey: 'user_id' });
@@ -159,6 +164,7 @@ module.exports = {
   Submission,
   Grade,
   RefreshToken,
+  PasswordResetToken,
   AuditLog,
   LtiToolRegistration,
   ScenarioPackage,

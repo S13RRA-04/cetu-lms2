@@ -68,6 +68,9 @@ export default function LoginPage() {
           </button>
         </form>
         <p className="text-sm text-muted" style={{ textAlign: 'center', marginTop: 16 }}>
+          <Link to="/forgot-password">Forgot password?</Link>
+        </p>
+        <p className="text-sm text-muted" style={{ textAlign: 'center', marginTop: 8 }}>
           Don't have an account? <Link to="/register">Request access</Link>
         </p>
       </div>

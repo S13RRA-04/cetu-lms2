@@ -173,6 +173,9 @@ export default function LoginPage() {
             <p className="auth-notice">
               No credentials? <Link to="/register">Request access</Link>
             </p>
+            <p className="auth-notice">
+              Forgot your password? <a href="https://lms.cetu.online/forgot-password">Reset it via the LMS</a>
+            </p>
           </motion.div>
         )}
 

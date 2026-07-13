@@ -145,4 +145,21 @@ async function exchangeLaunchToken(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { login, register, refresh, logout, issueLaunchToken, exchangeLaunchToken };
+/* POST /auth/forgot-password  { email }  — always the same response, whether
+   or not that email matches an account, so this can't be used to enumerate users. */
+async function forgotPassword(req, res, next) {
+  try {
+    await authService.requestPasswordReset(req.body.email);
+    return res.json({ message: 'If that email is registered, a reset link has been sent.' });
+  } catch (err) { return next(err); }
+}
+
+/* POST /auth/reset-password  { token, new_password } */
+async function resetPassword(req, res, next) {
+  try {
+    await authService.resetPasswordWithToken(req.body.token, req.body.new_password);
+    return res.json({ message: 'Password reset successfully' });
+  } catch (err) { return next(err); }
+}
+
+module.exports = { login, register, refresh, logout, issueLaunchToken, exchangeLaunchToken, forgotPassword, resetPassword };
