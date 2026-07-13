@@ -18,14 +18,18 @@ function viewerType(item) {
 
 export default function EvidenceDrawer() {
   const [open, setOpen] = useState(false);
-  const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [packages, setPackages] = useState([]);
   const [intelItems, setIntelItems] = useState([]);
   const navigate = useNavigate();
 
+  // Re-fetch every time the drawer is opened, not just the first time — this
+  // component is mounted once for the whole session (in AppShell), so a
+  // one-shot `loaded` guard meant anything an admin unlocked/published after
+  // a student's first visit would never show up here without a hard page
+  // refresh, even though the same data is fresh everywhere else.
   const load = useCallback(() => {
-    if (loaded || loading) return;
+    if (loading) return;
     setLoading(true);
     Promise.all([
       getScenarios().catch(() => []),
@@ -36,9 +40,8 @@ export default function EvidenceDrawer() {
         (Array.isArray(content) ? content : [])
           .filter((i) => i.is_unlocked !== false && CAMPAIGN_TYPES.includes(i.content_type))
       );
-      setLoaded(true);
     }).finally(() => setLoading(false));
-  }, [loaded, loading]);
+  }, [loading]);
 
   const toggle = () => {
     setOpen((o) => {
