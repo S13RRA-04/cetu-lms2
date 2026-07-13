@@ -92,4 +92,17 @@ async function changePassword(userId, currentPassword, newPassword) {
   await RefreshToken.update({ revoked: true }, { where: { user_id: userId } });
 }
 
-module.exports = { login, logout, generateAccessToken, generateRefreshToken, rotateRefreshToken, changePassword };
+/* Admin-initiated reset — skips the current-password check in changePassword()
+   since the admin resetting someone else's password doesn't know it. */
+async function adminResetPassword(userId, newPassword) {
+  const user = await User.scope('withPassword').findByPk(userId);
+  if (!user) throw new AppError('User not found', 404, 'NOT_FOUND');
+
+  const hash = await bcrypt.hash(newPassword, 12);
+  await user.update({ password_hash: hash });
+
+  // Revoke all existing refresh tokens for security
+  await RefreshToken.update({ revoked: true }, { where: { user_id: userId } });
+}
+
+module.exports = { login, logout, generateAccessToken, generateRefreshToken, rotateRefreshToken, changePassword, adminResetPassword };

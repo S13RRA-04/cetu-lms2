@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { getUsers, createUser, updateUser, deleteUser } from '../../api/users.js';
+import { getUsers, createUser, updateUser, deleteUser, resetPassword } from '../../api/users.js';
 import useAuthStore from '../../store/authStore.js';
 import LoadingSpinner from '../../components/common/LoadingSpinner.jsx';
 import Modal from '../../components/common/Modal.jsx';
@@ -116,6 +116,88 @@ function UserForm({ initial, onSave, onClose }) {
   );
 }
 
+/* Random, readable temporary password — avoids ambiguous chars (0/O, 1/l/I) */
+function generatePassword(length = 12) {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%';
+  const bytes = new Uint32Array(length);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => chars[b % chars.length]).join('');
+}
+
+function ResetPasswordModal({ user, onClose }) {
+  const [password, setPassword] = useState(() => generatePassword());
+  const [saving,  setSaving]  = useState(false);
+  const [error,   setError]   = useState('');
+  const [done,    setDone]    = useState(false);
+  const [copied,  setCopied]  = useState(false);
+
+  const copy = () => {
+    navigator.clipboard?.writeText(password).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      await resetPassword(user.id, password);
+      setDone(true);
+    } catch (err) {
+      setError(err.response?.data?.error?.message ?? 'Failed to reset password.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <div>
+        <div className="alert alert-success" style={{ marginBottom: 16 }}>
+          Password reset for {user.first_name} {user.last_name}. They've been signed out everywhere
+          and will need this new password to log back in — share it with them securely.
+        </div>
+        <div className="form-group">
+          <label>New password</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input readOnly value={password} onFocus={(e) => e.target.select()} />
+            <button type="button" className="btn btn-secondary" onClick={copy}>{copied ? 'Copied!' : 'Copy'}</button>
+          </div>
+        </div>
+        <div className="flex-end" style={{ marginTop: 16 }}>
+          <button className="btn btn-primary" onClick={onClose}>Done</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <p className="text-sm text-muted" style={{ marginTop: 0 }}>
+        Resetting {user.first_name} {user.last_name}'s password does not require their current one.
+        This will sign them out of all active sessions.
+      </p>
+      {error && <div className="alert alert-error" style={{ marginBottom: 16 }}>{error}</div>}
+      <div className="form-group">
+        <label>New password</label>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required />
+          <button type="button" className="btn btn-secondary" onClick={() => setPassword(generatePassword())}>Generate</button>
+          <button type="button" className="btn btn-secondary" onClick={copy}>{copied ? 'Copied!' : 'Copy'}</button>
+        </div>
+      </div>
+      <div className="flex-end" style={{ marginTop: 16, gap: 8 }}>
+        <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+        <button type="submit" className="btn btn-primary" disabled={saving || password.length < 8}>
+          {saving ? 'Resetting…' : 'Reset Password'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export default function UsersPage() {
   const { user: me } = useAuthStore();
   const [users,      setUsers]      = useState([]);
@@ -128,6 +210,7 @@ export default function UsersPage() {
   const [page,       setPage]       = useState(1);
   const [modal,      setModal]      = useState(null);
   const [delTarget,  setDelTarget]  = useState(null);
+  const [resetTarget, setResetTarget] = useState(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -222,6 +305,7 @@ export default function UsersPage() {
                           }}>Approve</button>
                         )}
                         <button className="btn btn-ghost btn-xs" onClick={() => setModal(u)}>Edit</button>
+                        <button className="btn btn-ghost btn-xs" onClick={() => setResetTarget(u)}>Reset Password</button>
                         {u.id !== me?.id && (
                           <button className="btn btn-ghost btn-xs" style={{ color: 'var(--danger)' }} onClick={() => setDelTarget(u)}>Delete</button>
                         )}
@@ -255,6 +339,12 @@ export default function UsersPage() {
           onConfirm={handleDelete}
           onCancel={() => setDelTarget(null)}
         />
+      )}
+
+      {resetTarget && (
+        <Modal title={`Reset Password — ${resetTarget.first_name} ${resetTarget.last_name}`} onClose={() => setResetTarget(null)}>
+          <ResetPasswordModal user={resetTarget} onClose={() => setResetTarget(null)} />
+        </Modal>
       )}
     </div>
   );

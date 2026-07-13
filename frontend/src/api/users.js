@@ -17,3 +17,6 @@ export const deleteUser = (id) =>
 
 export const changePassword = (id, data) =>
   client.put(`/users/${id}/password`, data).then((r) => r.data);
+
+export const resetPassword = (id, newPassword) =>
+  client.post(`/users/${id}/reset-password`, { new_password: newPassword }).then((r) => r.data);

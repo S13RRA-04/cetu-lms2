@@ -45,4 +45,11 @@ async function changePassword(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { list, getOne, create, update, remove, changePassword };
+async function resetPassword(req, res, next) {
+  try {
+    await authService.adminResetPassword(req.params.id, req.body.new_password);
+    return res.json({ message: 'Password reset' });
+  } catch (err) { return next(err); }
+}
+
+module.exports = { list, getOne, create, update, remove, changePassword, resetPassword };

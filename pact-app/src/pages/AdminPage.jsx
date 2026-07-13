@@ -740,7 +740,7 @@ function formatR2Size(bytes) {
 
 /* ── Content Gating Panel ── */
 
-const R2_SCENARIOS_PREFIX = 'pact/scenarios/';
+const R2_SCENARIOS_PREFIX = 'scenarios/';
 
 /* ═══════════════════════════════════════════════════════════
    COHORT SCENARIO PANEL

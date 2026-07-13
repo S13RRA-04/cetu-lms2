@@ -22,4 +22,9 @@ const changePasswordSchema = Joi.object({
   new_password:     Joi.string().min(8).required(),
 });
 
-module.exports = { createUserSchema, updateUserSchema, changePasswordSchema };
+// Admin-initiated reset — no current password required (the admin doesn't know it)
+const resetPasswordSchema = Joi.object({
+  new_password: Joi.string().min(8).required(),
+});
+
+module.exports = { createUserSchema, updateUserSchema, changePasswordSchema, resetPasswordSchema };

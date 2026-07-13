@@ -5,7 +5,7 @@ const gradeService  = require('../services/grade.service');
 const { requireAuth, requireAdmin, requireInstructor, requireSelfOrAdmin } = require('../middleware/auth');
 const { validate }  = require('../middleware/validate');
 const { auditLog }  = require('../middleware/audit');
-const { createUserSchema, updateUserSchema, changePasswordSchema } = require('../validators/user.validator');
+const { createUserSchema, updateUserSchema, changePasswordSchema, resetPasswordSchema } = require('../validators/user.validator');
 
 const router = Router();
 
@@ -52,5 +52,8 @@ router.put('/:id',    requireAuth, requireSelfOrAdmin(), validate(updateUserSche
 router.delete('/:id', requireAuth, requireInstructor,    auditLog('delete', 'user'),    ctrl.remove);
 
 router.put('/:id/password', requireAuth, requireSelfOrAdmin(), validate(changePasswordSchema), ctrl.changePassword);
+
+// Admin-initiated reset (no current password needed) — instructor/admin only, not self-service
+router.post('/:id/reset-password', requireAuth, requireInstructor, validate(resetPasswordSchema), auditLog('update', 'user'), ctrl.resetPassword);
 
 module.exports = router;
