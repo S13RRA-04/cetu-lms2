@@ -182,6 +182,11 @@ async function getScoreboard(courseId) {
 }
 
 async function _queryScoreboard(courseId) {
+  // Individual ("Operators") standings must reflect personal performance only —
+  // grades from squad-graded assignments belong to the Squad standings
+  // (getSquadScoreboard below), not a student's own ranking. Without this
+  // filter, a squad's shared score would double-count into every member's
+  // individual total on top of counting once for their squad.
   const [rows] = await sequelize.query(
     `SELECT u.id AS "userId", u.first_name AS "firstName", u.last_name AS "lastName",
             COALESCE(SUM(g.score), 0)     AS "totalScore",
@@ -190,7 +195,7 @@ async function _queryScoreboard(courseId) {
      FROM enrollments e
      JOIN users u ON u.id = e.user_id
      LEFT JOIN grades g ON g.user_id = e.user_id
-       AND g.assignment_id IN (SELECT id FROM assignments WHERE course_id = :courseId)
+       AND g.assignment_id IN (SELECT id FROM assignments WHERE course_id = :courseId AND grading_mode != 'squad')
      WHERE e.course_id = :courseId AND u.role = 'student'
      GROUP BY u.id, u.first_name, u.last_name
      ORDER BY "totalScore" DESC`,
