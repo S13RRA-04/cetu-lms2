@@ -1,5 +1,6 @@
 'use strict';
 const { StreamChat } = require('stream-chat');
+const { Cohort, Squad } = require('../models');
 
 const CHANNEL_TYPE = process.env.STREAM_CHAT_CHANNEL_TYPE || 'messaging';
 
@@ -61,6 +62,49 @@ async function getCredentials(user, enrollment) {
   };
 }
 
+/* Admins/instructors oversee a whole course, not one squad — they shouldn't
+   need a student-style Enrollment (and definitely not a squad assignment) to
+   use chat. Give them a channel for every cohort and squad in the course
+   instead of deriving channels from their own enrollment. */
+async function getManagementCredentials(user, courseId) {
+  const client = getClient();
+
+  await client.upsertUser({
+    id:   user.id,
+    name: `${user.first_name} ${user.last_name}`.trim(),
+  });
+
+  const userToken = client.createToken(user.id);
+  const cohorts   = await Cohort.findAll({
+    where:   { course_id: courseId },
+    include: [{ model: Squad, as: 'squads' }],
+    order:   [['created_at', 'ASC']],
+  });
+
+  const channels = [];
+  for (const cohort of cohorts) {
+    const cohortLabel = cohort.name ?? 'Cohort';
+    const cohortChannelId = `cohort-${cohort.id}`;
+    await ensureChannel(client, cohortChannelId, user.id, cohortLabel);
+    channels.push({ type: 'cohort', channelId: cohortChannelId, name: cohortLabel });
+
+    for (const squad of cohort.squads ?? []) {
+      const squadLabel = squad.name || `Squad ${squad.number}`;
+      const squadChannelId = `squad-${squad.id}`;
+      await ensureChannel(client, squadChannelId, user.id, `${cohortLabel} · ${squadLabel}`);
+      channels.push({ type: 'squad', channelId: squadChannelId, name: `${cohortLabel} · ${squadLabel}` });
+    }
+  }
+
+  return {
+    apiKey: process.env.STREAM_API_KEY,
+    userToken,
+    userId: user.id,
+    channelType: CHANNEL_TYPE,
+    channels,
+  };
+}
+
 /* Get-or-create a 1:1 DM channel. Omitting an explicit channel id makes this a
    "distinct" channel — Stream deterministically reuses the same channel for
    the same pair of members instead of creating duplicates on repeat calls. */
@@ -81,4 +125,4 @@ async function getOrCreateDM(currentUser, otherUserId, otherUserName) {
   return { channelId: channel.id, name: otherUserName };
 }
 
-module.exports = { getCredentials, getOrCreateDM };
+module.exports = { getCredentials, getManagementCredentials, getOrCreateDM };

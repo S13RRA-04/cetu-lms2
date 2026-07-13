@@ -2,7 +2,11 @@
 const { Op } = require('sequelize');
 const { Enrollment, Cohort, Squad, User } = require('../models');
 const { NotFoundError, AppError } = require('../utils/errors');
+const { ROLES } = require('../config/constants');
 const chatService = require('../services/chat.service');
+
+const MANAGER_ROLES = [ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.INSTRUCTOR];
+const isManager = (user) => MANAGER_ROLES.includes(user.role);
 
 async function _getMyEnrollment(userId, courseId) {
   return Enrollment.findOne({
@@ -16,6 +20,11 @@ async function _getMyEnrollment(userId, courseId) {
 
 async function getToken(req, res, next) {
   try {
+    if (isManager(req.user)) {
+      const credentials = await chatService.getManagementCredentials(req.user, req.params.id);
+      return res.json(credentials);
+    }
+
     const enrollment = await _getMyEnrollment(req.user.id, req.params.id);
     if (!enrollment) throw new NotFoundError('Enrollment');
 
@@ -29,12 +38,20 @@ async function getToken(req, res, next) {
    students only see people they actually share a training run with. */
 async function listUsers(req, res, next) {
   try {
-    const enrollment = await _getMyEnrollment(req.user.id, req.params.id);
-    if (!enrollment) throw new NotFoundError('Enrollment');
-    if (!enrollment.cohort_id) return res.json([]);
+    // Managers oversee the whole course — they can DM anyone enrolled, not
+    // just people who happen to share their own (possibly nonexistent) cohort.
+    const where = isManager(req.user)
+      ? { course_id: req.params.id, user_id: { [Op.ne]: req.user.id } }
+      : await (async () => {
+          const enrollment = await _getMyEnrollment(req.user.id, req.params.id);
+          if (!enrollment) throw new NotFoundError('Enrollment');
+          if (!enrollment.cohort_id) return null;
+          return { course_id: req.params.id, cohort_id: enrollment.cohort_id, user_id: { [Op.ne]: req.user.id } };
+        })();
+    if (!where) return res.json([]);
 
     const peers = await Enrollment.findAll({
-      where: { course_id: req.params.id, cohort_id: enrollment.cohort_id, user_id: { [Op.ne]: req.user.id } },
+      where,
       include: [{ model: User, attributes: ['id', 'first_name', 'last_name', 'role'] }],
     });
 
@@ -53,12 +70,18 @@ async function startDM(req, res, next) {
     const otherUserId = req.body.user_id;
     if (!otherUserId) throw new AppError('user_id is required', 400, 'BAD_REQUEST');
 
-    const enrollment = await _getMyEnrollment(req.user.id, req.params.id);
-    if (!enrollment) throw new NotFoundError('Enrollment');
+    // Managers can DM anyone enrolled in the course; students must share a
+    // cohort with the target — same scoping as listUsers.
+    const peerWhere = isManager(req.user)
+      ? { course_id: req.params.id, user_id: otherUserId }
+      : await (async () => {
+          const enrollment = await _getMyEnrollment(req.user.id, req.params.id);
+          if (!enrollment) throw new NotFoundError('Enrollment');
+          return { course_id: req.params.id, cohort_id: enrollment.cohort_id, user_id: otherUserId };
+        })();
 
-    // Must share a cohort with the target user — same scoping as listUsers.
     const peer = await Enrollment.findOne({
-      where: { course_id: req.params.id, cohort_id: enrollment.cohort_id, user_id: otherUserId },
+      where:   peerWhere,
       include: [{ model: User, attributes: ['id', 'first_name', 'last_name'] }],
     });
     if (!peer?.User) throw new NotFoundError('User');

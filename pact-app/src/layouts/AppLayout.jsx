@@ -28,15 +28,16 @@ function LiveClock() {
 }
 
 /* ── Nav item ──────────────────────────────────────────────────────────────── */
-function OpsNavItem({ to, label, end = false, children }) {
+function OpsNavItem({ to, label, end = false, collapsed = false, children }) {
   return (
     <NavLink
       to={to}
       end={end}
-      className={({ isActive }) => `ops-nav-item${isActive ? ' ops-nav-active' : ''}`}
+      title={collapsed ? label : undefined}
+      className={({ isActive }) => `ops-nav-item${isActive ? ' ops-nav-active' : ''}${collapsed ? ' ops-nav-item--icon-only' : ''}`}
     >
       <span className="ops-nav-icon">{children}</span>
-      <span className="ops-nav-label">{label}</span>
+      {!collapsed && <span className="ops-nav-label">{label}</span>}
       <span className="ops-nav-bar" />
     </NavLink>
   );
@@ -58,6 +59,7 @@ const IcTerminal = () => <svg viewBox="0 0 24 24" {...S}><rect x="2" y="3" width
 
 const IcNetwork  = () => <svg viewBox="0 0 24 24" {...S}><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="12" y1="7" x2="5" y2="17"/><line x1="12" y1="7" x2="19" y2="17"/><line x1="5" y1="19" x2="19" y2="19"/></svg>;
 const IcExternal = () => <svg viewBox="0 0 24 24" {...S}><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>;
+const IcCollapse = () => <svg viewBox="0 0 24 24" {...S}><polyline points="15 6 9 12 15 18"/></svg>;
 
 /* PACT is served from its own subdomain; the LMS lives at lms.cetu.online */
 const LMS_URL = 'https://lms.cetu.online';
@@ -143,11 +145,20 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
   const navigate          = useNavigate();
   const location          = useLocation();
   const [theme, setTheme] = useState(() => localStorage.getItem('pact-theme') ?? 'dark');
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('pact-nav-collapsed') === '1');
 
   const toggleTheme = () => {
     const next = THEME_NEXT[theme];
     setTheme(next);
     localStorage.setItem('pact-theme', next);
+  };
+
+  const toggleCollapsed = () => {
+    setCollapsed((c) => {
+      const next = !c;
+      localStorage.setItem('pact-nav-collapsed', next ? '1' : '0');
+      return next;
+    });
   };
 
   const squadNum   = enrollment?.squad?.number ? ((Number(enrollment.squad.number) - 1) % 4) + 1 : null;
@@ -186,7 +197,10 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
   };
 
   return (
-    <div className={`ops-room${theme === 'light' ? ' ops-light' : ''}${theme === 'terminal' ? ' ops-terminal' : ''}`}>
+    <div
+      className={`ops-room${theme === 'light' ? ' ops-light' : ''}${theme === 'terminal' ? ' ops-terminal' : ''}`}
+      style={{ '--rail-width': collapsed ? '68px' : '260px' }}
+    >
 
       {/* Globe behind the right pane only */}
       <div className="ops-globe-bg">
@@ -196,49 +210,59 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
       </div>
 
       {/* ── Left rail ── */}
-      <aside className="ops-left-rail" style={{ '--accent': accent }}>
+      <aside className={`ops-left-rail${collapsed ? ' ops-left-rail--collapsed' : ''}`} style={{ '--accent': accent }}>
+
+        <button
+          className="ops-rail-collapse-btn"
+          onClick={toggleCollapsed}
+          title={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+        >
+          <span style={{ transform: collapsed ? 'rotate(180deg)' : 'none', display: 'flex' }}>
+            <IcCollapse />
+          </span>
+        </button>
 
         {/* Brand */}
         <div className="ops-brand">
           <div className="ops-brand-word" style={{ color: accent, textShadow: `0 0 22px ${accent}88` }}>
-            PACT
+            {collapsed ? 'P' : 'PACT'}
           </div>
-          <div className="ops-brand-sub">OPERATION BRKR</div>
+          {!collapsed && <div className="ops-brand-sub">OPERATION BRKR</div>}
         </div>
 
         {/* Investigation target */}
-        <TargetCard squad={squad} enrollment={enrollment} accent={accent} />
+        {!collapsed && <TargetCard squad={squad} enrollment={enrollment} accent={accent} />}
 
         {/* Navigation */}
         <nav className="ops-nav">
-          <div className="ops-rail-section-label">NAVIGATION</div>
+          {!collapsed && <div className="ops-rail-section-label">NAVIGATION</div>}
 
-          <OpsNavItem to="/" label="OPERATIONS" end>
+          <OpsNavItem to="/" label="OPERATIONS" end collapsed={collapsed}>
             <IcGrid />
           </OpsNavItem>
 
-          <OpsNavItem to="/scenarios" label="CASE FILE">
+          <OpsNavItem to="/scenarios" label="CASE FILE" collapsed={collapsed}>
             <IcFolder />
           </OpsNavItem>
 
-          <OpsNavItem to="/course-content" label="INTEL LIBRARY">
+          <OpsNavItem to="/course-content" label="INTEL LIBRARY" collapsed={collapsed}>
             <IcBook />
           </OpsNavItem>
 
-          <OpsNavItem to="/intel" label="LINK ANALYSIS">
+          <OpsNavItem to="/intel" label="LINK ANALYSIS" collapsed={collapsed}>
             <IcNetwork />
           </OpsNavItem>
 
-          <OpsNavItem to="/grades" label="OPERATOR RECORD">
+          <OpsNavItem to="/grades" label="OPERATOR RECORD" collapsed={collapsed}>
             <IcChart />
           </OpsNavItem>
 
-          <OpsNavItem to="/scoreboard" label="STANDINGS">
+          <OpsNavItem to="/scoreboard" label="STANDINGS" collapsed={collapsed}>
             <IcPodium />
           </OpsNavItem>
 
           {isAdmin && (
-            <OpsNavItem to="/admin" label="COMMAND">
+            <OpsNavItem to="/admin" label="COMMAND" collapsed={collapsed}>
               <IcShield />
             </OpsNavItem>
           )}
@@ -247,9 +271,9 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
         <div className="ops-rail-spacer" />
 
         {/* Cross-navigate back to the main LMS site */}
-        <a href={LMS_URL} className="ops-nav-item">
+        <a href={LMS_URL} className={`ops-nav-item${collapsed ? ' ops-nav-item--icon-only' : ''}`} title={collapsed ? 'Return to LMS' : undefined}>
           <span className="ops-nav-icon"><IcExternal /></span>
-          <span className="ops-nav-label">RETURN TO LMS</span>
+          {!collapsed && <span className="ops-nav-label">RETURN TO LMS</span>}
           <span className="ops-nav-bar" />
         </a>
 
@@ -258,7 +282,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
           <button className="ops-theme-btn" onClick={toggleTheme}
             title={`Switch to ${THEME_NEXT[theme]} mode`}>
             {THEME_ICON[theme]}
-            <span>{THEME_LABEL[theme]}</span>
+            {!collapsed && <span>{THEME_LABEL[theme]}</span>}
           </button>
         </div>
 
@@ -267,12 +291,14 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
           <div className="ops-op-avatar" style={{ borderColor: accent, color: accent }}>
             {user?.first_name?.[0]}{user?.last_name?.[0]}
           </div>
-          <div className="ops-op-info">
-            <div className="ops-op-name">{user?.first_name} {user?.last_name}</div>
-            <div className="ops-op-role">
-              {user?.role === 'admin' ? 'ADMINISTRATOR' : user?.role === 'instructor' ? 'INSTRUCTOR' : 'OPERATOR'}
+          {!collapsed && (
+            <div className="ops-op-info">
+              <div className="ops-op-name">{user?.first_name} {user?.last_name}</div>
+              <div className="ops-op-role">
+                {user?.role === 'admin' ? 'ADMINISTRATOR' : user?.role === 'instructor' ? 'INSTRUCTOR' : 'OPERATOR'}
+              </div>
             </div>
-          </div>
+          )}
           <button className="ops-logout-btn" onClick={handleLogout} title="Sign out">
             <IcLogout />
           </button>

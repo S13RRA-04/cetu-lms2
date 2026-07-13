@@ -5254,11 +5254,12 @@ body {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 260px;         /* matches rail width */
+  left: var(--rail-width, 260px);
   right: 0;
   pointer-events: none;
   overflow: hidden;
   opacity: 0.55;
+  transition: left .18s ease;
 }
 .ops-globe-bg canvas {
   width: 100% !important;
@@ -5267,7 +5268,7 @@ body {
 
 /* ── Left rail ──────────────────────────────────────────────────────────── */
 .ops-left-rail {
-  width: 260px;
+  width: var(--rail-width, 260px);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -5278,8 +5279,37 @@ body {
   overflow-x: hidden;
   scrollbar-width: none;
   position: relative;
+  transition: width .18s ease;
 }
 .ops-left-rail::-webkit-scrollbar { display: none; }
+
+/* Collapse/expand toggle */
+.ops-rail-collapse-btn {
+  position: absolute;
+  top: 18px;
+  right: -11px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(4, 7, 11, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #5a7290;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 30;
+  transition: color .15s, border-color .15s;
+}
+.ops-rail-collapse-btn:hover { color: var(--accent, #00b0ff); border-color: var(--accent, #00b0ff); }
+.ops-rail-collapse-btn svg { width: 11px; height: 11px; }
+
+.ops-left-rail--collapsed .ops-brand { padding: 20px 0 16px; text-align: center; }
+.ops-left-rail--collapsed .ops-nav-item--icon-only,
+.ops-left-rail--collapsed .ops-theme-btn { justify-content: center; }
+.ops-nav-item--icon-only { justify-content: center; padding-left: 0; padding-right: 0; }
+.ops-left-rail--collapsed .ops-operator { justify-content: center; padding: 12px 0; }
+.ops-left-rail--collapsed .ops-nav { padding-left: 8px; padding-right: 8px; }
 
 /* Periodic scan sweep down the left rail */
 .ops-left-rail::after {
