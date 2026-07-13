@@ -3351,6 +3351,22 @@ body {
   padding: 2px 14px 16px;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
+.qz-summary-debrief {
+  margin-top: 20px;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--primary-md, var(--border));
+  background: var(--primary-lt, var(--surface-2));
+}
+.qz-summary-debrief-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  color: var(--primary);
+  margin-bottom: 8px;
+}
+.qz-summary-debrief p { font-size: 13.5px; line-height: 1.6; color: var(--text); white-space: pre-wrap; }
 
 /* ── Scenario tabs ── */
 .scenario-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); padding: 0 16px; }

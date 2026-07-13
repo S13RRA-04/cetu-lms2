@@ -1540,9 +1540,11 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
   const [closedGroups, setClosedGroups] = useState(new Set());
   const [localItems,   setLocalItems]   = useState(assignments);
   const [victimDraft,  setVictimDraft]  = useState('');
+  const [debriefDraft, setDebriefDraft] = useState('');
 
   useEffect(() => { setLocalItems(assignments); }, [assignments]);
   useEffect(() => { setVictimDraft(selected?.victim_name ?? ''); }, [selected?.id]);
+  useEffect(() => { setDebriefDraft(selected?.debrief ?? ''); }, [selected?.id]);
 
   // Two-level grouping: scenario → victim (null victim → '__no_victim__')
   // Top-level: scenario_name (null → '__unassigned__')
@@ -1684,6 +1686,21 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
                   style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, flex: 1 }}
                 />
               </div>
+            </div>
+
+            {/* ── Post-completion debrief ── */}
+            <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)' }}>
+                DEBRIEF (shown to students after they complete this challenge)
+              </div>
+              <textarea
+                value={debriefDraft}
+                onChange={(e) => setDebriefDraft(e.target.value)}
+                onBlur={() => handleFieldChange(selected.id, { debrief: debriefDraft.trim() || null })}
+                placeholder="Optional note shown on the results screen after submission — e.g. why this skill matters in the field."
+                rows={4}
+                style={{ padding: '8px 10px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
+              />
             </div>
 
             <GatingPanel

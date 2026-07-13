@@ -678,6 +678,13 @@ function QuizSummary({ result, assignment, color }) {
               );
             })}
           </div>
+
+          {assignment.debrief && (
+            <div className="qz-summary-debrief">
+              <div className="qz-summary-debrief-label">DEBRIEF</div>
+              <p>{assignment.debrief}</p>
+            </div>
+          )}
         </>
       )}
 
