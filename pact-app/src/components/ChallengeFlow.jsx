@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { loadDraftSync, clearDraftSync } from '../hooks/useDraft.js';
+import { updateProgress } from '../api/pact.js';
 import SubmitSequence from './SubmitSequence.jsx';
 
 /*
@@ -96,6 +97,7 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
   const [saving,    setSaving]    = useState(false);
   const [error,     setError]     = useState('');
   const [confirmed, setConfirmed] = useState(false);
+  const [saveError, setSaveError] = useState(false);
 
   useEffect(() => {
     if (submitted) return;
@@ -107,8 +109,21 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
           JSON.stringify({ answers, freetext, _ts: Date.now() }),
         );
       } catch {}
+
+      // Sync a coarse progress percentage to the backend — without this, no
+      // Submission row exists until the squad finally hits submit, so Command's
+      // Live Progress view has nothing to show while a squad is actively
+      // working a challenge (only QuizFlow synced this; this component never did).
+      const answeredCount = deliverables
+        ? deliverables.filter((_, i) => (answers[i] ?? '').trim().length > 0).length
+        : (freetext.trim().length > 0 ? 1 : 0);
+      const totalCount = deliverables ? deliverables.length : 1;
+      const pct = Math.round((answeredCount / totalCount) * 100);
+      updateProgress(assignment.id, pct)
+        .then(() => setSaveError(false))
+        .catch(() => setSaveError(true));
     }, 700);
-  }, [answers, freetext, assignment.id, submitted]);
+  }, [answers, freetext, assignment.id, submitted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isSquad = assignment.grading_mode === 'squad';
 
@@ -154,6 +169,11 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
         <div className="challenge-squad-notice" style={{ borderColor: color, color }}>
           <span className="challenge-squad-icon"><IcUsers /></span>
           SQUAD ASSIGNMENT — response will be graded for your entire squad
+        </div>
+      )}
+      {saveError && (
+        <div className="qz-save-warning">
+          Progress isn't syncing to the server right now — your answers are safe on this device and will sync automatically once the connection recovers.
         </div>
       )}
 
