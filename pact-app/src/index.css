@@ -3322,20 +3322,35 @@ body {
 .qz-summary-mustfail ul { margin-top: 8px; padding-left: 18px; }
 .qz-summary-mustfail li { margin-top: 4px; }
 .qz-summary-breakdown { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.qz-summary-item {
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.qz-sumrow-ok { background: var(--green-lt); border-color: #d1fae5; }
+.qz-sumrow-no { background: #fef2f2; border-color: #fecaca; }
 .qz-summary-row {
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
   padding: 10px 14px;
-  border-radius: var(--radius);
   font-size: 13px;
-  border: 1px solid var(--border);
+  font-family: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
 }
-.qz-sumrow-ok { background: var(--green-lt); border-color: #d1fae5; }
-.qz-sumrow-no { background: #fef2f2; border-color: #fecaca; }
 .qz-sumrow-num { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--muted); flex-shrink: 0; width: 28px; }
 .qz-sumrow-stem { flex: 1; color: var(--text); }
 .qz-sumrow-pts { font-family: var(--mono); font-size: 12px; font-weight: 600; flex-shrink: 0; }
+.qz-sumrow-chevron { flex-shrink: 0; color: var(--muted); font-size: 11px; width: 12px; text-align: center; }
+.qz-summary-detail {
+  padding: 2px 14px 16px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
 
 /* ── Scenario tabs ── */
 .scenario-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); padding: 0 16px; }

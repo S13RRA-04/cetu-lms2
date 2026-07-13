@@ -5,7 +5,7 @@ import { getAssignment, getMySubmission, getMyGrades, submitAssignment, updatePr
 import DecryptText      from '../components/DecryptText.jsx';
 import SubmitSequence   from '../components/SubmitSequence.jsx';
 import SubmissionSuccess from '../components/SubmissionSuccess.jsx';
-import QuizFlow         from '../components/QuizFlow.jsx';
+import QuizFlow, { MultipleChoice, TrueFalse, DragMatch, FillBlank } from '../components/QuizFlow.jsx';
 import ChallengeFlow    from '../components/ChallengeFlow.jsx';
 import useDraft         from '../hooks/useDraft.js';
 import { TYPE_DEFINITIONS } from './DashboardHome.jsx';
@@ -555,7 +555,61 @@ function SurveyFlow({ questions, color, onComplete }) {
   );
 }
 
+/* Renders a question's full option list, the student's own selection, and the
+   correct answer — reusing QuizFlow's own answer widgets in their "locked"
+   (revealed/forced) state so the review looks identical to how the question
+   resolved during the quiz itself. */
+function QuizAnswerReview({ q, raw, isCorrect }) {
+  if (!q?.payload) return null;
+  const noop = () => {};
+  // Every widget treats "revealed" and "forced" identically for the purposes
+  // of marking correct/selected options — only FillBlank's input color reads
+  // `revealed` specifically, which is exactly what we want here (green if the
+  // student's answer was correct, red — with the accepted list shown — if not).
+  const revealed = isCorrect;
+  const forced   = !isCorrect;
+
+  switch (q.payload.kind) {
+    case 'multiple_choice':
+      return (
+        <MultipleChoice
+          q={q}
+          shuffledOpts={q.payload.options}
+          selected={raw}
+          onToggle={noop}
+          revealed={revealed}
+          forced={forced}
+        />
+      );
+    case 'true_false':
+      return <TrueFalse q={q} selected={raw} onSelect={noop} revealed={revealed} forced={forced} />;
+    case 'drag_match':
+      return (
+        <DragMatch
+          q={q}
+          targets={q.payload.targets}
+          matchState={raw}
+          onMatch={noop}
+          revealed={revealed}
+          forced={forced}
+        />
+      );
+    case 'fill_blank':
+      return <FillBlank q={q} value={raw} onChange={noop} revealed={revealed} forced={forced} />;
+    default:
+      return null;
+  }
+}
+
 function QuizSummary({ result, assignment, color }) {
+  const [expanded, setExpanded] = useState(new Set());
+  const toggleExpanded = (questionId) => setExpanded((prev) => {
+    const next = new Set(prev);
+    if (next.has(questionId)) next.delete(questionId);
+    else next.add(questionId);
+    return next;
+  });
+
   const pct = result
     ? Math.round((result.totalScore / result.maxScore) * 100)
     : null;
@@ -599,12 +653,27 @@ function QuizSummary({ result, assignment, color }) {
           <div className="qz-summary-breakdown">
             {result.answers?.map((a, i) => {
               const q = assignment.questions.find((qi) => qi.id === a.questionId);
+              const isOpen = expanded.has(a.questionId);
               return (
-                <div key={a.questionId} className={`qz-summary-row ${a.isCorrect ? 'qz-sumrow-ok' : 'qz-sumrow-no'}`}>
-                  <span className="qz-sumrow-num">Q{i + 1}</span>
-                  <span className="qz-sumrow-stem">{q?.stem}</span>
-                  <span className="qz-sumrow-pts">{a.points}/{q?.scoring?.points ?? '?'}</span>
-                  {q?.scoring?.mustPass && <span className="qz-must-pass">Must Pass</span>}
+                <div key={a.questionId} className={`qz-summary-item ${a.isCorrect ? 'qz-sumrow-ok' : 'qz-sumrow-no'}`}>
+                  <button
+                    type="button"
+                    className="qz-summary-row"
+                    onClick={() => toggleExpanded(a.questionId)}
+                    aria-expanded={isOpen}
+                  >
+                    <span className="qz-sumrow-num">Q{i + 1}</span>
+                    <span className="qz-sumrow-stem">{q?.stem}</span>
+                    <span className="qz-sumrow-pts">{a.points}/{q?.scoring?.points ?? '?'}</span>
+                    {q?.scoring?.mustPass && <span className="qz-must-pass">Must Pass</span>}
+                    <span className="qz-sumrow-chevron">{isOpen ? '▾' : '▸'}</span>
+                  </button>
+                  {isOpen && q && (
+                    <div className="qz-summary-detail">
+                      <QuizAnswerReview q={q} raw={a.raw} isCorrect={a.isCorrect} />
+                      {q.feedback?.reference && <div className="qz-feedback-ref">↗ {q.feedback.reference}</div>}
+                    </div>
+                  )}
                 </div>
               );
             })}

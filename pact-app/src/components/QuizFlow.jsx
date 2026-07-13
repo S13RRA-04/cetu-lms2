@@ -57,7 +57,7 @@ function matchCorrectness(q, raw) {
 
 /* ── question components ── */
 
-function MultipleChoice({ q, shuffledOpts, selected, onToggle, revealed, forced, lastWrong }) {
+export function MultipleChoice({ q, shuffledOpts, selected, onToggle, revealed, forced, lastWrong }) {
   const multi = q.payload.selectionMode === 'multiple';
   return (
     <div className="qz-options">
@@ -91,7 +91,7 @@ function MultipleChoice({ q, shuffledOpts, selected, onToggle, revealed, forced,
   );
 }
 
-function TrueFalse({ q, selected, onSelect, revealed, forced }) {
+export function TrueFalse({ q, selected, onSelect, revealed, forced }) {
   const correct = q.payload.correct;
   return (
     <div className="qz-tf-row">
@@ -120,7 +120,7 @@ function TrueFalse({ q, selected, onSelect, revealed, forced }) {
   );
 }
 
-function DragMatch({ q, targets, matchState, onMatch, revealed, forced, partialFeedback }) {
+export function DragMatch({ q, targets, matchState, onMatch, revealed, forced, partialFeedback }) {
   const [dragging, setDragging] = useState(null);
   const [pending,  setPending]  = useState(null);
 
@@ -232,7 +232,7 @@ function DragMatch({ q, targets, matchState, onMatch, revealed, forced, partialF
   );
 }
 
-function FillBlank({ q, value, onChange, revealed, forced }) {
+export function FillBlank({ q, value, onChange, revealed, forced }) {
   const locked = revealed || forced;
   return (
     <div className="qz-fillblank">
