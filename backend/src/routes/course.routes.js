@@ -81,6 +81,7 @@ router.post('/:id/assignments/:aid/submit',                requireAuth,         
 router.put('/:id/assignments/:aid/submissions/:sid',       requireAuth, requireInstructor, subCtrl.updateStatus);
 router.put('/:id/assignments/:aid/progress',               requireAuth,                    subCtrl.updateProgress);
 router.get('/:id/assignments/:aid/progress',               requireAuth, requireInstructor, assignCtrl.getProgress);
+router.get('/:id/live-progress',                            requireAuth, requireInstructor, assignCtrl.getLiveOverview);
 
 // Assignment unlock/lock (per cohort)
 router.post('/:id/assignments/:aid/unlock',  requireAuth, requireInstructor, validate(unlockSchema), auditLog('unlock', 'assignment'), assignCtrl.unlockForCohort);

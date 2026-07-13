@@ -31,6 +31,8 @@ import {
   updateScenario,
   deleteScenario,
   updateAssignment,
+  getLiveOverview,
+  getAssignmentProgress,
 } from '../api/pact.js';
 
 const TYPE_COLOR = {
@@ -423,9 +425,17 @@ export default function AdminPage() {
         >
           Cohorts
         </button>
+        <button
+          className={`admin-panel-tab${adminPanel === 'live' ? ' active' : ''}`}
+          onClick={() => setAdminPanel('live')}
+        >
+          Live Progress
+        </button>
       </div>
 
-      {adminPanel === 'library' ? (
+      {adminPanel === 'live' ? (
+        <LiveProgressPanel />
+      ) : adminPanel === 'library' ? (
         <ContentGatingPanel
           assignments={assignments}
           cohorts={cohorts}
@@ -1766,6 +1776,170 @@ function AssessmentSurveyGating({ assignments, cohorts, onUnlocksChange }) {
                 onUnlocksChange(selected.id, unlocks);
               }}
             />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Live Progress ── */
+const LIVE_STATUS_META = {
+  in_progress: { label: 'Working',   color: '#2563eb' },
+  submitted:   { label: 'Submitted', color: '#059669' },
+  graded:      { label: 'Graded',    color: '#0d9488' },
+  returned:    { label: 'Returned',  color: '#7c3aed' },
+};
+
+function relativeTime(iso) {
+  if (!iso) return '';
+  const diffSec = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  if (diffSec < 5)    return 'just now';
+  if (diffSec < 60)   return `${diffSec}s ago`;
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60)   return `${diffMin}m ago`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24)    return `${diffHr}h ago`;
+  return `${Math.round(diffHr / 24)}d ago`;
+}
+
+function LiveRosterRow({ sub }) {
+  const meta = LIVE_STATUS_META[sub.status] ?? { label: sub.status, color: 'var(--muted)' };
+  const name = sub.student ? `${sub.student.first_name} ${sub.student.last_name}`.trim() : 'Unknown';
+  return (
+    <div className="live-roster-row">
+      <div className="live-roster-name">
+        {name}
+        {sub.squad && <span className="live-roster-squad">Squad {sub.squad.number}</span>}
+      </div>
+      <div className="live-roster-bar-wrap">
+        <div className="live-roster-bar-fill" style={{ width: `${sub.progress ?? 0}%`, background: meta.color }} />
+      </div>
+      <span className="live-roster-pct">{sub.progress ?? 0}%</span>
+      <span className="live-roster-status" style={{ color: meta.color, borderColor: meta.color }}>
+        {sub.status === 'in_progress' && <span className="live-dot" style={{ background: meta.color }} />}
+        {meta.label}
+      </span>
+      <span className="live-roster-time">{relativeTime(sub.updated_at)}</span>
+    </div>
+  );
+}
+
+const LIVE_POLL_MS = 10_000;
+
+function LiveProgressPanel() {
+  const [overview,      setOverview]      = useState([]);
+  const [loading,       setLoading]       = useState(true);
+  const [selected,      setSelected]      = useState(null);
+  const [roster,        setRoster]        = useState([]);
+  const [rosterLoading, setRosterLoading] = useState(false);
+
+  const loadOverview = useCallback(() => {
+    return getLiveOverview()
+      .then((data) => setOverview(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
+
+  const loadRoster = useCallback((assignmentId) => {
+    return getAssignmentProgress(assignmentId)
+      .then((data) => setRoster(Array.isArray(data) ? data : []))
+      .catch(() => setRoster([]));
+  }, []);
+
+  // Poll the overview list continuously so in-progress counts and the "who's
+  // active right now" badges stay current even before an assignment is opened.
+  useEffect(() => {
+    loadOverview().finally(() => setLoading(false));
+    const t = setInterval(loadOverview, LIVE_POLL_MS);
+    return () => clearInterval(t);
+  }, [loadOverview]);
+
+  // Poll the open roster faster than the overview — this is the "watch them
+  // work" view, so it should feel closer to real-time.
+  useEffect(() => {
+    if (!selected) return;
+    setRosterLoading(true);
+    loadRoster(selected.id).finally(() => setRosterLoading(false));
+    const t = setInterval(() => loadRoster(selected.id), LIVE_POLL_MS / 2);
+    return () => clearInterval(t);
+  }, [selected, loadRoster]);
+
+  if (loading) return <div className="loading-screen"><div className="spinner" /></div>;
+
+  const inProgressRoster = roster.filter((s) => s.status === 'in_progress');
+  const completedRoster  = roster.filter((s) => s.status !== 'in_progress');
+
+  return (
+    <div className="admin-layout">
+      <div className="admin-left">
+        {overview.length === 0 && (
+          <p style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 16px' }}>
+            No published modules or challenges yet.
+          </p>
+        )}
+        {overview.map((a) => {
+          const color = TYPE_COLOR[a.type] ?? TYPE_COLOR.module;
+          return (
+            <button
+              key={a.id}
+              className={`admin-assign-btn${selected?.id === a.id ? ' active' : ''}`}
+              onClick={() => setSelected(a)}
+            >
+              <span className="admin-assign-type" style={{ color }}>{a.type.toUpperCase()}</span>
+              <span className="admin-assign-title">{a.title}</span>
+              {a.inProgressCount > 0 && (
+                <span className="live-badge">
+                  <span className="live-dot" />
+                  {a.inProgressCount}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <div className="admin-right">
+        {!selected ? (
+          <div className="admin-empty">
+            <p>Select a module or challenge to see who's actively working on it right now.</p>
+          </div>
+        ) : (
+          <>
+            <div className="admin-right-header">
+              <div>
+                <div className="admin-right-title">{selected.title}</div>
+                <div className="admin-right-sub">{selected.type} · refreshes every {LIVE_POLL_MS / 2000}s</div>
+              </div>
+            </div>
+
+            {rosterLoading && roster.length === 0 ? (
+              <p style={{ padding: 16, color: 'var(--muted)' }}>Loading…</p>
+            ) : roster.length === 0 ? (
+              <div className="admin-empty"><p>No students have started this yet.</p></div>
+            ) : (
+              <div style={{ padding: '4px 20px 20px' }}>
+                {inProgressRoster.length > 0 && (
+                  <>
+                    <div className="live-section-label">
+                      <span className="live-dot" style={{ background: '#2563eb' }} />
+                      ACTIVELY WORKING ({inProgressRoster.length})
+                    </div>
+                    <div className="live-roster">
+                      {inProgressRoster.map((s) => <LiveRosterRow key={s.id} sub={s} />)}
+                    </div>
+                  </>
+                )}
+                {completedRoster.length > 0 && (
+                  <>
+                    <div className="live-section-label" style={{ marginTop: inProgressRoster.length > 0 ? 18 : 0 }}>
+                      COMPLETED ({completedRoster.length})
+                    </div>
+                    <div className="live-roster">
+                      {completedRoster.map((s) => <LiveRosterRow key={s.id} sub={s} />)}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </>
         )}
       </div>

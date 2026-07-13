@@ -1,5 +1,6 @@
 'use strict';
 const { Op }             = require('sequelize');
+const { sequelize }      = require('../config/database');
 const { Assignment, AssignmentUnlock, Course, Cohort, Enrollment, User, Submission, CourseContentItem, CourseContentUnlock } = require('../models');
 const { NotFoundError, AppError } = require('../utils/errors');
 const { paginate, paginatedResponse } = require('../utils/pagination');
@@ -8,6 +9,11 @@ const TtlCache = require('../utils/ttlCache');
 // Admin assignment list is the same for every instructor request.
 // 15-second TTL absorbs thundering-herd without hiding new submissions long.
 const listCache = new TtlCache(15_000);
+
+// Live-progress overview is polled repeatedly (Command's Live Progress tab) —
+// short TTL so several instructors polling at once don't each re-run the
+// aggregate query, while still refreshing fast enough to feel "live".
+const liveOverviewCache = new TtlCache(5_000);
 
 // Per-student assignment list — hit on every dashboard/AppShell load. Short TTL,
 // invalidated on the student's own submit/progress writes (see submission.service.js).
@@ -137,6 +143,38 @@ async function lockForCohort(assignmentId, cohortId, squadId = null) {
   }
 }
 
+// One-shot overview for Command's "Live Progress" tab — every module/challenge
+// in the course with live in-progress vs. completed counts, so an instructor
+// can see at a glance which taskings students are actively working right now
+// before drilling into a specific one via getProgressForAssignment.
+async function getLiveOverview(courseId) {
+  return liveOverviewCache.get(`liveOverview:${courseId}`, () => _queryLiveOverview(courseId));
+}
+
+async function _queryLiveOverview(courseId) {
+  const [rows] = await sequelize.query(
+    `SELECT a.id, a.title, a.type, a.drop_number,
+            COUNT(*) FILTER (WHERE s.status = 'in_progress')                       AS "inProgressCount",
+            COUNT(*) FILTER (WHERE s.status IN ('submitted', 'graded', 'returned')) AS "completedCount",
+            MAX(s.updated_at) FILTER (WHERE s.status = 'in_progress')              AS "lastActivityAt"
+     FROM assignments a
+     LEFT JOIN submissions s ON s.assignment_id = a.id
+     WHERE a.course_id = :courseId AND a.type IN ('module', 'challenge') AND a.is_published = true
+     GROUP BY a.id
+     ORDER BY a.order_index ASC, a.created_at ASC`,
+    { replacements: { courseId } }
+  );
+  return rows.map((r) => ({
+    id:               r.id,
+    title:            r.title,
+    type:             r.type,
+    drop_number:      r.drop_number,
+    inProgressCount:  parseInt(r.inProgressCount, 10),
+    completedCount:   parseInt(r.completedCount, 10),
+    lastActivityAt:   r.lastActivityAt,
+  }));
+}
+
 async function getUnlockStatus(assignmentId) {
   const assignment = await Assignment.findByPk(assignmentId, {
     include: [{ model: AssignmentUnlock, as: 'unlocks', include: [{ model: Cohort, attributes: ['id', 'name'] }] }],
@@ -187,4 +225,4 @@ async function remove(id) {
   await assignment.destroy();
 }
 
-module.exports = { listByCourse, listForStudent, getById, create, update, remove, unlockForCohort, lockForCohort, getUnlockStatus, invalidateStudentCache };
+module.exports = { listByCourse, listForStudent, getById, create, update, remove, unlockForCohort, lockForCohort, getUnlockStatus, getLiveOverview, invalidateStudentCache };

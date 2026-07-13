@@ -106,6 +106,11 @@ async function getProgress(req, res, next) {
   catch (err) { return next(err); }
 }
 
+async function getLiveOverview(req, res, next) {
+  try { return res.json(await assignmentService.getLiveOverview(req.params.id)); }
+  catch (err) { return next(err); }
+}
+
 async function gradeSquad(req, res, next) {
   try {
     const grades = await gradeService.gradeSquad(req.params.aid, req.params.squadId, req.body, req.user.id);
@@ -113,4 +118,4 @@ async function gradeSquad(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { listByCourse, getOne, create, update, remove, getGrades, upsertGrade, unlockForCohort, lockForCohort, getProgress, gradeSquad, getMyGrades, getScoreboard, getSquadScoreboard, getCourseGrades, getCourseAnalytics, getCourseEffectiveness };
+module.exports = { listByCourse, getOne, create, update, remove, getGrades, upsertGrade, unlockForCohort, lockForCohort, getProgress, getLiveOverview, gradeSquad, getMyGrades, getScoreboard, getSquadScoreboard, getCourseGrades, getCourseAnalytics, getCourseEffectiveness };
