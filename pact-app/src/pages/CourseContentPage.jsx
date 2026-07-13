@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import useAuthStore from '../store/authStore.js';
 import { motion, AnimatePresence } from 'motion/react';
 import { getCourseContent } from '../api/pact.js';
@@ -250,7 +251,14 @@ function DeckViewer({ item, onClose }) {
     };
   }, [onClose]);
 
-  return (
+  // Portaled to <body> — this component renders inside AppLayout's animated
+  // page-transition wrapper, and Framer Motion leaves an inline `transform`
+  // on that ancestor even at rest. Any transformed ancestor establishes a new
+  // containing block for `position: fixed` descendants, so without the
+  // portal this "fullscreen" backdrop ends up sized/positioned relative to
+  // the content pane (clipped to the right of the sidebar) instead of the
+  // viewport.
+  return createPortal(
     <motion.div
       className="cc-viewer-backdrop"
       initial={{ opacity: 0 }}
@@ -303,6 +311,7 @@ function DeckViewer({ item, onClose }) {
           )}
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body,
   );
 }
