@@ -338,7 +338,7 @@ export default function AdminPage() {
   const switchToContent = useCallback(() => {
     setAdminPanel('content');
     if (!contentLoaded) {
-      getCourseContent()
+      getCourseContent(true)
         .then((data) => { setContentItems(Array.isArray(data) ? data : []); setContentLoaded(true); })
         .catch(() => setContentLoaded(true));
     }
@@ -1230,7 +1230,7 @@ function ReleasesManager({ onRefresh, scenarioFilter = null }) {
   const [deleting, setDeleting] = useState({});    // id → bool
 
   useEffect(() => {
-    getScenarios().then((d) => setPackages(Array.isArray(d) ? d : [])).catch(() => setPackages([]));
+    getScenarios(true).then((d) => setPackages(Array.isArray(d) ? d : [])).catch(() => setPackages([]));
   }, []);
 
   if (!packages) return null;
@@ -2914,7 +2914,7 @@ function CampaignDropsPanel({ cohorts }) {
     setErr('');
     Promise.all([
       getCampaignDrops(cohortId || undefined),
-      scenarios.length === 0 ? getScenarios() : Promise.resolve(scenarios),
+      scenarios.length === 0 ? getScenarios(true) : Promise.resolve(scenarios),
     ])
       .then(([d, s]) => {
         setDrops(Array.isArray(d) ? d : []);

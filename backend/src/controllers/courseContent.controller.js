@@ -3,9 +3,14 @@ const svc = require('../services/courseContent.service');
 
 async function list(req, res, next) {
   try {
-    const data = req.user.role === 'student'
+    const isStudent = req.user.role === 'student';
+    // Intel Library is operator-facing — admins/instructors browsing it see
+    // published-only content too. Only Command's management view (`manage=1`)
+    // sees unpublished/draft items.
+    const includeUnpublished = !isStudent && req.query.manage === '1';
+    const data = isStudent
       ? await svc.listForStudent(req.params.id, req.user.id)
-      : await svc.listForAdmin(req.params.id);
+      : await svc.listForAdmin(req.params.id, { includeUnpublished });
     return res.json(data);
   } catch (err) { return next(err); }
 }

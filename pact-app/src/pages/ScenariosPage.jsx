@@ -118,7 +118,10 @@ export default function ScenariosPage() {
     </div>
   );
 
-  const visible = packages.filter((p) => isAdmin || p.is_published !== false);
+  // Publish state is enforced server-side (published-only, even for admins);
+  // no client-side bypass here. `is_unlocked`-based gating below still lets
+  // admins preview locked-but-published content, which is intentional.
+  const visible = packages;
 
   // Group by scenario_name
   const scenarioMap = new Map();

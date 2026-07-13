@@ -3,9 +3,14 @@ const scenarioService = require('../services/scenario.service');
 
 async function list(req, res, next) {
   try {
-    const data = req.user.role === 'student'
+    const isStudent = req.user.role === 'student';
+    // Case File is operator-facing — admins/instructors browsing it see
+    // published-only packages too. Only Command's management view
+    // (`manage=1`) sees unpublished/draft packages.
+    const includeUnpublished = !isStudent && req.query.manage === '1';
+    const data = isStudent
       ? await scenarioService.listForStudent(req.params.id, req.user.id)
-      : await scenarioService.listForAdmin(req.params.id);
+      : await scenarioService.listForAdmin(req.params.id, { includeUnpublished });
     return res.json(data);
   } catch (err) { return next(err); }
 }

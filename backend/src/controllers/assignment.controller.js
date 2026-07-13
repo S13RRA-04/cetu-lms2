@@ -37,9 +37,14 @@ async function getCourseEffectiveness(req, res, next) {
 async function listByCourse(req, res, next) {
   try {
     const isStudent = req.user.role === 'student';
+    // Operations/Case File/Intel Library are operator-facing views — even
+    // admins/instructors browsing them see published-only content, same as
+    // students. Only the Command page's management view (explicit `manage=1`)
+    // sees unpublished/draft items, for authoring purposes.
+    const includeUnpublished = !isStudent && req.query.manage === '1';
     const data = isStudent
       ? await assignmentService.listForStudent(req.params.id, req.user.id)
-      : await assignmentService.listByCourse(req.params.id, req.query);
+      : await assignmentService.listByCourse(req.params.id, req.query, { includeUnpublished });
     return res.json(data);
   }
   catch (err) { return next(err); }

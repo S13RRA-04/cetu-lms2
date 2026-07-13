@@ -53,10 +53,14 @@ async function listForStudent(courseId, userId) {
   });
 }
 
-async function listForAdmin(courseId) {
-  return contentCache.get(`listForAdmin:${courseId}`, async () => {
+async function listForAdmin(courseId, { includeUnpublished = false } = {}) {
+  const cacheKey = includeUnpublished ? `listForAdmin:all:${courseId}` : `listForAdmin:published:${courseId}`;
+  return contentCache.get(cacheKey, async () => {
+    const where = { course_id: courseId };
+    if (!includeUnpublished) where.is_published = true;
+
     const items = await CourseContentItem.findAll({
-      where:   { course_id: courseId },
+      where,
       include: [{ model: CourseContentUnlock, as: 'unlocks', include: [{ model: Cohort, attributes: ['id', 'name'] }] }],
       order:   [['order_index', 'ASC'], ['created_at', 'ASC']],
     });

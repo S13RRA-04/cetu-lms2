@@ -17,15 +17,18 @@ function invalidateStudentCache(courseId, userId) {
   studentListCache.invalidate(`listForStudent:${courseId}:${userId}`);
 }
 
-async function listByCourse(courseId, query) {
+async function listByCourse(courseId, query, { includeUnpublished = false } = {}) {
   const { limit, offset, page } = paginate(query);
-  const cacheKey = `listByCourse:${courseId}:${limit}:${offset}`;
-  return listCache.get(cacheKey, () => _queryListByCourse(courseId, { limit, offset, page }));
+  const cacheKey = `listByCourse:${includeUnpublished ? 'all' : 'published'}:${courseId}:${limit}:${offset}`;
+  return listCache.get(cacheKey, () => _queryListByCourse(courseId, { limit, offset, page, includeUnpublished }));
 }
 
-async function _queryListByCourse(courseId, { limit, offset, page }) {
+async function _queryListByCourse(courseId, { limit, offset, page, includeUnpublished = false }) {
+  const where = { course_id: courseId };
+  if (!includeUnpublished) where.is_published = true;
+
   const { rows, count } = await Assignment.findAndCountAll({
-    where:   { course_id: courseId },
+    where,
     include: [{ model: AssignmentUnlock, as: 'unlocks', include: [{ model: Cohort, attributes: ['id', 'name'] }] }],
     limit, offset,
     order: [['order_index', 'ASC'], ['created_at', 'ASC']],

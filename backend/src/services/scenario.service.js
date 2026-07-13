@@ -152,10 +152,12 @@ async function listForStudent(courseId, userId) {
   return unlocked.map((p) => ({ ...p.toJSON(), is_unlocked: true }));
 }
 
-async function listForAdmin(courseId) {
+async function listForAdmin(courseId, { includeUnpublished = false } = {}) {
   await r2SyncCache.get(`sync:${courseId}`, () => syncFromR2(courseId));
+  const where = { course_id: courseId };
+  if (!includeUnpublished) where.is_published = true;
   return ScenarioPackage.findAll({
-    where:   { course_id: courseId },
+    where,
     include: [{
       model: ScenarioPackageUnlock,
       as:    'unlocks',

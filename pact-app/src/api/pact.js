@@ -38,7 +38,7 @@ export const getSquadScoreboard = () =>
 
 /* ── Admin / instructor ── */
 export const getAdminAssignments = () =>
-  client.get(`/courses/${COURSE_ID}/assignments?limit=200`).then((r) => {
+  client.get(`/courses/${COURSE_ID}/assignments?limit=200&manage=1`).then((r) => {
     const raw = r.data;
     return Array.isArray(raw) ? raw : (raw.data ?? []);
   });
@@ -83,8 +83,11 @@ export const startChatDM = (userId) =>
   client.post(`/courses/${COURSE_ID}/chat/dm`, { user_id: userId }).then((r) => r.data);
 
 /* ── Scenarios ── */
-export const getScenarios = () =>
-  client.get(`/courses/${COURSE_ID}/scenarios`).then((r) => r.data);
+// `manage: true` is for Command's authoring view only — it includes unpublished
+// packages. Every operator-facing page (Case File, etc.) must call this with
+// the default so unpublished packages never surface there, even for admins.
+export const getScenarios = (manage = false) =>
+  client.get(`/courses/${COURSE_ID}/scenarios${manage ? '?manage=1' : ''}`).then((r) => r.data);
 
 export const getScenarioDownloadUrl = (packageId) =>
   client.get(`/courses/${COURSE_ID}/scenarios/${packageId}/download`).then((r) => r.data);
@@ -149,8 +152,9 @@ export const lockCampaignDrop = (dropId, cohortId) =>
   client.post(`/courses/${COURSE_ID}/campaign/drops/${dropId}/lock`, { cohort_id: cohortId });
 
 /* ── Course Content ── */
-export const getCourseContent = () =>
-  client.get(`/courses/${COURSE_ID}/course-content`).then((r) => r.data);
+// `manage: true` is for Command's authoring view only — see getScenarios above.
+export const getCourseContent = (manage = false) =>
+  client.get(`/courses/${COURSE_ID}/course-content${manage ? '?manage=1' : ''}`).then((r) => r.data);
 
 export const getContentDownloadUrl = (contentId) =>
   `${client.defaults.baseURL}/courses/${COURSE_ID}/course-content/${contentId}/download`;
