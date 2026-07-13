@@ -1,8 +1,8 @@
 'use strict';
-const { Submission, Assignment, AssignmentUnlock, Enrollment, Squad, User, Grade } = require('../models');
+const { Submission, Assignment, AssignmentUnlock, Enrollment, Squad, User } = require('../models');
 const { NotFoundError, AppError } = require('../utils/errors');
-const ltiService = require('./lti.service');
-const logger     = require('../utils/logger');
+const logger      = require('../utils/logger');
+const gradeService = require('./grade.service');
 const { invalidateStudentCache } = require('./assignment.service');
 
 async function listByAssignment(assignmentId) {
@@ -162,31 +162,19 @@ async function submit(assignmentId, userId, content) {
 
   invalidateStudentCache(assignment.course_id, userId);
 
-  // Auto-grade quiz submissions: QuizFlow embeds totalScore + maxScore in the content JSON
+  // Auto-grade quiz submissions: QuizFlow embeds totalScore + maxScore in the
+  // content JSON. Routed through grade.service.js's autoGradeQuiz — the one
+  // place responsible for fanning a squad-graded assignment's score out to
+  // every squad member (not just whoever happened to click submit), the same
+  // way the instructor-driven gradeSquad() already does.
   try {
     const parsed = typeof content === 'string' ? JSON.parse(content) : null;
     if (parsed?.totalScore !== undefined && parsed?.maxScore !== undefined) {
-      const [grade, created] = await Grade.findOrCreate({
-        where:    { assignment_id: assignmentId, user_id: userId },
-        defaults: { score: parsed.totalScore, max_score: parsed.maxScore, graded_at: new Date(), graded_by: null },
-      });
-      if (!created) {
-        // Keep the student's best attempt — a resubmission (retry, or the
-        // double-submit bug) should never silently overwrite a better grade
-        // with a worse one.
-        const existingPct = grade.max_score > 0 ? grade.score / grade.max_score : 0;
-        const newPct       = parsed.maxScore  > 0 ? parsed.totalScore / parsed.maxScore : 0;
-        if (newPct >= existingPct) {
-          await grade.update({ score: parsed.totalScore, max_score: parsed.maxScore, graded_at: new Date() });
-        }
-      }
-      if (assignment.lineitem_url) {
-        ltiService.publishGradeAsync(assignment, userId, parsed.totalScore).catch((err) => {
-          logger.error('Background AGS passback failed for quiz auto-grade', { error: err.message });
-        });
-      }
+      await gradeService.autoGradeQuiz(assignment, userId, squadId, parsed.totalScore, parsed.maxScore);
     }
-  } catch {}
+  } catch (err) {
+    logger.error('Quiz auto-grade failed', { error: err.message, assignmentId, userId });
+  }
 
   return submission;
 }

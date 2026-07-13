@@ -131,6 +131,52 @@ async function gradeSquad(assignmentId, squadId, data, graderId) {
   return grades;
 }
 
+/* Single entry point for auto-grading a quiz-style submission (QuizFlow embeds
+   totalScore/maxScore in the submitted content — see submission.service.js's
+   submit()). This is the ONLY place that should ever write a Grade as a
+   result of a student's own submission, precisely so squad-vs-individual
+   fan-out can't drift out of sync the way it did before: a squad-graded
+   challenge's score belongs to the whole squad, not just whichever member
+   happened to click submit, exactly like the instructor-driven gradeSquad()
+   above. Individually-graded assignments still land on just the one user. */
+async function autoGradeQuiz(assignment, userId, squadId, score, maxScore) {
+  const targetUserIds = (assignment.grading_mode === 'squad' && squadId)
+    ? (await Enrollment.findAll({ where: { squad_id: squadId, course_id: assignment.course_id }, attributes: ['user_id'] })).map((e) => e.user_id)
+    : [userId];
+
+  const grades = await sequelize.transaction(async (t) => {
+    return Promise.all(targetUserIds.map(async (uid) => {
+      const [grade, created] = await Grade.findOrCreate({
+        where:    { assignment_id: assignment.id, user_id: uid },
+        defaults: { score, max_score: maxScore, graded_at: new Date(), graded_by: null },
+        transaction: t,
+      });
+      if (!created) {
+        // Keep the squad/student's best attempt — a resubmission should never
+        // silently overwrite a better grade with a worse one.
+        const existingPct = grade.max_score > 0 ? grade.score / grade.max_score : 0;
+        const newPct       = maxScore       > 0 ? score / maxScore              : 0;
+        if (newPct >= existingPct) {
+          await grade.update({ score, max_score: maxScore, graded_at: new Date() }, { transaction: t });
+        }
+      }
+      return grade;
+    }));
+  });
+
+  scoreboardCache.invalidate(`scoreboard:${assignment.course_id}`);
+
+  if (assignment.lineitem_url) {
+    for (const uid of targetUserIds) {
+      ltiService.publishGradeAsync(assignment, uid, score).catch((err) => {
+        logger.error('Background AGS passback failed for quiz auto-grade', { error: err.message, userId: uid });
+      });
+    }
+  }
+
+  return grades;
+}
+
 async function getScoreboard(courseId) {
   return scoreboardCache.get(`scoreboard:${courseId}`, () => _queryScoreboard(courseId));
 }
@@ -234,4 +280,4 @@ async function _queryCourseGrades(courseId, cohortId) {
   return rows;
 }
 
-module.exports = { getGradesForAssignment, getGradesForUser, upsertGrade, gradeSquad, getScoreboard, getSquadScoreboard, getCourseGrades };
+module.exports = { getGradesForAssignment, getGradesForUser, upsertGrade, gradeSquad, autoGradeQuiz, getScoreboard, getSquadScoreboard, getCourseGrades };
