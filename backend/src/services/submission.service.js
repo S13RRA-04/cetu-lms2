@@ -34,14 +34,58 @@ async function getSquadSubmission(assignmentId, squadId) {
   });
 }
 
+/* Live per-question scoring from a quiz_state blob ({qIdx, answers, qStates})
+   against the assignment's own question list — same accounting QuizFlow.jsx
+   itself uses to compute a final score, just read back out mid-attempt for
+   the Live Progress admin view. `available` is a question's current earned
+   value once resolved (already reduced by wrong attempts/hints); resolved-
+   but-forced questions contribute 0, matching QuizFlow's own tally. */
+function computePerformance(quizState, questions) {
+  const qStates = quizState?.qStates ?? {};
+  let earnedPoints  = 0;
+  let attemptedCount = 0;
+  let correctCount    = 0;
+
+  for (const q of questions) {
+    const st = qStates[q.id];
+    if (!st || !(st.revealed || st.forced)) continue;
+    attemptedCount += 1;
+    if (st.revealed) {
+      correctCount += 1;
+      earnedPoints += st.available ?? 0;
+    }
+  }
+
+  return {
+    earnedPoints,
+    attemptedCount,
+    correctCount,
+    totalQuestions: questions.length,
+  };
+}
+
 async function getProgressForAssignment(assignmentId) {
-  return Submission.findAll({
+  const assignment = await Assignment.findByPk(assignmentId, { attributes: ['id', 'questions', 'max_score'] });
+  if (!assignment) throw new NotFoundError('Assignment');
+  const questions = Array.isArray(assignment.questions) ? assignment.questions : [];
+
+  const subs = await Submission.findAll({
     where:   { assignment_id: assignmentId },
     include: [
       { model: User,  as: 'student', attributes: ['id', 'first_name', 'last_name', 'email'] },
       { model: Squad, as: 'squad',   attributes: ['id', 'number', 'name'] },
     ],
     order: [['updated_at', 'DESC']],
+  });
+
+  if (questions.length === 0) return subs;
+
+  return subs.map((sub) => {
+    const json = sub.toJSON();
+    if (sub.status === 'in_progress' && sub.quiz_state) {
+      json.performance = { ...computePerformance(sub.quiz_state, questions), maxScore: Number(assignment.max_score) };
+    }
+    return json;
   });
 }
 
@@ -61,7 +105,7 @@ async function _checkUnlocked(assignment, userId) {
   return enrollment;
 }
 
-async function updateProgress(assignmentId, userId, progress) {
+async function updateProgress(assignmentId, userId, progress, quizState = null) {
   const assignment = await Assignment.findByPk(assignmentId);
   if (!assignment) throw new NotFoundError('Assignment');
 
@@ -71,12 +115,20 @@ async function updateProgress(assignmentId, userId, progress) {
 
   const [sub] = await Submission.findOrCreate({
     where:    { assignment_id: assignmentId, user_id: userId },
-    defaults: { squad_id: squadId, progress, status: 'in_progress', content: null, submitted_at: new Date() },
+    defaults: { squad_id: squadId, progress, quiz_state: quizState, status: 'in_progress', content: null, submitted_at: new Date() },
   });
 
   if (sub.status === 'submitted' || sub.status === 'graded') return sub;
 
-  await sub.update({ progress: Math.min(100, Math.max(0, progress)), status: 'in_progress' });
+  await sub.update({
+    progress:   Math.min(100, Math.max(0, progress)),
+    status:     'in_progress',
+    // quiz_state powers the Live Progress admin view's per-student score/
+    // accuracy while the challenge is still in progress — only overwrite it
+    // when the caller actually sent one (freeform/non-quiz submissions still
+    // call this endpoint with just a percentage).
+    ...(quizState ? { quiz_state: quizState } : {}),
+  });
   invalidateStudentCache(assignment.course_id, userId);
   return sub;
 }

@@ -1816,6 +1816,16 @@ function LiveRosterRow({ sub }) {
         <div className="live-roster-bar-fill" style={{ width: `${sub.progress ?? 0}%`, background: meta.color }} />
       </div>
       <span className="live-roster-pct">{sub.progress ?? 0}%</span>
+      {sub.performance && (
+        <div className="live-roster-perf">
+          <span className="live-roster-perf-acc">
+            {sub.performance.correctCount}/{sub.performance.attemptedCount} correct
+          </span>
+          <span className="live-roster-perf-pts">
+            {sub.performance.earnedPoints}/{sub.performance.maxScore} pts
+          </span>
+        </div>
+      )}
       <span className="live-roster-status" style={{ color: meta.color, borderColor: meta.color }}>
         {sub.status === 'in_progress' && <span className="live-dot" style={{ background: meta.color }} />}
         {meta.label}

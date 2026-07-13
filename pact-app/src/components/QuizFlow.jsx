@@ -346,15 +346,6 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete, s
   const [saveError, setSaveError] = useState(false);
   const cardRef = useRef(null);
 
-  /* Progress is also drafted to localStorage on every change (below), so a failed
-     server sync doesn't lose the student's answers — but it should still be visible
-     rather than silently swallowed. */
-  const saveProgress = useCallback((pct) => {
-    updateProgress(assignmentId, pct)
-      .then(() => setSaveError(false))
-      .catch(() => setSaveError(true));
-  }, [assignmentId]);
-
   const [qStates, setQStates] = useState(() =>
     draft?.qStates ?? Object.fromEntries(questions.map((q) => [q.id, {
       available:       q.scoring.points,
@@ -367,17 +358,37 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete, s
     }]))
   );
 
-  /* Persist quiz state after every change — locally always, and to the squad's
-     shared server state for squad-graded challenges. The push mirrors the
-     server's own merge (mergeQuizState above), so this converges rather than
-     loops: once the state we're about to push matches what we already know
-     the server has, we stop pushing until something actually changes again. */
-  const lastSyncedRef = useRef(null);
+  /* Draft to localStorage on every change, including raw answer selection —
+     cheap, no network, keeps an in-progress (not-yet-submitted) pick safe
+     across an accidental refresh. */
   useEffect(() => {
     try {
       const data = JSON.stringify({ qIdx, answers, qStates, _ts: Date.now() });
       localStorage.setItem(`pact_draft_${assignmentId}`, data);
     } catch {}
+  }, [qIdx, answers, qStates, assignmentId]);
+
+  /* Sync progress to the backend only at meaningful transitions (a question
+     resolving, a hint spent, an attempt consumed) — deliberately NOT on every
+     raw answer click (`answers` is read via closure, not listed as a
+     dependency), so this doesn't fire on every checkbox toggle. Two things
+     ride on this sync:
+       1. The full quiz_state is attached to the student's own Submission row,
+          which is what powers Command's Live Progress view showing a
+          student's live score/accuracy, not just a flat percentage.
+       2. For squad-graded challenges, the same state is pushed to the squad's
+          shared state and merged server-side (mirrored by mergeQuizState
+          above) — this converges rather than loops: once what we're about to
+          push matches what we already know the server has, we stop pushing
+          until something actually changes again. */
+  const lastSyncedRef = useRef(null);
+  useEffect(() => {
+    const answeredCount = questions.filter((qi) => qStates[qi.id]?.revealed || qStates[qi.id]?.forced).length;
+    const pct = Math.round((answeredCount / questions.length) * 100);
+
+    updateProgress(assignmentId, pct, { qIdx, answers, qStates })
+      .then(() => setSaveError(false))
+      .catch(() => setSaveError(true));
 
     if (!squadShared) return;
     const payload    = { qIdx, answers, qStates };
@@ -394,7 +405,8 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete, s
       setAnswers(mergedState.answers);
       setQStates(mergedState.qStates);
     }).catch(() => {});
-  }, [qIdx, answers, qStates, assignmentId, squadShared]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qIdx, qStates, assignmentId, squadShared, questions]);
 
   /* Live-poll for progress made by other squad members — merges in anything
      the squad has resolved since the last sync so a teammate solving the
@@ -480,8 +492,6 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete, s
 
     if (correct) {
       setQStates((s) => ({ ...s, [q.id]: { ...s[q.id], revealed: true, lastWrong: false } }));
-      const pct = Math.round(((answered + 1) / questions.length) * 100);
-      saveProgress(pct);
     } else {
       /* shake the card */
       if (cardRef.current) {
@@ -508,12 +518,8 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete, s
           },
         };
       });
-      if (qs.available - 2 <= 0) {
-        const pct = Math.round(((answered + 1) / questions.length) * 100);
-        saveProgress(pct);
-      }
     }
-  }, [q, raw, qs, answered, questions.length, saveProgress]);
+  }, [q, raw, qs]);
 
   /* ── advance to next / complete ── */
   const handleNext = useCallback(() => {

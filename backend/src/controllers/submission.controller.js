@@ -29,7 +29,7 @@ async function updateStatus(req, res, next) {
 
 async function updateProgress(req, res, next) {
   try {
-    const sub = await submissionService.updateProgress(req.params.aid, req.user.id, req.body.progress);
+    const sub = await submissionService.updateProgress(req.params.aid, req.user.id, req.body.progress, req.body.quiz_state ?? null);
     return res.json(sub);
   } catch (err) { return next(err); }
 }
