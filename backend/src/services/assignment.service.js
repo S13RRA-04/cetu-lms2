@@ -118,7 +118,7 @@ async function unlockForCohort(assignmentId, cohortId, unlockerId, squadId = nul
     const linked = await CourseContentItem.findAll({ where: { linked_assignment_id: assignmentId } });
     await Promise.all(linked.map((item) =>
       CourseContentUnlock.findOrCreate({
-        where:    { content_id: item.id, cohort_id: cohortId },
+        where:    { content_id: item.id, cohort_id: cohortId, squad_id: squadId },
         defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
       })
     ));
@@ -137,7 +137,7 @@ async function lockForCohort(assignmentId, cohortId, squadId = null) {
     const linked = await CourseContentItem.findAll({ where: { linked_assignment_id: assignmentId } });
     if (linked.length) {
       await CourseContentUnlock.destroy({
-        where: { content_id: linked.map((i) => i.id), cohort_id: cohortId },
+        where: { content_id: linked.map((i) => i.id), cohort_id: cohortId, squad_id: squadId },
       });
     }
   }

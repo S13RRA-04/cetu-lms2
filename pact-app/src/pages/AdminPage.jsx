@@ -1178,23 +1178,6 @@ function IntelLibraryGating({ contentItems, cohorts, moduleAssignments = [], onI
 }
 
 function IntelItemCohortAccess({ item, cohorts, onUpdated }) {
-  const [err, setErr] = useState('');
-  const unlockedIds = new Set((item.unlocks ?? []).map((u) => u.cohort_id));
-
-  const handleToggle = async (cohortId) => {
-    setErr('');
-    try {
-      if (unlockedIds.has(cohortId)) {
-        await lockContentItem(item.id, cohortId);
-        onUpdated({ ...item, unlocks: (item.unlocks ?? []).filter((u) => u.cohort_id !== cohortId) });
-      } else {
-        await unlockContentItem(item.id, cohortId);
-        const cohort = cohorts.find((c) => c.id === cohortId);
-        onUpdated({ ...item, unlocks: [...(item.unlocks ?? []), { cohort_id: cohortId, cohort }] });
-      }
-    } catch { setErr('Toggle failed'); }
-  };
-
   return (
     <div>
       <div className="admin-right-header">
@@ -1206,27 +1189,15 @@ function IntelItemCohortAccess({ item, cohorts, onUpdated }) {
           </div>
         </div>
       </div>
-      <div className="section-label" style={{ margin: '16px 20px 8px' }}>Cohort Access</div>
-      <div style={{ padding: '0 20px' }}>
-        {cohorts.length === 0 && (
-          <p style={{ color: 'var(--muted)', fontSize: 13 }}>No cohorts found.</p>
-        )}
-        {cohorts.map((c) => {
-          const isUnlocked = unlockedIds.has(c.id);
-          return (
-            <div key={c.id} className="gating-cohort-row">
-              <span className="gating-cohort-name">{c.name}</span>
-              <button
-                className={`gating-toggle-btn ${isUnlocked ? 'unlocked' : 'locked'}`}
-                onClick={() => handleToggle(c.id)}
-              >
-                {isUnlocked ? '🔓 Released' : '🔒 Locked'}
-              </button>
-            </div>
-          );
-        })}
-        {err && <div className="err-msg" style={{ marginTop: 8 }}>{err}</div>}
-      </div>
+      <GatingPanel
+        unlocks={item.unlocks ?? []}
+        cohorts={cohorts}
+        noun="content item"
+        allowCohortWide
+        onLock={(cohortId, squadId) => lockContentItem(item.id, cohortId, squadId)}
+        onUnlock={(cohortId, squadId) => unlockContentItem(item.id, cohortId, squadId)}
+        onUnlocksChange={(unlocks) => onUpdated({ ...item, unlocks })}
+      />
     </div>
   );
 }
@@ -1443,8 +1414,10 @@ function ModulesGating({ assignments, cohorts, contentItems = [], onUnlocksChang
             </div>
             <GatingPanel
               key={selected.id}
-              assignment={selected}
+              unlocks={selected.unlocks ?? []}
               cohorts={cohorts}
+              onLock={(cohortId, squadId) => lockAssignment(selected.id, cohortId, squadId)}
+              onUnlock={(cohortId, squadId) => unlockAssignment(selected.id, cohortId, squadId)}
               onUnlocksChange={(unlocks) => {
                 setSelected((s) => ({ ...s, unlocks }));
                 onUnlocksChange(selected.id, unlocks);
@@ -1715,8 +1688,10 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
 
             <GatingPanel
               key={selected.id}
-              assignment={selected}
+              unlocks={selected.unlocks ?? []}
               cohorts={cohorts}
+              onLock={(cohortId, squadId) => lockAssignment(selected.id, cohortId, squadId)}
+              onUnlock={(cohortId, squadId) => unlockAssignment(selected.id, cohortId, squadId)}
               onUnlocksChange={(unlocks) => {
                 setSelected((s) => ({ ...s, unlocks }));
                 onUnlocksChange(selected.id, unlocks);
@@ -1769,8 +1744,10 @@ function AssessmentSurveyGating({ assignments, cohorts, onUnlocksChange }) {
             </div>
             <GatingPanel
               key={selected.id}
-              assignment={selected}
+              unlocks={selected.unlocks ?? []}
               cohorts={cohorts}
+              onLock={(cohortId, squadId) => lockAssignment(selected.id, cohortId, squadId)}
+              onUnlock={(cohortId, squadId) => unlockAssignment(selected.id, cohortId, squadId)}
               onUnlocksChange={(unlocks) => {
                 setSelected((s) => ({ ...s, unlocks }));
                 onUnlocksChange(selected.id, unlocks);
@@ -2475,7 +2452,12 @@ function PublishFileForm({ file, onPublished, onCancel }) {
   );
 }
 
-function GatingPanel({ assignment, cohorts, onUnlocksChange }) {
+/* Squad-level access control, reused for both assignments (lockAssignment/
+   unlockAssignment) and course content items (lockContentItem/
+   unlockContentItem) — the caller supplies which pair to call plus its own
+   `unlocks` array ({cohort_id, squad_id}) and how to persist changes to it,
+   so this component has no idea which kind of thing it's gating. */
+function GatingPanel({ unlocks = [], cohorts, onUnlocksChange, onLock, onUnlock, noun = 'assignment', allowCohortWide = false }) {
   const [squadsByC,  setSquadsByC]  = useState({});   // cohortId → Squad[]
   const [loadingC,   setLoadingC]   = useState({});   // cohortId → bool
   const [busy,       setBusy]       = useState({});   // `${cohortId}:${squadId}` → bool
@@ -2483,10 +2465,10 @@ function GatingPanel({ assignment, cohorts, onUnlocksChange }) {
 
   // Build sets from current unlock records for fast lookup
   const unlockedSquadIds = new Set(
-    (assignment.unlocks ?? []).filter((u) => u.squad_id).map((u) => u.squad_id)
+    unlocks.filter((u) => u.squad_id).map((u) => u.squad_id)
   );
   const unlockedCohortIds = new Set(
-    (assignment.unlocks ?? []).filter((u) => !u.squad_id).map((u) => u.cohort_id)
+    unlocks.filter((u) => !u.squad_id).map((u) => u.cohort_id)
   );
 
   // Eager-load squads for all cohorts on mount / when cohorts change
@@ -2503,18 +2485,22 @@ function GatingPanel({ assignment, cohorts, onUnlocksChange }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cohorts]);
 
+  // squad === null means the cohort-wide toggle (only rendered when
+  // allowCohortWide is set) — same unlock row shape either way, just with
+  // squad_id: null instead of a specific squad's id.
   const toggle = async (cohort, squad) => {
-    const key       = `${cohort.id}:${squad.id}`;
-    const unlocked  = unlockedSquadIds.has(squad.id);
+    const squadId  = squad?.id ?? null;
+    const key      = `${cohort.id}:${squadId ?? 'cohort'}`;
+    const unlocked = squadId ? unlockedSquadIds.has(squadId) : unlockedCohortIds.has(cohort.id);
     setBusy((b)   => ({ ...b, [key]: true }));
     setErrors((e) => ({ ...e, [key]: null }));
     try {
       if (unlocked) {
-        await lockAssignment(assignment.id, cohort.id, squad.id);
-        onUnlocksChange((assignment.unlocks ?? []).filter((u) => u.squad_id !== squad.id));
+        await onLock(cohort.id, squadId);
+        onUnlocksChange(unlocks.filter((u) => !(u.cohort_id === cohort.id && (u.squad_id ?? null) === squadId)));
       } else {
-        await unlockAssignment(assignment.id, cohort.id, squad.id);
-        onUnlocksChange([...(assignment.unlocks ?? []), { cohort_id: cohort.id, squad_id: squad.id }]);
+        await onUnlock(cohort.id, squadId);
+        onUnlocksChange([...unlocks, { cohort_id: cohort.id, squad_id: squadId }]);
       }
     } catch (err) {
       setErrors((e) => ({ ...e, [key]: err.response?.data?.error?.message ?? 'Action failed' }));
@@ -2530,7 +2516,7 @@ function GatingPanel({ assignment, cohorts, onUnlocksChange }) {
   return (
     <div className="admin-gating">
       <p className="admin-gating-desc">
-        Control which squads can access this assignment. Select individual squads across cohorts.
+        Control which squads can access this {noun}. Select individual squads across cohorts.
       </p>
       {cohorts.map((cohort) => {
         const squads = squadsByC[cohort.id] ?? [];
@@ -2538,9 +2524,23 @@ function GatingPanel({ assignment, cohorts, onUnlocksChange }) {
         const cohortWide = unlockedCohortIds.has(cohort.id);
         return (
           <div key={cohort.id} className="admin-gating-cohort">
-            <div className="admin-gating-cohort-header">
-              {cohort.name}
-              {cohortWide && <span className="admin-gating-badge badge-unlocked" style={{ marginLeft: 8, fontSize: 10 }}>All unlocked (legacy)</span>}
+            <div className="admin-gating-cohort-header" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ flex: 1 }}>
+                {cohort.name}
+                {cohortWide && !allowCohortWide && (
+                  <span className="admin-gating-badge badge-unlocked" style={{ marginLeft: 8, fontSize: 10 }}>All unlocked (legacy)</span>
+                )}
+              </span>
+              {allowCohortWide && (
+                <button
+                  className={`admin-gate-btn ${cohortWide ? 'gate-lock' : 'gate-unlock'}`}
+                  onClick={() => toggle(cohort, null)}
+                  disabled={busy[`${cohort.id}:cohort`]}
+                  title="Unlock/lock this content for every squad in the cohort at once"
+                >
+                  {busy[`${cohort.id}:cohort`] ? '…' : cohortWide ? 'Lock Cohort' : 'Unlock Cohort'}
+                </button>
+              )}
             </div>
             {loading ? (
               <div className="admin-gating-loading">Loading squads…</div>
@@ -4330,21 +4330,6 @@ function ContentItemDetail({ item, cohorts, moduleAssignments = [], onUpdated, o
     try { await deleteContentItem(item.id); onDeleted(item.id); } catch { setErr('Delete failed'); }
   };
 
-  const unlockedIds = new Set((item.unlocks ?? []).map((u) => u.cohort_id));
-
-  const handleToggle = async (cohortId) => {
-    try {
-      if (unlockedIds.has(cohortId)) {
-        await lockContentItem(item.id, cohortId);
-        onUpdated({ ...item, unlocks: (item.unlocks ?? []).filter((u) => u.cohort_id !== cohortId) });
-      } else {
-        await unlockContentItem(item.id, cohortId);
-        const cohort = cohorts.find((c) => c.id === cohortId);
-        onUpdated({ ...item, unlocks: [...(item.unlocks ?? []), { cohort_id: cohortId, cohort }] });
-      }
-    } catch { setErr('Toggle failed'); }
-  };
-
   return (
     <div className="content-detail">
       {editing ? (
@@ -4408,21 +4393,16 @@ function ContentItemDetail({ item, cohorts, moduleAssignments = [], onUpdated, o
               </div>
             );
           })()}
-          <div className="section-label" style={{ marginBottom: 8 }}>Cohort Access</div>
-          <div className="scenario-gating-cohorts">
-            {cohorts.map((c) => {
-              const isUnlocked = unlockedIds.has(c.id);
-              return (
-                <div key={c.id} className="gating-cohort-row">
-                  <span className="gating-cohort-name">{c.name}</span>
-                  <button className={`gating-toggle-btn ${isUnlocked ? 'unlocked' : 'locked'}`} onClick={() => handleToggle(c.id)}>
-                    {isUnlocked ? '🔓 Released' : '🔒 Locked'}
-                  </button>
-                </div>
-              );
-            })}
-            {cohorts.length === 0 && <div className="empty-state">No cohorts found.</div>}
-          </div>
+          <div className="section-label" style={{ marginBottom: 8 }}>Access</div>
+          <GatingPanel
+            unlocks={item.unlocks ?? []}
+            cohorts={cohorts}
+            noun="content item"
+            allowCohortWide
+            onLock={(cohortId, squadId) => lockContentItem(item.id, cohortId, squadId)}
+            onUnlock={(cohortId, squadId) => unlockContentItem(item.id, cohortId, squadId)}
+            onUnlocksChange={(unlocks) => onUpdated({ ...item, unlocks })}
+          />
           {err && <div className="err-msg" style={{ marginTop: 8 }}>{err}</div>}
         </>
       )}

@@ -202,11 +202,11 @@ export const updateContentItem = (id, data) =>
 export const deleteContentItem = (id) =>
   client.delete(`/courses/${COURSE_ID}/course-content/${id}`);
 
-export const unlockContentItem = (id, cohortId) =>
-  client.post(`/courses/${COURSE_ID}/course-content/${id}/unlock`, { cohort_id: cohortId }).then((r) => r.data);
+export const unlockContentItem = (id, cohortId, squadId = null) =>
+  client.post(`/courses/${COURSE_ID}/course-content/${id}/unlock`, { cohort_id: cohortId, squad_id: squadId }).then((r) => r.data);
 
-export const lockContentItem = (id, cohortId) =>
-  client.post(`/courses/${COURSE_ID}/course-content/${id}/lock`, { cohort_id: cohortId }).then((r) => r.data);
+export const lockContentItem = (id, cohortId, squadId = null) =>
+  client.post(`/courses/${COURSE_ID}/course-content/${id}/lock`, { cohort_id: cohortId, squad_id: squadId }).then((r) => r.data);
 
 /* ── Intel Board ── */
 export const getIntelBoard = () =>

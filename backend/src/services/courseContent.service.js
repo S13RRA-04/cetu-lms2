@@ -1,4 +1,5 @@
 'use strict';
+const { Op } = require('sequelize');
 const { ListObjectsV2Command, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { r2Client, R2_BUCKET, R2_SLIDES_PREFIX } = require('../config/r2');
 const { CourseContentItem, CourseContentUnlock, Course, Cohort, Enrollment } = require('../models');
@@ -28,17 +29,27 @@ async function uploadToR2(buffer, fileName, mimeType) {
 }
 
 async function listForStudent(courseId, userId) {
-  const enrollment = await Enrollment.findOne({ where: { user_id: userId, course_id: courseId } });
+  const enrollment = await Enrollment.findOne({
+    where:   { user_id: userId, course_id: courseId },
+    include: [{ association: 'squad', attributes: ['id'] }],
+  });
   if (!enrollment) throw new ForbiddenError('Not enrolled');
 
-  // Items list is the same for all students in a course; cohort_id scopes unlock visibility
+  // A content item is visible if unlocked cohort-wide (squad_id IS NULL) OR
+  // specifically for this student's own squad — same OR-clause pattern used
+  // for assignment unlocks (assignment.service.js's _queryListForStudent).
+  const squadId   = enrollment.squad?.id ?? null;
+  const orClauses = [{ cohort_id: enrollment.cohort_id, squad_id: null }];
+  if (squadId) orClauses.push({ squad_id: squadId });
+
+  // Items list is the same for all students in a course; cohort/squad scopes unlock visibility
   const [items, unlocks] = await Promise.all([
     contentCache.get(`listItems:${courseId}`, () => CourseContentItem.findAll({
       where: { course_id: courseId, is_published: true },
       order: [['order_index', 'ASC'], ['created_at', 'ASC']],
     })),
     enrollment.cohort_id
-      ? CourseContentUnlock.findAll({ where: { cohort_id: enrollment.cohort_id } })
+      ? CourseContentUnlock.findAll({ where: { [Op.or]: orClauses } })
       : Promise.resolve([]),
   ]);
 
@@ -112,14 +123,16 @@ async function getDownloadUrl(contentId, userId, userRole = 'student') {
   if (userRole === 'student') {
     const { Enrollment: EnrollmentModel } = require('../models');
     const enrollment = await EnrollmentModel.findOne({
-      where: { user_id: userId, course_id: item.course_id },
+      where:   { user_id: userId, course_id: item.course_id },
+      include: [{ association: 'squad', attributes: ['id'] }],
     });
     if (!enrollment) throw new ForbiddenError('Not enrolled');
 
     if (enrollment.cohort_id) {
-      const unlock = await CourseContentUnlock.findOne({
-        where: { content_id: contentId, cohort_id: enrollment.cohort_id },
-      });
+      const squadId   = enrollment.squad?.id ?? null;
+      const orClauses = [{ content_id: contentId, cohort_id: enrollment.cohort_id, squad_id: null }];
+      if (squadId) orClauses.push({ content_id: contentId, squad_id: squadId });
+      const unlock = await CourseContentUnlock.findOne({ where: { [Op.or]: orClauses } });
       if (!unlock) throw new ForbiddenError('Content not yet released for your cohort');
     }
   }
@@ -152,22 +165,22 @@ async function remove(id) {
   contentCache.invalidate(`listItems:${courseId}`);
 }
 
-async function unlockForCohort(contentId, cohortId, unlockerId) {
+async function unlockForCohort(contentId, cohortId, unlockerId, squadId = null) {
   const item   = await CourseContentItem.findByPk(contentId);
   if (!item) throw new NotFoundError('CourseContentItem');
   const cohort = await Cohort.findByPk(cohortId);
   if (!cohort) throw new NotFoundError('Cohort');
   const [unlock] = await CourseContentUnlock.findOrCreate({
-    where:    { content_id: contentId, cohort_id: cohortId },
+    where:    { content_id: contentId, cohort_id: cohortId, squad_id: squadId },
     defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
   });
   contentCache.invalidate(`listForAdmin:${item.course_id}`);
   return unlock;
 }
 
-async function lockForCohort(contentId, cohortId) {
+async function lockForCohort(contentId, cohortId, squadId = null) {
   const item = await CourseContentItem.findByPk(contentId);
-  await CourseContentUnlock.destroy({ where: { content_id: contentId, cohort_id: cohortId } });
+  await CourseContentUnlock.destroy({ where: { content_id: contentId, cohort_id: cohortId, squad_id: squadId } });
   if (item) contentCache.invalidate(`listForAdmin:${item.course_id}`);
 }
 
