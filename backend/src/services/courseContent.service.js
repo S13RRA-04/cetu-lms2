@@ -279,7 +279,7 @@ async function syncDropCaseFiles(courseId, { scenarioName, dropNumber }) {
   const objectByKey = new Map(objects.map((object) => [object.key, object]));
   const existing = await CourseContentItem.findAll({
     where: { course_id: courseId, r2_key: keys },
-    attributes: ['id', 'r2_key', 'url', 'file_size', 'scenario_name'],
+    attributes: ['id', 'r2_key', 'url', 'file_size', 'scenario_name', 'source_drop_number', 'source_victim_code'],
   });
   const existingByKey = new Map(existing.map((item) => [item.r2_key, item]));
   const publicUrl = (key) => `${R2_PUBLIC_BASE_URL}/${key}`;
@@ -291,6 +291,8 @@ async function syncDropCaseFiles(courseId, { scenarioName, dropNumber }) {
     if (item.url !== publicUrl(item.r2_key)) changes.url = publicUrl(item.r2_key);
     if (source?.size != null && Number(item.file_size) !== source.size) changes.file_size = source.size;
     if (item.scenario_name !== source?.scenarioName) changes.scenario_name = source.scenarioName;
+    if (item.source_drop_number !== source?.dropNumber) changes.source_drop_number = source?.dropNumber ?? null;
+    if (item.source_victim_code !== source?.victimCode) changes.source_victim_code = source?.victimCode ?? null;
     if (Object.keys(changes).length > 0) {
       await item.update(changes);
       updated += 1;
@@ -308,9 +310,11 @@ async function syncDropCaseFiles(courseId, { scenarioName, dropNumber }) {
       file_name: object.fileName,
       file_size: object.size,
       scenario_name: object.scenarioName,
+      source_drop_number: object.dropNumber,
+      source_victim_code: object.victimCode,
       url: publicUrl(object.key),
-      drop_number: object.dropNumber,
-      victim_code: object.victimCode,
+      drop_number: null,
+      victim_code: null,
       is_published: false,
       order_index: 0,
     })));

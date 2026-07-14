@@ -3688,7 +3688,11 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
     } catch { /* ignore */ }
     finally { setPairing((p) => ({ ...p, [key]: false })); }
   };
-  const addContentItem    = (c, drop, victimCode) => applyContentPatch(c, { drop_number: drop.number, victim_code: victimCode ?? null });
+  const addContentItem    = (c, drop, victimCode) => applyContentPatch(c, {
+    scenario_name: drop.scenario_name,
+    drop_number: drop.number,
+    victim_code: victimCode ?? null,
+  });
   const removeContentItem = (c)                   => applyContentPatch(c, { drop_number: null, victim_code: null });
 
   const load = useCallback(() => {
@@ -4025,7 +4029,7 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
                     </div>
 
                     <div style={{ display: 'flex', gap: 4 }}>
-                      {[['squad', 'Squad / Victim'], ['role', 'Individual / Role'], ['shared', 'Shared']].map(([key, label]) => (
+                      {[['squad', 'Squad / Victim'], ['role', 'Individual / Role'], ['shared', 'Shared / Cohort-wide']].map(([key, label]) => (
                         <button
                           key={key}
                           className={`scenario-tab${pairSubTab === key ? ' active' : ''}`}
@@ -4046,6 +4050,10 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
                             .filter((a) => a.drop_number === drop.number && a.victim_name === row.victimName)
                             .map((a) => a.id);
                           const contentCandidates = scenarioContent
+                            .filter((c) => (
+                              (c.source_drop_number === drop.number && c.source_victim_code === row.victimCode)
+                              || (c.drop_number === drop.number && c.victim_code === row.victimCode)
+                            ))
                             .filter((c) => c.drop_number == null || (c.drop_number === drop.number && c.victim_code === row.victimCode))
                             .map((c) => ({ id: c.id, label: c.title, ref: c }));
                           const contentSelected = scenarioContent
@@ -4078,7 +4086,7 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
                                     onAdd={(c) => addContentItem(c.ref, drop, row.victimCode)}
                                     onRemove={(c) => removeContentItem(c.ref)}
                                     placeholder="Search case files…"
-                                    emptyLabel="No unpaired case files."
+                                    emptyLabel="No R2 case files available for this squad/victim pair."
                                   />
                                 </div>
                               </div>
@@ -4128,6 +4136,10 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
                         .filter((a) => a.drop_number === drop.number && !a.victim_name && (a.role_filters?.length ?? 0) === 0)
                         .map((a) => a.id);
                       const contentCandidates = scenarioContent
+                        .filter((c) => (
+                          (c.source_drop_number === drop.number && !c.source_victim_code)
+                          || (c.drop_number === drop.number && !c.victim_code)
+                        ))
                         .filter((c) => c.drop_number == null || (c.drop_number === drop.number && !c.victim_code))
                         .map((c) => ({ id: c.id, label: c.title, ref: c }));
                       const contentSelected = scenarioContent
@@ -4148,7 +4160,7 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
                             />
                           </div>
                           <div>
-                            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, letterSpacing: '.06em' }}>CASE FILES</div>
+                            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, letterSpacing: '.06em' }}>CASE FILES — COHORT-WIDE</div>
                             <SearchPickerField
                               candidates={contentCandidates}
                               selectedIds={contentSelected}
@@ -4156,7 +4168,7 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
                               onAdd={(c) => addContentItem(c.ref, drop, null)}
                               onRemove={(c) => removeContentItem(c.ref)}
                               placeholder="Search case files…"
-                              emptyLabel="No unpaired case files."
+                              emptyLabel="No shared R2 case files available for this drop."
                             />
                           </div>
                         </div>
@@ -4164,7 +4176,7 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
                     })()}
 
                     <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
-                      Case File candidates are filtered to {scenarioLabel(drop.scenario_name)} and Drop {drop.number} using their R2 folder metadata.
+                      R2 folder metadata determines which files are offered. Your selections determine release scope: victim files go only to the matching squad, while Shared files release cohort-wide.
                     </p>
 
                     <ScenarioIntelPanel scenarios={scenarios} dropNumber={drop.number} />

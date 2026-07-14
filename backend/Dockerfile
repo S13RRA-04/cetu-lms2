@@ -12,4 +12,4 @@ FROM base AS production
 RUN npm ci --omit=dev
 COPY . .
 EXPOSE 3001
-CMD ["node", "src/server.js"]
+CMD ["sh", "-c", "npx sequelize-cli db:migrate && node src/server.js"]
