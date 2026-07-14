@@ -16,6 +16,7 @@ test('parses a victim-scoped drop file into case-file metadata', () => {
       contentType: 'evidence',
       dropNumber: 1,
       victimCode: 'DOGWOOD',
+      sourceFolder: null,
     },
   );
 });
@@ -49,6 +50,18 @@ test('unwraps a PDFs/ mirror folder so scoping matches the true folder level', (
   const { key: _key, ...victimPdfRest } = victimPdf;
   const { key: _key2, ...directRest } = parseDropCaseFile('scenarios/PACKET HEIST/Drop 1/Dogwood Hotel & Resort/Initial Evidence.pdf');
   assert.deepEqual(victimPdfRest, directRest);
+});
+
+test('keeps an unrecognized subfolder as its own source_folder group instead of collapsing to cohort-wide', () => {
+  const parsed = parseDropCaseFile(
+    'scenarios/PACKET HEIST/Drop 3/Parallel Investigative Squad Update/PDFs/CyberDyne Intruder Update.pdf',
+  );
+  assert.equal(parsed.victimCode, null);
+  assert.equal(parsed.sourceFolder, 'Parallel Investigative Squad Update');
+  assert.equal(parsed.title, 'Parallel Investigative Squad Update — CyberDyne Intruder Update');
+
+  const cohortWide = parseDropCaseFile('scenarios/PACKET HEIST/Drop 2/PDFs/Role-Based Correlation Tasking.pdf');
+  assert.equal(cohortWide.sourceFolder, null);
 });
 
 test('infers intel reports from common drop artifact names', () => {

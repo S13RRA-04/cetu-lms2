@@ -3842,6 +3842,22 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
   });
   const removeContentItem = (c)                   => applyContentPatch(c, { drop_number: null, victim_code: null });
 
+  // Bulk-add every unpaired file in an R2 folder group (a subfolder that
+  // isn't a recognized victim, e.g. "Parallel Investigative Squad Update")
+  // to one scope in a single action.
+  const addContentFolder = async (folder, drop, victimCode) => {
+    const key = `f:${folder.folderName}`;
+    setPairing((p) => ({ ...p, [key]: true }));
+    try {
+      const patch = { scenario_name: drop.scenario_name, drop_number: drop.number, victim_code: victimCode ?? null };
+      await Promise.all(folder.items.map((item) => updateContentItem(item.id, patch)));
+      const ids = new Set(folder.items.map((item) => item.id));
+      setLocalContent((prev) => prev.map((c) => ids.has(c.id) ? { ...c, ...patch } : c));
+      onContentPublished?.();
+    } catch { /* ignore */ }
+    finally { setPairing((p) => ({ ...p, [key]: false })); }
+  };
+
   const load = useCallback(() => {
     setLoading(true);
     setErr('');
@@ -4097,6 +4113,25 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
         const scenarioChallenges = drop ? challengeItems.filter((a) => a.scenario_name === drop.scenario_name) : [];
         const scenarioContent = drop ? localContent.filter((item) => item.scenario_name === drop.scenario_name) : [];
 
+        // R2 subfolders that aren't a recognized victim (e.g. "Parallel
+        // Investigative Squad Update") stay grouped by folder so an admin can
+        // bulk-add every file in them to a squad or to Shared in one click.
+        const folderGroups = drop
+          ? Object.values(
+              scenarioContent
+                .filter((c) => c.drop_number == null && c.source_drop_number === drop.number && c.source_folder)
+                .reduce((acc, c) => {
+                  (acc[c.source_folder] ??= []).push(c);
+                  return acc;
+                }, {}),
+            ).map((items) => ({ folderName: items[0].source_folder, items }))
+          : [];
+        const folderCandidates = folderGroups.map((folder) => ({
+          id: `folder:${folder.folderName}`,
+          label: `📁 ${folder.folderName} (${folder.items.length})`,
+          ref: { isFolder: true, ...folder },
+        }));
+
         return (
           <div
             style={{
@@ -4227,12 +4262,12 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
                                 <div>
                                   <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, letterSpacing: '.06em' }}>CASE FILES</div>
                                   <SearchPickerField
-                                    candidates={contentCandidates}
+                                    candidates={[...contentCandidates, ...folderCandidates]}
                                     selectedIds={contentSelected}
                                     busyIds={new Set(Object.keys(pairing).filter((k) => pairing[k]).map((k) => k.slice(2)))}
-                                    onAdd={(c) => addContentItem(c.ref, drop, row.victimCode)}
+                                    onAdd={(c) => c.ref.isFolder ? addContentFolder(c.ref, drop, row.victimCode) : addContentItem(c.ref, drop, row.victimCode)}
                                     onRemove={(c) => removeContentItem(c.ref)}
-                                    placeholder="Search case files…"
+                                    placeholder="Search case files or type a folder name…"
                                     emptyLabel="No R2 case files available for this squad/victim pair."
                                   />
                                 </div>
@@ -4309,12 +4344,12 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
                           <div>
                             <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, letterSpacing: '.06em' }}>CASE FILES — COHORT-WIDE</div>
                             <SearchPickerField
-                              candidates={contentCandidates}
+                              candidates={[...contentCandidates, ...folderCandidates]}
                               selectedIds={contentSelected}
                               busyIds={new Set(Object.keys(pairing).filter((k) => pairing[k]).map((k) => k.slice(2)))}
-                              onAdd={(c) => addContentItem(c.ref, drop, null)}
+                              onAdd={(c) => c.ref.isFolder ? addContentFolder(c.ref, drop, null) : addContentItem(c.ref, drop, null)}
                               onRemove={(c) => removeContentItem(c.ref)}
-                              placeholder="Search case files…"
+                              placeholder="Search case files or type a folder name…"
                               emptyLabel="No shared R2 case files available for this drop."
                             />
                           </div>
@@ -4324,6 +4359,7 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
 
                     <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
                       R2 folder metadata determines which files are offered. Your selections determine release scope: victim files go only to the matching squad, while Shared files release cohort-wide.
+                      Folders in R2 that aren't a recognized victim (📁 results in the search fields) can be added in one click — every file inside is paired to whichever squad or Shared you add it under.
                     </p>
 
                     <ScenarioIntelPanel scenarios={scenarios} dropNumber={drop.number} />

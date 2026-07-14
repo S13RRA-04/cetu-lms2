@@ -61,21 +61,26 @@ function parseDropCaseFile(key, scenariosPrefix = 'scenarios/') {
   const fileName = segments.at(-1);
   const scenarioTitle = segments.slice(0, dropIndex).join(' / ');
   const scenarioName = scenarioSlugFromName(scenarioTitle);
-  const victimFolder = segments.length > dropIndex + 2 ? segments[dropIndex + 1] : null;
-  const victim = victimFolder ? victimByFolder.get(normalize(victimFolder)) : null;
+  const folderSegment = segments.length > dropIndex + 2 ? segments[dropIndex + 1] : null;
+  const victim = folderSegment ? victimByFolder.get(normalize(folderSegment)) : null;
+  // A subfolder that isn't a recognized victim (e.g. "Parallel Investigative
+  // Squad Update") is kept as its own group rather than collapsed into
+  // cohort-wide — it's surfaced in the UI so an admin can bulk-assign it.
+  const sourceFolder = folderSegment && !victim ? folderSegment : null;
   const baseTitle = titleFromFileName(fileName);
-  const context = victim?.name ?? scenarioTitle;
+  const context = victim?.name ?? sourceFolder ?? scenarioTitle;
   const title = `${context} — ${baseTitle}`.slice(0, 255);
 
   return {
     key,
     fileName,
     title,
-    description: `${scenarioTitle} — Drop ${dropNumber}${victim ? ` — ${victim.name}` : ''}`,
+    description: `${scenarioTitle} — Drop ${dropNumber}${victim ? ` — ${victim.name}` : sourceFolder ? ` — ${sourceFolder}` : ''}`,
     scenarioName,
     contentType: inferContentType(fileName),
     dropNumber,
     victimCode: victim?.code ?? null,
+    sourceFolder,
   };
 }
 
