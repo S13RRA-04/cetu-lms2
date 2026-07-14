@@ -37,12 +37,20 @@ function scenarioSlugFromName(name) {
 /**
  * Parse keys shaped like scenarios/<scenario>/Drop <number>/[<victim>/]<file>.
  * Objects outside a drop folder and folder-marker objects are intentionally ignored.
+ * Every folder mirrors its source files into a nested PDFs/ subfolder — only the
+ * PDF is treated as the distributable case file, and the PDFs/ segment is
+ * unwrapped so scoping (victim vs. cohort-wide) is computed at the true folder
+ * level instead of PDFs being mistaken for an unrecognized victim folder.
  */
 function parseDropCaseFile(key, scenariosPrefix = 'scenarios/') {
   if (!key.startsWith(scenariosPrefix) || key.endsWith('/')) return null;
+  if (!/\.pdf$/i.test(key)) return null;
 
   const relative = key.slice(scenariosPrefix.length);
-  const segments = relative.split('/').filter(Boolean);
+  let segments = relative.split('/').filter(Boolean);
+  if (segments.length >= 2 && segments[segments.length - 2].toLowerCase() === 'pdfs') {
+    segments = [...segments.slice(0, -2), segments.at(-1)];
+  }
   const dropIndex = segments.findIndex((segment) => /^drop[ _-]*\d+$/i.test(segment));
   if (dropIndex < 1 || dropIndex >= segments.length - 1) return null;
 
