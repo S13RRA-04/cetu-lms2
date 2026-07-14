@@ -761,11 +761,41 @@ function CohortScenarioPanel({ cohorts, onCohortsChange }) {
   const [saving,          setSaving]          = useState({});
   const [flash,           setFlash]           = useState({});
 
+  // Squad → victim assignment (expand-per-cohort)
+  const [expandedCohortId, setExpandedCohortId] = useState(null);
+  const [squadsByCohort,   setSquadsByCohort]   = useState({}); // cohortId -> squad[]
+  const [loadingSquads,    setLoadingSquads]    = useState(false);
+  const [savingSquad,      setSavingSquad]      = useState({}); // squadId -> bool
+
   useEffect(() => {
     browseScenarioR2(R2_SCENARIOS_PREFIX)
       .then((d) => setScenarioFolders((d.folders ?? []).map((f) => f.name)))
       .catch(() => setScenarioFolders([]));
   }, []);
+
+  const toggleSquads = (cohortId) => {
+    if (expandedCohortId === cohortId) { setExpandedCohortId(null); return; }
+    setExpandedCohortId(cohortId);
+    if (!squadsByCohort[cohortId]) {
+      setLoadingSquads(true);
+      getSquadsByCohort(cohortId)
+        .then((data) => setSquadsByCohort((p) => ({ ...p, [cohortId]: Array.isArray(data) ? data : [] })))
+        .catch(() => setSquadsByCohort((p) => ({ ...p, [cohortId]: [] })))
+        .finally(() => setLoadingSquads(false));
+    }
+  };
+
+  const saveVictim = async (cohortId, squadId, victimCode) => {
+    setSavingSquad((s) => ({ ...s, [squadId]: true }));
+    try {
+      await updateSquad(cohortId, squadId, { victim_code: victimCode || null });
+      setSquadsByCohort((p) => ({
+        ...p,
+        [cohortId]: (p[cohortId] ?? []).map((sq) => sq.id === squadId ? { ...sq, victim_code: victimCode || null } : sq),
+      }));
+    } catch {}
+    finally { setSavingSquad((s) => ({ ...s, [squadId]: false })); }
+  };
 
   const handleScenarioChange = async (cohort, scenarioName) => {
     setSaving((s) => ({ ...s, [cohort.id]: true }));
@@ -806,44 +836,105 @@ function CohortScenarioPanel({ cohorts, onCohortsChange }) {
           const flashState  = flash[cohort.id];
           const hasScenario = !!cohort.scenario_name;
 
+          const isExpanded = expandedCohortId === cohort.id;
+          const squads     = squadsByCohort[cohort.id] ?? [];
+
           return (
-            <div key={cohort.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)' }}>
-              {/* Cohort info */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--bright)', marginBottom: 2 }}>{cohort.name}</div>
-                <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.1em', color: hasScenario ? 'var(--primary)' : 'var(--muted)' }}>
-                  {hasScenario ? `◉ ${scenarioLabel(cohort.scenario_name)}` : '◌ NO SCENARIO ASSIGNED'}
+            <div key={cohort.id} style={{ border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px' }}>
+                {/* Cohort info */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--bright)', marginBottom: 2 }}>{cohort.name}</div>
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.1em', color: hasScenario ? 'var(--primary)' : 'var(--muted)' }}>
+                    {hasScenario ? `◉ ${scenarioLabel(cohort.scenario_name)}` : '◌ NO SCENARIO ASSIGNED'}
+                  </div>
                 </div>
+
+                {/* Scenario selector */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  {scenarioFolders === null ? (
+                    <div className="spinner" style={{ width: 16, height: 16 }} />
+                  ) : (
+                    <select
+                      value={cohort.scenario_name ?? ''}
+                      onChange={(e) => handleScenarioChange(cohort, e.target.value)}
+                      disabled={isSaving}
+                      style={{
+                        padding: '5px 10px', borderRadius: 4, border: '1px solid var(--border)',
+                        background: 'var(--surface-2, var(--bg))', color: 'var(--text)',
+                        fontSize: 12, fontFamily: 'var(--mono)', cursor: 'pointer',
+                        minWidth: 180,
+                      }}
+                    >
+                      <option value="">— Unassigned —</option>
+                      {scenarioFolders.map((name) => (
+                        <option key={name} value={name}>{scenarioLabel(name)}</option>
+                      ))}
+                    </select>
+                  )}
+
+                  {/* Save feedback */}
+                  {isSaving && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)' }}>SAVING…</span>}
+                  {flashState === 'saved' && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: '#10b981' }}>◉ SAVED</span>}
+                  {flashState === 'error' && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: '#ef4444' }}>FAILED</span>}
+                </div>
+
+                <button
+                  className="btn-secondary"
+                  style={{ fontSize: 11, padding: '4px 10px', flexShrink: 0 }}
+                  onClick={() => toggleSquads(cohort.id)}
+                >
+                  {isExpanded ? 'Hide Squads' : 'Squad Victims'}
+                </button>
               </div>
 
-              {/* Scenario selector */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                {scenarioFolders === null ? (
-                  <div className="spinner" style={{ width: 16, height: 16 }} />
-                ) : (
-                  <select
-                    value={cohort.scenario_name ?? ''}
-                    onChange={(e) => handleScenarioChange(cohort, e.target.value)}
-                    disabled={isSaving}
-                    style={{
-                      padding: '5px 10px', borderRadius: 4, border: '1px solid var(--border)',
-                      background: 'var(--surface-2, var(--bg))', color: 'var(--text)',
-                      fontSize: 12, fontFamily: 'var(--mono)', cursor: 'pointer',
-                      minWidth: 180,
-                    }}
-                  >
-                    <option value="">— Unassigned —</option>
-                    {scenarioFolders.map((name) => (
-                      <option key={name} value={name}>{scenarioLabel(name)}</option>
-                    ))}
-                  </select>
-                )}
-
-                {/* Save feedback */}
-                {isSaving && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)' }}>SAVING…</span>}
-                {flashState === 'saved' && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: '#10b981' }}>◉ SAVED</span>}
-                {flashState === 'error' && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: '#ef4444' }}>FAILED</span>}
-              </div>
+              {isExpanded && (
+                <div style={{ borderTop: '1px solid var(--border)', padding: '12px 16px', background: 'var(--surface-2, #f8fafc)' }}>
+                  {loadingSquads && !squadsByCohort[cohort.id] ? (
+                    <div className="spinner" style={{ width: 16, height: 16 }} />
+                  ) : squads.length === 0 ? (
+                    <p style={{ color: 'var(--muted)', fontSize: 12, margin: 0 }}>No squads found for this cohort.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {[...squads].sort((a, b) => a.number - b.number).map((sq) => {
+                        const thisVictim = sq.victim_code ?? '';
+                        const duplicateVictim = thisVictim && squads.some(
+                          (other) => other.id !== sq.id && (other.victim_code ?? '') === thisVictim
+                        );
+                        return (
+                          <div key={sq.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div style={{ width: 70, flexShrink: 0, fontFamily: 'var(--mono)', fontSize: 11, fontWeight: 700 }}>
+                              SQUAD {sq.number}
+                            </div>
+                            <select
+                              value={thisVictim}
+                              onChange={(e) => saveVictim(cohort.id, sq.id, e.target.value)}
+                              disabled={!!savingSquad[sq.id]}
+                              style={{
+                                width: 160, padding: '5px 8px', borderRadius: 4,
+                                border: `1.5px solid ${duplicateVictim ? '#f59e0b' : 'var(--border)'}`,
+                                background: 'var(--surface)', color: 'var(--text)',
+                                fontSize: 12, fontFamily: 'var(--mono)',
+                              }}
+                            >
+                              <option value="">No victim assigned</option>
+                              {Object.values(VICTIMS).map((v) => (
+                                <option key={v.code} value={v.code}>{v.code}</option>
+                              ))}
+                            </select>
+                            {savingSquad[sq.id] && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)' }}>SAVING…</span>}
+                            {duplicateVictim && (
+                              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: '#f59e0b' }}>
+                                already used by another squad
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
