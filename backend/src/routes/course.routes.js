@@ -133,6 +133,7 @@ const rawUpload = require('express').raw({ type: '*/*', limit: '20mb' });
 router.get('/:id/course-content',           requireAuth,                    courseContentCtrl.list);
 router.post('/:id/course-content',          requireAuth, requireInstructor, courseContentCtrl.create);
 router.post('/:id/course-content/sync-decks', requireAuth, requireInstructor, courseContentCtrl.syncDecks);
+router.post('/:id/course-content/sync-drop-files', requireAuth, requireInstructor, auditLog('sync', 'course_content'), courseContentCtrl.syncDropCaseFiles);
 router.post('/:id/course-content/upload',   requireAuth, requireInstructor, rawUpload, courseContentCtrl.create);
 router.put('/:id/course-content/:cid',      requireAuth, requireInstructor, courseContentCtrl.update);
 router.delete('/:id/course-content/:cid',   requireAuth, requireInstructor, courseContentCtrl.remove);

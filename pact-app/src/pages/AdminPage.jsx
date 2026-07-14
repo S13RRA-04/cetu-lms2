@@ -13,6 +13,7 @@ import {
   getCourseContent,
   createContentLink,
   syncDecksFromR2,
+  syncDropFilesFromR2,
   uploadContentFile,
   updateContentItem,
   deleteContentItem,
@@ -1161,6 +1162,7 @@ function IntelLibraryGating({ contentItems, cohorts, moduleAssignments = [], onI
   const [localItems,  setLocalItems]  = useState(contentItems);
   const [syncing,     setSyncing]     = useState(false);
   const [syncResult,  setSyncResult]  = useState(null);
+  const [syncKind,    setSyncKind]    = useState(null);
 
   useEffect(() => { setLocalItems(contentItems); }, [contentItems]);
 
@@ -1171,6 +1173,7 @@ function IntelLibraryGating({ contentItems, cohorts, moduleAssignments = [], onI
 
   const handleSyncDecks = async () => {
     setSyncing(true);
+    setSyncKind('decks');
     setSyncResult(null);
     try {
       const result = await syncDecksFromR2();
@@ -1180,6 +1183,23 @@ function IntelLibraryGating({ contentItems, cohorts, moduleAssignments = [], onI
       setSyncResult({ error: true });
     } finally {
       setSyncing(false);
+      setSyncKind(null);
+    }
+  };
+
+  const handleSyncDropFiles = async () => {
+    setSyncing(true);
+    setSyncKind('case files');
+    setSyncResult(null);
+    try {
+      const result = await syncDropFilesFromR2();
+      setSyncResult({ ...result, kind: 'case file' });
+      if (result.added > 0 || result.updated > 0) onItemAdded?.();
+    } catch {
+      setSyncResult({ error: true, kind: 'case file' });
+    } finally {
+      setSyncing(false);
+      setSyncKind(null);
     }
   };
 
@@ -1243,15 +1263,25 @@ function IntelLibraryGating({ contentItems, cohorts, moduleAssignments = [], onI
           style={{ background: 'none', border: 'none', cursor: syncing ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: 0, opacity: syncing ? 0.6 : 1 }}
         >
           <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--accent)' }}>
-            {syncing ? 'SYNCING…' : 'SYNC DECKS'}
+            {syncing && syncKind === 'decks' ? 'SYNCING…' : 'SYNC DECKS'}
+          </span>
+        </button>
+
+        <button
+          onClick={handleSyncDropFiles}
+          disabled={syncing}
+          style={{ background: 'none', border: 'none', cursor: syncing ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: 0, opacity: syncing ? 0.6 : 1 }}
+        >
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--accent)' }}>
+            {syncing && syncKind === 'case files' ? 'SYNCING…' : 'SYNC DROP FILES'}
           </span>
         </button>
 
         {syncResult && !syncResult.error && (
           <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: syncResult.added > 0 ? '#10b981' : 'var(--muted)' }}>
             {syncResult.added > 0
-              ? `+${syncResult.added} imported (${syncResult.skipped} already synced)`
-              : `All ${syncResult.total} deck${syncResult.total !== 1 ? 's' : ''} already synced`}
+              ? `+${syncResult.added} ${syncResult.kind ?? 'deck'}${syncResult.added !== 1 ? 's' : ''} imported (${syncResult.skipped} already synced)`
+              : `All ${syncResult.total} ${syncResult.kind ?? 'deck'}${syncResult.total !== 1 ? 's' : ''} already synced`}
           </span>
         )}
         {syncResult?.error && (

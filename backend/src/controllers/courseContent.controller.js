@@ -65,4 +65,9 @@ async function syncDecks(req, res, next) {
   catch (err) { return next(err); }
 }
 
-module.exports = { list, create, update, remove, unlockForCohort, lockForCohort, download, syncDecks };
+async function syncDropCaseFiles(req, res, next) {
+  try { return res.json(await svc.syncDropCaseFiles(req.params.id)); }
+  catch (err) { return next(err); }
+}
+
+module.exports = { list, create, update, remove, unlockForCohort, lockForCohort, download, syncDecks, syncDropCaseFiles };

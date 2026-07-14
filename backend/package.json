@@ -4,6 +4,7 @@
   "description": "CETU LMS Backend — LTI 1.3 compliant Learning Management System",
   "main": "src/server.js",
   "scripts": {
+    "test": "node --test src/**/*.test.js",
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "db:migrate": "npx sequelize-cli db:migrate",

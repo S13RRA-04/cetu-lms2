@@ -182,6 +182,9 @@ export const createContentLink = (data) =>
 export const syncDecksFromR2 = () =>
   client.post(`/courses/${COURSE_ID}/course-content/sync-decks`).then((r) => r.data);
 
+export const syncDropFilesFromR2 = () =>
+  client.post(`/courses/${COURSE_ID}/course-content/sync-drop-files`).then((r) => r.data);
+
 export const uploadContentFile = (file, meta) => {
   const token = localStorage.getItem('accessToken');
   const params = new URLSearchParams(meta).toString();
