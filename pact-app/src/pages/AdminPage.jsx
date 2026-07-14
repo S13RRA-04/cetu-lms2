@@ -45,6 +45,21 @@ const TYPE_COLOR = {
   capstone:   '#b45309',
 };
 
+// Mirrors pact-app/src/pages/InductionSequence.jsx's PROF_ROLE_LABELS —
+// kept in sync by hand, no shared constants module between pages.
+const ROLE_LABELS = {
+  special_agent:                    'Special Agent',
+  intelligence_analyst:             'Intelligence Analyst',
+  operational_support_sos:          'Operational Support Specialist',
+  operational_support_da:           'Data Analyst',
+  supervisory_special_agent:        'Supervisory Special Agent',
+  supervisory_intelligence_analyst: 'Supervisory Intelligence Analyst',
+  task_force_officer:               'Task Force Officer',
+  cyber_analyst:                    'Cyber Analyst',
+  digital_evidence_lead:            'Digital Evidence Lead / CART Liaison',
+};
+const ROLE_ORDER = Object.keys(ROLE_LABELS);
+
 /* ── helpers ── */
 function parseContent(content) {
   try {
@@ -980,6 +995,9 @@ function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignm
         <button className={`admin-mode-tab${subTab === 'drops'      ? ' active' : ''}`} onClick={() => setSubTab('drops')}>
           Scenario Drops
         </button>
+        <button className={`admin-mode-tab${subTab === 'release'    ? ' active' : ''}`} onClick={() => setSubTab('release')}>
+          Release Drops
+        </button>
         <button className={`admin-mode-tab${subTab === 'challenges' ? ' active' : ''}`} onClick={() => setSubTab('challenges')}>
           Challenges
         </button>
@@ -1065,6 +1083,10 @@ function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignm
             </>
           )}
         </div>
+      )}
+
+      {subTab === 'release' && (
+        <CampaignDropsPanel cohorts={cohorts} />
       )}
 
       {subTab === 'challenges' && (
@@ -1621,24 +1643,38 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
   useEffect(() => { setVictimDraft(selected?.victim_name ?? ''); }, [selected?.id]);
   useEffect(() => { setDebriefDraft(selected?.debrief ?? ''); }, [selected?.id]);
 
-  // Two-level grouping: scenario → victim (null victim → '__no_victim__')
-  // Top-level: scenario_name (null → '__unassigned__')
-  const scenarioMap = new Map(); // scenarioKey → Map<victimKey, Assignment[]>
+  // Scenario is the top level (null → '__unassigned__'). Within a scenario,
+  // squad-graded challenges branch by victim; individual, role-filtered
+  // challenges branch by professional role instead (victim and role are
+  // separate dimensions — a challenge is either squad/victim work or
+  // individual role work, not nested one inside the other). Anything with
+  // neither a victim nor a role falls into a residual "shared" bucket.
+  const scenarioMap = new Map(); // scenarioKey → { victims: Map, roles: Map, shared: [] }
   for (const a of localItems) {
     const sKey = a.scenario_name ?? '__unassigned__';
-    const vKey = a.victim_name   ?? '__no_victim__';
-    if (!scenarioMap.has(sKey)) scenarioMap.set(sKey, new Map());
-    const vMap = scenarioMap.get(sKey);
-    if (!vMap.has(vKey)) vMap.set(vKey, []);
-    vMap.get(vKey).push(a);
+    if (!scenarioMap.has(sKey)) scenarioMap.set(sKey, { victims: new Map(), roles: new Map(), shared: [] });
+    const group = scenarioMap.get(sKey);
+    if (a.victim_name) {
+      if (!group.victims.has(a.victim_name)) group.victims.set(a.victim_name, []);
+      group.victims.get(a.victim_name).push(a);
+    } else if (a.role_filters?.length > 0) {
+      for (const role of a.role_filters) {
+        if (!group.roles.has(role)) group.roles.set(role, []);
+        group.roles.get(role).push(a);
+      }
+    } else {
+      group.shared.push(a);
+    }
   }
   const scenarioGroups = [...scenarioMap.entries()].sort(([a], [b]) => {
     if (a === '__unassigned__') return 1;
     if (b === '__unassigned__') return -1;
     return a.localeCompare(b);
   });
-  for (const [, vMap] of scenarioGroups) {
-    for (const items of vMap.values()) items.sort((a, b) => a.order_index - b.order_index);
+  for (const [sKey, group] of scenarioGroups) {
+    for (const items of group.victims.values()) items.sort((a, b) => a.order_index - b.order_index);
+    for (const items of group.roles.values())   items.sort((a, b) => a.order_index - b.order_index);
+    group.shared.sort((a, b) => a.order_index - b.order_index);
   }
 
   const toggleGroup = (key) =>
@@ -1647,6 +1683,34 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
       if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
+
+  const renderSubgroup = (groupKey, label, items) => {
+    const isOpen = !closedGroups.has(groupKey);
+    return (
+      <div key={groupKey}>
+        <button
+          className="admin-group-header"
+          style={{ paddingLeft: 24, background: 'transparent', fontSize: 10, color: 'var(--muted)', letterSpacing: '.12em' }}
+          onClick={() => toggleGroup(groupKey)}
+        >
+          <span style={{ flex: 1, textAlign: 'left' }}>{label.toUpperCase()}</span>
+          <span className="admin-group-badge" style={{ fontSize: 9 }}>{items.length}</span>
+          <span className="admin-group-chevron" style={{ fontSize: 9 }}>{isOpen ? '▲' : '▼'}</span>
+        </button>
+        {isOpen && items.map((a) => (
+          <button
+            key={a.id}
+            className={`admin-assign-btn admin-assign-btn--nested${selected?.id === a.id ? ' active' : ''}`}
+            style={{ paddingLeft: 36 }}
+            onClick={() => setSelected(a)}
+          >
+            <span className="admin-assign-type" style={{ color: TYPE_COLOR.challenge }}>CHALLENGE</span>
+            <span className="admin-assign-title">{a.title}</span>
+          </button>
+        ))}
+      </div>
+    );
+  };
 
   const handleFieldChange = async (assignmentId, patch) => {
     try {
@@ -1657,6 +1721,12 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
     } catch { /* ignore */ }
   };
 
+  const toggleRole = (assignment, role) => {
+    const current = assignment.role_filters ?? [];
+    const next = current.includes(role) ? current.filter((r) => r !== role) : [...current, role];
+    handleFieldChange(assignment.id, { role_filters: next });
+  };
+
   return (
     <div className="admin-layout">
       <div className="admin-left">
@@ -1665,10 +1735,20 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
             No challenges found.
           </p>
         )}
-        {scenarioGroups.map(([sKey, vMap]) => {
-          const sLabel   = scenarioLabel(sKey === '__unassigned__' ? null : sKey);
-          const sCount   = [...vMap.values()].reduce((n, items) => n + items.length, 0);
-          const sIsOpen  = !closedGroups.has(sKey);
+        {scenarioGroups.map(([sKey, group]) => {
+          const sLabel  = scenarioLabel(sKey === '__unassigned__' ? null : sKey);
+          const sCount  = localItems.filter((a) => (a.scenario_name ?? '__unassigned__') === sKey).length;
+          const sIsOpen = !closedGroups.has(sKey);
+
+          const victimEntries = [...group.victims.entries()].sort(([a], [b]) => a.localeCompare(b));
+          const roleEntries   = [...group.roles.entries()].sort(([a], [b]) => {
+            const ai = ROLE_ORDER.indexOf(a), bi = ROLE_ORDER.indexOf(b);
+            if (ai === -1 && bi === -1) return a.localeCompare(b);
+            if (ai === -1) return 1;
+            if (bi === -1) return -1;
+            return ai - bi;
+          });
+
           return (
             <div key={sKey}>
               <button className="admin-group-header" onClick={() => toggleGroup(sKey)}>
@@ -1676,39 +1756,13 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
                 <span className="admin-group-badge">{sCount}</span>
                 <span className="admin-group-chevron">{sIsOpen ? '▲' : '▼'}</span>
               </button>
-              {sIsOpen && [...vMap.entries()].sort(([a], [b]) => {
-                if (a === '__no_victim__') return 1;
-                if (b === '__no_victim__') return -1;
-                return a.localeCompare(b);
-              }).map(([vKey, items]) => {
-                const vLabel  = vKey === '__no_victim__' ? 'Unassigned Victim' : vKey;
-                const vGKey   = `${sKey}::${vKey}`;
-                const vIsOpen = !closedGroups.has(vGKey);
-                return (
-                  <div key={vGKey}>
-                    <button
-                      className="admin-group-header"
-                      style={{ paddingLeft: 24, background: 'transparent', fontSize: 10, color: 'var(--muted)', letterSpacing: '.12em' }}
-                      onClick={() => toggleGroup(vGKey)}
-                    >
-                      <span style={{ flex: 1, textAlign: 'left' }}>{vLabel.toUpperCase()}</span>
-                      <span className="admin-group-badge" style={{ fontSize: 9 }}>{items.length}</span>
-                      <span className="admin-group-chevron" style={{ fontSize: 9 }}>{vIsOpen ? '▲' : '▼'}</span>
-                    </button>
-                    {vIsOpen && items.map((a) => (
-                      <button
-                        key={a.id}
-                        className={`admin-assign-btn admin-assign-btn--nested${selected?.id === a.id ? ' active' : ''}`}
-                        style={{ paddingLeft: 36 }}
-                        onClick={() => setSelected(a)}
-                      >
-                        <span className="admin-assign-type" style={{ color: TYPE_COLOR.challenge }}>CHALLENGE</span>
-                        <span className="admin-assign-title">{a.title}</span>
-                      </button>
-                    ))}
-                  </div>
-                );
-              })}
+              {sIsOpen && (
+                <>
+                  {victimEntries.map(([vKey, items]) => renderSubgroup(`${sKey}::victim::${vKey}`, vKey, items))}
+                  {roleEntries.map(([rKey, items]) => renderSubgroup(`${sKey}::role::${rKey}`, ROLE_LABELS[rKey] ?? rKey, items))}
+                  {group.shared.length > 0 && renderSubgroup(`${sKey}::shared`, 'Shared / All Squads', group.shared)}
+                </>
+              )}
             </div>
           );
         })}
@@ -1727,14 +1781,15 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
                   Challenge
                   {selected.scenario_name && ` · ${scenarioLabel(selected.scenario_name)}`}
                   {selected.victim_name && ` · ${selected.victim_name}`}
+                  {selected.role_filters?.length > 0 && ` · ${selected.role_filters.map((r) => ROLE_LABELS[r] ?? r).join(', ')}`}
                 </div>
               </div>
             </div>
 
-            {/* ── Scenario + Victim assignment ── */}
+            {/* ── Scenario + Victim + Role assignment ── */}
             <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)' }}>
-                SCENARIO &amp; VICTIM
+                SCENARIO, VICTIM &amp; ROLE
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <label style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', width: 56 }}>Scenario:</label>
@@ -1761,6 +1816,24 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
                   style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, flex: 1 }}
                 />
               </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <label style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', width: 56, flexShrink: 0, paddingTop: 2 }}>Roles:</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
+                  {ROLE_ORDER.map((role) => (
+                    <label key={role} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={(selected.role_filters ?? []).includes(role)}
+                        onChange={() => toggleRole(selected, role)}
+                      />
+                      {ROLE_LABELS[role]}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
+                Leave all roles unchecked to show this challenge to every professional role. Role and victim filters both apply if both are set — the list on the left groups by whichever one is set for simplicity, since in practice a challenge is normally one or the other.
+              </p>
             </div>
 
             {/* ── Post-completion debrief ── */}
@@ -3575,836 +3648,6 @@ function ContentItemForm({ onSaved, onCancel }) {
         <button className="btn-submit" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
         <button className="btn-secondary" onClick={onCancel}>Cancel</button>
       </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════
-   CASE FILE PANEL — cohort setup + drop release workflow
-═══════════════════════════════════════════════════════════ */
-
-const SQUAD_COLORS = { 1: '#ef4444', 2: '#f59e0b', 3: '#3b82f6', 4: '#8b5cf6' };
-
-function normalizeName(s) {
-  return (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-function matchScore(folderName, caseName) {
-  const folderWords = new Set(normalizeName(folderName).split(' ').filter(Boolean));
-  const caseWords   = normalizeName(caseName).split(' ').filter(Boolean);
-  if (!folderWords.size || !caseWords.length) return 0;
-  const hits = caseWords.filter((w) => folderWords.has(w)).length;
-  return hits / Math.max(folderWords.size, caseWords.length);
-}
-
-function detectSquad(name, squads) {
-  let best = null, bestScore = 0.3;
-  for (const sq of squads) {
-    if (!sq.case_name) continue;
-    const score = matchScore(name, sq.case_name);
-    if (score > bestScore) { bestScore = score; best = sq; }
-  }
-  return best;
-}
-
-function SquadChip({ squad }) {
-  if (!squad) {
-    return (
-      <span style={{
-        padding: '2px 7px', borderRadius: 4, fontSize: 10,
-        fontFamily: 'var(--mono)', fontWeight: 700, flexShrink: 0,
-        background: 'var(--surface-2, #f1f5f9)', color: 'var(--muted)',
-        border: '1px solid var(--border)',
-      }}>
-        ALL SQUADS
-      </span>
-    );
-  }
-  const color = SQUAD_COLORS[squad.number] ?? 'var(--primary)';
-  return (
-    <span style={{
-      padding: '2px 7px', borderRadius: 4, fontSize: 10,
-      fontFamily: 'var(--mono)', fontWeight: 700, flexShrink: 0,
-      background: `${color}22`, color, border: `1px solid ${color}44`,
-    }}>
-      SQUAD {squad.number}
-    </span>
-  );
-}
-
-function CaseFilePanel({ cohorts, onCohortsChange }) {
-  const [cohortId, setCohortId] = useState(() => cohorts[0]?.id ?? '');
-  const [subTab,   setSubTab]   = useState('setup');
-
-  const selectedCohort = cohorts.find((c) => c.id === cohortId) ?? null;
-
-  const handleCohortUpdate = useCallback((updated) => {
-    onCohortsChange((prev) => prev.map((c) => c.id === updated.id ? { ...c, ...updated } : c));
-  }, [onCohortsChange]);
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-      {/* Top bar */}
-      <div style={{
-        padding: '10px 20px', borderBottom: '1px solid var(--border)',
-        display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap',
-        background: 'var(--surface)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', color: 'var(--muted)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Cohort</span>
-          <select
-            value={cohortId}
-            onChange={(e) => setCohortId(e.target.value)}
-            style={{ padding: '5px 8px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13, background: 'var(--surface)', color: 'var(--text)' }}
-          >
-            {cohorts.length === 0 && <option value="">No cohorts</option>}
-            {cohorts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-        <div style={{ display: 'flex', gap: 4 }}>
-          {['setup', 'releases'].map((tab) => (
-            <button
-              key={tab}
-              className={`scenario-tab${subTab === tab ? ' active' : ''}`}
-              onClick={() => setSubTab(tab)}
-            >
-              {tab === 'setup' ? 'Cohort Setup' : 'Release Drops'}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {!selectedCohort ? (
-        <div className="admin-empty"><p>No cohorts available.</p></div>
-      ) : subTab === 'setup' ? (
-        <CohortSetupPanel
-          key={selectedCohort.id}
-          cohort={selectedCohort}
-          onCohortUpdate={handleCohortUpdate}
-        />
-      ) : (
-        <DropReleasePanel
-          key={selectedCohort.id}
-          cohort={selectedCohort}
-        />
-      )}
-    </div>
-  );
-}
-
-function CohortSetupPanel({ cohort, onCohortUpdate }) {
-  const [squads,          setSquads]          = useState([]);
-  const [loadingSquads,   setLoadingSquads]   = useState(true);
-  const [scenarioName,    setScenarioName]    = useState(cohort.scenario_name ?? '');
-  const [savingScenario,  setSavingScenario]  = useState(false);
-  const [caseNames,       setCaseNames]       = useState({});
-  const [victimCodes,     setVictimCodes]     = useState({});
-  const [savingSquad,     setSavingSquad]     = useState({});
-  const [targetBusy,      setTargetBusy]      = useState(false);
-  const [err,             setErr]             = useState('');
-  const [msg,             setMsg]             = useState('');
-
-  // R2 detection state
-  const [r2Scenarios,     setR2Scenarios]     = useState([]);  // {name, prefix}[]
-  const [scanningR2,      setScanningR2]      = useState(false);
-  const [r2Victims,       setR2Victims]       = useState([]);  // folder name strings
-  const [scanningVictims, setScanningVictims] = useState(false);
-  const [victimPickerSq,  setVictimPickerSq]  = useState(null); // squadId being picked
-
-  useEffect(() => {
-    setLoadingSquads(true);
-    getSquadsByCohort(cohort.id)
-      .then((data) => {
-        const arr = Array.isArray(data) ? data : [];
-        setSquads(arr);
-        const init = {};
-        arr.forEach((sq) => { init[sq.id] = sq.case_name ?? ''; });
-        setCaseNames(init);
-        const vinit = {};
-        arr.forEach((sq) => { vinit[sq.id] = sq.victim_code ?? ''; });
-        setVictimCodes(vinit);
-      })
-      .catch(() => {})
-      .finally(() => setLoadingSquads(false));
-  }, [cohort.id]);
-
-  const flash = (m) => { setMsg(m); setTimeout(() => setMsg(''), 2500); };
-
-  const saveScenario = async (nameOverride) => {
-    const name = (nameOverride ?? scenarioName).trim();
-    setSavingScenario(true);
-    setErr('');
-    try {
-      const updated = await updateCohort(cohort.id, { scenario_name: name || null });
-      onCohortUpdate(updated);
-      if (nameOverride !== undefined) setScenarioName(name);
-      flash('Scenario saved.');
-    } catch { setErr('Save failed.'); }
-    finally { setSavingScenario(false); }
-  };
-
-  const saveCaseName = async (squadId, nameOverride) => {
-    const name = nameOverride ?? caseNames[squadId];
-    if (nameOverride !== undefined) setCaseNames((p) => ({ ...p, [squadId]: nameOverride }));
-    setSavingSquad((s) => ({ ...s, [squadId]: true }));
-    setVictimPickerSq(null);
-    try {
-      await updateSquad(cohort.id, squadId, { case_name: (name ?? '').trim() || null });
-      setSquads((prev) => prev.map((sq) => sq.id === squadId ? { ...sq, case_name: (name ?? '').trim() || null } : sq));
-      flash('Case name saved.');
-    } catch { setErr('Save failed.'); }
-    finally { setSavingSquad((s) => ({ ...s, [squadId]: false })); }
-  };
-
-  const saveVictim = async (squadId, code) => {
-    setVictimCodes((p) => ({ ...p, [squadId]: code }));
-    setSavingSquad((s) => ({ ...s, [squadId]: true }));
-    try {
-      await updateSquad(cohort.id, squadId, { victim_code: code || null });
-      setSquads((prev) => prev.map((sq) => sq.id === squadId ? { ...sq, victim_code: code || null } : sq));
-      flash('Victim assigned.');
-    } catch { setErr('Save failed.'); }
-    finally { setSavingSquad((s) => ({ ...s, [squadId]: false })); }
-  };
-
-  // Browse pact/scenarios/ to find available scenario folders
-  const scanScenarios = async () => {
-    setScanningR2(true);
-    setR2Scenarios([]);
-    try {
-      const data = await browseScenarioR2('pact/scenarios/');
-      const folders = (data.folders ?? []).map((f) => ({
-        name:   f.name,
-        prefix: f.prefix,
-      }));
-      setR2Scenarios(folders);
-    } catch { setErr('Failed to scan R2. Check credentials.'); }
-    finally { setScanningR2(false); }
-  };
-
-  // Browse pact/scenarios/{scenarioName}/Drop {#}/ to find victim sub-folders
-  // Structure: pact/scenarios/{name}/Drop {#}/{Victim Name}/ + supplemental files
-  const scanVictims = async () => {
-    const name = scenarioName.trim();
-    if (!name) { setErr('Set a scenario name first.'); return; }
-    setScanningVictims(true);
-    setR2Victims([]);
-    try {
-      const scenarioPrefix = `pact/scenarios/${name}/`;
-      const topLevel = await browseScenarioR2(scenarioPrefix);
-
-      // Top-level folders are Drop folders: "Drop 1", "Drop 2", etc.
-      const dropFolders = topLevel.folders ?? [];
-
-      // Browse every drop folder in parallel to get victim sub-folders + supplemental files
-      const dropContents = await Promise.all(
-        dropFolders.map((df) =>
-          browseScenarioR2(df.prefix).catch(() => ({ folders: [], files: [] }))
-        )
-      );
-
-      // Collect unique victim names across all drops, tracking which drops they appear in
-      const victimMap = new Map(); // victim name → { drops: Set<dropName>, prefix }
-      for (let i = 0; i < dropFolders.length; i++) {
-        const dropName   = dropFolders[i].name;     // e.g. "Drop 1"
-        const dropNum    = parseInt(dropName.replace(/\D/g, ''), 10) || (i + 1);
-        const contents   = dropContents[i];
-
-        for (const victim of (contents.folders ?? [])) {
-          if (!victimMap.has(victim.name)) {
-            victimMap.set(victim.name, { drops: new Set(), dropNums: new Set(), prefix: victim.prefix });
-          }
-          victimMap.get(victim.name).drops.add(dropName);
-          victimMap.get(victim.name).dropNums.add(dropNum);
-        }
-      }
-
-      const victims = Array.from(victimMap.entries()).map(([victimName, info]) => ({
-        name:     victimName,
-        drops:    Array.from(info.drops).sort(),
-        dropNums: Array.from(info.dropNums).sort((a, b) => a - b),
-        prefix:   info.prefix,
-        squadHint: null,
-      }));
-
-      setR2Victims(victims);
-    } catch { setErr('Failed to scan victim folders.'); }
-    finally { setScanningVictims(false); }
-  };
-
-  const toggleTarget = async () => {
-    setTargetBusy(true);
-    setErr('');
-    try {
-      const updated = await updateCohort(cohort.id, { target_revealed: !cohort.target_revealed });
-      onCohortUpdate(updated);
-    } catch { setErr('Update failed.'); }
-    finally { setTargetBusy(false); }
-  };
-
-  const revealed = !!cohort.target_revealed;
-
-  return (
-    <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1, maxWidth: 720 }}>
-      {err && <div className="err-msg" style={{ marginBottom: 12 }}>{err}</div>}
-      {msg && <div style={{ fontSize: 12, color: '#10b981', marginBottom: 12, fontFamily: 'var(--mono)', letterSpacing: '.08em' }}>{msg}</div>}
-
-      {/* ── Scenario Assignment ─────────────────────────────────────────────── */}
-      <div style={{ marginBottom: 28 }}>
-        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--primary)', marginBottom: 8 }}>
-          Scenario Assignment
-        </div>
-        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.6 }}>
-          Must match the R2 folder name exactly. Click <strong>Scan R2</strong> to auto-detect available scenarios.
-        </p>
-
-        {/* Input row */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-          <input
-            value={scenarioName}
-            onChange={(e) => setScenarioName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') saveScenario(); }}
-            placeholder="e.g. brokered-exit"
-            style={{
-              flex: 1, padding: '7px 10px',
-              border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)',
-              background: 'var(--surface)', color: 'var(--text)',
-              fontSize: 13, fontFamily: 'var(--mono)',
-            }}
-          />
-          <button
-            className="btn-secondary"
-            style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}
-            onClick={scanScenarios}
-            disabled={scanningR2}
-          >
-            {scanningR2 ? (
-              <><div className="spinner" style={{ width: 11, height: 11 }} /> Scanning…</>
-            ) : (
-              <>
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                </svg>
-                Scan R2
-              </>
-            )}
-          </button>
-          <button className="btn-submit" style={{ width: 'auto', flexShrink: 0 }} onClick={() => saveScenario()} disabled={savingScenario}>
-            {savingScenario ? 'Saving…' : 'Save'}
-          </button>
-        </div>
-
-        {/* R2 detected scenario pills */}
-        {r2Scenarios.length > 0 && (
-          <div style={{
-            border: '1px solid var(--border)', borderRadius: 6,
-            padding: '10px 12px', background: 'var(--surface-2, #f8fafc)',
-          }}>
-            <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--mono)', letterSpacing: '.08em', marginBottom: 8 }}>
-              DETECTED IN R2 — click to select:
-            </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {r2Scenarios.map((s) => (
-                <button
-                  key={s.prefix}
-                  onClick={() => { setScenarioName(s.name); saveScenario(s.name); }}
-                  style={{
-                    border: `1px solid ${scenarioName === s.name ? 'var(--primary)' : 'var(--border)'}`,
-                    background: scenarioName === s.name ? 'rgba(0,176,255,0.1)' : 'var(--surface)',
-                    color: scenarioName === s.name ? 'var(--primary)' : 'var(--text)',
-                    borderRadius: 4, padding: '4px 10px', cursor: 'pointer',
-                    fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600,
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  {s.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Squad Case Assignments ──────────────────────────────────────────── */}
-      <div style={{ marginBottom: 28 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--primary)' }}>
-            Squad Case Assignments
-          </div>
-          {scenarioName.trim() && (
-            <button
-              className="btn-secondary"
-              style={{ fontSize: 11, padding: '3px 9px', display: 'flex', alignItems: 'center', gap: 4 }}
-              onClick={scanVictims}
-              disabled={scanningVictims}
-            >
-              {scanningVictims ? (
-                <><div className="spinner" style={{ width: 10, height: 10 }} /> Scanning…</>
-              ) : (
-                <>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                  </svg>
-                  Detect Victims
-                </>
-              )}
-            </button>
-          )}
-        </div>
-        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.6 }}>
-          Assign each squad's victim — Content Gating uses this to route every drop's files and challenge to the right squad automatically. Case name is a free-text label only.
-        </p>
-
-        {/* Detected victims legend */}
-        {r2Victims.length > 0 && (
-          <div style={{
-            border: '1px solid rgba(0,176,255,0.25)',
-            borderRadius: 6, padding: '10px 12px',
-            background: 'rgba(0,176,255,0.03)',
-            marginBottom: 12,
-          }}>
-            <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--mono)', letterSpacing: '.08em', marginBottom: 8 }}>
-              {r2Victims.length} VICTIM{r2Victims.length !== 1 ? 'S' : ''} DETECTED ACROSS {
-                (() => {
-                  const allDrops = new Set(r2Victims.flatMap((v) => v.drops));
-                  return allDrops.size;
-                })()
-              } DROP{
-                (() => {
-                  const allDrops = new Set(r2Victims.flatMap((v) => v.drops));
-                  return allDrops.size !== 1 ? 'S' : '';
-                })()
-              }:
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {r2Victims.map((v, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{
-                    fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600,
-                    color: 'var(--text)', flex: 1,
-                  }}>
-                    {v.name}
-                  </span>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    {v.drops.map((d) => (
-                      <span key={d} style={{
-                        fontFamily: 'var(--mono)', fontSize: 9, padding: '1px 6px',
-                        borderRadius: 3, background: 'rgba(0,176,255,0.1)',
-                        border: '1px solid rgba(0,176,255,0.25)',
-                        color: 'var(--primary)', whiteSpace: 'nowrap',
-                      }}>
-                        {d}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {loadingSquads ? (
-          <div className="spinner" />
-        ) : squads.length === 0 ? (
-          <p style={{ color: 'var(--muted)', fontSize: 13 }}>No squads found for this cohort. Create squads first.</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[...squads].sort((a, b) => a.number - b.number).map((sq) => {
-              const color = SQUAD_COLORS[sq.number] ?? 'var(--primary)';
-              const pickerOpen = victimPickerSq === sq.id;
-
-              // Auto-suggest victims for this squad based on detected victims
-              const squadHintName = `squad-${sq.number}`;
-              const suggestions = r2Victims.filter((v) =>
-                !v.squadHint ||
-                v.squadHint.replace(/\D/g, '') === String(sq.number)
-              );
-
-              const thisVictim = victimCodes[sq.id] ?? '';
-              const duplicateVictim = thisVictim && squads.some(
-                (other) => other.id !== sq.id && (victimCodes[other.id] ?? '') === thisVictim
-              );
-
-              return (
-                <div key={sq.id}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{
-                      width: 64, flexShrink: 0, fontFamily: 'var(--mono)', fontSize: 10,
-                      fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color,
-                    }}>
-                      SQUAD {sq.number}
-                    </div>
-                    <div style={{
-                      fontSize: 11, color: 'var(--muted)', width: 110, flexShrink: 0,
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>
-                      {sq.name || '—'}
-                    </div>
-                    <select
-                      value={thisVictim}
-                      onChange={(e) => saveVictim(sq.id, e.target.value)}
-                      title={duplicateVictim ? 'Another squad is already assigned this victim' : 'Assign this squad\'s victim'}
-                      style={{
-                        width: 150, flexShrink: 0, padding: '6px 8px',
-                        border: `1.5px solid ${duplicateVictim ? '#f59e0b' : `${color}55`}`,
-                        borderRadius: 'var(--radius-sm)',
-                        background: 'var(--surface)', color: 'var(--text)', fontSize: 12,
-                        fontFamily: 'var(--mono)',
-                      }}
-                    >
-                      <option value="">No victim assigned</option>
-                      {Object.values(VICTIMS).map((v) => (
-                        <option key={v.code} value={v.code}>{v.code}</option>
-                      ))}
-                    </select>
-                    {duplicateVictim && (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                        <title>Another squad already has this victim</title>
-                        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-                      </svg>
-                    )}
-                    <div style={{ flex: 1, position: 'relative' }}>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <input
-                          value={caseNames[sq.id] ?? ''}
-                          onChange={(e) => setCaseNames((p) => ({ ...p, [sq.id]: e.target.value }))}
-                          onKeyDown={(e) => { if (e.key === 'Enter') saveCaseName(sq.id); }}
-                          onFocus={() => suggestions.length > 0 && setVictimPickerSq(sq.id)}
-                          placeholder="victim / case name…"
-                          style={{
-                            flex: 1, padding: '6px 10px',
-                            border: `1.5px solid ${color}55`,
-                            borderRadius: 'var(--radius-sm)',
-                            background: 'var(--surface)', color: 'var(--text)', fontSize: 13,
-                          }}
-                        />
-                        {suggestions.length > 0 && (
-                          <button
-                            className="btn-secondary"
-                            style={{ fontSize: 11, padding: '4px 8px', flexShrink: 0 }}
-                            onClick={() => setVictimPickerSq(pickerOpen ? null : sq.id)}
-                            title="Pick from detected victims"
-                          >
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points={pickerOpen ? '18 15 12 9 6 15' : '6 9 12 15 18 9'}/>
-                            </svg>
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Victim dropdown */}
-                      {pickerOpen && (
-                        <div style={{
-                          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
-                          background: 'var(--surface)', border: '1px solid var(--border)',
-                          borderRadius: 6, boxShadow: '0 4px 16px rgba(0,0,0,.15)',
-                          marginTop: 2, maxHeight: 200, overflowY: 'auto',
-                        }}>
-                          {suggestions.map((v, i) => (
-                            <button
-                              key={i}
-                              onClick={() => saveCaseName(sq.id, v.name)}
-                              style={{
-                                display: 'flex', alignItems: 'center', gap: 8,
-                                width: '100%', textAlign: 'left',
-                                padding: '8px 12px', background: 'none', border: 'none',
-                                cursor: 'pointer', fontSize: 13, color: 'var(--text)',
-                                borderBottom: i < suggestions.length - 1 ? '1px solid var(--border)' : 'none',
-                              }}
-                              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f8fafc)'; }}
-                              onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
-                            >
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" opacity="0.4">
-                                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-                              </svg>
-                              <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{v.name}</span>
-                              {v.squadHint && (
-                                <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>
-                                  {v.squadHint}
-                                </span>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      className="btn-sm-primary"
-                      style={{ flexShrink: 0 }}
-                      onClick={() => saveCaseName(sq.id)}
-                      disabled={!!savingSquad[sq.id]}
-                    >
-                      {savingSquad[sq.id] ? '…' : 'Save'}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Target Reveal */}
-      <div>
-        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--primary)', marginBottom: 8 }}>
-          Investigation Target
-        </div>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px',
-          borderRadius: 10,
-          border: `1px solid ${revealed ? 'rgba(16,185,129,0.3)' : 'var(--border)'}`,
-          background: revealed ? 'rgba(16,185,129,0.04)' : 'var(--surface)',
-        }}>
-          <div style={{ flex: 1 }}>
-            <div style={{
-              fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em',
-              textTransform: 'uppercase', color: revealed ? '#10b981' : 'var(--muted)',
-              display: 'flex', alignItems: 'center', gap: 6,
-            }}>
-              <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: revealed ? '#10b981' : 'var(--muted)', flexShrink: 0 }} />
-              {revealed ? 'TARGET REVEALED — students can see their investigation target' : 'TARGET CLASSIFIED — students see a redacted pending state'}
-            </div>
-          </div>
-          <button
-            onClick={toggleTarget}
-            disabled={targetBusy}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 7,
-              padding: '8px 18px', borderRadius: 7,
-              border: `1px solid ${revealed ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.4)'}`,
-              background: revealed ? 'rgba(239,68,68,0.07)' : 'rgba(16,185,129,0.08)',
-              color: revealed ? '#ef4444' : '#10b981',
-              fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 700,
-              letterSpacing: '.14em', textTransform: 'uppercase',
-              cursor: targetBusy ? 'not-allowed' : 'pointer',
-              opacity: targetBusy ? 0.5 : 1, flexShrink: 0,
-            }}
-          >
-            {targetBusy ? '...' : revealed ? (
-              <>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
-                </svg>
-                Conceal Target
-              </>
-            ) : (
-              <>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
-                </svg>
-                Reveal Target
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DropReleasePanel({ cohort }) {
-  const [squads,    setSquads]    = useState([]);
-  const [data,      setData]      = useState(null);
-  const [prefix,    setPrefix]    = useState('');
-  const [loading,   setLoading]   = useState(false);
-  const [err,       setErr]       = useState('');
-  const [releasing, setReleasing] = useState({});
-  const [released,  setReleased]  = useState({});
-
-  const initialPrefix = useMemo(() => {
-    if (!cohort.scenario_name) return 'pact/scenarios/';
-    return `pact/scenarios/${cohort.scenario_name}/`;
-  }, [cohort.scenario_name]);
-
-  useEffect(() => {
-    getSquadsByCohort(cohort.id)
-      .then((d) => setSquads(Array.isArray(d) ? d : []))
-      .catch(() => {});
-  }, [cohort.id]);
-
-  const load = useCallback((p) => {
-    setLoading(true);
-    setErr('');
-    browseScenarioR2(p)
-      .then((d) => { setData(d); setPrefix(p); })
-      .catch(() => setErr('Failed to load R2. Check R2 credentials.'))
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => { load(initialPrefix); }, [initialPrefix, load]);
-
-  const crumbs = useMemo(() => {
-    if (!prefix) return [{ label: 'root', prefix: '' }];
-    const parts = prefix.split('/').filter(Boolean);
-    return [{ label: 'root', prefix: '' }].concat(
-      parts.map((p, i) => ({
-        label:  p,
-        prefix: parts.slice(0, i + 1).join('/') + '/',
-      })),
-    );
-  }, [prefix]);
-
-  const doRelease = async (r2_key, name) => {
-    const matchedSquad = detectSquad(name, squads);
-    setReleasing((p) => ({ ...p, [r2_key]: true }));
-    setErr('');
-    try {
-      await quickReleaseScenario({
-        cohort_id:     cohort.id,
-        r2_key,
-        title:         name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
-        scenario_name: cohort.scenario_name || 'Unknown Scenario',
-        squad_number:  matchedSquad?.number ?? null,
-      });
-      setReleased((p) => ({ ...p, [r2_key]: matchedSquad?.number ?? 0 }));
-    } catch (e) {
-      setErr(e.response?.data?.error?.message ?? 'Release failed');
-    } finally {
-      setReleasing((p) => ({ ...p, [r2_key]: false }));
-    }
-  };
-
-  if (!cohort.scenario_name) {
-    return (
-      <div className="admin-empty" style={{ padding: 32 }}>
-        <p>Set a <strong>Scenario Name</strong> in Cohort Setup before releasing drops.</p>
-      </div>
-    );
-  }
-
-  const noSquadCaseNames = squads.length > 0 && squads.every((sq) => !sq.case_name);
-
-  return (
-    <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
-      {/* Legend bar */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.1em', color: 'var(--muted)', whiteSpace: 'nowrap' }}>
-          SCENARIO: <span style={{ color: 'var(--text)' }}>{cohort.scenario_name}</span>
-        </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {[...squads].sort((a, b) => a.number - b.number).map((sq) => {
-            const color = SQUAD_COLORS[sq.number] ?? 'var(--primary)';
-            return (
-              <span key={sq.id} style={{
-                padding: '2px 7px', borderRadius: 4, fontSize: 10, fontFamily: 'var(--mono)', fontWeight: 700,
-                background: `${color}22`, color, border: `1px solid ${color}44`,
-              }}>
-                S{sq.number}{sq.case_name ? ` · ${sq.case_name}` : ''}
-              </span>
-            );
-          })}
-          <span style={{ padding: '2px 7px', borderRadius: 4, fontSize: 10, fontFamily: 'var(--mono)', fontWeight: 700, background: 'var(--surface-2, #f1f5f9)', color: 'var(--muted)', border: '1px solid var(--border)' }}>
-            ALL SQUADS
-          </span>
-        </div>
-      </div>
-
-      {noSquadCaseNames && (
-        <div style={{ padding: '8px 12px', marginBottom: 12, borderRadius: 6, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', fontSize: 12, color: '#b45309' }}>
-          No squad case names set — all drops will route to All Squads. Set case names in Cohort Setup for automatic matching.
-        </div>
-      )}
-
-      {/* Breadcrumb */}
-      <div className="r2-breadcrumb" style={{ marginBottom: 10 }}>
-        {crumbs.map((c, i) => (
-          <span key={c.prefix + i}>
-            {i > 0 && <span className="r2-crumb-sep">/</span>}
-            <button
-              className={`r2-crumb${i === crumbs.length - 1 ? ' r2-crumb-active' : ''}`}
-              onClick={() => load(c.prefix)}
-              disabled={i === crumbs.length - 1}
-            >{c.label}</button>
-          </span>
-        ))}
-      </div>
-
-      {err && <div className="err-msg" style={{ marginBottom: 8 }}>{err}</div>}
-
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: 32 }}><div className="spinner" /></div>
-      ) : data && (
-        <div className="r2-listing">
-          {data.folders.length === 0 && data.files.length === 0 && (
-            <p style={{ color: 'var(--muted)', fontSize: 13, padding: '8px 0' }}>Empty folder.</p>
-          )}
-
-          {data.folders.map((f) => {
-            const matchedSquad = detectSquad(f.name, squads);
-            const isReleased   = released[f.prefix] != null;
-            const isReleasing  = !!releasing[f.prefix];
-            return (
-              <div key={f.prefix} className="r2-file-block">
-                <div className="r2-row r2-folder" style={{ alignItems: 'center' }}>
-                  <button
-                    onClick={() => load(f.prefix)}
-                    style={{ display: 'flex', gap: 6, alignItems: 'center', flex: 1, background: 'none', border: 'none', cursor: 'pointer', padding: 0, minWidth: 0 }}
-                  >
-                    <span style={{ fontSize: 14, flexShrink: 0 }}>📁</span>
-                    <span className="r2-name" style={{ textAlign: 'left' }}>{f.name}/</span>
-                  </button>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0, marginLeft: 8 }}>
-                    {isReleased ? (
-                      <span style={{ fontSize: 10, fontFamily: 'var(--mono)', fontWeight: 700, color: '#10b981' }}>
-                        ✓ RELEASED {released[f.prefix] === 0 ? '→ ALL' : `→ S${released[f.prefix]}`}
-                      </span>
-                    ) : (
-                      <>
-                        <SquadChip squad={matchedSquad} />
-                        <button
-                          className="btn-sm-primary"
-                          style={{ fontSize: 11 }}
-                          disabled={isReleasing}
-                          onClick={() => doRelease(f.prefix, f.name)}
-                        >
-                          {isReleasing ? '…' : 'Release'}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-
-          {data.files.map((f) => {
-            const matchedSquad = detectSquad(f.name, squads);
-            const isReleased   = released[f.key] != null;
-            const isReleasing  = !!releasing[f.key];
-            return (
-              <div key={f.key} className="r2-file-block">
-                <div className="r2-row r2-file" style={{ alignItems: 'center' }}>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flex: 1, minWidth: 0 }}>
-                    <span style={{ fontSize: 14, flexShrink: 0 }}>📄</span>
-                    <a href={f.url} target="_blank" rel="noopener noreferrer" className="r2-name r2-file-link" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</a>
-                    {f.size != null && <span className="r2-size" style={{ flexShrink: 0 }}>{formatR2Size(f.size)}</span>}
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0, marginLeft: 8 }}>
-                    {isReleased ? (
-                      <span style={{ fontSize: 10, fontFamily: 'var(--mono)', fontWeight: 700, color: '#10b981' }}>
-                        ✓ RELEASED {released[f.key] === 0 ? '→ ALL' : `→ S${released[f.key]}`}
-                      </span>
-                    ) : (
-                      <>
-                        <SquadChip squad={matchedSquad} />
-                        <button
-                          className="btn-sm-primary"
-                          style={{ fontSize: 11 }}
-                          disabled={isReleasing}
-                          onClick={() => doRelease(f.key, f.name)}
-                        >
-                          {isReleasing ? '…' : 'Release'}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
