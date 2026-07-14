@@ -41,7 +41,7 @@ async function getMyEnrollment(req, res, next) {
         {
           model: Squad,
           as:    'squad',
-          attributes: ['id', 'number', 'name'],
+          attributes: ['id', 'number', 'name', 'victim_code'],
           include: [{
             model:      User,
             as:         'students',

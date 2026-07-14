@@ -114,13 +114,14 @@ async function listForStudent(courseId, userId) {
   const enrollment = await Enrollment.findOne({
     where:   { user_id: userId, course_id: courseId },
     include: [
-      { model: Squad,  as: 'squad',  attributes: ['id', 'number'] },
+      { model: Squad,  as: 'squad',  attributes: ['id', 'number', 'victim_code'] },
       { model: Cohort, as: 'cohort', attributes: ['id', 'scenario_name'] },
     ],
   });
   if (!enrollment) throw new ForbiddenError('Not enrolled in this course');
 
   const studentSquadNumber = enrollment.squad?.number ?? null;
+  const studentVictimCode  = enrollment.squad?.victim_code ?? null;
   const cohortScenario     = enrollment.cohort?.scenario_name ?? null;
 
   const unlockedSet = new Set();
@@ -140,12 +141,16 @@ async function listForStudent(courseId, userId) {
     })
   );
 
-  // Show packages that are unlocked for the cohort, assigned to the student's squad
-  // (or broadcast), and match the cohort's scenario if one is set.
+  // Show packages that are unlocked for the cohort, assigned to the student's
+  // victim (falling back to the legacy squad_number check for packages
+  // created before victim-based targeting existed), and match the cohort's
+  // scenario if one is set.
   const unlocked = packages.filter(
     (p) =>
       unlockedSet.has(p.id) &&
-      (p.squad_number == null || p.squad_number === studentSquadNumber) &&
+      (p.victim_code == null
+        ? (p.squad_number == null || p.squad_number === studentSquadNumber)
+        : p.victim_code === studentVictimCode) &&
       (cohortScenario == null || p.scenario_name === cohortScenario)
   );
 
@@ -278,7 +283,7 @@ async function deleteR2Object(key) {
   immediately unlock it for the specified cohort. Assigns release_number
   as max(existing) + 1 across the course.
 */
-async function quickRelease(courseId, cohortId, { r2_key, title, scenario_name, squad_number, unlocker_id, description }) {
+async function quickRelease(courseId, cohortId, { r2_key, title, scenario_name, squad_number, drop_number, victim_code, unlocker_id, description }) {
   const cohort = await Cohort.findByPk(cohortId);
   if (!cohort) throw new (require('../utils/errors').NotFoundError)('Cohort');
 
@@ -296,6 +301,8 @@ async function quickRelease(courseId, cohortId, { r2_key, title, scenario_name, 
     r2_key,
     release_number,
     squad_number:   squad_number ?? null,
+    drop_number:    drop_number ?? null,
+    victim_code:    victim_code ?? null,
     is_published:   true,
   });
 

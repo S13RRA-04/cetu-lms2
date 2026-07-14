@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getVictim } from '../constants/victims.js';
+import { getVictimByCode } from '../constants/victims.js';
 import DecryptText from '../components/DecryptText.jsx';
 import DataStream  from '../components/DataStream.jsx';
 
@@ -12,6 +12,8 @@ const PROF_ROLE_LABELS = {
   supervisory_special_agent:        'Supervisory Special Agent',
   supervisory_intelligence_analyst: 'Supervisory Intelligence Analyst',
   task_force_officer:               'Task Force Officer',
+  cyber_analyst:                    'Cyber Analyst',
+  digital_evidence_lead:            'Digital Evidence Lead / CART Liaison',
 };
 
 // Panel 0 — Classification acknowledgment
@@ -52,7 +54,7 @@ function PanelClassification({ onAdvance }) {
 // Panel 1 — Assignment order
 function PanelAssignment({ user, enrollment, onAdvance }) {
   const squad  = enrollment?.squad;
-  const victim = getVictim(squad?.number);
+  const victim = getVictimByCode(squad?.victim_code);
   const role   = PROF_ROLE_LABELS[user?.professional_role] ?? 'Special Agent';
   const today  = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -99,7 +101,7 @@ function PanelAssignment({ user, enrollment, onAdvance }) {
 // Panel 2 — Target reveal (THE moment)
 function PanelTarget({ enrollment, onAdvance }) {
   const squad           = enrollment?.squad;
-  const victim          = getVictim(squad?.number);
+  const victim          = getVictimByCode(squad?.victim_code);
   const targetRevealed  = enrollment?.cohort?.target_revealed;
 
   const [stage, setStage] = useState(0);

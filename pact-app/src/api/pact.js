@@ -11,6 +11,9 @@ export const logout = () =>
 export const getMyEnrollment = () =>
   client.get(`/courses/${COURSE_ID}/enrollment/me`).then((r) => r.data);
 
+export const submitOnboarding = (professionalRole) =>
+  client.post('/users/me/onboarding', { professional_role: professionalRole }).then((r) => r.data);
+
 export const getAssignments = () =>
   client.get(`/courses/${COURSE_ID}/assignments?limit=200`).then((r) => r.data);
 

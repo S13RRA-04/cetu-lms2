@@ -3,7 +3,7 @@ import { NavLink, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import useAuthStore from '../store/authStore.js';
 import { logout } from '../api/pact.js';
-import { getVictim } from '../constants/victims.js';
+import { getVictimByCode } from '../constants/victims.js';
 import DataStream from '../components/DataStream.jsx';
 
 const Globe = lazy(() => import('../components/Globe.jsx'));
@@ -97,7 +97,7 @@ const HudBar = memo(function HudBar({ accent, squad }) {
 
 /* ── Investigation target card ──────────────────────────────────────────────── */
 function TargetCard({ squad, enrollment, accent }) {
-  const victim   = squad ? getVictim(squad.number) : null;
+  const victim   = squad ? getVictimByCode(squad.victim_code) : null;
   const revealed = !!enrollment?.cohort?.target_revealed;
 
   if (!squad) return null;

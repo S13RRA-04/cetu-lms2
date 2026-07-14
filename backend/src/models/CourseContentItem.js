@@ -15,6 +15,7 @@ module.exports = (sequelize) => sequelize.define('CourseContentItem', {
   file_name:    { type: DataTypes.STRING(255) },
   file_size:    { type: DataTypes.BIGINT },
   drop_number:          { type: DataTypes.SMALLINT, allowNull: true, defaultValue: null },
+  victim_code:          { type: DataTypes.STRING(20), allowNull: true, defaultValue: null },
   linked_assignment_id: { type: DataTypes.UUID,     allowNull: true, defaultValue: null },
   order_index:          { type: DataTypes.INTEGER,  defaultValue: 0 },
   is_published: { type: DataTypes.BOOLEAN, defaultValue: false },

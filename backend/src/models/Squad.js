@@ -10,6 +10,7 @@ module.exports = (sequelize) => {
       number:    { type: DataTypes.SMALLINT,    allowNull: false },
       name:      { type: DataTypes.STRING(100), allowNull: true },
       case_name: { type: DataTypes.STRING(255), allowNull: true },
+      victim_code: { type: DataTypes.STRING(20), allowNull: true },
     },
     { tableName: 'squads' }
   );

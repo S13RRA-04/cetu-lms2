@@ -66,8 +66,9 @@ async function listForStudent(courseId, userId) {
 }
 
 async function _queryListForStudent(courseId, userId) {
-  // Round-trip 1: enrollment and assignment list are independent — run in parallel
-  const [enrollment, assignments] = await Promise.all([
+  // Round-trip 1: enrollment, assignment list, and the student's professional
+  // role are independent — run in parallel
+  const [enrollment, assignments, student] = await Promise.all([
     Enrollment.findOne({
       where:   { user_id: userId, course_id: courseId },
       include: [{ association: 'squad', attributes: ['id'] }],
@@ -76,15 +77,24 @@ async function _queryListForStudent(courseId, userId) {
       where: { course_id: courseId, is_published: true },
       order: [['order_index', 'ASC'], ['created_at', 'ASC']],
     }),
+    User.findByPk(userId, { attributes: ['professional_role'] }),
   ]);
   if (!enrollment) throw new AppError('Not enrolled in this course', 403, 'FORBIDDEN');
+
+  // role_filters empty/null = visible to everyone; otherwise only visible to
+  // students whose professional_role is in the list
+  const professionalRole = student?.professional_role ?? null;
+  const visibleAssignments = assignments.filter((a) => {
+    const filters = a.role_filters;
+    return !filters || filters.length === 0 || filters.includes(professionalRole);
+  });
 
   const squadId   = enrollment.squad?.id ?? null;
   const orClauses = [{ cohort_id: enrollment.cohort_id, squad_id: null }];
   if (squadId) orClauses.push({ squad_id: squadId });
 
   // Round-trip 2: unlocks (needs enrollment) + submissions (needs assignment IDs) — run in parallel
-  const assignmentIds = assignments.map((a) => a.id);
+  const assignmentIds = visibleAssignments.map((a) => a.id);
   const [unlocks, submissions] = await Promise.all([
     AssignmentUnlock.findAll({ where: { [Op.or]: orClauses } }),
     assignmentIds.length
@@ -95,7 +105,7 @@ async function _queryListForStudent(courseId, userId) {
   const unlockedIds = new Set(unlocks.map((u) => u.assignment_id));
   const progressMap = Object.fromEntries(submissions.map((s) => [s.assignment_id, s.progress ?? 0]));
 
-  return assignments.map((a) => ({
+  return visibleAssignments.map((a) => ({
     ...a.toJSON(),
     is_unlocked: unlockedIds.has(a.id),
     progress:    progressMap[a.id] ?? 0,

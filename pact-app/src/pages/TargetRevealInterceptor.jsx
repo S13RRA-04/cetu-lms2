@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { getVictim } from '../constants/victims.js';
+import { getVictimByCode } from '../constants/victims.js';
 import DecryptText from '../components/DecryptText.jsx';
 import DataStream  from '../components/DataStream.jsx';
 
@@ -10,7 +10,7 @@ export function targetSeenKey(userId) {
 
 export default function TargetRevealInterceptor({ enrollment, onAcknowledge }) {
   const squad  = enrollment?.squad;
-  const victim = squad ? getVictim(squad.number) : null;
+  const victim = squad ? getVictimByCode(squad.victim_code) : null;
 
   const [stage, setStage]   = useState(0);
   const [flashed, setFlashed] = useState(false);

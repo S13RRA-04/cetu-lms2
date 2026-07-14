@@ -89,17 +89,17 @@ async function deleteR2Object(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-/* POST /:id/scenarios/quick-release  { cohort_id, r2_key, title, scenario_name, squad_number } */
+/* POST /:id/scenarios/quick-release  { cohort_id, r2_key, title, scenario_name, squad_number, drop_number, victim_code } */
 async function quickRelease(req, res, next) {
   try {
-    const { cohort_id, r2_key, title, scenario_name, squad_number } = req.body ?? {};
+    const { cohort_id, r2_key, title, scenario_name, squad_number, drop_number, victim_code } = req.body ?? {};
     if (!cohort_id || !r2_key) {
       return res.status(400).json({ error: 'cohort_id and r2_key are required' });
     }
     const pkg = await scenarioService.quickRelease(
       req.params.id,
       cohort_id,
-      { r2_key, title, scenario_name, squad_number, unlocker_id: req.user.id },
+      { r2_key, title, scenario_name, squad_number, drop_number, victim_code, unlocker_id: req.user.id },
     );
     return res.status(201).json(pkg);
   } catch (err) { return next(err); }

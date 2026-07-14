@@ -24,6 +24,8 @@ const ROLE_ABBR = {
   task_force_officer:               'TFO',
   operational_support_sos:          'OPS',
   operational_support_da:           'OPS',
+  cyber_analyst:                    'C/A',
+  digital_evidence_lead:            'DEL',
 };
 
 export default function LoginPage() {

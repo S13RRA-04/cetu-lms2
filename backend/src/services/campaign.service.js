@@ -1,7 +1,9 @@
 'use strict';
 const { CampaignDrop, CampaignDropUnlock, Assignment, AssignmentUnlock,
-        CourseContentItem, CourseContentUnlock, Course, Cohort } = require('../models');
+        CourseContentItem, CourseContentUnlock, ScenarioPackage, ScenarioPackageUnlock,
+        Squad, Course, Cohort } = require('../models');
 const { NotFoundError, AppError } = require('../utils/errors');
+const { codeToName } = require('../constants/victims');
 
 async function listDrops(courseId, cohortId, includePin = false) {
   const drops = await CampaignDrop.findAll({
@@ -59,6 +61,11 @@ async function deleteDrop(dropId) {
   await drop.destroy();
 }
 
+/* Fan out a drop release per squad, using each squad's manually-assigned
+   victim to decide which victim-tagged assignments/content/R2 packages it
+   gets. Untagged (victim-less) items stay cohort-wide, matching the old
+   broadcast behavior. Squads with no victim assigned yet are skipped and
+   reported back so staff know to visit the victim-assignment panel first. */
 async function releaseDrop(dropId, cohortId, unlockerId) {
   const drop = await CampaignDrop.findByPk(dropId);
   if (!drop) throw new NotFoundError('CampaignDrop');
@@ -72,29 +79,64 @@ async function releaseDrop(dropId, cohortId, unlockerId) {
     defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
   });
 
-  // Bulk-unlock all assignments tagged to this drop number
+  const squads = await Squad.findAll({ where: { cohort_id: cohortId } });
+  const assignedSquads = squads.filter((s) => s.victim_code);
+  const skippedSquads  = squads.filter((s) => !s.victim_code).map((s) => s.number);
+
   const assignments = await Assignment.findAll({
     where: { course_id: drop.course_id, drop_number: drop.number },
   });
-  for (const a of assignments) {
-    await AssignmentUnlock.findOrCreate({
-      where:    { assignment_id: a.id, cohort_id: cohortId },
-      defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
-    });
-  }
-
-  // Bulk-unlock all course content items tagged to this drop number
   const contentItems = await CourseContentItem.findAll({
     where: { course_id: drop.course_id, drop_number: drop.number },
   });
-  for (const ci of contentItems) {
-    await CourseContentUnlock.findOrCreate({
-      where:    { content_id: ci.id, cohort_id: cohortId },
-      defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
-    });
+  const scenarioPackages = await ScenarioPackage.findAll({
+    where: { course_id: drop.course_id, drop_number: drop.number, is_published: true },
+  });
+
+  let releasedAssignments = 0;
+  let releasedContent     = 0;
+  let releasedPackages    = 0;
+
+  for (const squad of assignedSquads) {
+    const victimName = codeToName(squad.victim_code);
+
+    for (const a of assignments) {
+      if (a.victim_name && a.victim_name !== victimName) continue;
+      const squad_id = a.victim_name ? squad.id : null;
+      const [, created] = await AssignmentUnlock.findOrCreate({
+        where:    { assignment_id: a.id, cohort_id: cohortId, squad_id },
+        defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
+      });
+      if (created) releasedAssignments++;
+    }
+
+    for (const ci of contentItems) {
+      if (ci.victim_code && ci.victim_code !== squad.victim_code) continue;
+      const squad_id = ci.victim_code ? squad.id : null;
+      const [, created] = await CourseContentUnlock.findOrCreate({
+        where:    { content_id: ci.id, cohort_id: cohortId, squad_id },
+        defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
+      });
+      if (created) releasedContent++;
+    }
+
+    for (const p of scenarioPackages) {
+      if (p.victim_code && p.victim_code !== squad.victim_code) continue;
+      const [, created] = await ScenarioPackageUnlock.findOrCreate({
+        where:    { package_id: p.id, cohort_id: cohortId },
+        defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
+      });
+      if (created) releasedPackages++;
+    }
   }
 
-  return { drop, unlock, released_assignments: assignments.length, released_content: contentItems.length };
+  return {
+    drop, unlock,
+    released_assignments: releasedAssignments,
+    released_content:     releasedContent,
+    released_packages:    releasedPackages,
+    skipped_squads:       skippedSquads,
+  };
 }
 
 async function lockDrop(dropId, cohortId) {

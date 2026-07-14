@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getAssignments, getMyEnrollment, getCampaignDrops, getScenarios } from '../api/pact.js';
 import AppLayout          from './AppLayout.jsx';
 import InductionSequence  from '../pages/InductionSequence.jsx';
+import RoleSelection      from '../pages/RoleSelection.jsx';
 import TransmissionInterceptor, { getSeenDropIds, markDropSeen, dropSeenId } from '../pages/TransmissionInterceptor.jsx';
 import TargetRevealInterceptor, { targetSeenKey } from '../pages/TargetRevealInterceptor.jsx';
 import VaultKeypad        from '../pages/VaultKeypad.jsx';
@@ -217,6 +218,12 @@ export default function AppShell() {
 
   const handleStayLoggedIn = () => resetActivity();
   const handleLogoutNow    = () => { doLogout(); navigate('/logged-out', { replace: true }); };
+
+  // Students must have a professional role on record before anything else —
+  // it drives which taskings are routed to them and personalizes induction.
+  if (isStudent && !user?.professional_role) {
+    return <RoleSelection user={user} />;
+  }
 
   // Show induction for students who haven't seen it yet (wait for enrollment to load)
   if (isStudent && !inducted) {

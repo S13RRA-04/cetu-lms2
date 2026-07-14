@@ -34,6 +34,7 @@ import {
   getLiveOverview,
   getAssignmentProgress,
 } from '../api/pact.js';
+import { VICTIMS } from '../constants/victims.js';
 
 const TYPE_COLOR = {
   module:     '#2563eb',
@@ -2047,8 +2048,6 @@ function R2PublishBrowser({ rootPrefix, cohorts = [], onPublished, hideRelease =
   );
 }
 
-const DROP_SQUAD_PALETTE = { 1: '#ef4444', 2: '#f59e0b', 3: '#3b82f6', 4: '#8b5cf6' };
-
 function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onReleased, onCancel }) {
   // Infer drop number and scenario name from the current R2 path
   // Path shape: pact/scenarios/{scenario}/Drop {#}/{victim}/
@@ -2074,9 +2073,7 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
     return sc && dn ? `${sc} — Drop ${dn}` : folder.name.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   })();
   const [cohortId,     setCohortId]     = useState(() => cohorts[0]?.id ?? '');
-  const [squads,       setSquads]       = useState([]);
-  const [squadNum,     setSquadNum]     = useState('all');
-  const [matchedSquad, setMatchedSquad] = useState(null); // { squad, score }
+  const [victimCode,   setVictimCode]   = useState('');
   const [title,        setTitle]        = useState(defaultTitle);
   const [description,  setDescription]  = useState('');
   const [releaseNum,   setReleaseNum]   = useState(inferDropNum);
@@ -2089,31 +2086,6 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
   const [saving,       setSaving]       = useState(false);
   const [err,          setErr]          = useState('');
   const [done,         setDone]         = useState(false);
-
-  // Load squads when cohort changes, then auto-match victim folder name
-  useEffect(() => {
-    if (!cohortId) { setSquads([]); setMatchedSquad(null); return; }
-    getSquadsByCohort(cohortId)
-      .then((data) => {
-        const arr = Array.isArray(data) ? data : [];
-        setSquads(arr);
-        // Run victim name matching against squad case names
-        let best = null, bestScore = 0.3;
-        for (const sq of arr) {
-          if (!sq.case_name) continue;
-          const score = matchScore(folder.name, sq.case_name);
-          if (score > bestScore) { bestScore = score; best = { squad: sq, score: bestScore }; }
-        }
-        if (best) {
-          setMatchedSquad(best);
-          setSquadNum(String(best.squad.number));
-        } else {
-          setMatchedSquad(null);
-          setSquadNum('all');
-        }
-      })
-      .catch(() => {});
-  }, [cohortId, folder.name]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedCohort = cohorts.find((c) => c.id === cohortId);
 
@@ -2132,14 +2104,17 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
     try {
       const dropNum = Number(releaseNum);
 
-      // 1. Quick-release the scenario package to the cohort + optional squad
+      // 1. Quick-release the scenario package to the cohort, tagged with its
+      //    drop number + victim so releaseDrop() can fan it out to the right
+      //    squad automatically on every future release of this drop.
       await quickReleaseScenario({
         cohort_id:     cohortId,
         r2_key:        folder.prefix,
         title:         title.trim(),
         description:   description.trim() || undefined,
         scenario_name: scenarioName.trim() || folder.name,
-        squad_number:  squadNum === 'all' ? null : Number(squadNum),
+        drop_number:   dropNum,
+        victim_code:   victimCode || null,
       });
 
       // 2. Always create/upsert the CampaignDrop record so the student gets the transmission
@@ -2177,16 +2152,18 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
     }
   };
 
+  const selectedVictim = Object.values(VICTIMS).find((v) => v.code === victimCode) ?? null;
+
   if (done) {
     return (
       <div style={{ padding: '10px 16px', color: '#10b981', fontSize: 13, fontFamily: 'var(--mono)', letterSpacing: '.06em' }}>
-        DROP RELEASED{squadNum !== 'all' ? ` — SQUAD ${squadNum}` : ' — ALL SQUADS'}
+        DROP RELEASED{selectedVictim ? ` — ${selectedVictim.code}` : ' — COHORT-WIDE (NO VICTIM)'}
         {cipher !== 'none' && ` + ${cipher === 'vault' ? 'VAULT LOCK' : 'SIGNAL HUNT'}`}
       </div>
     );
   }
 
-  const squadColor = squadNum !== 'all' ? (DROP_SQUAD_PALETTE[Number(squadNum)] ?? 'var(--primary)') : 'var(--primary)';
+  const squadColor = selectedVictim?.color ?? 'var(--primary)';
 
   return (
     <div className="publish-form" style={{ borderLeft: `3px solid ${squadColor}` }}>
@@ -2218,33 +2195,18 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
           </select>
         </div>
 
-        {/* Squad */}
+        {/* Victim */}
         <div className="form-field" style={{ margin: 0 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            Squad
-            {matchedSquad && squadNum === String(matchedSquad.squad.number) && (
-              <span style={{
-                fontFamily: 'var(--mono)', fontSize: 9, fontWeight: 700,
-                letterSpacing: '.1em', padding: '1px 6px', borderRadius: 3,
-                background: `${DROP_SQUAD_PALETTE[matchedSquad.squad.number] ?? '#94a3b8'}22`,
-                color: DROP_SQUAD_PALETTE[matchedSquad.squad.number] ?? '#94a3b8',
-                border: `1px solid ${DROP_SQUAD_PALETTE[matchedSquad.squad.number] ?? '#94a3b8'}44`,
-              }}>
-                AUTO-MATCHED · {matchedSquad.squad.case_name}
-              </span>
-            )}
+          <label>
+            Victim
+            <span style={{ fontWeight: 400, color: 'var(--muted)', fontSize: 11 }}> (routes to whichever squad is assigned this victim)</span>
           </label>
-          <select value={squadNum} onChange={(e) => { setSquadNum(e.target.value); setMatchedSquad(null); }}
+          <select value={victimCode} onChange={(e) => setVictimCode(e.target.value)}
             style={{ padding: '5px 8px', borderRadius: 4, border: `1.5px solid ${squadColor}66`, background: 'var(--surface)', color: squadColor, fontSize: 13, fontWeight: 600, width: '100%' }}>
-            <option value="all">All Squads</option>
-            {squads.length > 0
-              ? [...squads].sort((a, b) => a.number - b.number).map((sq) => (
-                  <option key={sq.id} value={String(sq.number)}>
-                    Squad {sq.number}{sq.case_name ? ` — ${sq.case_name}` : ''}
-                  </option>
-                ))
-              : [1, 2, 3, 4].map((n) => <option key={n} value={String(n)}>Squad {n}</option>)
-            }
+            <option value="">Cohort-wide (no victim)</option>
+            {Object.values(VICTIMS).map((v) => (
+              <option key={v.code} value={v.code}>{v.code} — {v.name}</option>
+            ))}
           </select>
         </div>
 
@@ -2341,7 +2303,7 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
       {err && <div className="err-msg" style={{ marginBottom: 8 }}>{err}</div>}
       <div style={{ display: 'flex', gap: 8 }}>
         <button className="btn-submit" style={{ width: 'auto' }} onClick={handleDrop} disabled={saving}>
-          {saving ? 'Dropping…' : `Release Drop${squadNum !== 'all' ? ` → Squad ${squadNum}` : ' → All Squads'}`}
+          {saving ? 'Dropping…' : `Release Drop${selectedVictim ? ` → ${selectedVictim.code}` : ' → Cohort-wide'}`}
         </button>
         <button className="btn-secondary" onClick={onCancel}>Cancel</button>
       </div>
@@ -3109,6 +3071,7 @@ function CampaignDropsPanel({ cohorts }) {
   const [delDrop,   setDelDrop]  = useState(null);
   const [working,   setWorking]  = useState(null);
   const [err,       setErr]      = useState('');
+  const [warn,      setWarn]     = useState('');
 
   const load = useCallback(() => {
     setLoading(true);
@@ -3131,7 +3094,14 @@ function CampaignDropsPanel({ cohorts }) {
     if (!cohortId) { setErr('Select a cohort first.'); return; }
     setWorking(drop.id + ':release');
     setErr('');
-    try { await releaseCampaignDrop(drop.id, cohortId); load(); }
+    setWarn('');
+    try {
+      const result = await releaseCampaignDrop(drop.id, cohortId);
+      if (result?.skipped_squads?.length > 0) {
+        setWarn(`Squad${result.skipped_squads.length > 1 ? 's' : ''} ${result.skipped_squads.join(', ')} skipped — no victim assigned yet. Set it in Command Center.`);
+      }
+      load();
+    }
     catch (e) { setErr(e.response?.data?.error?.message ?? 'Release failed'); }
     finally { setWorking(null); }
   };
@@ -3209,6 +3179,15 @@ function CampaignDropsPanel({ cohorts }) {
       </div>
 
       {err && <div className="err-msg" style={{ marginBottom: 10 }}>{err}</div>}
+      {warn && (
+        <div style={{
+          marginBottom: 10, padding: '8px 12px', borderRadius: 6,
+          background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)',
+          color: '#b45309', fontSize: 13,
+        }}>
+          {warn}
+        </div>
+      )}
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 32 }}><div className="spinner" /></div>
@@ -3628,6 +3607,7 @@ function CohortSetupPanel({ cohort, onCohortUpdate }) {
   const [scenarioName,    setScenarioName]    = useState(cohort.scenario_name ?? '');
   const [savingScenario,  setSavingScenario]  = useState(false);
   const [caseNames,       setCaseNames]       = useState({});
+  const [victimCodes,     setVictimCodes]     = useState({});
   const [savingSquad,     setSavingSquad]     = useState({});
   const [targetBusy,      setTargetBusy]      = useState(false);
   const [err,             setErr]             = useState('');
@@ -3649,6 +3629,9 @@ function CohortSetupPanel({ cohort, onCohortUpdate }) {
         const init = {};
         arr.forEach((sq) => { init[sq.id] = sq.case_name ?? ''; });
         setCaseNames(init);
+        const vinit = {};
+        arr.forEach((sq) => { vinit[sq.id] = sq.victim_code ?? ''; });
+        setVictimCodes(vinit);
       })
       .catch(() => {})
       .finally(() => setLoadingSquads(false));
@@ -3678,6 +3661,17 @@ function CohortSetupPanel({ cohort, onCohortUpdate }) {
       await updateSquad(cohort.id, squadId, { case_name: (name ?? '').trim() || null });
       setSquads((prev) => prev.map((sq) => sq.id === squadId ? { ...sq, case_name: (name ?? '').trim() || null } : sq));
       flash('Case name saved.');
+    } catch { setErr('Save failed.'); }
+    finally { setSavingSquad((s) => ({ ...s, [squadId]: false })); }
+  };
+
+  const saveVictim = async (squadId, code) => {
+    setVictimCodes((p) => ({ ...p, [squadId]: code }));
+    setSavingSquad((s) => ({ ...s, [squadId]: true }));
+    try {
+      await updateSquad(cohort.id, squadId, { victim_code: code || null });
+      setSquads((prev) => prev.map((sq) => sq.id === squadId ? { ...sq, victim_code: code || null } : sq));
+      flash('Victim assigned.');
     } catch { setErr('Save failed.'); }
     finally { setSavingSquad((s) => ({ ...s, [squadId]: false })); }
   };
@@ -3867,7 +3861,7 @@ function CohortSetupPanel({ cohort, onCohortUpdate }) {
           )}
         </div>
         <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.6 }}>
-          Assign each squad's victim or case name. Smart matching auto-routes drops to the correct squad during release.
+          Assign each squad's victim — Content Gating uses this to route every drop's files and challenge to the right squad automatically. Case name is a free-text label only.
         </p>
 
         {/* Detected victims legend */}
@@ -3935,6 +3929,11 @@ function CohortSetupPanel({ cohort, onCohortUpdate }) {
                 v.squadHint.replace(/\D/g, '') === String(sq.number)
               );
 
+              const thisVictim = victimCodes[sq.id] ?? '';
+              const duplicateVictim = thisVictim && squads.some(
+                (other) => other.id !== sq.id && (victimCodes[other.id] ?? '') === thisVictim
+              );
+
               return (
                 <div key={sq.id}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -3950,6 +3949,30 @@ function CohortSetupPanel({ cohort, onCohortUpdate }) {
                     }}>
                       {sq.name || '—'}
                     </div>
+                    <select
+                      value={thisVictim}
+                      onChange={(e) => saveVictim(sq.id, e.target.value)}
+                      title={duplicateVictim ? 'Another squad is already assigned this victim' : 'Assign this squad\'s victim'}
+                      style={{
+                        width: 150, flexShrink: 0, padding: '6px 8px',
+                        border: `1.5px solid ${duplicateVictim ? '#f59e0b' : `${color}55`}`,
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'var(--surface)', color: 'var(--text)', fontSize: 12,
+                        fontFamily: 'var(--mono)',
+                      }}
+                    >
+                      <option value="">No victim assigned</option>
+                      {Object.values(VICTIMS).map((v) => (
+                        <option key={v.code} value={v.code}>{v.code}</option>
+                      ))}
+                    </select>
+                    {duplicateVictim && (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                        <title>Another squad already has this victim</title>
+                        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                      </svg>
+                    )}
                     <div style={{ flex: 1, position: 'relative' }}>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <input

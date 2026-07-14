@@ -33,8 +33,15 @@ export const VICTIMS = {
   },
 };
 
+// Deprecated: victim used to be algorithmically derived from squad number.
+// Staff now assign victims to squads manually — use getVictimByCode instead.
 export function getVictim(squadNumber) {
   if (!squadNumber) return null;
   const key = ((Number(squadNumber) - 1) % 4) + 1;
   return VICTIMS[key] ?? null;
+}
+
+export function getVictimByCode(code) {
+  if (!code) return null;
+  return Object.values(VICTIMS).find((v) => v.code === code) ?? null;
 }

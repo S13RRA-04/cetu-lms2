@@ -202,6 +202,8 @@ export default function DashboardPage() {
                     ? 'No assignments yet. Your instructor will unlock missions for your cohort.'
                     : 'No assignments in this category.'}
                 </div>
+              ) : activeTab === 'challenge' ? (
+                <ChallengeSections visible={visible} navigate={navigate} />
               ) : (
                 <div className="assignment-grid">
                   {visible.map((a) => (
@@ -218,6 +220,44 @@ export default function DashboardPage() {
         )}
       </main>
     </div>
+  );
+}
+
+// Challenges mix squad-consensus deliverables with individually-scored role
+// taskings — students need to immediately tell which grading rules apply to
+// which card, so the Challenge tab groups them into separate sections rather
+// than relying on the badge alone.
+function ChallengeSections({ visible, navigate }) {
+  const squadChallenges      = visible.filter((a) => a.grading_mode === 'squad');
+  const individualChallenges = visible.filter((a) => a.grading_mode !== 'squad');
+
+  return (
+    <>
+      {squadChallenges.length > 0 && (
+        <div className="grading-mode-section">
+          <div className="grading-mode-heading">
+            Squad-Scored <span className="grading-mode-count">— graded once per squad, shared by every member</span>
+          </div>
+          <div className="assignment-grid">
+            {squadChallenges.map((a) => (
+              <AssignmentCard key={a.id} assignment={a} onClick={() => navigate(`/assignment/${a.id}`)} />
+            ))}
+          </div>
+        </div>
+      )}
+      {individualChallenges.length > 0 && (
+        <div className="grading-mode-section">
+          <div className="grading-mode-heading">
+            Individually-Scored <span className="grading-mode-count">— your own role tasking, graded separately from your squad</span>
+          </div>
+          <div className="assignment-grid">
+            {individualChallenges.map((a) => (
+              <AssignmentCard key={a.id} assignment={a} onClick={() => navigate(`/assignment/${a.id}`)} />
+            ))}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -239,7 +279,11 @@ function AssignmentCard({ assignment: a, onClick }) {
           <span className="type-badge" style={{ '--type-color': color }}>
             {(a.type ?? 'module').toUpperCase()}
           </span>
-          {a.grading_mode === 'squad' && <span className="squad-badge">Squad</span>}
+          {a.type === 'challenge' && (
+            a.grading_mode === 'squad'
+              ? <span className="squad-badge">Squad</span>
+              : <span className="individual-badge">Individual</span>
+          )}
         </div>
         {locked && <span className="lock-icon">🔒</span>}
       </div>

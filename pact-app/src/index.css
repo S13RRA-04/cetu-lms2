@@ -1030,6 +1030,41 @@ body {
   font-weight: 600;
 }
 
+.individual-badge {
+  font-size: 9px;
+  letter-spacing: .1em;
+  background: rgba(0, 176, 255, 0.12);
+  color: #00b0ff;
+  padding: 4px 10px;
+  font-family: var(--mono);
+  border-radius: 20px;
+  font-weight: 600;
+}
+
+.grading-mode-section {
+  margin-bottom: 24px;
+}
+.grading-mode-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.grading-mode-heading .grading-mode-count {
+  font-size: 10px;
+  color: var(--muted);
+  opacity: .7;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 .lock-icon { font-size: 14px; opacity: .5; margin-top: 1px; }
 
 .assignment-card-title {
@@ -4179,6 +4214,56 @@ body {
   background: rgba(0, 176, 255, 0.35);
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   ROLE SELECTION  (RoleSelection.jsx)
+   ══════════════════════════════════════════════════════════════════════════════ */
+.rsel-panel {
+  max-width: 820px;
+}
+.rsel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  width: 100%;
+  margin-top: 24px;
+}
+@media (max-width: 700px) {
+  .rsel-grid { grid-template-columns: 1fr; }
+}
+.rsel-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 6px;
+  background: rgba(148, 163, 184, 0.04);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 4px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.rsel-card:hover {
+  border-color: rgba(0, 176, 255, 0.4);
+  background: rgba(0, 176, 255, 0.05);
+}
+.rsel-card--selected {
+  border-color: #00b0ff;
+  background: rgba(0, 176, 255, 0.09);
+  box-shadow: 0 0 0 1px rgba(0, 176, 255, 0.3) inset;
+}
+.rsel-card-label {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: .04em;
+  color: #e2e8f0;
+  font-weight: 600;
+}
+.rsel-card-blurb {
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(203, 213, 225, 0.55);
+}
 
 /* ══════════════════════════════════════════════════════════════════════════════
    TRANSMISSION INTERCEPTOR  (TransmissionInterceptor.jsx)
