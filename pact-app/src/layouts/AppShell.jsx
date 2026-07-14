@@ -294,14 +294,14 @@ export default function AppShell() {
   // Incoming transmission — student, inducted, new drop pending
   // Gate order: Signal → Vault → Transmission
   if (isStudent && pendingDrop) {
-    const needsSignal = pendingDrop.html_signal &&
+    const needsSignal = pendingDrop.signal_enabled !== false && pendingDrop.html_signal &&
       !signalVerified &&
       !isSignalVerified(user?.id, pendingDrop.id);
     if (needsSignal) {
       return <SignalEntry drop={pendingDrop} onVerify={handleSignalVerify} />;
     }
 
-    const needsVault = pendingDrop.vault_hint &&
+    const needsVault = pendingDrop.vault_enabled !== false && pendingDrop.vault_hint &&
       !vaultUnlocked &&
       !isVaultUnlocked(user?.id, pendingDrop.id);
     if (needsVault) {

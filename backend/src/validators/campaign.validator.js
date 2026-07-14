@@ -9,8 +9,10 @@ const fields = {
   narrative_intro: Joi.string().trim().allow('', null),
   vault_hint: Joi.string().trim().allow('', null),
   vault_pin: Joi.string().trim().max(64).allow('', null),
+  vault_enabled: Joi.boolean(),
   html_signal: Joi.string().trim().max(128).allow('', null),
   signal_prompt: Joi.string().trim().allow('', null),
+  signal_enabled: Joi.boolean(),
 };
 
 const matchingVaultFields = (value, helpers) => {

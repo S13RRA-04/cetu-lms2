@@ -35,7 +35,7 @@ async function listDrops(courseId, cohortId, includePin = false) {
 async function verifyVaultPin(dropId, pin) {
   const drop = await CampaignDrop.findByPk(dropId);
   if (!drop) throw new NotFoundError('CampaignDrop');
-  if (!drop.vault_pin) return { valid: false };
+  if (!drop.vault_enabled || !drop.vault_pin) return { valid: false };
   return { valid: drop.vault_pin.toLowerCase().trim() === String(pin).toLowerCase().trim() };
 }
 

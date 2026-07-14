@@ -197,7 +197,7 @@ export default function DashboardHome() {
         {drops.some((d) => d.is_unlocked) && (
           <div className="ops-drop-markers">
             {drops.filter((d) => d.is_unlocked).map((d) => {
-              const hasVault   = !!(d.vault_hint || d.vault_pin_length);
+              const hasVault   = d.vault_enabled !== false && !!(d.vault_hint || d.vault_pin_length);
               const vaultDone  = hasVault && !!localStorage.getItem(`pact_vault_v1_${user?.id}_${d.id}`);
               const authorized = !hasVault || vaultDone;
               return (

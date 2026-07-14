@@ -37,6 +37,8 @@ import {
 } from '../api/pact.js';
 import { VICTIMS } from '../constants/victims.js';
 import TransmissionInterceptor from './TransmissionInterceptor.jsx';
+import VaultKeypad from './VaultKeypad.jsx';
+import SignalEntry from './SignalEntry.jsx';
 
 const TYPE_COLOR = {
   module:     '#2563eb',
@@ -2354,6 +2356,7 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
   const [saving,       setSaving]       = useState(false);
   const [err,          setErr]          = useState('');
   const [done,         setDone]         = useState(false);
+  const [previewOpen,  setPreviewOpen]  = useState(false);
 
   const selectedCohort = cohorts.find((c) => c.id === cohortId);
 
@@ -2393,10 +2396,18 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
       const dropPayload = {
         number: dropNum,
         title:  title.trim(),
-        vault_hint:    cipher === 'vault'  ? vaultHint.trim()                || null : null,
-        vault_pin:     cipher === 'vault'  ? vaultPin.trim()                 || null : null,
-        html_signal:   cipher === 'signal' ? signalCode.trim().toUpperCase() || null : null,
-        signal_prompt: cipher === 'signal' ? signalPrompt.trim()             || null : null,
+        scenario_name: scenarioName.trim() || null,
+        narrative_intro: description.trim() || null,
+        vault_enabled: cipher === 'vault',
+        signal_enabled: cipher === 'signal',
+        ...(cipher === 'vault' ? {
+          vault_hint: vaultHint.trim(),
+          vault_pin: vaultPin.trim(),
+        } : !existingDrop ? { vault_hint: null, vault_pin: null } : {}),
+        ...(cipher === 'signal' ? {
+          html_signal: signalCode.trim().toUpperCase(),
+          signal_prompt: signalPrompt.trim() || null,
+        } : !existingDrop ? { html_signal: null, signal_prompt: null } : {}),
       };
 
       let campaignDrop;
@@ -2435,6 +2446,22 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
 
   return (
     <div className="publish-form" style={{ borderLeft: `3px solid ${squadColor}` }}>
+      {previewOpen && (
+        <DropSequencePreview
+          draft={{
+            number: releaseNum,
+            title,
+            narrative_intro: description,
+            vault_hint: cipher === 'vault' ? vaultHint : '',
+            vault_pin: cipher === 'vault' ? vaultPin : '',
+            vault_enabled: cipher === 'vault',
+            html_signal: cipher === 'signal' ? signalCode : '',
+            signal_prompt: cipher === 'signal' ? signalPrompt : '',
+            signal_enabled: cipher === 'signal',
+          }}
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
       {/* Scenario + path indicator */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         {scenarioName && (
@@ -2575,6 +2602,15 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
           {saving ? 'Dropping…' : `Release Drop${selectedVictim ? ` → ${selectedVictim.code}` : ' → Cohort-wide'}`}
         </button>
         <button className="btn-secondary" onClick={onCancel}>Cancel</button>
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={!title.trim() || !releaseNum || (cipher === 'vault' && (!vaultHint.trim() || !vaultPin.trim())) || (cipher === 'signal' && !signalCode.trim())}
+          onClick={() => setPreviewOpen(true)}
+          title="Run the exact learner gate sequence before releasing this drop"
+        >
+          Preview Learner Sequence
+        </button>
       </div>
     </div>
   );
@@ -2909,6 +2945,65 @@ function SubmissionDetail({ sub, assignment, existingGrade, onGradeSaved }) {
    CAMPAIGN DROPS PANEL
 ═══════════════════════════════════════════════════════════ */
 
+function DropSequencePreview({ draft, onClose }) {
+  const hasSignal = draft.signal_enabled !== false && !!draft.html_signal?.trim();
+  const hasVault = draft.vault_enabled !== false && !!draft.vault_hint?.trim() && !!draft.vault_pin?.trim();
+  const firstStage = hasSignal ? 'signal' : hasVault ? 'vault' : 'transmission';
+  const [stage, setStage] = useState(firstStage);
+
+  const drop = {
+    id: initialPreviewId(draft),
+    number: Number(draft.number) || 0,
+    title: draft.title?.trim() || 'Untitled Drop',
+    narrative_intro: draft.narrative_intro?.trim() || null,
+    vault_hint: draft.vault_hint?.trim() || null,
+    vault_enabled: draft.vault_enabled !== false,
+    html_signal: draft.html_signal?.trim() || null,
+    signal_prompt: draft.signal_prompt?.trim() || null,
+    signal_enabled: draft.signal_enabled !== false,
+  };
+
+  const advanceAfterSignal = () => setStage(hasVault ? 'vault' : 'transmission');
+  const verifyPreviewAnswer = async (entered) => ({
+    valid: entered.trim().toLowerCase() === draft.vault_pin.trim().toLowerCase(),
+  });
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={onClose}
+        style={{
+          position: 'fixed', top: 18, right: 18, zIndex: 1200,
+          border: '1px solid rgba(148,163,184,.45)', borderRadius: 3,
+          background: 'rgba(7,10,13,.92)', color: '#cbd5e1', padding: '8px 12px',
+          fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', cursor: 'pointer',
+        }}
+      >
+        EXIT PREVIEW ×
+      </button>
+      {stage === 'signal' && <SignalEntry drop={drop} onVerify={advanceAfterSignal} />}
+      {stage === 'vault' && (
+        <VaultKeypad
+          drop={drop}
+          verifyPin={verifyPreviewAnswer}
+          onUnlock={() => setStage('transmission')}
+        />
+      )}
+      {stage === 'transmission' && (
+        <TransmissionInterceptor
+          drop={drop}
+          onAcknowledge={onClose}
+        />
+      )}
+    </>
+  );
+}
+
+function initialPreviewId(draft) {
+  return `preview-${draft.number || 'new'}`;
+}
+
 function DropFormInline({ initial, defaultScenario, onSave, onCancel }) {
   const [form, setForm] = useState({
     number:          initial?.number          ?? '',
@@ -2917,15 +3012,19 @@ function DropFormInline({ initial, defaultScenario, onSave, onCancel }) {
     narrative_intro: initial?.narrative_intro ?? '',
     vault_hint:      initial?.vault_hint      ?? '',
     vault_pin:       initial?.vault_pin       ?? '',
+    vault_enabled:   initial?.vault_enabled   ?? !!(initial?.vault_hint || initial?.vault_pin),
     html_signal:     initial?.html_signal     ?? '',
     signal_prompt:   initial?.signal_prompt   ?? '',
+    signal_enabled:  initial?.signal_enabled  ?? !!(initial?.html_signal || initial?.signal_prompt),
   });
   const [saving, setSaving] = useState(false);
   const [err,    setErr]    = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(
     !!(initial?.vault_hint || initial?.vault_pin || initial?.html_signal || initial?.signal_prompt)
   );
+  const [previewOpen, setPreviewOpen] = useState(false);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const setEnabled = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.checked }));
 
   const handleSave = async () => {
     if (!form.number || !form.title.trim()) { setErr('Drop number and title are required.'); return; }
@@ -2960,8 +3059,25 @@ function DropFormInline({ initial, defaultScenario, onSave, onCancel }) {
     } finally { setSaving(false); }
   };
 
+  const handlePreview = () => {
+    if (!form.number || !form.title.trim()) {
+      setErr('Drop number and title are required to preview the learner sequence.');
+      return;
+    }
+    const hasVaultInstructions = !!form.vault_hint.trim();
+    const hasVaultAnswer = !!form.vault_pin.trim();
+    if (hasVaultInstructions !== hasVaultAnswer) {
+      setErr('Complete both the decryption instructions and expected answer before previewing Vault Lock.');
+      return;
+    }
+    setErr('');
+    setPreviewOpen(true);
+  };
+
   return (
-    <div className="publish-form" style={{ marginTop: 8 }}>
+    <>
+      {previewOpen && <DropSequencePreview draft={form} onClose={() => setPreviewOpen(false)} />}
+      <div className="publish-form" style={{ marginTop: 8 }}>
       <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
         <div style={{ flex: '0 0 80px' }}>
           <label className="admin-grade-label">Drop #</label>
@@ -3017,8 +3133,14 @@ function DropFormInline({ initial, defaultScenario, onSave, onCancel }) {
       {advancedOpen && (
         <>
           <div style={{ background: 'rgba(0,176,255,0.04)', border: '1px solid rgba(0,176,255,0.15)', borderRadius: 4, padding: '10px 12px', marginBottom: 8 }}>
-            <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: '.18em', color: 'rgba(0,176,255,0.7)', textTransform: 'uppercase', marginBottom: 8 }}>
-              Vault Lock (optional)
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+              <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: '.18em', color: 'rgba(0,176,255,0.7)', textTransform: 'uppercase' }}>
+                Vault Lock / Decryption Challenge
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--mono)', fontSize: 10, color: form.vault_enabled ? '#00b0ff' : 'var(--muted)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={form.vault_enabled} onChange={setEnabled('vault_enabled')} />
+                {form.vault_enabled ? 'ENABLED' : 'DISABLED'}
+              </label>
             </div>
             <div style={{ marginBottom: 8 }}>
               <label className="admin-grade-label">Cipher Challenge Instructions (shown to students)</label>
@@ -3046,8 +3168,14 @@ function DropFormInline({ initial, defaultScenario, onSave, onCancel }) {
             </div>
           </div>
           <div style={{ background: 'rgba(0,255,157,0.03)', border: '1px solid rgba(0,255,157,0.15)', borderRadius: 4, padding: '10px 12px', marginBottom: 8 }}>
-            <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: '.18em', color: 'rgba(0,255,157,0.65)', textTransform: 'uppercase', marginBottom: 8 }}>
-              HTML Signal Hunt (optional)
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+              <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: '.18em', color: 'rgba(0,255,157,0.65)', textTransform: 'uppercase' }}>
+                HTML Signal Hunt
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--mono)', fontSize: 10, color: form.signal_enabled ? '#00c978' : 'var(--muted)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={form.signal_enabled} onChange={setEnabled('signal_enabled')} />
+                {form.signal_enabled ? 'ENABLED' : 'DISABLED'}
+              </label>
             </div>
             <div style={{ marginBottom: 8 }}>
               <label className="admin-grade-label">Signal Code (embedded in page &lt;head&gt; as a hidden HTML comment)</label>
@@ -3077,8 +3205,18 @@ function DropFormInline({ initial, defaultScenario, onSave, onCancel }) {
           {saving ? 'Saving…' : initial ? 'Update Drop' : 'Create Drop'}
         </button>
         <button className="btn-secondary" onClick={onCancel}>Cancel</button>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={handlePreview}
+          disabled={!form.title.trim() || !form.number}
+          title="Run the learner sequence using the current unsaved drop configuration"
+        >
+          Preview Learner Sequence
+        </button>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 

@@ -118,7 +118,7 @@ function BkspIcon() {
 }
 
 /* ── Main component ─────────────────────────────────────────────────────────── */
-export default function VaultKeypad({ drop, onUnlock }) {
+export default function VaultKeypad({ drop, onUnlock, verifyPin = null }) {
   const accent = '#00b0ff';
 
   const [code,     setCode]     = useState('');
@@ -146,7 +146,9 @@ export default function VaultKeypad({ drop, onUnlock }) {
     if (status !== 'idle' || !code.trim()) return;
     setStatus('checking');
     try {
-      const { valid } = await verifyVaultPin(drop.id, code);
+      const { valid } = verifyPin
+        ? await verifyPin(code)
+        : await verifyVaultPin(drop.id, code);
       if (valid) {
         setStatus('open');
         setTimeout(() => onUnlock(), 1600);
@@ -167,7 +169,7 @@ export default function VaultKeypad({ drop, onUnlock }) {
     } catch {
       setStatus('idle');
     }
-  }, [status, code, attempts, drop.id, onUnlock]);
+  }, [status, code, attempts, drop.id, onUnlock, verifyPin]);
 
   useEffect(() => {
     const handler = (e) => {

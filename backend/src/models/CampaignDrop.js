@@ -12,9 +12,11 @@ module.exports = (sequelize) => sequelize.define('CampaignDrop', {
   // Vault cipher challenge — shown to students; vault_pin is the expected answer
   vault_hint:      { type: DataTypes.TEXT,        allowNull: true },
   vault_pin:       { type: DataTypes.STRING(64),  allowNull: true },
+  vault_enabled:   { type: DataTypes.BOOLEAN,     allowNull: false, defaultValue: true },
   // HTML easter-egg signal — injected into page <head> as a comment; student must find and enter it
   html_signal:     { type: DataTypes.STRING(128), allowNull: true },
   signal_prompt:   { type: DataTypes.TEXT,        allowNull: true },
+  signal_enabled:  { type: DataTypes.BOOLEAN,     allowNull: false, defaultValue: true },
 }, {
   tableName: 'campaign_drops',
   indexes: [{ unique: true, fields: ['course_id', 'number'] }],
