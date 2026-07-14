@@ -129,22 +129,38 @@ export default function CourseContentPage() {
           </div>
 
           {/* Campaign materials grouped by drop */}
-          {campaignByDrop.map(({ drop, items: dropItems }) => (
-            <div key={drop ?? 'none'} style={{ marginBottom: 28 }}>
-              {drop != null && (
-                <div style={{
-                  fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', color: 'var(--primary)',
-                  marginBottom: 10, paddingBottom: 6, borderBottom: '1px solid var(--border)',
-                  textTransform: 'uppercase',
-                }}>
-                  DROP {drop} — RELEASED MATERIALS
+          {campaignByDrop.map(({ drop, items: dropItems }) => {
+            const downloadableCount = dropItems.filter((item) => item.download_url ?? item.url).length;
+            return (
+              <div key={drop ?? 'none'} style={{ marginBottom: 28 }}>
+                {drop != null && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                    marginBottom: 10, paddingBottom: 6, borderBottom: '1px solid var(--border)',
+                  }}>
+                    <div style={{
+                      fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', color: 'var(--primary)',
+                      textTransform: 'uppercase',
+                    }}>
+                      DROP {drop} — RELEASED MATERIALS
+                    </div>
+                    {downloadableCount > 1 && (
+                      <button
+                        className="cc-download-all-btn"
+                        onClick={() => downloadAll(dropItems)}
+                        title={`Download all ${downloadableCount} files in this drop`}
+                      >
+                        ↓ Download All ({downloadableCount})
+                      </button>
+                    )}
+                  </div>
+                )}
+                <div className="cc-grid">
+                  {dropItems.map((item, i) => <CaseCard key={item.id} item={item} idx={i} onOpen={setViewerItem} />)}
                 </div>
-              )}
-              <div className="cc-grid">
-                {dropItems.map((item, i) => <CaseCard key={item.id} item={item} idx={i} onOpen={setViewerItem} />)}
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Standard materials */}
           {materialItems.length > 0 && (
@@ -173,6 +189,24 @@ export default function CourseContentPage() {
       </AnimatePresence>
     </div>
   );
+}
+
+// Triggers each file's download via a temporary <a download> element,
+// staggered so the browser doesn't treat a burst of same-tick downloads as
+// a popup-style abuse pattern and silently drop all but the first.
+function downloadAll(items) {
+  const targets = items.filter((item) => item.download_url ?? item.url);
+  targets.forEach((item, i) => {
+    setTimeout(() => {
+      const a = document.createElement('a');
+      a.href = item.download_url ?? item.url;
+      a.download = item.file_name || item.title || '';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }, i * 400);
+  });
 }
 
 function viewerType(item) {

@@ -6788,6 +6788,22 @@ body {
   transition: background .15s;
 }
 .cc-viewer-download-btn:hover { background: var(--primary-md); }
+
+.cc-download-all-btn {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .1em;
+  color: var(--primary);
+  background: var(--primary-lt);
+  border: 1px solid var(--primary-md);
+  border-radius: 4px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: background .15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.cc-download-all-btn:hover { background: var(--primary-md); }
 .cc-viewer-close-btn {
   background: none;
   border: 1px solid var(--border);

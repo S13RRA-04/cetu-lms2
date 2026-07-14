@@ -398,12 +398,21 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete, s
 
     saveSquadChallengeState(assignmentId, payload).then((merged) => {
       if (!merged) return;
-      const mergedState = { qIdx: merged.qIdx, answers: merged.answers, qStates: merged.qStates };
-      lastSyncedRef.current = JSON.stringify(mergedState);
-      if (sameQuizState(mergedState, payload)) return;
-      setQIdx(mergedState.qIdx);
-      setAnswers(mergedState.answers);
-      setQStates(mergedState.qStates);
+      /* Reconcile against LIVE local state, not the `payload` snapshot this
+         push started from — the round trip is async, so the student may have
+         already clicked further (e.g. selecting options on the next
+         multi-select question) before this response lands. Treating the
+         server's reply as just another remote side to merge (same as the
+         live-poll below) lets those newer, unsynced local edits win instead
+         of being clobbered by a stale echo of what we just sent. */
+      const remoteState = { qIdx: merged.qIdx, answers: merged.answers, qStates: merged.qStates };
+      const cur = liveStateRef.current;
+      const reconciled = mergeQuizState(cur, remoteState, questions);
+      lastSyncedRef.current = JSON.stringify(reconciled);
+      if (sameQuizState(reconciled, cur)) return;
+      setQIdx(reconciled.qIdx);
+      setAnswers(reconciled.answers);
+      setQStates(reconciled.qStates);
     }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qIdx, qStates, assignmentId, squadShared, questions]);
