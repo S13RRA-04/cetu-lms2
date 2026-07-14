@@ -7,6 +7,7 @@ const { CampaignDrop, CampaignDropUnlock, Assignment, AssignmentUnlock,
 const { NotFoundError, AppError } = require('../utils/errors');
 const { codeToName } = require('../constants/victims');
 const { partitionDropMaterials } = require('../utils/campaignRelease');
+const { scenarioSlugFromName } = require('../utils/r2CaseFile');
 
 async function listDrops(courseId, cohortId, includePin = false) {
   const drops = await CampaignDrop.findAll({
@@ -42,6 +43,15 @@ async function verifyVaultPin(dropId, pin) {
   return { valid: drop.vault_pin.toLowerCase().trim() === String(pin).toLowerCase().trim() };
 }
 
+// scenario_name must match the slug form used by assignments/course-content
+// (e.g. "packet-heist") — release matching in campaignRelease.js and the
+// admin wizard both do strict equality against that slug, so anything else
+// silently breaks pairing.
+function normalizeDropData(data) {
+  if (!Object.hasOwn(data, 'scenario_name') || data.scenario_name == null) return data;
+  return { ...data, scenario_name: scenarioSlugFromName(data.scenario_name) || null };
+}
+
 async function createDrop(courseId, data) {
   const course = await Course.findByPk(courseId);
   if (!course) throw new NotFoundError('Course');
@@ -49,7 +59,7 @@ async function createDrop(courseId, data) {
   const existing = await CampaignDrop.findOne({ where: { course_id: courseId, number: data.number } });
   if (existing) throw new AppError(`Drop ${data.number} already exists for this course`, 409, 'CONFLICT');
 
-  return CampaignDrop.create({ course_id: courseId, ...data });
+  return CampaignDrop.create({ course_id: courseId, ...normalizeDropData(data) });
 }
 
 function assertCompleteVaultConfig(vaultHint, vaultPin) {
@@ -67,7 +77,7 @@ async function updateDrop(dropId, data) {
     Object.hasOwn(data, 'vault_hint') ? data.vault_hint : drop.vault_hint,
     Object.hasOwn(data, 'vault_pin') ? data.vault_pin : drop.vault_pin,
   );
-  return drop.update(data);
+  return drop.update(normalizeDropData(data));
 }
 
 async function deleteDrop(dropId) {
@@ -240,4 +250,4 @@ async function lockDrop(dropId, cohortId, { revokeRelated = false } = {}) {
   });
 }
 
-module.exports = { listDrops, createDrop, updateDrop, deleteDrop, releaseDrop, lockDrop, verifyVaultPin };
+module.exports = { listDrops, createDrop, updateDrop, deleteDrop, releaseDrop, lockDrop, verifyVaultPin, normalizeDropData };
