@@ -9,6 +9,7 @@ import QuizFlow, { MultipleChoice, TrueFalse, DragMatch, FillBlank } from '../co
 import ChallengeFlow    from '../components/ChallengeFlow.jsx';
 import useDraft         from '../hooks/useDraft.js';
 import { TYPE_DEFINITIONS } from './DashboardHome.jsx';
+import TransmissionInterceptor from './TransmissionInterceptor.jsx';
 
 const TYPE_COLOR = {
   module:     '#60a5fa',
@@ -224,6 +225,26 @@ export default function AssignmentPage() {
     );
   }
 
+  if (
+    assignment.is_unlocked !== false &&
+    assignment.launch_briefing &&
+    !briefingAcknowledged &&
+    !submitted
+  ) {
+    return (
+      <TransmissionInterceptor
+        drop={{
+          number: assignment.drop_number,
+          title: assignment.title,
+          narrative_intro: assignment.launch_briefing,
+        }}
+        idLine={assignment.drop_number != null ? `DROP ${String(assignment.drop_number).padStart(2, '0')}` : 'CHALLENGE BRIEFING'}
+        narrativeLabel="COMMAND POST GUIDANCE"
+        onAcknowledge={() => setBriefingAcknowledged(true)}
+      />
+    );
+  }
+
   const color      = TYPE_COLOR[assignment.type] ?? TYPE_COLOR.module;
   const isSquad    = assignment.grading_mode === 'squad';
   const isLocked   = assignment.is_unlocked === false;
@@ -285,12 +306,6 @@ export default function AssignmentPage() {
           <div className="locked-msg" style={{ padding: '32px 0', fontSize: 14, color: 'var(--muted)', fontFamily: 'var(--mono)', letterSpacing: '.06em' }}>
             TASKING RESTRICTED — Awaiting Command authorization for your cohort.
           </div>
-        ) : assignment.launch_briefing && !briefingAcknowledged && !submitted ? (
-          <LaunchBriefing
-            briefing={assignment.launch_briefing}
-            color={color}
-            onAcknowledge={() => setBriefingAcknowledged(true)}
-          />
         ) : isSurvey ? (
           submitted ? (
             <div className="ap-success-root" style={{ paddingTop: 0 }}>
@@ -430,33 +445,6 @@ export default function AssignmentPage() {
         )}
       </div>
     </div>
-  );
-}
-
-function LaunchBriefing({ briefing, color, onAcknowledge }) {
-  return (
-    <motion.section
-      className="module-intro"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.24 }}
-      aria-labelledby="launch-briefing-title"
-    >
-      <div id="launch-briefing-title" className="module-intro-label" style={{ color }}>
-        Command Post Guidance
-      </div>
-      <div className="briefing-classified" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.75 }}>
-        {briefing}
-      </div>
-      <button
-        type="button"
-        className="btn-submit module-begin-btn"
-        style={{ background: color }}
-        onClick={onAcknowledge}
-      >
-        Acknowledge and Begin Challenge →
-      </button>
-    </motion.section>
   );
 }
 
