@@ -14,6 +14,16 @@ export const getMyEnrollment = () =>
 export const submitOnboarding = (professionalRole) =>
   client.post('/users/me/onboarding', { professional_role: professionalRole }).then((r) => r.data);
 
+/* ── Users (Command console) ── */
+export const getUsers = (params = {}) =>
+  client.get('/users', { params }).then((r) => {
+    const raw = r.data;
+    return Array.isArray(raw) ? raw : (raw.data ?? []);
+  });
+
+export const updateUser = (userId, data) =>
+  client.put(`/users/${userId}`, data).then((r) => r.data);
+
 export const getAssignments = () =>
   client.get(`/courses/${COURSE_ID}/assignments?limit=200`).then((r) => r.data);
 

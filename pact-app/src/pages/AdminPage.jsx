@@ -34,8 +34,11 @@ import {
   updateAssignment,
   getLiveOverview,
   getAssignmentProgress,
+  getUsers,
+  updateUser,
 } from '../api/pact.js';
 import { VICTIMS } from '../constants/victims.js';
+import { PROFESSIONAL_ROLES } from '../constants/professionalRoles.js';
 import TransmissionInterceptor from './TransmissionInterceptor.jsx';
 import VaultKeypad from './VaultKeypad.jsx';
 import SignalEntry from './SignalEntry.jsx';
@@ -451,10 +454,18 @@ export default function AdminPage() {
         >
           Live Progress
         </button>
+        <button
+          className={`admin-panel-tab${adminPanel === 'users' ? ' active' : ''}`}
+          onClick={() => setAdminPanel('users')}
+        >
+          Users
+        </button>
       </div>
 
       {adminPanel === 'live' ? (
         <LiveProgressPanel />
+      ) : adminPanel === 'users' ? (
+        <UsersPanel />
       ) : adminPanel === 'library' ? (
         <ContentGatingPanel
           assignments={assignments}
@@ -758,6 +769,142 @@ function SquadSubmissions({ groups, grades, savedGrades, onSelect }) {
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   USERS PANEL — edit a user's professional role from Command
+═══════════════════════════════════════════════════════════ */
+function UsersPanel() {
+  const [users,     setUsers]     = useState(null); // null = loading
+  const [search,    setSearch]    = useState('');
+  const [roleFilter,setRoleFilter]= useState('');
+  const [saving,    setSaving]    = useState({}); // userId -> bool
+  const [flash,     setFlash]     = useState({}); // userId -> 'saved' | 'error'
+
+  useEffect(() => {
+    getUsers({ role: 'student', limit: 500 })
+      .then((data) => setUsers(Array.isArray(data) ? data : []))
+      .catch(() => setUsers([]));
+  }, []);
+
+  const handleRoleChange = async (user, professionalRole) => {
+    setSaving((s) => ({ ...s, [user.id]: true }));
+    try {
+      const updated = await updateUser(user.id, { professional_role: professionalRole || null });
+      setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, ...updated } : u));
+      setFlash((f) => ({ ...f, [user.id]: 'saved' }));
+      setTimeout(() => setFlash((f) => ({ ...f, [user.id]: null })), 1800);
+    } catch {
+      setFlash((f) => ({ ...f, [user.id]: 'error' }));
+      setTimeout(() => setFlash((f) => ({ ...f, [user.id]: null })), 2500);
+    } finally {
+      setSaving((s) => ({ ...s, [user.id]: false }));
+    }
+  };
+
+  if (users === null) {
+    return (
+      <div style={{ padding: 32 }}>
+        <div className="spinner" style={{ width: 20, height: 20 }} />
+      </div>
+    );
+  }
+
+  const q = search.trim().toLowerCase();
+  const visible = users.filter((u) => {
+    if (roleFilter === '__none__' && u.professional_role) return false;
+    if (roleFilter && roleFilter !== '__none__' && u.professional_role !== roleFilter) return false;
+    if (!q) return true;
+    return (
+      u.first_name?.toLowerCase().includes(q) ||
+      u.last_name?.toLowerCase().includes(q) ||
+      u.email?.toLowerCase().includes(q) ||
+      u.username?.toLowerCase().includes(q)
+    );
+  });
+
+  return (
+    <div style={{ padding: '20px 24px', maxWidth: 780 }}>
+      <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)', marginBottom: 4 }}>
+        USER MANAGEMENT
+      </div>
+      <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 16px', lineHeight: 1.6 }}>
+        Assign or correct a student's professional role. This drives which role-gated taskings are routed to them.
+      </p>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        <input
+          type="text"
+          placeholder="Search name, email, username…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{
+            flex: 1, minWidth: 200, padding: '7px 10px', borderRadius: 4,
+            border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)',
+            fontSize: 13,
+          }}
+        />
+        <select
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value)}
+          style={{
+            padding: '7px 10px', borderRadius: 4, border: '1px solid var(--border)',
+            background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--mono)',
+          }}
+        >
+          <option value="">All roles</option>
+          <option value="__none__">No role assigned</option>
+          {PROFESSIONAL_ROLES.map((r) => (
+            <option key={r.value} value={r.value}>{r.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {visible.length === 0 ? (
+        <p style={{ color: 'var(--muted)', fontSize: 13 }}>No students match.</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {visible.map((u) => (
+            <div
+              key={u.id}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)',
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--bright)' }}>
+                  {u.first_name} {u.last_name}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--mono)' }}>
+                  {u.email}
+                </div>
+              </div>
+              <select
+                value={u.professional_role ?? ''}
+                onChange={(e) => handleRoleChange(u, e.target.value)}
+                disabled={!!saving[u.id]}
+                style={{
+                  width: 220, padding: '5px 8px', borderRadius: 4,
+                  border: `1.5px solid ${u.professional_role ? 'var(--border)' : '#f59e0b'}`,
+                  background: 'var(--surface-2, var(--bg))', color: 'var(--text)',
+                  fontSize: 12, fontFamily: 'var(--mono)',
+                }}
+              >
+                <option value="">No role assigned</option>
+                {PROFESSIONAL_ROLES.map((r) => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </select>
+              {saving[u.id] && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)' }}>SAVING…</span>}
+              {flash[u.id] === 'saved' && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: '#10b981' }}>◉ SAVED</span>}
+              {flash[u.id] === 'error' && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: '#ef4444' }}>FAILED</span>}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
