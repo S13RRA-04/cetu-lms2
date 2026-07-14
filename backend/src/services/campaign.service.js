@@ -4,6 +4,7 @@ const { CampaignDrop, CampaignDropUnlock, Assignment, AssignmentUnlock,
         Squad, Course, Cohort } = require('../models');
 const { NotFoundError, AppError } = require('../utils/errors');
 const { codeToName } = require('../constants/victims');
+const { partitionDropMaterials } = require('../utils/campaignRelease');
 
 async function listDrops(courseId, cohortId, includePin = false) {
   const drops = await CampaignDrop.findAll({
@@ -91,49 +92,80 @@ async function releaseDrop(dropId, cohortId, unlockerId) {
     defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
   });
 
-  const squads = await Squad.findAll({ where: { cohort_id: cohortId } });
-  const assignedSquads = squads.filter((s) => s.victim_code);
-  const skippedSquads  = squads.filter((s) => !s.victim_code).map((s) => s.number);
+  const [squads, assignments, contentItems, scenarioPackages] = await Promise.all([
+    Squad.findAll({ where: { cohort_id: cohortId } }),
+    Assignment.findAll({ where: { course_id: drop.course_id, drop_number: drop.number } }),
+    CourseContentItem.findAll({ where: { course_id: drop.course_id, drop_number: drop.number } }),
+    ScenarioPackage.findAll({
+      where: { course_id: drop.course_id, drop_number: drop.number, is_published: true },
+    }),
+  ]);
 
-  const assignments = await Assignment.findAll({
-    where: { course_id: drop.course_id, drop_number: drop.number },
-  });
-  const contentItems = await CourseContentItem.findAll({
-    where: { course_id: drop.course_id, drop_number: drop.number },
-  });
-  const scenarioPackages = await ScenarioPackage.findAll({
-    where: { course_id: drop.course_id, drop_number: drop.number, is_published: true },
-  });
+  const {
+    sharedAssignments, victimAssignments,
+    sharedContent, victimContent,
+    sharedPackages, victimPackages,
+    hasVictimScopedMaterial,
+  } = partitionDropMaterials(assignments, contentItems, scenarioPackages);
+
+  const assignedSquads = hasVictimScopedMaterial ? squads.filter((squad) => squad.victim_code) : [];
+  const skippedSquads = hasVictimScopedMaterial
+    ? squads.filter((squad) => !squad.victim_code).map((squad) => squad.number)
+    : [];
 
   let releasedAssignments = 0;
   let releasedContent     = 0;
   let releasedPackages    = 0;
 
+  // Squad-agnostic material is released once at cohort scope. It must not
+  // depend on squads existing or having victim assignments.
+  for (const assignment of sharedAssignments) {
+    const [, created] = await AssignmentUnlock.findOrCreate({
+      where: { assignment_id: assignment.id, cohort_id: cohortId, squad_id: null },
+      defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
+    });
+    if (created) releasedAssignments++;
+  }
+
+  for (const item of sharedContent) {
+    const [, created] = await CourseContentUnlock.findOrCreate({
+      where: { content_id: item.id, cohort_id: cohortId, squad_id: null },
+      defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
+    });
+    if (created) releasedContent++;
+  }
+
+  for (const pkg of sharedPackages) {
+    const [, created] = await ScenarioPackageUnlock.findOrCreate({
+      where: { package_id: pkg.id, cohort_id: cohortId },
+      defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
+    });
+    if (created) releasedPackages++;
+  }
+
   for (const squad of assignedSquads) {
     const victimName = codeToName(squad.victim_code);
 
-    for (const a of assignments) {
-      if (a.victim_name && a.victim_name !== victimName) continue;
-      const squad_id = a.victim_name ? squad.id : null;
+    for (const a of victimAssignments) {
+      if (a.victim_name !== victimName) continue;
       const [, created] = await AssignmentUnlock.findOrCreate({
-        where:    { assignment_id: a.id, cohort_id: cohortId, squad_id },
+        where:    { assignment_id: a.id, cohort_id: cohortId, squad_id: squad.id },
         defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
       });
       if (created) releasedAssignments++;
     }
 
-    for (const ci of contentItems) {
-      if (ci.victim_code && ci.victim_code !== squad.victim_code) continue;
-      const squad_id = ci.victim_code ? squad.id : null;
+    for (const ci of victimContent) {
+      if (ci.victim_code !== squad.victim_code) continue;
       const [, created] = await CourseContentUnlock.findOrCreate({
-        where:    { content_id: ci.id, cohort_id: cohortId, squad_id },
+        where:    { content_id: ci.id, cohort_id: cohortId, squad_id: squad.id },
         defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
       });
       if (created) releasedContent++;
     }
 
-    for (const p of scenarioPackages) {
-      if (p.victim_code && p.victim_code !== squad.victim_code) continue;
+    for (const p of victimPackages) {
+      if (p.victim_code !== squad.victim_code) continue;
       const [, created] = await ScenarioPackageUnlock.findOrCreate({
         where:    { package_id: p.id, cohort_id: cohortId },
         defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
