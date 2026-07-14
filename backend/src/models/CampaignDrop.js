@@ -6,6 +6,7 @@ module.exports = (sequelize) => sequelize.define('CampaignDrop', {
   course_id:       { type: DataTypes.UUID,     allowNull: false },
   number:          { type: DataTypes.SMALLINT, allowNull: false },
   title:           { type: DataTypes.STRING(255), allowNull: false },
+  scenario_name:   { type: DataTypes.STRING(255), allowNull: true },
   // Command Post bulletin — shown to students when this drop unlocks
   narrative_intro: { type: DataTypes.TEXT,        allowNull: true },
   // Vault cipher challenge — shown to students; vault_pin is the expected answer
