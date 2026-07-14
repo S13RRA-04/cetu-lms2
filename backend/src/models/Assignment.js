@@ -9,6 +9,7 @@ module.exports = (sequelize) => {
       course_id:            { type: DataTypes.UUID,         allowNull: false },
       title:                { type: DataTypes.STRING(255),  allowNull: false },
       description:          { type: DataTypes.TEXT,         allowNull: true },
+      launch_briefing:      { type: DataTypes.TEXT,         allowNull: true },
       debrief:              { type: DataTypes.TEXT,         allowNull: true },
       max_score:            { type: DataTypes.DECIMAL(8,2), allowNull: false, defaultValue: 100 },
       due_date:             { type: DataTypes.DATE,         allowNull: true },

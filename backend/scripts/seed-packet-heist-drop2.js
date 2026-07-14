@@ -29,6 +29,12 @@ const seq = new Sequelize(process.env.DATABASE_URL, {
   logging:        false,
 });
 
+const DROP_2_LAUNCH_BRIEFING = [
+  'The Command Post has received preliminary reports from Task Force Squads indicating an uptick in cyber incidents perpetrated against Huntsville-area businesses over the past several months. Analysis of these reports indicates that commonalities may exist among the victims.',
+  'New task force guidance directs each squad to conduct further investigation to determine whether these incidents are related or should be investigated independently. Command Post analysts have compiled new analytical data to aid task force participants, and those materials are being distributed to each squad.',
+  'AUSA concurrence has been obtained to proceed with predicated investigations on the basis that these incidents may represent a greater threat to the area of responsibility.',
+].join('\n\n');
+
 /* ─────────────────────────────────────────────────────────────────────────────
    Cross-Victim Correlation questions (quiz)
 ───────────────────────────────────────────────────────────────────────────── */
@@ -362,10 +368,10 @@ const deliverableQuestions = [
 
   await seq.query(
     `INSERT INTO assignments
-       (id, course_id, title, description, type, grading_mode, max_score, order_index,
+       (id, course_id, title, description, launch_briefing, type, grading_mode, max_score, order_index,
         is_published, scenario_name, drop_number, questions, role_filters, created_at, updated_at)
      VALUES
-       (:id, :courseId, :title, :description, 'challenge', 'squad', :maxScore, :oi,
+       (:id, :courseId, :title, :description, :launchBriefing, 'challenge', 'squad', :maxScore, :oi,
         false, 'packet-heist', 2, :questions, '{}', NOW(), NOW())`,
     {
       replacements: {
@@ -373,6 +379,7 @@ const deliverableQuestions = [
         courseId:    COURSE_ID,
         title:       analysisTitle,
         description: 'Command Post has released a cross-victim comparison of all four Drop 1 intrusions. Review the Cross-Victim Indicator Matrix, Behavior Comparison Table, Preliminary Hypothesis Board, and related Command Post guidance, then answer each question based strictly on what the evidence supports.',
+        launchBriefing: DROP_2_LAUNCH_BRIEFING,
         maxScore,
         oi,
         questions:   JSON.stringify(analysisQuestions),

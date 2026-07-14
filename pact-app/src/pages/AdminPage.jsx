@@ -1695,10 +1695,12 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
   const [localItems,   setLocalItems]   = useState(assignments);
   const [victimDraft,  setVictimDraft]  = useState('');
   const [debriefDraft, setDebriefDraft] = useState('');
+  const [launchBriefingDraft, setLaunchBriefingDraft] = useState('');
 
   useEffect(() => { setLocalItems(assignments); }, [assignments]);
   useEffect(() => { setVictimDraft(selected?.victim_name ?? ''); }, [selected?.id]);
   useEffect(() => { setDebriefDraft(selected?.debrief ?? ''); }, [selected?.id]);
+  useEffect(() => { setLaunchBriefingDraft(selected?.launch_briefing ?? ''); }, [selected?.id]);
 
   // Scenario is the top level (null → '__unassigned__'). Within a scenario,
   // squad-graded challenges branch by victim; individual, role-filtered
@@ -1891,6 +1893,21 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
               <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
                 Leave all roles unchecked to show this challenge to every professional role. Role and victim filters both apply if both are set — the list on the left groups by whichever one is set for simplicity, since in practice a challenge is normally one or the other.
               </p>
+            </div>
+
+            {/* ── Pre-challenge launch briefing ── */}
+            <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)' }}>
+                LAUNCH BRIEFING (acknowledgement required before challenge entry)
+              </div>
+              <textarea
+                value={launchBriefingDraft}
+                onChange={(e) => setLaunchBriefingDraft(e.target.value)}
+                onBlur={() => handleFieldChange(selected.id, { launch_briefing: launchBriefingDraft.trim() || null })}
+                placeholder="Optional Command Post guidance shown when a user launches this challenge."
+                rows={6}
+                style={{ padding: '8px 10px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
+              />
             </div>
 
             {/* ── Post-completion debrief ── */}

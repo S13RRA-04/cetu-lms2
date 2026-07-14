@@ -6,6 +6,7 @@ const TYPES = ['module', 'game', 'assessment', 'survey', 'challenge', 'capstone'
 const createAssignmentSchema = Joi.object({
   title:        Joi.string().max(255).required(),
   description:  Joi.string().allow('', null),
+  launch_briefing: Joi.string().allow('', null),
   debrief:      Joi.string().allow('', null),
   max_score:    Joi.number().positive().default(100),
   due_date:     Joi.date().iso().allow(null),
@@ -19,6 +20,7 @@ const createAssignmentSchema = Joi.object({
 const updateAssignmentSchema = Joi.object({
   title:        Joi.string().max(255),
   description:  Joi.string().allow('', null),
+  launch_briefing: Joi.string().allow('', null),
   debrief:      Joi.string().allow('', null),
   max_score:    Joi.number().positive(),
   due_date:     Joi.date().iso().allow(null),
