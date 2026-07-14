@@ -36,6 +36,7 @@ import {
   getAssignmentProgress,
 } from '../api/pact.js';
 import { VICTIMS } from '../constants/victims.js';
+import TransmissionInterceptor from './TransmissionInterceptor.jsx';
 
 const TYPE_COLOR = {
   module:     '#2563eb',
@@ -1696,6 +1697,7 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
   const [victimDraft,  setVictimDraft]  = useState('');
   const [debriefDraft, setDebriefDraft] = useState('');
   const [launchBriefingDraft, setLaunchBriefingDraft] = useState('');
+  const [previewAssignment, setPreviewAssignment] = useState(null);
 
   useEffect(() => { setLocalItems(assignments); }, [assignments]);
   useEffect(() => { setVictimDraft(selected?.victim_name ?? ''); }, [selected?.id]);
@@ -1787,7 +1789,22 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
   };
 
   return (
-    <div className="admin-layout">
+    <>
+      {previewAssignment && (
+        <TransmissionInterceptor
+          drop={{
+            number: previewAssignment.drop_number,
+            title: previewAssignment.title,
+            narrative_intro: previewAssignment.launch_briefing,
+          }}
+          idLine={previewAssignment.drop_number != null
+            ? `DROP ${String(previewAssignment.drop_number).padStart(2, '0')}`
+            : 'CHALLENGE BRIEFING'}
+          narrativeLabel="COMMAND POST GUIDANCE"
+          onAcknowledge={() => setPreviewAssignment(null)}
+        />
+      )}
+      <div className="admin-layout">
       <div className="admin-left">
         {localItems.length === 0 && (
           <p style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 16px' }}>
@@ -1843,6 +1860,18 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
                   {selected.role_filters?.length > 0 && ` · ${selected.role_filters.map((r) => ROLE_LABELS[r] ?? r).join(', ')}`}
                 </div>
               </div>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={!launchBriefingDraft.trim()}
+                onClick={() => setPreviewAssignment({
+                  ...selected,
+                  launch_briefing: launchBriefingDraft.trim() || selected.launch_briefing,
+                })}
+                title={launchBriefingDraft.trim() ? 'Preview the learner launch briefing' : 'Add a launch briefing to enable preview'}
+              >
+                Preview Launch Screen
+              </button>
             </div>
 
             {/* ── Scenario + Victim + Role assignment ── */}
@@ -1939,7 +1968,8 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
           </>
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -2508,15 +2538,16 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
         {cipher === 'vault' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div className="form-field" style={{ margin: 0 }}>
-              <label>Cipher Challenge — hint shown to students</label>
-              <textarea value={vaultHint} onChange={(e) => setVaultHint(e.target.value)} rows={2}
-                placeholder="e.g. Run the SHA-256 hash of 'NIGHTFALL-7' through CyberChef. Enter the first 6 hex characters as the PIN."
+              <label>Cipher Challenge Instructions — shown to students</label>
+              <textarea value={vaultHint} onChange={(e) => setVaultHint(e.target.value)} rows={3}
+                placeholder="Tell learners what to decrypt, which method or tool to use, and how to format their answer."
                 style={{ width: '100%', resize: 'vertical' }} />
             </div>
             <div className="form-field" style={{ margin: 0 }}>
-              <label>Vault PIN — the answer students must derive</label>
-              <input value={vaultPin} onChange={(e) => setVaultPin(e.target.value.toUpperCase())}
-                placeholder="e.g. A3F9B1" style={{ width: '100%', fontFamily: 'monospace', letterSpacing: '.1em' }} />
+              <label>Expected Answer — verified by the backend</label>
+              <input value={vaultPin} onChange={(e) => setVaultPin(e.target.value)}
+                maxLength={64} autoComplete="off" placeholder="Enter the exact answer learners must derive"
+                style={{ width: '100%', fontFamily: 'monospace', letterSpacing: '.1em' }} />
             </div>
           </div>
         )}
@@ -2898,10 +2929,30 @@ function DropFormInline({ initial, defaultScenario, onSave, onCancel }) {
 
   const handleSave = async () => {
     if (!form.number || !form.title.trim()) { setErr('Drop number and title are required.'); return; }
+    const hasVaultInstructions = !!form.vault_hint.trim();
+    const hasVaultAnswer = !!form.vault_pin.trim();
+    if (hasVaultInstructions !== hasVaultAnswer) {
+      setErr('Vault Lock requires both learner instructions and a secret answer, or neither to disable it.');
+      return;
+    }
+    if (form.vault_pin.trim().length > 64) {
+      setErr('The Vault Lock answer must be 64 characters or fewer.');
+      return;
+    }
     setSaving(true);
     setErr('');
     try {
-      const payload = { ...form, number: Number(form.number) };
+      const payload = {
+        ...form,
+        number: Number(form.number),
+        title: form.title.trim(),
+        scenario_name: form.scenario_name.trim() || null,
+        narrative_intro: form.narrative_intro.trim() || null,
+        vault_hint: hasVaultInstructions ? form.vault_hint.trim() : null,
+        vault_pin: hasVaultAnswer ? form.vault_pin.trim() : null,
+        html_signal: form.html_signal.trim() || null,
+        signal_prompt: form.signal_prompt.trim() || null,
+      };
       const saved = initial ? await updateCampaignDrop(initial.id, payload) : await createCampaignDrop(payload);
       onSave(saved);
     } catch (e) {
@@ -2970,23 +3021,28 @@ function DropFormInline({ initial, defaultScenario, onSave, onCancel }) {
               Vault Lock (optional)
             </div>
             <div style={{ marginBottom: 8 }}>
-              <label className="admin-grade-label">Cipher Challenge — Vault Hint (shown to students)</label>
+              <label className="admin-grade-label">Cipher Challenge Instructions (shown to students)</label>
               <textarea
                 value={form.vault_hint}
                 onChange={set('vault_hint')}
-                rows={2}
-                placeholder="e.g. Run the SHA-256 hash of 'NIGHTFALL-7' through CyberChef. Enter the first 6 hex characters as the PIN."
+                rows={3}
+                placeholder="Tell learners what to decrypt, which method or tool to use, and how to format their answer."
                 style={{ width: '100%', resize: 'vertical' }}
               />
             </div>
             <div>
-              <label className="admin-grade-label">Vault PIN (secret — students must derive this)</label>
+              <label className="admin-grade-label">Expected Answer (secret — verified by the backend)</label>
               <input
                 value={form.vault_pin}
                 onChange={set('vault_pin')}
-                placeholder="e.g. A3F9B1"
+                maxLength={64}
+                autoComplete="off"
+                placeholder="Enter the exact answer learners must derive"
                 style={{ width: '100%', fontFamily: 'monospace', letterSpacing: '.1em', textTransform: 'uppercase' }}
               />
+              <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--muted)' }}>
+                Comparison ignores capitalization and surrounding spaces. This value is never returned to learner clients.
+              </p>
             </div>
           </div>
           <div style={{ background: 'rgba(0,255,157,0.03)', border: '1px solid rgba(0,255,157,0.15)', borderRadius: 4, padding: '10px 12px', marginBottom: 8 }}>

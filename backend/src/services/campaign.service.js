@@ -49,9 +49,21 @@ async function createDrop(courseId, data) {
   return CampaignDrop.create({ course_id: courseId, ...data });
 }
 
+function assertCompleteVaultConfig(vaultHint, vaultPin) {
+  const hasInstructions = typeof vaultHint === 'string' && vaultHint.trim().length > 0;
+  const hasAnswer = typeof vaultPin === 'string' && vaultPin.trim().length > 0;
+  if (hasInstructions !== hasAnswer) {
+    throw new AppError('Vault Lock requires both instructions and an expected answer', 400, 'VALIDATION_ERROR');
+  }
+}
+
 async function updateDrop(dropId, data) {
   const drop = await CampaignDrop.findByPk(dropId);
   if (!drop) throw new NotFoundError('CampaignDrop');
+  assertCompleteVaultConfig(
+    Object.hasOwn(data, 'vault_hint') ? data.vault_hint : drop.vault_hint,
+    Object.hasOwn(data, 'vault_pin') ? data.vault_pin : drop.vault_pin,
+  );
   return drop.update(data);
 }
 

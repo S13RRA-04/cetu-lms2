@@ -21,6 +21,7 @@ const {
   createModuleSchema, updateModuleSchema,
 } = require('../validators/course.validator');
 const { createAssignmentSchema, updateAssignmentSchema, gradeSchema, unlockSchema } = require('../validators/assignment.validator');
+const { createCampaignDropSchema, updateCampaignDropSchema, verifyVaultPinSchema } = require('../validators/campaign.validator');
 
 const router = Router();
 
@@ -143,12 +144,12 @@ router.post('/:id/course-content/:cid/lock',    requireAuth, requireInstructor, 
 
 // Campaign drops
 router.get('/:id/campaign/drops',              requireAuth,                    campaignCtrl.listDrops);
-router.post('/:id/campaign/drops',             requireAuth, requireInstructor, campaignCtrl.createDrop);
-router.put('/:id/campaign/drops/:did',         requireAuth, requireInstructor, campaignCtrl.updateDrop);
+router.post('/:id/campaign/drops',             requireAuth, requireInstructor, validate(createCampaignDropSchema), campaignCtrl.createDrop);
+router.put('/:id/campaign/drops/:did',         requireAuth, requireInstructor, validate(updateCampaignDropSchema), campaignCtrl.updateDrop);
 router.delete('/:id/campaign/drops/:did',      requireAuth, requireInstructor, campaignCtrl.deleteDrop);
 router.post('/:id/campaign/drops/:did/release',  requireAuth, requireInstructor, campaignCtrl.releaseDrop);
 router.post('/:id/campaign/drops/:did/lock',     requireAuth, requireInstructor, campaignCtrl.lockDrop);
-router.post('/:id/campaign/drops/:did/verify-pin', requireAuth,                 campaignCtrl.verifyVaultPin);
+router.post('/:id/campaign/drops/:did/verify-pin', requireAuth, validate(verifyVaultPinSchema), campaignCtrl.verifyVaultPin);
 
 // Intel board (per-squad link analysis)
 router.get('/:id/intel',                requireAuth,                    intelCtrl.getBoard);

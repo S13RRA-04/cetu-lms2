@@ -1,0 +1,38 @@
+'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const {
+  createCampaignDropSchema,
+  updateCampaignDropSchema,
+  verifyVaultPinSchema,
+} = require('./campaign.validator');
+
+test('campaign drop creation requires complete vault configuration', () => {
+  const { error } = createCampaignDropSchema.validate({
+    number: 2,
+    title: 'Drop 2',
+    vault_hint: 'Decrypt the message.',
+  });
+  assert.ok(error);
+});
+
+test('campaign drop creation accepts manually configured instructions and answer', () => {
+  const { error } = createCampaignDropSchema.validate({
+    number: 2,
+    title: 'Drop 2',
+    vault_hint: 'Decrypt the message.',
+    vault_pin: 'manual-answer',
+  });
+  assert.equal(error, undefined);
+});
+
+test('campaign drop patch permits one vault field for service-layer merge validation', () => {
+  const { error } = updateCampaignDropSchema.validate({ vault_hint: 'Revised instructions.' });
+  assert.equal(error, undefined);
+});
+
+test('vault verification rejects oversized answers', () => {
+  const { error } = verifyVaultPinSchema.validate({ pin: 'x'.repeat(65) });
+  assert.ok(error);
+});
