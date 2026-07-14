@@ -1109,7 +1109,6 @@ function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignm
       {subTab === 'release' && (
         <CampaignDropsPanel
           cohorts={cohorts}
-          scenarioFolders={scenarioFolders ?? []}
           assignments={assignments}
           contentItems={contentItems}
           onAssignmentsChange={onAssignmentsChange}
@@ -2832,7 +2831,7 @@ function SubmissionDetail({ sub, assignment, existingGrade, onGradeSaved }) {
    CAMPAIGN DROPS PANEL
 ═══════════════════════════════════════════════════════════ */
 
-function DropFormInline({ initial, defaultScenario, scenarioFolders = [], onSave, onCancel }) {
+function DropFormInline({ initial, defaultScenario, onSave, onCancel }) {
   const [form, setForm] = useState({
     number:          initial?.number          ?? '',
     title:           initial?.title           ?? '',
@@ -2889,10 +2888,13 @@ function DropFormInline({ initial, defaultScenario, scenarioFolders = [], onSave
         <label className="admin-grade-label">Scenario</label>
         <select value={form.scenario_name} onChange={set('scenario_name')} style={{ width: '100%' }}>
           <option value="">— Unassigned —</option>
-          {scenarioFolders.map((name) => (
-            <option key={name} value={name}>{scenarioLabel(name)}</option>
+          {KNOWN_SCENARIOS.map((s) => (
+            <option key={s.value} value={s.value}>{s.label}</option>
           ))}
         </select>
+        <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--muted)' }}>
+          Must match the scenario value challenges use (e.g. "packet-heist") — not the R2 folder display name.
+        </p>
       </div>
       <div style={{ marginBottom: 8 }}>
         <label className="admin-grade-label">Command Post Bulletin (shown to students when released)</label>
@@ -3355,7 +3357,7 @@ function SearchPickerField({ candidates, selectedIds, busyIds, onAdd, onRemove, 
 const DROP_VICTIM_ROWS = Object.values(VICTIMS).map((v) => ({ key: v.code, label: v.code, victimName: v.name, victimCode: v.code }));
 const DROP_ROLE_ROWS   = ROLE_ORDER.map((role) => ({ key: role, label: ROLE_LABELS[role] }));
 
-function CampaignDropsPanel({ cohorts, scenarioFolders = [], assignments = [], contentItems = [], onAssignmentsChange, onContentPublished }) {
+function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAssignmentsChange, onContentPublished }) {
   const [drops,     setDrops]    = useState([]);
   const [scenarios, setScenarios] = useState([]);
   const [loading,   setLoading]  = useState(true);
@@ -3680,7 +3682,6 @@ function CampaignDropsPanel({ cohorts, scenarioFolders = [], assignments = [], c
                 {manageTab === 'basics' && (
                   <DropFormInline
                     initial={drop}
-                    scenarioFolders={scenarioFolders}
                     onSave={(saved) => { load(); setManageDrop(saved); setManageTab('pair'); setPairSubTab('squad'); }}
                     onCancel={closeManage}
                   />
