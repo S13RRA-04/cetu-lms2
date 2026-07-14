@@ -40,8 +40,10 @@ async function releaseDrop(req, res, next) {
 
 async function lockDrop(req, res, next) {
   try {
-    await campaignService.lockDrop(req.params.did, req.body.cohort_id);
-    res.status(204).end();
+    const result = await campaignService.lockDrop(req.params.did, req.body.cohort_id, {
+      revokeRelated: req.body.revoke_related === true,
+    });
+    res.json(result);
   } catch (err) { next(err); }
 }
 

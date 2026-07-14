@@ -37,4 +37,9 @@ const verifyVaultPinSchema = Joi.object({
   pin: Joi.string().trim().max(64).required(),
 });
 
-module.exports = { createCampaignDropSchema, updateCampaignDropSchema, verifyVaultPinSchema };
+const lockCampaignDropSchema = Joi.object({
+  cohort_id: Joi.string().uuid().required(),
+  revoke_related: Joi.boolean().default(false),
+});
+
+module.exports = { createCampaignDropSchema, updateCampaignDropSchema, verifyVaultPinSchema, lockCampaignDropSchema };

@@ -6,7 +6,7 @@ const { CourseContentItem, CourseContentUnlock, Course, Cohort, Enrollment } = r
 const { NotFoundError, ForbiddenError } = require('../utils/errors');
 const { v4: uuidv4 } = require('uuid');
 const TtlCache = require('../utils/ttlCache');
-const { parseDropCaseFile } = require('../utils/r2CaseFile');
+const { parseDropCaseFile, scenarioSlugFromName } = require('../utils/r2CaseFile');
 
 const contentCache = new TtlCache(15_000);
 
@@ -247,9 +247,11 @@ async function syncDecks(courseId) {
   return { added: toCreate.length, skipped: existingByKey.size - existing.filter((e) => e.url !== correctUrl(e.r2_key)).length, total: allObjects.length };
 }
 
-async function syncDropCaseFiles(courseId) {
+async function syncDropCaseFiles(courseId, { scenarioName, dropNumber }) {
   const course = await Course.findByPk(courseId);
   if (!course) throw new NotFoundError('Course');
+
+  const selectedScenario = scenarioName ? scenarioSlugFromName(scenarioName) : null;
 
   const objects = [];
   let continuationToken;
@@ -261,18 +263,23 @@ async function syncDropCaseFiles(courseId) {
     }));
     for (const object of response.Contents ?? []) {
       const parsed = parseDropCaseFile(object.Key, R2_DECKS_PREFIX);
-      if (parsed) objects.push({ ...parsed, size: object.Size ?? null });
+      const matchesSelection = !selectedScenario || (parsed?.scenarioName === selectedScenario && parsed?.dropNumber === dropNumber);
+      if (parsed && matchesSelection) {
+        objects.push({ ...parsed, size: object.Size ?? null });
+      }
     }
     continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
   } while (continuationToken);
 
-  if (objects.length === 0) return { added: 0, skipped: 0, total: 0 };
+  if (objects.length === 0) {
+    return { scenario_name: selectedScenario, drop_number: dropNumber ?? null, added: 0, skipped: 0, updated: 0, total: 0 };
+  }
 
   const keys = objects.map((object) => object.key);
   const objectByKey = new Map(objects.map((object) => [object.key, object]));
   const existing = await CourseContentItem.findAll({
     where: { course_id: courseId, r2_key: keys },
-    attributes: ['id', 'r2_key', 'url', 'file_size'],
+    attributes: ['id', 'r2_key', 'url', 'file_size', 'scenario_name'],
   });
   const existingByKey = new Map(existing.map((item) => [item.r2_key, item]));
   const publicUrl = (key) => `${R2_PUBLIC_BASE_URL}/${key}`;
@@ -283,6 +290,7 @@ async function syncDropCaseFiles(courseId) {
     const changes = {};
     if (item.url !== publicUrl(item.r2_key)) changes.url = publicUrl(item.r2_key);
     if (source?.size != null && Number(item.file_size) !== source.size) changes.file_size = source.size;
+    if (item.scenario_name !== source?.scenarioName) changes.scenario_name = source.scenarioName;
     if (Object.keys(changes).length > 0) {
       await item.update(changes);
       updated += 1;
@@ -299,6 +307,7 @@ async function syncDropCaseFiles(courseId) {
       r2_key: object.key,
       file_name: object.fileName,
       file_size: object.size,
+      scenario_name: object.scenarioName,
       url: publicUrl(object.key),
       drop_number: object.dropNumber,
       victim_code: object.victimCode,
@@ -310,7 +319,14 @@ async function syncDropCaseFiles(courseId) {
   contentCache.invalidate(`listForAdmin:all:${courseId}`);
   contentCache.invalidate(`listForAdmin:published:${courseId}`);
   contentCache.invalidate(`listItems:${courseId}`);
-  return { added: newObjects.length, skipped: existing.length, updated, total: objects.length };
+  return {
+    scenario_name: selectedScenario,
+    drop_number: dropNumber,
+    added: newObjects.length,
+    skipped: existing.length,
+    updated,
+    total: objects.length,
+  };
 }
 
 module.exports = { listForStudent, listForAdmin, create, update, remove, unlockForCohort, lockForCohort, getDownloadUrl, syncDecks, syncDropCaseFiles };

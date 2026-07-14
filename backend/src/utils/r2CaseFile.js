@@ -26,6 +26,14 @@ function inferContentType(fileName) {
   return 'evidence';
 }
 
+function scenarioSlugFromName(name) {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
 /**
  * Parse keys shaped like scenarios/<scenario>/Drop <number>/[<victim>/]<file>.
  * Objects outside a drop folder and folder-marker objects are intentionally ignored.
@@ -43,22 +51,24 @@ function parseDropCaseFile(key, scenariosPrefix = 'scenarios/') {
   if (!Number.isSafeInteger(dropNumber) || dropNumber < 1 || dropNumber > 32767) return null;
 
   const fileName = segments.at(-1);
-  const scenarioName = segments.slice(0, dropIndex).join(' / ');
+  const scenarioTitle = segments.slice(0, dropIndex).join(' / ');
+  const scenarioName = scenarioSlugFromName(scenarioTitle);
   const victimFolder = segments.length > dropIndex + 2 ? segments[dropIndex + 1] : null;
   const victim = victimFolder ? victimByFolder.get(normalize(victimFolder)) : null;
   const baseTitle = titleFromFileName(fileName);
-  const context = victim?.name ?? scenarioName;
+  const context = victim?.name ?? scenarioTitle;
   const title = `${context} — ${baseTitle}`.slice(0, 255);
 
   return {
     key,
     fileName,
     title,
-    description: `${scenarioName} — Drop ${dropNumber}${victim ? ` — ${victim.name}` : ''}`,
+    description: `${scenarioTitle} — Drop ${dropNumber}${victim ? ` — ${victim.name}` : ''}`,
+    scenarioName,
     contentType: inferContentType(fileName),
     dropNumber,
     victimCode: victim?.code ?? null,
   };
 }
 
-module.exports = { parseDropCaseFile, inferContentType, titleFromFileName };
+module.exports = { parseDropCaseFile, inferContentType, titleFromFileName, scenarioSlugFromName };

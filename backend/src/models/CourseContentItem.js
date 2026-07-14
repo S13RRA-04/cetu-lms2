@@ -14,6 +14,7 @@ module.exports = (sequelize) => sequelize.define('CourseContentItem', {
   r2_key:       { type: DataTypes.STRING(512) },
   file_name:    { type: DataTypes.STRING(255) },
   file_size:    { type: DataTypes.BIGINT },
+  scenario_name:       { type: DataTypes.STRING(255), allowNull: true, defaultValue: null },
   drop_number:          { type: DataTypes.SMALLINT, allowNull: true, defaultValue: null },
   victim_code:          { type: DataTypes.STRING(20), allowNull: true, defaultValue: null },
   linked_assignment_id: { type: DataTypes.UUID,     allowNull: true, defaultValue: null },

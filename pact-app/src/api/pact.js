@@ -165,8 +165,11 @@ export const deleteCampaignDrop = (dropId) =>
 export const releaseCampaignDrop = (dropId, cohortId) =>
   client.post(`/courses/${COURSE_ID}/campaign/drops/${dropId}/release`, { cohort_id: cohortId }).then((r) => r.data);
 
-export const lockCampaignDrop = (dropId, cohortId) =>
-  client.post(`/courses/${COURSE_ID}/campaign/drops/${dropId}/lock`, { cohort_id: cohortId });
+export const lockCampaignDrop = (dropId, cohortId, revokeRelated = false) =>
+  client.post(`/courses/${COURSE_ID}/campaign/drops/${dropId}/lock`, {
+    cohort_id: cohortId,
+    revoke_related: revokeRelated,
+  }).then((r) => r.data);
 
 /* ── Course Content ── */
 // `manage: true` is for Command's authoring view only — see getScenarios above.
@@ -182,8 +185,8 @@ export const createContentLink = (data) =>
 export const syncDecksFromR2 = () =>
   client.post(`/courses/${COURSE_ID}/course-content/sync-decks`).then((r) => r.data);
 
-export const syncDropFilesFromR2 = () =>
-  client.post(`/courses/${COURSE_ID}/course-content/sync-drop-files`).then((r) => r.data);
+export const syncDropFilesFromR2 = (selection = {}) =>
+  client.post(`/courses/${COURSE_ID}/course-content/sync-drop-files`, selection).then((r) => r.data);
 
 export const uploadContentFile = (file, meta) => {
   const token = localStorage.getItem('accessToken');

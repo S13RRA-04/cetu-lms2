@@ -21,7 +21,8 @@ const {
   createModuleSchema, updateModuleSchema,
 } = require('../validators/course.validator');
 const { createAssignmentSchema, updateAssignmentSchema, gradeSchema, unlockSchema } = require('../validators/assignment.validator');
-const { createCampaignDropSchema, updateCampaignDropSchema, verifyVaultPinSchema } = require('../validators/campaign.validator');
+const { createCampaignDropSchema, updateCampaignDropSchema, verifyVaultPinSchema, lockCampaignDropSchema } = require('../validators/campaign.validator');
+const { syncDropCaseFilesSchema } = require('../validators/courseContent.validator');
 
 const router = Router();
 
@@ -134,7 +135,7 @@ const rawUpload = require('express').raw({ type: '*/*', limit: '20mb' });
 router.get('/:id/course-content',           requireAuth,                    courseContentCtrl.list);
 router.post('/:id/course-content',          requireAuth, requireInstructor, courseContentCtrl.create);
 router.post('/:id/course-content/sync-decks', requireAuth, requireInstructor, courseContentCtrl.syncDecks);
-router.post('/:id/course-content/sync-drop-files', requireAuth, requireInstructor, auditLog('sync', 'course_content'), courseContentCtrl.syncDropCaseFiles);
+router.post('/:id/course-content/sync-drop-files', requireAuth, requireInstructor, validate(syncDropCaseFilesSchema), auditLog('sync', 'course_content'), courseContentCtrl.syncDropCaseFiles);
 router.post('/:id/course-content/upload',   requireAuth, requireInstructor, rawUpload, courseContentCtrl.create);
 router.put('/:id/course-content/:cid',      requireAuth, requireInstructor, courseContentCtrl.update);
 router.delete('/:id/course-content/:cid',   requireAuth, requireInstructor, courseContentCtrl.remove);
@@ -148,7 +149,7 @@ router.post('/:id/campaign/drops',             requireAuth, requireInstructor, v
 router.put('/:id/campaign/drops/:did',         requireAuth, requireInstructor, validate(updateCampaignDropSchema), campaignCtrl.updateDrop);
 router.delete('/:id/campaign/drops/:did',      requireAuth, requireInstructor, campaignCtrl.deleteDrop);
 router.post('/:id/campaign/drops/:did/release',  requireAuth, requireInstructor, campaignCtrl.releaseDrop);
-router.post('/:id/campaign/drops/:did/lock',     requireAuth, requireInstructor, campaignCtrl.lockDrop);
+router.post('/:id/campaign/drops/:did/lock',     requireAuth, requireInstructor, validate(lockCampaignDropSchema), campaignCtrl.lockDrop);
 router.post('/:id/campaign/drops/:did/verify-pin', requireAuth, validate(verifyVaultPinSchema), campaignCtrl.verifyVaultPin);
 
 // Intel board (per-squad link analysis)

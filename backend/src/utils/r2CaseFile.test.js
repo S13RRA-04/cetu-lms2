@@ -12,6 +12,7 @@ test('parses a victim-scoped drop file into case-file metadata', () => {
       fileName: 'Initial Evidence.pdf',
       title: 'Dogwood Hotel & Resort — Initial Evidence',
       description: 'PACKET HEIST — Drop 1 — Dogwood Hotel & Resort',
+      scenarioName: 'packet-heist',
       contentType: 'evidence',
       dropNumber: 1,
       victimCode: 'DOGWOOD',
@@ -35,4 +36,9 @@ test('ignores objects outside a drop and folder markers', () => {
 
 test('infers intel reports from common drop artifact names', () => {
   assert.equal(inferContentType('Cross-Victim Indicator Matrix.xlsx'), 'intel_report');
+});
+
+test('normalizes an R2 scenario folder to the application scenario key', () => {
+  const parsed = parseDropCaseFile('scenarios/Brokered Exit/Drop 2/Shared Report.pdf');
+  assert.equal(parsed.scenarioName, 'brokered-exit');
 });

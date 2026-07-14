@@ -7101,7 +7101,8 @@ body {
   overflow: hidden;
 }
 
-.vk-code-text {
+.vk-code-text,
+.vk-code-input {
   font-family: var(--mono);
   font-size: 22px;
   font-weight: 700;
@@ -7112,6 +7113,21 @@ body {
   overflow: hidden;
   text-overflow: clip;
   flex: 1;
+}
+
+.vk-code-input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  caret-color: #00b0ff;
+}
+
+.vk-code-input:disabled {
+  opacity: 1;
+  cursor: default;
 }
 
 .vk-code-cursor {

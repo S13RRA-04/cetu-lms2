@@ -128,6 +128,7 @@ export default function VaultKeypad({ drop, onUnlock, verifyPin = null }) {
   const [wrongMsg, setWrongMsg] = useState('');
   const [keyFlash, setKeyFlash] = useState(false);
   const flashTimer = useRef(null);
+  const inputRef = useRef(null);
 
   const press = useCallback((char) => {
     if (status !== 'idle') return;
@@ -173,6 +174,7 @@ export default function VaultKeypad({ drop, onUnlock, verifyPin = null }) {
 
   useEffect(() => {
     const handler = (e) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key.length === 1)           { e.preventDefault(); press(e.key); }
       else if (e.key === 'Backspace')   { e.preventDefault(); backspace(); }
@@ -181,6 +183,10 @@ export default function VaultKeypad({ drop, onUnlock, verifyPin = null }) {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [press, backspace, submit]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (status === 'idle') inputRef.current?.focus();
+  }, [status]);
 
   const isBlocked = status !== 'idle';
 
@@ -257,14 +263,26 @@ export default function VaultKeypad({ drop, onUnlock, verifyPin = null }) {
         >
           <span className="vk-code-label">ACCESS CODE</span>
           <div className="vk-code-value">
-            <span className="vk-code-text">{code || ''}</span>
-            {status === 'idle' && (
-              <motion.span
-                className="vk-code-cursor"
-                animate={{ opacity: [1, 0, 1] }}
-                transition={{ duration: 0.85, repeat: Infinity }}
-              />
-            )}
+            <input
+              ref={inputRef}
+              className="vk-code-input"
+              value={code}
+              onChange={(event) => {
+                if (status === 'idle') setCode(event.target.value.slice(0, MAX_CODE_LEN));
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  submit();
+                }
+              }}
+              maxLength={MAX_CODE_LEN}
+              disabled={isBlocked}
+              autoComplete="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              aria-label="Vault access code"
+            />
           </div>
         </motion.div>
 

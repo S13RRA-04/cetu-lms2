@@ -6,6 +6,7 @@ const {
   createCampaignDropSchema,
   updateCampaignDropSchema,
   verifyVaultPinSchema,
+  lockCampaignDropSchema,
 } = require('./campaign.validator');
 
 test('campaign drop creation requires complete vault configuration', () => {
@@ -35,4 +36,13 @@ test('campaign drop patch permits one vault field for service-layer merge valida
 test('vault verification rejects oversized answers', () => {
   const { error } = verifyVaultPinSchema.validate({ pin: 'x'.repeat(65) });
   assert.ok(error);
+});
+
+test('drop lock accepts explicit related-access revocation', () => {
+  const { value, error } = lockCampaignDropSchema.validate({
+    cohort_id: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+    revoke_related: true,
+  });
+  assert.equal(error, undefined);
+  assert.equal(value.revoke_related, true);
 });

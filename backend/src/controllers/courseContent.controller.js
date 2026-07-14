@@ -66,7 +66,12 @@ async function syncDecks(req, res, next) {
 }
 
 async function syncDropCaseFiles(req, res, next) {
-  try { return res.json(await svc.syncDropCaseFiles(req.params.id)); }
+  try {
+    return res.json(await svc.syncDropCaseFiles(req.params.id, {
+      scenarioName: req.body.scenario_name,
+      dropNumber: req.body.drop_number,
+    }));
+  }
   catch (err) { return next(err); }
 }
 

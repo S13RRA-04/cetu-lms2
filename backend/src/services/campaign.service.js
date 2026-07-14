@@ -1,4 +1,6 @@
 'use strict';
+const { Op } = require('sequelize');
+const { sequelize } = require('../config/database');
 const { CampaignDrop, CampaignDropUnlock, Assignment, AssignmentUnlock,
         CourseContentItem, CourseContentUnlock, ScenarioPackage, ScenarioPackageUnlock,
         Squad, Course, Cohort } = require('../models');
@@ -183,11 +185,59 @@ async function releaseDrop(dropId, cohortId, unlockerId) {
   };
 }
 
-async function lockDrop(dropId, cohortId) {
+async function lockDrop(dropId, cohortId, { revokeRelated = false } = {}) {
   const drop = await CampaignDrop.findByPk(dropId);
   if (!drop) throw new NotFoundError('CampaignDrop');
 
-  await CampaignDropUnlock.destroy({ where: { drop_id: dropId, cohort_id: cohortId } });
+  return sequelize.transaction(async (transaction) => {
+    const revoked = { drop: 0, assignments: 0, content: 0, packages: 0 };
+    revoked.drop = await CampaignDropUnlock.destroy({
+      where: { drop_id: dropId, cohort_id: cohortId },
+      transaction,
+    });
+
+    if (!revokeRelated) return { revoked };
+
+    const [assignments, contentItems, scenarioPackages] = await Promise.all([
+      Assignment.findAll({
+        where: { course_id: drop.course_id, drop_number: drop.number },
+        attributes: ['id'], transaction,
+      }),
+      CourseContentItem.findAll({
+        where: { course_id: drop.course_id, drop_number: drop.number },
+        attributes: ['id'], transaction,
+      }),
+      ScenarioPackage.findAll({
+        where: { course_id: drop.course_id, drop_number: drop.number },
+        attributes: ['id'], transaction,
+      }),
+    ]);
+
+    const assignmentIds = assignments.map((item) => item.id);
+    const contentIds = contentItems.map((item) => item.id);
+    const packageIds = scenarioPackages.map((item) => item.id);
+
+    if (assignmentIds.length > 0) {
+      revoked.assignments = await AssignmentUnlock.destroy({
+        where: { cohort_id: cohortId, assignment_id: { [Op.in]: assignmentIds } },
+        transaction,
+      });
+    }
+    if (contentIds.length > 0) {
+      revoked.content = await CourseContentUnlock.destroy({
+        where: { cohort_id: cohortId, content_id: { [Op.in]: contentIds } },
+        transaction,
+      });
+    }
+    if (packageIds.length > 0) {
+      revoked.packages = await ScenarioPackageUnlock.destroy({
+        where: { cohort_id: cohortId, package_id: { [Op.in]: packageIds } },
+        transaction,
+      });
+    }
+
+    return { revoked };
+  });
 }
 
 module.exports = { listDrops, createDrop, updateDrop, deleteDrop, releaseDrop, lockDrop, verifyVaultPin };

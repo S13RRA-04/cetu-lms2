@@ -3604,6 +3604,7 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
   const [loading,   setLoading]  = useState(true);
   const [cohortId,  setCohortId] = useState(() => cohorts[0]?.id ?? '');
   const [delDrop,   setDelDrop]  = useState(null);
+  const [lockTarget, setLockTarget] = useState(null);
   const [working,   setWorking]  = useState(null);
   const [err,       setErr]      = useState('');
   const [warn,      setWarn]     = useState('');
@@ -3612,10 +3613,37 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
   const [pairSubTab,  setPairSubTab]  = useState('squad');  // 'squad' | 'role' | 'shared'
   const [localContent, setLocalContent] = useState(contentItems);
   const [pairing,      setPairing]      = useState({}); // key -> bool
+  const [caseFileSyncing, setCaseFileSyncing] = useState(false);
+  const [caseFileSyncResult, setCaseFileSyncResult] = useState(null);
 
   const openNewDrop = () => { setManageDrop({ isNew: true }); setManageTab('basics'); };
   const openManage  = (drop) => { setManageDrop(drop); setManageTab('pair'); setPairSubTab('squad'); };
   const closeManage = () => setManageDrop(null);
+
+  const handleSyncSelectedCaseFiles = async (drop) => {
+    if (!drop.scenario_name) {
+      setCaseFileSyncResult({ error: 'Set the drop scenario before syncing Case Files.' });
+      return;
+    }
+    setCaseFileSyncing(true);
+    setCaseFileSyncResult(null);
+    try {
+      const result = await syncDropFilesFromR2({
+        scenario_name: drop.scenario_name,
+        drop_number: drop.number,
+      });
+      const refreshed = await getCourseContent(true);
+      setLocalContent(Array.isArray(refreshed) ? refreshed : []);
+      setCaseFileSyncResult(result);
+      onContentPublished?.();
+    } catch (error) {
+      setCaseFileSyncResult({
+        error: error.response?.data?.error?.message ?? 'Case File sync failed.',
+      });
+    } finally {
+      setCaseFileSyncing(false);
+    }
+  };
 
   useEffect(() => { setLocalContent(contentItems); }, [contentItems]);
 
@@ -3696,11 +3724,20 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
     finally { setWorking(null); }
   };
 
-  const handleLock = async (drop) => {
+  const handleLock = async (drop, revokeRelated = false) => {
     if (!cohortId) { setErr('Select a cohort first.'); return; }
     setWorking(drop.id + ':lock');
     setErr('');
-    try { await lockCampaignDrop(drop.id, cohortId); load(); }
+    setWarn('');
+    try {
+      const result = await lockCampaignDrop(drop.id, cohortId, revokeRelated);
+      if (revokeRelated && result?.revoked) {
+        const total = result.revoked.assignments + result.revoked.content + result.revoked.packages;
+        setWarn(`Drop locked and ${total} related unlock${total === 1 ? '' : 's'} revoked for this cohort.`);
+      }
+      setLockTarget(null);
+      load();
+    }
     catch (e) { setErr(e.response?.data?.error?.message ?? 'Lock failed'); }
     finally { setWorking(null); }
   };
@@ -3812,7 +3849,7 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
                         className="btn-secondary"
                         style={{ fontSize: 12, padding: '4px 12px' }}
                         disabled={isWorking}
-                        onClick={() => handleLock(drop)}
+                        onClick={() => setLockTarget(drop)}
                       >
                         {working === drop.id + ':lock' ? '…' : 'Lock'}
                       </button>
@@ -3847,6 +3884,35 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
         </div>
       )}
 
+      {lockTarget && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+        }}>
+          <div style={{ background: '#fff', borderRadius: 10, padding: 24, maxWidth: 480, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,.2)' }}>
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>Lock Drop {lockTarget.number}?</div>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16, lineHeight: 1.55 }}>
+              Choose whether to hide only the drop transmission or also revoke this cohort's access to every challenge, Case File, and scenario package tagged to Drop {lockTarget.number}.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              <button className="btn-secondary" onClick={() => setLockTarget(null)} disabled={!!working}>Cancel</button>
+              <button className="btn-secondary" onClick={() => handleLock(lockTarget, false)} disabled={!!working}>
+                {working ? '…' : 'Lock Drop Only'}
+              </button>
+              <button
+                className="btn-submit"
+                style={{ width: 'auto', background: 'var(--danger, #ef4444)' }}
+                onClick={() => handleLock(lockTarget, true)}
+                disabled={!!working}
+                title="Also revokes manually granted unlocks for material tagged to this drop"
+              >
+                {working ? '…' : 'Lock + Revoke Related Access'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete confirm */}
       {delDrop && (
         <div style={{
@@ -3878,6 +3944,7 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
         const isNew = !!manageDrop.isNew;
         const drop  = isNew ? null : manageDrop;
         const scenarioChallenges = drop ? challengeItems.filter((a) => a.scenario_name === drop.scenario_name) : [];
+        const scenarioContent = drop ? localContent.filter((item) => item.scenario_name === drop.scenario_name) : [];
 
         return (
           <div
@@ -3936,6 +4003,27 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
                       </p>
                     )}
 
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        disabled={caseFileSyncing || !drop.scenario_name}
+                        onClick={() => handleSyncSelectedCaseFiles(drop)}
+                      >
+                        {caseFileSyncing ? 'Syncing Case Files…' : 'Sync Case Files from R2'}
+                      </button>
+                      {caseFileSyncResult?.error && (
+                        <span style={{ fontSize: 12, color: 'var(--danger)' }}>{caseFileSyncResult.error}</span>
+                      )}
+                      {caseFileSyncResult && !caseFileSyncResult.error && (
+                        <span style={{ fontSize: 12, color: caseFileSyncResult.total > 0 ? '#059669' : '#b45309' }}>
+                          {caseFileSyncResult.total > 0
+                            ? `${caseFileSyncResult.added} added, ${caseFileSyncResult.updated} updated, ${caseFileSyncResult.skipped} already synced.`
+                            : `No R2 files found for ${scenarioLabel(drop.scenario_name)} / Drop ${drop.number}.`}
+                        </span>
+                      )}
+                    </div>
+
                     <div style={{ display: 'flex', gap: 4 }}>
                       {[['squad', 'Squad / Victim'], ['role', 'Individual / Role'], ['shared', 'Shared']].map(([key, label]) => (
                         <button
@@ -3957,10 +4045,10 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
                           const challengeSelected = scenarioChallenges
                             .filter((a) => a.drop_number === drop.number && a.victim_name === row.victimName)
                             .map((a) => a.id);
-                          const contentCandidates = localContent
+                          const contentCandidates = scenarioContent
                             .filter((c) => c.drop_number == null || (c.drop_number === drop.number && c.victim_code === row.victimCode))
                             .map((c) => ({ id: c.id, label: c.title, ref: c }));
-                          const contentSelected = localContent
+                          const contentSelected = scenarioContent
                             .filter((c) => c.drop_number === drop.number && c.victim_code === row.victimCode)
                             .map((c) => c.id);
                           return (
@@ -4039,10 +4127,10 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
                       const challengeSelected = scenarioChallenges
                         .filter((a) => a.drop_number === drop.number && !a.victim_name && (a.role_filters?.length ?? 0) === 0)
                         .map((a) => a.id);
-                      const contentCandidates = localContent
+                      const contentCandidates = scenarioContent
                         .filter((c) => c.drop_number == null || (c.drop_number === drop.number && !c.victim_code))
                         .map((c) => ({ id: c.id, label: c.title, ref: c }));
-                      const contentSelected = localContent
+                      const contentSelected = scenarioContent
                         .filter((c) => c.drop_number === drop.number && !c.victim_code)
                         .map((c) => c.id);
                       return (
@@ -4076,7 +4164,7 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
                     })()}
 
                     <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
-                      Case files aren't tagged to a scenario in the database, so their candidate lists show every unpaired case file regardless of scenario — use the title to pick the right one.
+                      Case File candidates are filtered to {scenarioLabel(drop.scenario_name)} and Drop {drop.number} using their R2 folder metadata.
                     </p>
 
                     <ScenarioIntelPanel scenarios={scenarios} dropNumber={drop.number} />
