@@ -23,6 +23,15 @@ function invalidateStudentCache(courseId, userId) {
   studentListCache.invalidate(`listForStudent:${courseId}:${userId}`);
 }
 
+// studentListCache is keyed per-user, so a targeted invalidation would need
+// every enrolled user's ID. A full flush is cheap (list queries are fast and
+// infrequent) and guarantees a drop release's bulk-publish is immediately
+// visible instead of waiting out the TTL per student.
+function invalidateAssignmentLists() {
+  listCache.flush();
+  studentListCache.flush();
+}
+
 async function listByCourse(courseId, query, { includeUnpublished = false } = {}) {
   const { limit, offset, page } = paginate(query);
   const cacheKey = `listByCourse:${includeUnpublished ? 'all' : 'published'}:${courseId}:${limit}:${offset}`;
@@ -235,4 +244,4 @@ async function remove(id) {
   await assignment.destroy();
 }
 
-module.exports = { listByCourse, listForStudent, getById, create, update, remove, unlockForCohort, lockForCohort, getUnlockStatus, getLiveOverview, invalidateStudentCache };
+module.exports = { listByCourse, listForStudent, getById, create, update, remove, unlockForCohort, lockForCohort, getUnlockStatus, getLiveOverview, invalidateStudentCache, invalidateAssignmentLists };

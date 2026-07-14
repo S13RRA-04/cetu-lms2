@@ -16,6 +16,12 @@ if (!R2_PUBLIC_BASE_URL) {
 }
 const CONTENT_PREFIX     = 'course-content/';
 
+function invalidateCourseContentLists(courseId) {
+  contentCache.invalidate(`listForAdmin:all:${courseId}`);
+  contentCache.invalidate(`listForAdmin:published:${courseId}`);
+  contentCache.invalidate(`listItems:${courseId}`);
+}
+
 /* Upload a buffer to R2, returns the public URL */
 async function uploadToR2(buffer, fileName, mimeType) {
   const ext    = fileName.split('.').pop() ?? 'bin';
@@ -41,7 +47,7 @@ async function listForStudent(courseId, userId) {
   // for assignment unlocks (assignment.service.js's _queryListForStudent).
   const squadId   = enrollment.squad?.id ?? null;
   const orClauses = [{ cohort_id: enrollment.cohort_id, squad_id: null }];
-  if (squadId) orClauses.push({ squad_id: squadId });
+  if (squadId) orClauses.push({ cohort_id: enrollment.cohort_id, squad_id: squadId });
 
   // Items list is the same for all students in a course; cohort/squad scopes unlock visibility
   const [items, unlocks] = await Promise.all([
@@ -112,8 +118,7 @@ async function create(courseId, data, fileBuffer, fileName, mimeType) {
     ...(data.drop_number != null          ? { drop_number:          Number(data.drop_number) } : {}),
     ...(data.linked_assignment_id != null ? { linked_assignment_id: data.linked_assignment_id } : {}),
   });
-  contentCache.invalidate(`listForAdmin:${courseId}`);
-  contentCache.invalidate(`listItems:${courseId}`);
+  invalidateCourseContentLists(courseId);
   return item;
 }
 
@@ -132,7 +137,7 @@ async function getDownloadUrl(contentId, userId, userRole = 'student') {
     if (enrollment.cohort_id) {
       const squadId   = enrollment.squad?.id ?? null;
       const orClauses = [{ content_id: contentId, cohort_id: enrollment.cohort_id, squad_id: null }];
-      if (squadId) orClauses.push({ content_id: contentId, squad_id: squadId });
+      if (squadId) orClauses.push({ content_id: contentId, cohort_id: enrollment.cohort_id, squad_id: squadId });
       const unlock = await CourseContentUnlock.findOne({ where: { [Op.or]: orClauses } });
       if (!unlock) throw new ForbiddenError('Content not yet released for your cohort');
     }
@@ -149,8 +154,7 @@ async function update(id, data) {
   const item = await CourseContentItem.findByPk(id);
   if (!item) throw new NotFoundError('CourseContentItem');
   const updated = await item.update(data);
-  contentCache.invalidate(`listForAdmin:${item.course_id}`);
-  contentCache.invalidate(`listItems:${item.course_id}`);
+  invalidateCourseContentLists(item.course_id);
   return updated;
 }
 
@@ -162,8 +166,7 @@ async function remove(id) {
   }
   const courseId = item.course_id;
   await item.destroy();
-  contentCache.invalidate(`listForAdmin:${courseId}`);
-  contentCache.invalidate(`listItems:${courseId}`);
+  invalidateCourseContentLists(courseId);
 }
 
 async function unlockForCohort(contentId, cohortId, unlockerId, squadId = null) {
@@ -175,14 +178,14 @@ async function unlockForCohort(contentId, cohortId, unlockerId, squadId = null) 
     where:    { content_id: contentId, cohort_id: cohortId, squad_id: squadId },
     defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
   });
-  contentCache.invalidate(`listForAdmin:${item.course_id}`);
+  invalidateCourseContentLists(item.course_id);
   return unlock;
 }
 
 async function lockForCohort(contentId, cohortId, squadId = null) {
   const item = await CourseContentItem.findByPk(contentId);
   await CourseContentUnlock.destroy({ where: { content_id: contentId, cohort_id: cohortId, squad_id: squadId } });
-  if (item) contentCache.invalidate(`listForAdmin:${item.course_id}`);
+  if (item) invalidateCourseContentLists(item.course_id);
 }
 
 function titleFromKey(key, prefix) {
@@ -279,7 +282,7 @@ async function syncDropCaseFiles(courseId, { scenarioName, dropNumber }) {
   const objectByKey = new Map(objects.map((object) => [object.key, object]));
   const existing = await CourseContentItem.findAll({
     where: { course_id: courseId, r2_key: keys },
-    attributes: ['id', 'r2_key', 'url', 'file_size', 'scenario_name', 'source_drop_number', 'source_victim_code', 'source_folder'],
+    attributes: ['id', 'r2_key', 'url', 'file_size', 'scenario_name', 'source_drop_number', 'source_victim_code', 'source_folder', 'is_published'],
   });
   const existingByKey = new Map(existing.map((item) => [item.r2_key, item]));
   const publicUrl = (key) => `${R2_PUBLIC_BASE_URL}/${key}`;
@@ -294,6 +297,9 @@ async function syncDropCaseFiles(courseId, { scenarioName, dropNumber }) {
     if (item.source_drop_number !== source?.dropNumber) changes.source_drop_number = source?.dropNumber ?? null;
     if (item.source_victim_code !== source?.victimCode) changes.source_victim_code = source?.victimCode ?? null;
     if (item.source_folder !== source?.sourceFolder) changes.source_folder = source?.sourceFolder ?? null;
+    // Older R2 syncs created draft records. They could receive an unlock during
+    // release but remained absent from the learner Case File's published query.
+    if (item.is_published !== true) changes.is_published = true;
     if (Object.keys(changes).length > 0) {
       await item.update(changes);
       updated += 1;
@@ -317,14 +323,14 @@ async function syncDropCaseFiles(courseId, { scenarioName, dropNumber }) {
       url: publicUrl(object.key),
       drop_number: null,
       victim_code: null,
-      is_published: false,
+      // Visibility is already gated by drop pairing + release (CourseContentUnlock),
+      // matching manually-uploaded content's default — see PublishFileForm.
+      is_published: true,
       order_index: 0,
     })));
   }
 
-  contentCache.invalidate(`listForAdmin:all:${courseId}`);
-  contentCache.invalidate(`listForAdmin:published:${courseId}`);
-  contentCache.invalidate(`listItems:${courseId}`);
+  invalidateCourseContentLists(courseId);
   return {
     scenario_name: selectedScenario,
     drop_number: dropNumber,
@@ -335,4 +341,4 @@ async function syncDropCaseFiles(courseId, { scenarioName, dropNumber }) {
   };
 }
 
-module.exports = { listForStudent, listForAdmin, create, update, remove, unlockForCohort, lockForCohort, getDownloadUrl, syncDecks, syncDropCaseFiles };
+module.exports = { listForStudent, listForAdmin, create, update, remove, unlockForCohort, lockForCohort, getDownloadUrl, syncDecks, syncDropCaseFiles, invalidateCourseContentLists };

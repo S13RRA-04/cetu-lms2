@@ -19,4 +19,10 @@ function partitionDropMaterials(assignments, contentItems, scenarioPackages) {
   };
 }
 
-module.exports = { partitionDropMaterials };
+// Works for any item shaped { id, is_published } — assignments and course
+// content items alike.
+function unpublishedIds(items) {
+  return items.filter((item) => item.is_published !== true).map((item) => item.id);
+}
+
+module.exports = { partitionDropMaterials, unpublishedIds };

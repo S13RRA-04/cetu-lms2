@@ -4,6 +4,7 @@ import useAuthStore from '../store/authStore.js';
 import { motion, AnimatePresence } from 'motion/react';
 import { getCourseContent } from '../api/pact.js';
 import DecryptText from '../components/DecryptText.jsx';
+import { isScenarioDropContent } from '../lib/contentClassification.js';
 
 const TYPE_META = {
   // Standard course materials
@@ -45,7 +46,8 @@ export default function CourseContentPage() {
     </div>
   );
 
-  const unlocked  = items.filter((i) => i.is_unlocked !== false);
+  // Scenario-drop artifacts belong to Case File and the Evidence drawer.
+  const unlocked  = items.filter((i) => i.is_unlocked !== false && !isScenarioDropContent(i));
   const typesUsed = [...new Set(unlocked.map((i) => i.content_type))];
 
   const visible = filter === 'all'

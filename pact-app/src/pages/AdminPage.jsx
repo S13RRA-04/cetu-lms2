@@ -2099,19 +2099,34 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
                   {selected.role_filters?.length > 0 && ` · ${selected.role_filters.map((r) => ROLE_LABELS[r] ?? r).join(', ')}`}
                 </div>
               </div>
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={!launchBriefingDraft.trim()}
-                onClick={() => setPreviewAssignment({
-                  ...selected,
-                  launch_briefing: launchBriefingDraft.trim() || selected.launch_briefing,
-                })}
-                title={launchBriefingDraft.trim() ? 'Preview the learner launch briefing' : 'Add a launch briefing to enable preview'}
-              >
-                Preview Launch Screen
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  <input
+                    type="checkbox"
+                    checked={!!selected.is_published}
+                    onChange={(e) => handleFieldChange(selected.id, { is_published: e.target.checked })}
+                  />
+                  Published
+                </label>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={!launchBriefingDraft.trim()}
+                  onClick={() => setPreviewAssignment({
+                    ...selected,
+                    launch_briefing: launchBriefingDraft.trim() || selected.launch_briefing,
+                  })}
+                  title={launchBriefingDraft.trim() ? 'Preview the learner launch briefing' : 'Add a launch briefing to enable preview'}
+                >
+                  Preview Launch Screen
+                </button>
+              </div>
             </div>
+            {!selected.is_published && (
+              <p style={{ margin: 0, padding: '8px 20px', fontSize: 11, color: '#b45309', background: 'rgba(180,83,9,0.08)', borderBottom: '1px solid var(--border)' }}>
+                Draft — this challenge is unlocked for its cohort but won't appear to students until Published is checked.
+              </p>
+            )}
 
             {/* ── Scenario + Victim + Role assignment ── */}
             <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>

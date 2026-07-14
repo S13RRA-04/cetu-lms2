@@ -6,7 +6,9 @@ const { CampaignDrop, CampaignDropUnlock, Assignment, AssignmentUnlock,
         Squad, Course, Cohort } = require('../models');
 const { NotFoundError, AppError } = require('../utils/errors');
 const { codeToName } = require('../constants/victims');
-const { partitionDropMaterials } = require('../utils/campaignRelease');
+const { partitionDropMaterials, unpublishedIds } = require('../utils/campaignRelease');
+const { invalidateCourseContentLists } = require('./courseContent.service');
+const { invalidateAssignmentLists } = require('./assignment.service');
 const { scenarioSlugFromName } = require('../utils/r2CaseFile');
 
 async function listDrops(courseId, cohortId, includePin = false) {
@@ -119,6 +121,28 @@ async function releaseDrop(dropId, cohortId, unlockerId) {
     sharedPackages, victimPackages,
     hasVictimScopedMaterial,
   } = partitionDropMaterials(assignments, contentItems, scenarioPackages);
+
+  // Releasing explicitly paired Case Files and challenges also publishes
+  // them. Unlock rows alone are insufficient because the learner query
+  // intentionally excludes drafts. This also repairs legacy R2 items/seeded
+  // challenges created unpublished before this drop was released.
+  const contentIdsToPublish = unpublishedIds(contentItems);
+  if (contentIdsToPublish.length > 0) {
+    await CourseContentItem.update(
+      { is_published: true },
+      { where: { id: { [Op.in]: contentIdsToPublish } } },
+    );
+    invalidateCourseContentLists(drop.course_id);
+  }
+
+  const assignmentIdsToPublish = unpublishedIds(assignments);
+  if (assignmentIdsToPublish.length > 0) {
+    await Assignment.update(
+      { is_published: true },
+      { where: { id: { [Op.in]: assignmentIdsToPublish } } },
+    );
+    invalidateAssignmentLists();
+  }
 
   const assignedSquads = hasVictimScopedMaterial ? squads.filter((squad) => squad.victim_code) : [];
   const skippedSquads = hasVictimScopedMaterial

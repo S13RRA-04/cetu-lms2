@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { partitionDropMaterials } = require('./campaignRelease');
+const { partitionDropMaterials, unpublishedIds } = require('./campaignRelease');
 
 test('squad-agnostic drop material does not require victim-scoped release', () => {
   const result = partitionDropMaterials(
@@ -27,4 +27,12 @@ test('victim-tagged material retains squad-specific release requirement', () => 
   assert.equal(result.hasVictimScopedMaterial, true);
   assert.equal(result.victimAssignments.length, 1);
   assert.equal(result.victimContent.length, 1);
+});
+
+test('drop release identifies every paired Case File or challenge that still needs publishing', () => {
+  assert.deepEqual(unpublishedIds([
+    { id: 'published', is_published: true },
+    { id: 'legacy-draft', is_published: false },
+    { id: 'unset-publication-state', is_published: null },
+  ]), ['legacy-draft', 'unset-publication-state']);
 });

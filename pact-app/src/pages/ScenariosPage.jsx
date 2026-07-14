@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getScenarios, getScenarioDownloadUrl } from '../api/pact.js';
+import { getScenarios, getScenarioDownloadUrl, getCourseContent } from '../api/pact.js';
 import useAuthStore from '../store/authStore.js';
 import DecryptText from '../components/DecryptText.jsx';
+import { isScenarioDropContent } from '../lib/contentClassification.js';
 
 const EXT_TYPE = {
   pdf:  'PDF', docx: 'DOC', doc: 'DOC',
@@ -77,14 +78,21 @@ export default function ScenariosPage() {
   const { user }     = useAuthStore();
   const isAdmin      = user?.role === 'admin' || user?.role === 'instructor';
   const [packages,   setPackages]   = useState([]);
+  const [dropFiles,  setDropFiles]  = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [fileMap,    setFileMap]    = useState({});   // pkgId → files[]
   const [extracting, setExtracting] = useState({});   // pkgId → bool
   const [errors,     setErrors]     = useState({});
 
   useEffect(() => {
-    getScenarios()
-      .then((d) => setPackages(Array.isArray(d) ? d : []))
+    Promise.all([getScenarios(), getCourseContent()])
+      .then(([scenarioData, contentData]) => {
+        setPackages(Array.isArray(scenarioData) ? scenarioData : []);
+        setDropFiles(
+          (Array.isArray(contentData) ? contentData : [])
+            .filter((item) => item.is_unlocked !== false && isScenarioDropContent(item)),
+        );
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -125,12 +133,21 @@ export default function ScenariosPage() {
 
   // Group by scenario_name
   const scenarioMap = new Map();
+  const ensureScenario = (key) => {
+    if (!scenarioMap.has(key)) scenarioMap.set(key, { releases: [], files: [] });
+    return scenarioMap.get(key);
+  };
   for (const pkg of visible) {
     const key = pkg.scenario_name || pkg.title;
-    if (!scenarioMap.has(key)) scenarioMap.set(key, []);
-    scenarioMap.get(key).push(pkg);
+    ensureScenario(key).releases.push(pkg);
   }
-  for (const arr of scenarioMap.values()) arr.sort((a, b) => a.release_number - b.release_number);
+  for (const item of dropFiles) {
+    ensureScenario(item.scenario_name || 'scenario-drops').files.push(item);
+  }
+  for (const group of scenarioMap.values()) {
+    group.releases.sort((a, b) => a.release_number - b.release_number);
+    group.files.sort((a, b) => (a.drop_number ?? a.source_drop_number ?? 0) - (b.drop_number ?? b.source_drop_number ?? 0));
+  }
   const scenarios = [...scenarioMap.entries()].sort(([a], [b]) => a.localeCompare(b));
 
   return (
@@ -153,8 +170,15 @@ export default function ScenariosPage() {
         </div>
       ) : (
         <div className="ep-scenario-list">
-          {scenarios.map(([scenarioName, releases], si) => {
+          {scenarios.map(([scenarioName, group], si) => {
+            const { releases, files: scenarioFiles } = group;
             const authorizedCount = releases.filter((r) => isAdmin || r.is_unlocked).length;
+            const dropGroups = [...new Set(scenarioFiles.map((item) => item.drop_number ?? item.source_drop_number))]
+              .sort((a, b) => a - b)
+              .map((dropNumber) => ({
+                dropNumber,
+                files: scenarioFiles.filter((item) => (item.drop_number ?? item.source_drop_number) === dropNumber),
+              }));
             return (
               <motion.div
                 key={scenarioName}
@@ -170,11 +194,48 @@ export default function ScenariosPage() {
                     <div className="ep-folder-stamp">CASE FILE</div>
                     <div className="ep-folder-name">{scenarioName}</div>
                     <div className="ep-folder-meta">
-                      {authorizedCount} of {releases.length} release{releases.length !== 1 ? 's' : ''} authorized
+                      {authorizedCount} package{authorizedCount !== 1 ? 's' : ''} and {scenarioFiles.length} drop file{scenarioFiles.length !== 1 ? 's' : ''} authorized
                     </div>
                   </div>
-                  <div className="ep-folder-count">{releases.length}</div>
+                  <div className="ep-folder-count">{releases.length + scenarioFiles.length}</div>
                 </div>
+
+                {dropGroups.map(({ dropNumber, files }) => (
+                  <div className="ep-releases" key={`drop-${dropNumber}`} style={{ marginBottom: 14 }}>
+                    <div className="ep-release">
+                      <div className="ep-release-bar">
+                        <div className="ep-release-bar-left">
+                          <span className="ep-release-id">DROP {String(dropNumber).padStart(2, '0')} FILES</span>
+                          <span className="ep-auth-badge">AUTHORIZED</span>
+                        </div>
+                      </div>
+                      <div className="ep-release-body">
+                        <div className="ep-file-list" style={{ opacity: 1, height: 'auto' }}>
+                          {files.map((item) => {
+                            const href = item.download_url ?? item.url;
+                            const name = item.file_name || item.title;
+                            return (
+                              <a
+                                key={item.id}
+                                href={href || undefined}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="ep-file-row"
+                                download
+                                aria-disabled={!href}
+                              >
+                                <span className="ep-file-type">{fileType(name)}</span>
+                                <span className="ep-file-name">{name.toUpperCase()}</span>
+                                {item.file_size != null && <span className="ep-file-size">{formatSize(Number(item.file_size))}</span>}
+                                {href && <span className="ep-file-dl"><DownloadIcon /></span>}
+                              </a>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
 
                 {/* Release cards */}
                 <div className="ep-releases">

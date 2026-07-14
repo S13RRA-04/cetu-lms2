@@ -2,8 +2,8 @@ import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { getScenarios, getCourseContent } from '../api/pact.js';
+import { isScenarioDropContent } from '../lib/contentClassification.js';
 
-const CAMPAIGN_TYPES = ['briefing', 'evidence', 'intel_report'];
 const CAMPAIGN_META = {
   briefing:     { label: 'CP Briefing',  color: '#ef4444' },
   evidence:     { label: 'Evidence',     color: '#22c55e' },
@@ -38,7 +38,7 @@ export default function EvidenceDrawer() {
       setPackages((Array.isArray(scenarios) ? scenarios : []).filter((p) => p.is_unlocked));
       setIntelItems(
         (Array.isArray(content) ? content : [])
-          .filter((i) => i.is_unlocked !== false && CAMPAIGN_TYPES.includes(i.content_type))
+          .filter((i) => i.is_unlocked !== false && isScenarioDropContent(i))
       );
     }).finally(() => setLoading(false));
   }, [loading]);
@@ -113,7 +113,7 @@ export default function EvidenceDrawer() {
 
                 {!loading && sortedIntel.length > 0 && (
                   <div className="evd-section">
-                    <div className="evd-section-label">CAMPAIGN INTEL — INTEL LIBRARY</div>
+                    <div className="evd-section-label">SCENARIO DROP FILES — CASE FILE</div>
                     {sortedIntel.map((item) => {
                       const meta = CAMPAIGN_META[item.content_type] ?? CAMPAIGN_META.evidence;
                       const canOpen = !!(item.download_url ?? item.url);
