@@ -1,7 +1,7 @@
 'use strict';
 const { Op } = require('sequelize');
 const { ListObjectsV2Command, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
-const { r2Client, R2_BUCKET, R2_SLIDES_PREFIX } = require('../config/r2');
+const { r2Client, R2_BUCKET, R2_DECKS_PREFIX, R2_SLIDES_PREFIX } = require('../config/r2');
 const { CourseContentItem, CourseContentUnlock, Course, Cohort, Enrollment } = require('../models');
 const { NotFoundError, ForbiddenError } = require('../utils/errors');
 const { v4: uuidv4 } = require('uuid');
