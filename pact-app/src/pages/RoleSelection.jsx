@@ -13,6 +13,7 @@ const ROLES = [
   { value: 'task_force_officer',                label: 'TFO / Field Lead',                     blurb: 'Identifies physical-world, victim, vendor, and records-based follow-up leads.' },
   { value: 'digital_evidence_lead',             label: 'Digital Evidence Lead / CART Liaison', blurb: 'Identifies what digital evidence should be preserved, collected, or imaged.' },
   { value: 'supervisory_intelligence_analyst',  label: 'Supervisory Intelligence Analyst',      blurb: 'Senior intelligence oversight across the squad’s hypotheses and analytic products.' },
+  { value: 'forensic_accountant',               label: 'Forensic Accountant',                   blurb: 'Traces financial transactions, account flows, and money-laundering patterns tied to the case.' },
 ];
 
 export default function RoleSelection({ user }) {

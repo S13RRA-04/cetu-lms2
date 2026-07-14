@@ -26,6 +26,7 @@ const ROLE_ABBR = {
   operational_support_da:           'OPS',
   cyber_analyst:                    'C/A',
   digital_evidence_lead:            'DEL',
+  forensic_accountant:              'FoA',
 };
 
 export default function LoginPage() {
