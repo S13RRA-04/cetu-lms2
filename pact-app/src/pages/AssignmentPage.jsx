@@ -5,6 +5,7 @@ import { getAssignment, getMySubmission, getMyGrades, submitAssignment, updatePr
 import DecryptText      from '../components/DecryptText.jsx';
 import SubmitSequence   from '../components/SubmitSequence.jsx';
 import SubmissionSuccess from '../components/SubmissionSuccess.jsx';
+import { FormattedTextEditor } from '../components/FormattedText.jsx';
 import QuizFlow, { MultipleChoice, TrueFalse, DragMatch, FillBlank } from '../components/QuizFlow.jsx';
 import ChallengeFlow    from '../components/ChallengeFlow.jsx';
 import useDraft         from '../hooks/useDraft.js';
@@ -422,14 +423,14 @@ export default function AssignmentPage() {
                 )}
                 {error && <div className="err-msg">{error}</div>}
                 <form onSubmit={handleSubmit}>
-                  <textarea
-                    className="response-textarea"
+                  <FormattedTextEditor
                     value={content}
-                    onChange={(e) => {
-                      setContent(e.target.value);
-                      saveDebounced({ content: e.target.value, progress });
+                    onChange={(value) => {
+                      setContent(value);
+                      saveDebounced({ content: value, progress });
                     }}
                     placeholder="Enter your field report response…"
+                    rows={10}
                     required
                   />
                   <div className="action-row">

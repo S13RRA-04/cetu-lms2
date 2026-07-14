@@ -44,6 +44,7 @@ import TransmissionInterceptor from './TransmissionInterceptor.jsx';
 import VaultKeypad from './VaultKeypad.jsx';
 import { guessContentType } from '../lib/contentType.js';
 import SignalEntry from './SignalEntry.jsx';
+import { FormattedText } from '../components/FormattedText.jsx';
 
 const TYPE_COLOR = {
   module:     '#2563eb',
@@ -121,8 +122,9 @@ function ChallengeDeliverableReview({ delivData, questions = [], maxScore, assig
   const [saving,       setSaving]       = useState(false);
   const [err,          setErr]          = useState('');
 
-  const total     = prompts.reduce((sum, _, i) => { const v = parseFloat(promptScores[i]); return sum + (isNaN(v) ? 0 : v); }, 0);
-  const allScored = prompts.every((_, i) => promptScores[i] !== '' && !isNaN(parseFloat(promptScores[i])));
+  const scoreOf = (value) => typeof value === 'object' ? Number(value?.score) : parseFloat(value);
+  const total     = prompts.reduce((sum, _, i) => { const v = scoreOf(promptScores[i]); return sum + (isNaN(v) ? 0 : v); }, 0);
+  const allScored = prompts.every((_, i) => !isNaN(scoreOf(promptScores[i])));
 
   const handleSave = async () => {
     if (!allScored) { setErr('Score every deliverable before saving.'); return; }
@@ -142,6 +144,17 @@ function ChallengeDeliverableReview({ delivData, questions = [], maxScore, assig
   };
 
   const setScore = (i, v) => setPromptScores((prev) => ({ ...prev, [i]: String(v) }));
+  const criterionPoints = (pts, count) => {
+    const base = Math.floor((pts * 100) / count) / 100;
+    return Array.from({ length: count }, (_, i) => i === count - 1 ? Number((pts - base * (count - 1)).toFixed(2)) : base);
+  };
+  const setCriterion = (i, j, checked, pts, count) => setPromptScores((prev) => {
+    const old = typeof prev[i] === 'object' ? prev[i].criteria : [];
+    const criteria = Array.from({ length: count }, (_, k) => k === j ? checked : Boolean(old?.[k]));
+    const points = criterionPoints(pts, count);
+    const score = Number(criteria.reduce((sum, selected, k) => sum + (selected ? points[k] : 0), 0).toFixed(2));
+    return { ...prev, [i]: { score, maxScore: pts, criteria } };
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -150,7 +163,7 @@ function ChallengeDeliverableReview({ delivData, questions = [], maxScore, assig
         const rubric    = q.rubric;
         const pts       = q.points ?? perPromptMax;
         const scoreVal  = promptScores[i];
-        const scoreNum  = parseFloat(scoreVal);
+        const scoreNum  = scoreOf(scoreVal);
         const pct       = (!isNaN(scoreNum) && pts > 0) ? scoreNum / pts : null;
         const scoreColor = pct === null ? 'var(--border-hi)' : pct >= 0.8 ? '#10b981' : pct >= 0.5 ? '#f59e0b' : '#ef4444';
         const quickPts  = [...new Set([0, Math.round(pts * 0.5), Math.round(pts * 0.75), pts])];
@@ -167,7 +180,11 @@ function ChallengeDeliverableReview({ delivData, questions = [], maxScore, assig
               {/* Score widget */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                  <input
+                  {rubric?.keyElements?.length ? (
+                    <span style={{ minWidth: 52, textAlign: 'center', color: scoreColor, fontSize: 16, fontFamily: 'var(--mono)', fontWeight: 700 }}>
+                      {isNaN(scoreNum) ? '—' : scoreNum}
+                    </span>
+                  ) : <input
                     type="number"
                     min={0}
                     max={pts}
@@ -180,13 +197,13 @@ function ChallengeDeliverableReview({ delivData, questions = [], maxScore, assig
                       color: pct === null ? 'var(--text)' : scoreColor,
                       fontSize: 16, fontFamily: 'var(--mono)', fontWeight: 700,
                     }}
-                  />
+                  />}
                   <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text)', whiteSpace: 'nowrap' }}>/ {pts} pts</span>
                 </div>
                 {/* Quick-pick buttons */}
-                <div style={{ display: 'flex', gap: 3 }}>
+                {!rubric?.keyElements?.length && <div style={{ display: 'flex', gap: 3 }}>
                   {quickPts.map((v) => {
-                    const active = parseFloat(scoreVal) === v;
+                    const active = scoreOf(scoreVal) === v;
                     return (
                       <button key={v} onClick={() => setScore(i, v)} style={{
                         padding: '1px 6px', borderRadius: 3, border: `1px solid ${active ? scoreColor : 'var(--border-hi)'}`,
@@ -196,7 +213,7 @@ function ChallengeDeliverableReview({ delivData, questions = [], maxScore, assig
                       }}>{v}</button>
                     );
                   })}
-                </div>
+                </div>}
               </div>
             </div>
 
@@ -206,9 +223,7 @@ function ChallengeDeliverableReview({ delivData, questions = [], maxScore, assig
               {/* Response */}
               <div style={{ padding: '10px 14px' }}>
                 <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: 'var(--muted)', marginBottom: 6 }}>SQUAD RESPONSE</div>
-                <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 12, color: 'var(--text)', lineHeight: 1.65, maxHeight: 240, overflowY: 'auto' }}>
-                  {response || <span style={{ color: 'var(--muted)', fontStyle: 'italic' }}>No response submitted</span>}
-                </pre>
+                <div style={{ maxHeight: 240, overflowY: 'auto' }}><FormattedText value={response} emptyText="No response submitted" /></div>
               </div>
 
               {/* Rubric — always visible, no toggle */}
@@ -217,11 +232,14 @@ function ChallengeDeliverableReview({ delivData, questions = [], maxScore, assig
                   {rubric.keyElements?.length > 0 && (
                     <div>
                       <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: '#10b981', marginBottom: 5 }}>EXPECTED ELEMENTS</div>
-                      <ul style={{ margin: 0, paddingLeft: 14, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {rubric.keyElements.map((el, j) => (
-                          <li key={j} style={{ fontSize: 11, color: 'var(--text)', lineHeight: 1.5 }}>{el}</li>
+                          <label key={j} style={{ display: 'grid', gridTemplateColumns: '18px 1fr auto', gap: 7, alignItems: 'start', fontSize: 11, color: 'var(--text)', lineHeight: 1.5, cursor: 'pointer' }}>
+                            <input type="checkbox" checked={Boolean(scoreVal?.criteria?.[j])} onChange={(e) => setCriterion(i, j, e.target.checked, pts, rubric.keyElements.length)} />
+                            <span>{el}</span><span style={{ color: '#10b981', fontFamily: 'var(--mono)' }}>+{criterionPoints(pts, rubric.keyElements.length)[j]}</span>
+                          </label>
                         ))}
-                      </ul>
+                      </div>
                     </div>
                   )}
                   {rubric.commonErrors?.length > 0 && (
@@ -3162,7 +3180,7 @@ function SubmissionDetail({ sub, assignment, existingGrade, onGradeSaved }) {
         <>
           <div className="admin-content-box">
             <div className="section-label" style={{ marginBottom: 12 }}>Submission</div>
-            <pre className="admin-text-content">{parsed.data || '(no content)'}</pre>
+            <div className="admin-text-content"><FormattedText value={parsed.data} emptyText="(no content)" /></div>
           </div>
           <div className="admin-content-box">
             <div className="section-label" style={{ marginBottom: 12 }}>

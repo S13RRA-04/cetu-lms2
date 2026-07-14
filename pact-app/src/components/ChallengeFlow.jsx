@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import { loadDraftSync, clearDraftSync } from '../hooks/useDraft.js';
 import { updateProgress } from '../api/pact.js';
 import SubmitSequence from './SubmitSequence.jsx';
+import { FormattedText, FormattedTextEditor } from './FormattedText.jsx';
 
 /*
   ChallengeFlow — squad workshop submission UI.
@@ -196,12 +197,11 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
                   <span className="challenge-prompt-num">{String(i + 1).padStart(2, '0')}</span>
                   {prompt}
                 </label>
-                <textarea
-                  className="challenge-textarea"
+                <FormattedTextEditor
                   value={answers[i] ?? ''}
-                  onChange={(e) => setAnswers((prev) => ({ ...prev, [i]: e.target.value }))}
+                  onChange={(value) => setAnswers((prev) => ({ ...prev, [i]: value }))}
                   placeholder={`Squad response for: ${prompt}…`}
-                  rows={3}
+                  rows={5}
                   required
                 />
               </motion.div>
@@ -210,10 +210,9 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
         ) : (
           <div className="challenge-freeform">
             <div className="section-label" style={{ marginBottom: 10 }}>SQUAD FIELD REPORT</div>
-            <textarea
-              className="challenge-textarea challenge-textarea-lg"
+            <FormattedTextEditor
               value={freetext}
-              onChange={(e) => setFreetext(e.target.value)}
+              onChange={setFreetext}
               placeholder="Enter your squad's field report…"
               rows={8}
               required
@@ -297,7 +296,8 @@ function ChallengeReview({ assignment, color, existingContent, grade }) {
         const response = responses[i] ?? '';
         const pts      = prompts[i]?.points ?? perPromptMax;
         const ps       = promptScores[i];
-        const psPct    = ps !== undefined && pts > 0 ? ps / pts : null;
+        const psValue  = typeof ps === 'object' ? ps.score : ps;
+        const psPct    = psValue !== undefined && pts > 0 ? psValue / pts : null;
         const psColor  = psPct === null ? 'var(--muted)' : psPct >= 0.8 ? '#10b981' : psPct >= 0.5 ? '#f59e0b' : '#ef4444';
 
         return (
@@ -309,15 +309,13 @@ function ChallengeReview({ assignment, color, existingContent, grade }) {
               <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--bright)', lineHeight: 1.5 }}>{label}</span>
               {ps !== undefined && (
                 <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 700, color: psColor, flexShrink: 0 }}>
-                  {ps} / {pts}
+                  {psValue} / {pts}
                 </span>
               )}
             </div>
             <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
               <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: 'var(--muted)', marginBottom: 6 }}>YOUR RESPONSE</div>
-              <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, color: 'var(--text)', lineHeight: 1.65 }}>
-                {response || <span style={{ color: 'var(--muted)', fontStyle: 'italic' }}>No response recorded</span>}
-              </pre>
+              <FormattedText value={response} />
             </div>
           </div>
         );
@@ -330,9 +328,7 @@ function ChallengeReview({ assignment, color, existingContent, grade }) {
             <span style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: 'var(--muted)' }}>SUBMITTED REPORT</span>
           </div>
           <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
-            <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, color: 'var(--text)', lineHeight: 1.65 }}>
-              {parsed.response}
-            </pre>
+            <FormattedText value={parsed.response} />
           </div>
         </div>
       )}

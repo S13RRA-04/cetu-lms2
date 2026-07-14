@@ -40,6 +40,7 @@ async function getGradesForUser(userId) {
 async function upsertGrade(assignmentId, userId, data, graderId) {
   const assignment = await Assignment.findByPk(assignmentId);
   if (!assignment) throw new NotFoundError('Assignment');
+  if (data.score > assignment.max_score) throw new AppError('Score cannot exceed assignment maximum', 400, 'BAD_REQUEST');
 
   const student = await User.findByPk(userId);
   if (!student) throw new NotFoundError('User');
@@ -92,6 +93,7 @@ async function upsertGrade(assignmentId, userId, data, graderId) {
 async function gradeSquad(assignmentId, squadId, data, graderId) {
   const assignment = await Assignment.findByPk(assignmentId);
   if (!assignment) throw new NotFoundError('Assignment');
+  if (data.score > assignment.max_score) throw new AppError('Score cannot exceed assignment maximum', 400, 'BAD_REQUEST');
   if (assignment.grading_mode !== 'squad') throw new AppError('Assignment is not squad-graded', 400, 'BAD_REQUEST');
 
   const squad = await Squad.findByPk(squadId);
