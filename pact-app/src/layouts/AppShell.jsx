@@ -139,6 +139,19 @@ export default function AppShell() {
       const enroll = enrollmentRef.current;
       const cohortId = enroll?.cohort?.id;
       if (!cohortId || !localStorage.getItem(inductionKey(user.id))) return;
+
+      // Target reveal can happen while the student is already active in the
+      // app — re-check enrollment so the full-screen reveal animation fires
+      // immediately instead of waiting for a page reload.
+      if (enroll?.cohort?.target_revealed !== true && !localStorage.getItem(targetSeenKey(user.id))) {
+        getMyEnrollment().catch(() => null).then((fresh) => {
+          if (fresh?.cohort?.target_revealed) {
+            enrollmentRef.current = fresh;
+            setEnrollment(fresh);
+          }
+        });
+      }
+
       Promise.all([
         getCampaignDrops(cohortId).catch(() => []),
         getScenarios().catch(() => []),

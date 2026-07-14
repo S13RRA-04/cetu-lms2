@@ -2845,6 +2845,9 @@ function DropFormInline({ initial, defaultScenario, scenarioFolders = [], onSave
   });
   const [saving, setSaving] = useState(false);
   const [err,    setErr]    = useState('');
+  const [advancedOpen, setAdvancedOpen] = useState(
+    !!(initial?.vault_hint || initial?.vault_pin || initial?.html_signal || initial?.signal_prompt)
+  );
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const handleSave = async () => {
@@ -2853,9 +2856,8 @@ function DropFormInline({ initial, defaultScenario, scenarioFolders = [], onSave
     setErr('');
     try {
       const payload = { ...form, number: Number(form.number) };
-      if (initial) await updateCampaignDrop(initial.id, payload);
-      else         await createCampaignDrop(payload);
-      onSave();
+      const saved = initial ? await updateCampaignDrop(initial.id, payload) : await createCampaignDrop(payload);
+      onSave(saved);
     } catch (e) {
       setErr(e.response?.data?.error?.message ?? 'Save failed');
     } finally { setSaving(false); }
@@ -2902,54 +2904,68 @@ function DropFormInline({ initial, defaultScenario, scenarioFolders = [], onSave
           style={{ width: '100%', resize: 'vertical' }}
         />
       </div>
-      <div style={{ background: 'rgba(0,176,255,0.04)', border: '1px solid rgba(0,176,255,0.15)', borderRadius: 4, padding: '10px 12px', marginBottom: 8 }}>
-        <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: '.18em', color: 'rgba(0,176,255,0.7)', textTransform: 'uppercase', marginBottom: 8 }}>
-          Vault Lock (optional)
-        </div>
-        <div style={{ marginBottom: 8 }}>
-          <label className="admin-grade-label">Cipher Challenge — Vault Hint (shown to students)</label>
-          <textarea
-            value={form.vault_hint}
-            onChange={set('vault_hint')}
-            rows={2}
-            placeholder="e.g. Run the SHA-256 hash of 'NIGHTFALL-7' through CyberChef. Enter the first 6 hex characters as the PIN."
-            style={{ width: '100%', resize: 'vertical' }}
-          />
-        </div>
-        <div>
-          <label className="admin-grade-label">Vault PIN (secret — students must derive this)</label>
-          <input
-            value={form.vault_pin}
-            onChange={set('vault_pin')}
-            placeholder="e.g. A3F9B1"
-            style={{ width: '100%', fontFamily: 'monospace', letterSpacing: '.1em', textTransform: 'uppercase' }}
-          />
-        </div>
-      </div>
-      <div style={{ background: 'rgba(0,255,157,0.03)', border: '1px solid rgba(0,255,157,0.15)', borderRadius: 4, padding: '10px 12px', marginBottom: 8 }}>
-        <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: '.18em', color: 'rgba(0,255,157,0.65)', textTransform: 'uppercase', marginBottom: 8 }}>
-          HTML Signal Hunt (optional)
-        </div>
-        <div style={{ marginBottom: 8 }}>
-          <label className="admin-grade-label">Signal Code (embedded in page &lt;head&gt; as a hidden HTML comment)</label>
-          <input
-            value={form.html_signal}
-            onChange={set('html_signal')}
-            placeholder="e.g. BRAVO-7-TANGO"
-            style={{ width: '100%', fontFamily: 'monospace', letterSpacing: '.1em', textTransform: 'uppercase' }}
-          />
-        </div>
-        <div>
-          <label className="admin-grade-label">Hunt Prompt (shown to students — what to look for)</label>
-          <textarea
-            value={form.signal_prompt}
-            onChange={set('signal_prompt')}
-            rows={2}
-            placeholder="A signal has been embedded in this operations channel. Inspect the page source to intercept it."
-            style={{ width: '100%', resize: 'vertical' }}
-          />
-        </div>
-      </div>
+      <button
+        type="button"
+        onClick={() => setAdvancedOpen((v) => !v)}
+        style={{
+          background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: 8,
+          fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--primary)', letterSpacing: '.06em',
+        }}
+      >
+        {advancedOpen ? '− Hide advanced: Vault Lock & Signal Hunt' : '+ Advanced: Vault Lock & Signal Hunt'}
+      </button>
+      {advancedOpen && (
+        <>
+          <div style={{ background: 'rgba(0,176,255,0.04)', border: '1px solid rgba(0,176,255,0.15)', borderRadius: 4, padding: '10px 12px', marginBottom: 8 }}>
+            <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: '.18em', color: 'rgba(0,176,255,0.7)', textTransform: 'uppercase', marginBottom: 8 }}>
+              Vault Lock (optional)
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              <label className="admin-grade-label">Cipher Challenge — Vault Hint (shown to students)</label>
+              <textarea
+                value={form.vault_hint}
+                onChange={set('vault_hint')}
+                rows={2}
+                placeholder="e.g. Run the SHA-256 hash of 'NIGHTFALL-7' through CyberChef. Enter the first 6 hex characters as the PIN."
+                style={{ width: '100%', resize: 'vertical' }}
+              />
+            </div>
+            <div>
+              <label className="admin-grade-label">Vault PIN (secret — students must derive this)</label>
+              <input
+                value={form.vault_pin}
+                onChange={set('vault_pin')}
+                placeholder="e.g. A3F9B1"
+                style={{ width: '100%', fontFamily: 'monospace', letterSpacing: '.1em', textTransform: 'uppercase' }}
+              />
+            </div>
+          </div>
+          <div style={{ background: 'rgba(0,255,157,0.03)', border: '1px solid rgba(0,255,157,0.15)', borderRadius: 4, padding: '10px 12px', marginBottom: 8 }}>
+            <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: '.18em', color: 'rgba(0,255,157,0.65)', textTransform: 'uppercase', marginBottom: 8 }}>
+              HTML Signal Hunt (optional)
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              <label className="admin-grade-label">Signal Code (embedded in page &lt;head&gt; as a hidden HTML comment)</label>
+              <input
+                value={form.html_signal}
+                onChange={set('html_signal')}
+                placeholder="e.g. BRAVO-7-TANGO"
+                style={{ width: '100%', fontFamily: 'monospace', letterSpacing: '.1em', textTransform: 'uppercase' }}
+              />
+            </div>
+            <div>
+              <label className="admin-grade-label">Hunt Prompt (shown to students — what to look for)</label>
+              <textarea
+                value={form.signal_prompt}
+                onChange={set('signal_prompt')}
+                rows={2}
+                placeholder="A signal has been embedded in this operations channel. Inspect the page source to intercept it."
+                style={{ width: '100%', resize: 'vertical' }}
+              />
+            </div>
+          </div>
+        </>
+      )}
       {err && <div className="err-msg">{err}</div>}
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
         <button className="btn-submit" style={{ width: 'auto' }} onClick={handleSave} disabled={saving}>
@@ -3260,8 +3276,83 @@ function ScenarioIntelPanel({ scenarios, dropNumber }) {
   );
 }
 
+/* Type-to-search chip picker — replaces long always-visible checkbox lists.
+   candidates: [{ id, label }] excluding already-selected items is NOT
+   required of the caller; this component filters selected out itself. */
+function SearchPickerField({ candidates, selectedIds, busyIds, onAdd, onRemove, placeholder, emptyLabel }) {
+  const [query, setQuery] = useState('');
+  const [open,  setOpen]  = useState(false);
+
+  const selected = candidates.filter((c) => selectedIds.includes(c.id));
+  const pool     = candidates.filter((c) => !selectedIds.includes(c.id));
+  const filtered = (query.trim()
+    ? pool.filter((c) => c.label.toLowerCase().includes(query.trim().toLowerCase()))
+    : pool
+  ).slice(0, 8);
+
+  return (
+    <div>
+      {selected.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 6 }}>
+          {selected.map((c) => (
+            <span key={c.id} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              padding: '3px 6px 3px 9px', borderRadius: 12, fontSize: 12,
+              background: 'rgba(0,176,255,0.1)', border: '1px solid rgba(0,176,255,0.3)', color: 'var(--text)',
+            }}>
+              {c.label}
+              <button
+                onClick={() => onRemove(c)}
+                disabled={busyIds?.has(c.id)}
+                title="Remove"
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1,
+                  color: 'var(--muted)', fontSize: 14,
+                }}
+              >×</button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div style={{ position: 'relative' }}>
+        <input
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          placeholder={placeholder}
+          style={{ width: '100%', padding: '5px 8px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
+        />
+        {open && (
+          <div style={{
+            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20,
+            background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6,
+            boxShadow: '0 4px 16px rgba(0,0,0,.15)', marginTop: 2, maxHeight: 180, overflowY: 'auto',
+          }}>
+            {filtered.length === 0 ? (
+              <div style={{ padding: '8px 10px', fontSize: 12, color: 'var(--muted)' }}>{emptyLabel ?? 'No matches.'}</div>
+            ) : filtered.map((c) => (
+              <button
+                key={c.id}
+                onMouseDown={() => { onAdd(c); setQuery(''); }}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px',
+                  background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text)',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2, #f8fafc)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const DROP_VICTIM_ROWS = Object.values(VICTIMS).map((v) => ({ key: v.code, label: v.code, victimName: v.name, victimCode: v.code }));
-const DROP_SHARED_ROW  = { key: '__shared__', label: 'Shared / All Squads' };
 const DROP_ROLE_ROWS   = ROLE_ORDER.map((role) => ({ key: role, label: ROLE_LABELS[role] }));
 
 function CampaignDropsPanel({ cohorts, scenarioFolders = [], assignments = [], contentItems = [], onAssignmentsChange, onContentPublished }) {
@@ -3269,15 +3360,19 @@ function CampaignDropsPanel({ cohorts, scenarioFolders = [], assignments = [], c
   const [scenarios, setScenarios] = useState([]);
   const [loading,   setLoading]  = useState(true);
   const [cohortId,  setCohortId] = useState(() => cohorts[0]?.id ?? '');
-  const [addOpen,   setAddOpen]  = useState(false);
-  const [editDrop,  setEditDrop] = useState(null);
   const [delDrop,   setDelDrop]  = useState(null);
   const [working,   setWorking]  = useState(null);
   const [err,       setErr]      = useState('');
   const [warn,      setWarn]     = useState('');
-  const [pairOpenId, setPairOpenId] = useState(null);
+  const [manageDrop,  setManageDrop]  = useState(null); // null | drop | { isNew: true }
+  const [manageTab,   setManageTab]   = useState('basics'); // 'basics' | 'pair'
+  const [pairSubTab,  setPairSubTab]  = useState('squad');  // 'squad' | 'role' | 'shared'
   const [localContent, setLocalContent] = useState(contentItems);
   const [pairing,      setPairing]      = useState({}); // key -> bool
+
+  const openNewDrop = () => { setManageDrop({ isNew: true }); setManageTab('basics'); };
+  const openManage  = (drop) => { setManageDrop(drop); setManageTab('pair'); setPairSubTab('squad'); };
+  const closeManage = () => setManageDrop(null);
 
   useEffect(() => { setLocalContent(contentItems); }, [contentItems]);
 
@@ -3294,37 +3389,26 @@ function CampaignDropsPanel({ cohorts, scenarioFolders = [], assignments = [], c
   };
 
   // Victim rows are squad work — mutually exclusive with role filtering, so
-  // picking a victim clears any role_filters the challenge had.
-  const pairAssignmentVictim = (assignment, drop, victimName) => {
-    const isPaired = assignment.drop_number === drop.number && assignment.victim_name === victimName;
-    return applyAssignmentPatch(assignment, isPaired
-      ? { drop_number: null, victim_name: null }
-      : { drop_number: drop.number, victim_name: victimName, role_filters: [] });
+  // adding a victim clears any role_filters the challenge had.
+  const addAssignmentVictim    = (a, drop, victimName) => applyAssignmentPatch(a, { drop_number: drop.number, victim_name: victimName, role_filters: [] });
+  const removeAssignmentVictim = (a)                    => applyAssignmentPatch(a, { drop_number: null, victim_name: null });
+
+  // Role rows are individual work — role_filters is multi-select, so add/remove
+  // only touch the one role rather than replacing the whole array.
+  const addAssignmentRole = (a, drop, role) => {
+    const current = (a.drop_number === drop.number && !a.victim_name) ? (a.role_filters ?? []) : [];
+    return applyAssignmentPatch(a, { drop_number: drop.number, victim_name: null, role_filters: [...current, role] });
+  };
+  const removeAssignmentRole = (a, role) => {
+    const nextRoles = (a.role_filters ?? []).filter((r) => r !== role);
+    return applyAssignmentPatch(a, { role_filters: nextRoles });
   };
 
-  // Role rows are individual work — role_filters is multi-select, so this
-  // toggles one role in the array rather than replacing the whole thing.
-  const pairAssignmentRole = (assignment, drop, role) => {
-    const onThisDrop = assignment.drop_number === drop.number && !assignment.victim_name;
-    const current    = onThisDrop ? (assignment.role_filters ?? []) : [];
-    const nextRoles  = current.includes(role) ? current.filter((r) => r !== role) : [...current, role];
-    return applyAssignmentPatch(assignment, { drop_number: drop.number, victim_name: null, role_filters: nextRoles });
-  };
+  const addAssignmentShared    = (a, drop) => applyAssignmentPatch(a, { drop_number: drop.number, victim_name: null, role_filters: [] });
+  const removeAssignmentShared = (a)       => applyAssignmentPatch(a, { drop_number: null, victim_name: null, role_filters: [] });
 
-  const pairAssignmentShared = (assignment, drop) => {
-    const isPaired = assignment.drop_number === drop.number && !assignment.victim_name && (assignment.role_filters?.length ?? 0) === 0;
-    return applyAssignmentPatch(assignment, isPaired
-      ? { drop_number: null, victim_name: null, role_filters: [] }
-      : { drop_number: drop.number, victim_name: null, role_filters: [] });
-  };
-
-  const pairContentItem = async (item, drop, victimCode) => {
+  const applyContentPatch = async (item, patch) => {
     const key = `c:${item.id}`;
-    const isPaired = item.drop_number === drop.number &&
-      (victimCode == null ? !item.victim_code : item.victim_code === victimCode);
-    const patch = isPaired
-      ? { drop_number: null, victim_code: null }
-      : { drop_number: drop.number, victim_code: victimCode ?? null };
     setPairing((p) => ({ ...p, [key]: true }));
     try {
       await updateContentItem(item.id, patch);
@@ -3333,6 +3417,8 @@ function CampaignDropsPanel({ cohorts, scenarioFolders = [], assignments = [], c
     } catch { /* ignore */ }
     finally { setPairing((p) => ({ ...p, [key]: false })); }
   };
+  const addContentItem    = (c, drop, victimCode) => applyContentPatch(c, { drop_number: drop.number, victim_code: victimCode ?? null });
+  const removeContentItem = (c)                   => applyContentPatch(c, { drop_number: null, victim_code: null });
 
   const load = useCallback(() => {
     setLoading(true);
@@ -3392,28 +3478,13 @@ function CampaignDropsPanel({ cohorts, scenarioFolders = [], assignments = [], c
             OPERATION BRKR — DROP CONTROL
           </div>
           <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>
-            Create drops, write Command Post bulletins, and release to cohorts. Files tagged with a drop number unlock automatically when the drop is released.
+            Create drops, pair their challenges and case files, and release to cohorts.
           </p>
         </div>
-        <button
-          className="btn-submit"
-          style={{ width: 'auto', flexShrink: 0 }}
-          onClick={() => { setAddOpen((v) => !v); setEditDrop(null); }}
-        >
-          {addOpen ? 'Cancel' : '+ New Drop'}
+        <button className="btn-submit" style={{ width: 'auto', flexShrink: 0 }} onClick={openNewDrop}>
+          + New Drop
         </button>
       </div>
-
-      {addOpen && (
-        <div style={{ marginBottom: 16, padding: '12px 16px', background: 'var(--surface-2, #f8fafc)', borderRadius: 8, border: '1px solid var(--border)' }}>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>NEW DROP</div>
-          <DropFormInline
-            scenarioFolders={scenarioFolders}
-            onSave={() => { setAddOpen(false); load(); }}
-            onCancel={() => setAddOpen(false)}
-          />
-        </div>
-      )}
 
       {/* Cohort selector */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, padding: '10px 14px', background: 'var(--surface-2, #f8fafc)', borderRadius: 8, border: '1px solid var(--border)' }}>
@@ -3458,301 +3529,75 @@ function CampaignDropsPanel({ cohorts, scenarioFolders = [], assignments = [], c
           No drops yet. Create the first one above.
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {[...drops].sort((a, b) => a.number - b.number).map((drop) => {
             const isUnlocked = drop.is_unlocked;
             const isWorking  = !!working?.startsWith(drop.id);
-            const isEditing  = editDrop?.id === drop.id;
             return (
               <div
                 key={drop.id}
                 style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px',
                   border: `1px solid ${isUnlocked ? 'var(--primary)' : 'var(--border)'}`,
                   borderLeft: `4px solid ${isUnlocked ? 'var(--primary)' : 'var(--border)'}`,
-                  borderRadius: 8,
-                  overflow: 'hidden',
-                  background: 'var(--surface, #fff)',
+                  borderRadius: 8, background: 'var(--surface, #fff)',
                 }}
               >
-                {/* Drop header */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px' }}>
-                  <span style={{
-                    fontFamily: 'var(--mono)', fontSize: 11, fontWeight: 700,
-                    padding: '2px 8px', borderRadius: 4, flexShrink: 0,
-                    background: isUnlocked ? 'var(--primary)' : 'var(--surface-2, #f1f5f9)',
-                    color:      isUnlocked ? '#fff' : 'var(--muted)',
-                  }}>
-                    DROP {drop.number}
-                  </span>
-                  <span style={{ fontWeight: 600, fontSize: 14, flex: 1 }}>{drop.title}</span>
-                  {isUnlocked && cohortId && (
-                    <span style={{ fontSize: 11, color: '#10b981', fontWeight: 600, flexShrink: 0 }}>● RELEASED</span>
-                  )}
-
-                  {/* Action buttons */}
-                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                    {cohortId && (
-                      isUnlocked ? (
-                        <button
-                          className="btn-secondary"
-                          style={{ fontSize: 12, padding: '4px 12px' }}
-                          disabled={isWorking}
-                          onClick={() => handleLock(drop)}
-                        >
-                          {working === drop.id + ':lock' ? '…' : 'Lock'}
-                        </button>
-                      ) : (
-                        <button
-                          className="btn-submit"
-                          style={{ fontSize: 12, padding: '4px 12px', width: 'auto' }}
-                          disabled={isWorking}
-                          onClick={() => handleRelease(drop)}
-                        >
-                          {working === drop.id + ':release' ? '…' : 'Release'}
-                        </button>
-                      )
-                    )}
-                    <button
-                      className="btn-secondary"
-                      style={{ fontSize: 12, padding: '4px 10px' }}
-                      onClick={() => setPairOpenId(pairOpenId === drop.id ? null : drop.id)}
-                    >
-                      {pairOpenId === drop.id ? 'Hide Pairing' : 'Pair Content'}
-                    </button>
-                    <button
-                      className="btn-secondary"
-                      style={{ fontSize: 12, padding: '4px 10px' }}
-                      onClick={() => setEditDrop(isEditing ? null : drop)}
-                    >
-                      {isEditing ? 'Cancel' : 'Edit'}
-                    </button>
-                    <button
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: 16, lineHeight: 1, padding: '4px 6px' }}
-                      disabled={isWorking}
-                      onClick={() => setDelDrop(drop)}
-                      title="Delete drop"
-                    >✕</button>
-                  </div>
-                </div>
-
-                {/* Bulletin preview */}
-                {drop.narrative_intro && !isEditing && (
-                  <div style={{
-                    padding: '8px 14px 10px',
-                    borderTop: '1px solid var(--border)',
-                    fontSize: 12, color: 'var(--muted)', lineHeight: 1.6,
-                    whiteSpace: 'pre-wrap',
-                    maxHeight: 80, overflow: 'hidden',
-                    background: isUnlocked ? 'rgba(var(--primary-rgb, 0,176,255), 0.04)' : undefined,
-                  }}>
-                    {drop.narrative_intro}
-                  </div>
-                )}
-
-                {/* Game locks badge strip */}
-                {!isEditing && (drop.vault_hint || drop.html_signal) && (
-                  <div style={{
-                    padding: '5px 14px',
-                    borderTop: '1px solid var(--border)',
-                    display: 'flex', gap: 6, flexWrap: 'wrap',
-                  }}>
-                    {drop.html_signal && (
-                      <span style={{
-                        fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
-                        letterSpacing: '.14em', padding: '2px 8px', borderRadius: 3,
-                        background: 'rgba(0,255,157,0.1)', color: '#00c978',
-                        border: '1px solid rgba(0,255,157,0.25)',
-                      }}>
-                        HTML SIGNAL
-                      </span>
-                    )}
-                    {drop.vault_hint && (
-                      <span style={{
-                        fontFamily: 'monospace', fontSize: 9, fontWeight: 700,
-                        letterSpacing: '.14em', padding: '2px 8px', borderRadius: 3,
-                        background: 'rgba(0,176,255,0.1)', color: 'var(--primary)',
-                        border: '1px solid rgba(0,176,255,0.25)',
-                      }}>
-                        VAULT LOCK
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {/* Scenario intel — linked R2 packages */}
-                {!isEditing && (
-                  <ScenarioIntelPanel scenarios={scenarios} dropNumber={drop.number} />
-                )}
-
-                {/* Pair challenges + case files to this drop's victims, roles, or everyone */}
-                {!isEditing && pairOpenId === drop.id && (() => {
-                  const scenarioChallenges = challengeItems.filter((a) => a.scenario_name === drop.scenario_name);
-
-                  return (
-                    <div style={{ borderTop: '1px solid var(--border)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 18 }}>
-                      {!drop.scenario_name && (
-                        <p style={{ margin: 0, fontSize: 12, color: '#b45309' }}>
-                          This drop has no scenario set — edit it first so candidate challenges can be filtered correctly.
-                        </p>
-                      )}
-
-                      {/* ── Squad / victim work ── */}
-                      <div>
-                        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)', marginBottom: 8 }}>
-                          SQUAD / VICTIM WORK
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          {DROP_VICTIM_ROWS.map((row) => {
-                            const candidateAssignments = scenarioChallenges.filter((a) =>
-                              a.drop_number == null || (a.drop_number === drop.number && a.victim_name === row.victimName)
-                            );
-                            const candidateContent = localContent.filter((c) =>
-                              c.drop_number == null || (c.drop_number === drop.number && c.victim_code === row.victimCode)
-                            );
-                            return (
-                              <div key={row.key}>
-                                <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.1em', color: 'var(--muted)', marginBottom: 4, textTransform: 'uppercase' }}>
-                                  {row.label}
-                                </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                                  <div>
-                                    <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, letterSpacing: '.06em' }}>CHALLENGES</div>
-                                    {candidateAssignments.length === 0 ? (
-                                      <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>No unpaired challenges for this scenario.</p>
-                                    ) : candidateAssignments.map((a) => {
-                                      const checked = a.drop_number === drop.number && a.victim_name === row.victimName;
-                                      const busy = !!pairing[`a:${a.id}`];
-                                      return (
-                                        <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '2px 0', cursor: 'pointer' }}>
-                                          <input type="checkbox" checked={checked} disabled={busy} onChange={() => pairAssignmentVictim(a, drop, row.victimName)} />
-                                          {a.title}
-                                        </label>
-                                      );
-                                    })}
-                                  </div>
-                                  <div>
-                                    <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, letterSpacing: '.06em' }}>CASE FILES</div>
-                                    {candidateContent.length === 0 ? (
-                                      <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>No unpaired case files.</p>
-                                    ) : candidateContent.map((c) => {
-                                      const checked = c.drop_number === drop.number && c.victim_code === row.victimCode;
-                                      const busy = !!pairing[`c:${c.id}`];
-                                      return (
-                                        <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '2px 0', cursor: 'pointer' }}>
-                                          <input type="checkbox" checked={checked} disabled={busy} onChange={() => pairContentItem(c, drop, row.victimCode)} />
-                                          {c.title}
-                                        </label>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* ── Individual / role work ── */}
-                      <div>
-                        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)', marginBottom: 8 }}>
-                          INDIVIDUAL / ROLE WORK
-                        </div>
-                        <p style={{ margin: '0 0 8px', fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
-                          A challenge can be checked under multiple roles. Picking any role here clears its victim (role work and squad work are separate).
-                        </p>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          {DROP_ROLE_ROWS.map((row) => {
-                            const candidateAssignments = scenarioChallenges.filter((a) =>
-                              !a.victim_name && (a.drop_number == null || a.drop_number === drop.number)
-                            );
-                            return (
-                              <div key={row.key}>
-                                <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.1em', color: 'var(--muted)', marginBottom: 4, textTransform: 'uppercase' }}>
-                                  {row.label}
-                                </div>
-                                {candidateAssignments.length === 0 ? (
-                                  <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>No unpaired individual challenges for this scenario.</p>
-                                ) : candidateAssignments.map((a) => {
-                                  const checked = a.drop_number === drop.number && (a.role_filters ?? []).includes(row.key);
-                                  const busy = !!pairing[`a:${a.id}`];
-                                  return (
-                                    <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '2px 0', cursor: 'pointer' }}>
-                                      <input type="checkbox" checked={checked} disabled={busy} onChange={() => pairAssignmentRole(a, drop, row.key)} />
-                                      {a.title}
-                                    </label>
-                                  );
-                                })}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* ── Shared with everyone ── */}
-                      <div>
-                        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)', marginBottom: 8 }}>
-                          SHARED WITH EVERYONE
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                          <div>
-                            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, letterSpacing: '.06em' }}>CHALLENGES</div>
-                            {(() => {
-                              const candidates = scenarioChallenges.filter((a) =>
-                                a.drop_number == null || (a.drop_number === drop.number && !a.victim_name && (a.role_filters?.length ?? 0) === 0)
-                              );
-                              return candidates.length === 0 ? (
-                                <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>No unpaired challenges for this scenario.</p>
-                              ) : candidates.map((a) => {
-                                const checked = a.drop_number === drop.number && !a.victim_name && (a.role_filters?.length ?? 0) === 0;
-                                const busy = !!pairing[`a:${a.id}`];
-                                return (
-                                  <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '2px 0', cursor: 'pointer' }}>
-                                    <input type="checkbox" checked={checked} disabled={busy} onChange={() => pairAssignmentShared(a, drop)} />
-                                    {a.title}
-                                  </label>
-                                );
-                              });
-                            })()}
-                          </div>
-                          <div>
-                            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, letterSpacing: '.06em' }}>CASE FILES</div>
-                            {(() => {
-                              const candidates = localContent.filter((c) => c.drop_number == null || (c.drop_number === drop.number && !c.victim_code));
-                              return candidates.length === 0 ? (
-                                <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>No unpaired case files.</p>
-                              ) : candidates.map((c) => {
-                                const checked = c.drop_number === drop.number && !c.victim_code;
-                                const busy = !!pairing[`c:${c.id}`];
-                                return (
-                                  <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '2px 0', cursor: 'pointer' }}>
-                                    <input type="checkbox" checked={checked} disabled={busy} onChange={() => pairContentItem(c, drop, null)} />
-                                    {c.title}
-                                  </label>
-                                );
-                              });
-                            })()}
-                          </div>
-                        </div>
-                      </div>
-
-                      <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
-                        Case files aren't tagged to a scenario in the database, so their candidate lists show every unpaired case file regardless of scenario — use the title to pick the right one.
-                      </p>
+                <span style={{
+                  fontFamily: 'var(--mono)', fontSize: 11, fontWeight: 700,
+                  padding: '2px 8px', borderRadius: 4, flexShrink: 0,
+                  background: isUnlocked ? 'var(--primary)' : 'var(--surface-2, #f1f5f9)',
+                  color:      isUnlocked ? '#fff' : 'var(--muted)',
+                }}>
+                  DROP {drop.number}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{drop.title}</div>
+                  {drop.scenario_name && (
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)', letterSpacing: '.06em' }}>
+                      {scenarioLabel(drop.scenario_name)}
                     </div>
-                  );
-                })()}
-
-                {/* Inline edit form */}
-                {isEditing && (
-                  <div style={{ padding: '0 14px 14px', borderTop: '1px solid var(--border)' }}>
-                    <DropFormInline
-                      initial={drop}
-                      scenarioFolders={scenarioFolders}
-                      onSave={() => { setEditDrop(null); load(); }}
-                      onCancel={() => setEditDrop(null)}
-                    />
-                  </div>
+                  )}
+                </div>
+                {isUnlocked && cohortId && (
+                  <span style={{ fontSize: 11, color: '#10b981', fontWeight: 600, flexShrink: 0 }}>● RELEASED</span>
                 )}
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  {cohortId && (
+                    isUnlocked ? (
+                      <button
+                        className="btn-secondary"
+                        style={{ fontSize: 12, padding: '4px 12px' }}
+                        disabled={isWorking}
+                        onClick={() => handleLock(drop)}
+                      >
+                        {working === drop.id + ':lock' ? '…' : 'Lock'}
+                      </button>
+                    ) : (
+                      <button
+                        className="btn-submit"
+                        style={{ fontSize: 12, padding: '4px 12px', width: 'auto' }}
+                        disabled={isWorking}
+                        onClick={() => handleRelease(drop)}
+                      >
+                        {working === drop.id + ':release' ? '…' : 'Release'}
+                      </button>
+                    )
+                  )}
+                  <button
+                    className="btn-secondary"
+                    style={{ fontSize: 12, padding: '4px 10px' }}
+                    onClick={() => openManage(drop)}
+                  >
+                    Manage
+                  </button>
+                  <button
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: 16, lineHeight: 1, padding: '4px 6px' }}
+                    disabled={isWorking}
+                    onClick={() => setDelDrop(drop)}
+                    title="Delete drop"
+                  >✕</button>
+                </div>
               </div>
             );
           })}
@@ -3784,6 +3629,222 @@ function CampaignDropsPanel({ cohorts, scenarioFolders = [], assignments = [], c
           </div>
         </div>
       )}
+
+      {/* Manage modal — basics + pairing, decoupled from release */}
+      {manageDrop && (() => {
+        const isNew = !!manageDrop.isNew;
+        const drop  = isNew ? null : manageDrop;
+        const scenarioChallenges = drop ? challengeItems.filter((a) => a.scenario_name === drop.scenario_name) : [];
+
+        return (
+          <div
+            style={{
+              position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+            }}
+            onClick={(e) => { if (e.target === e.currentTarget) closeManage(); }}
+          >
+            <div style={{
+              background: 'var(--surface, #fff)', borderRadius: 10, width: '92%', maxWidth: 760,
+              maxHeight: '86vh', display: 'flex', flexDirection: 'column',
+              boxShadow: '0 8px 32px rgba(0,0,0,.25)',
+            }}>
+              {/* Modal header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 15, flex: 1 }}>
+                  {isNew ? 'New Drop' : `Drop ${drop.number} — ${drop.title}`}
+                </div>
+                <button
+                  onClick={closeManage}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, lineHeight: 1, color: 'var(--muted)', padding: 4 }}
+                  title="Close"
+                >×</button>
+              </div>
+
+              {/* Step tabs */}
+              {!isNew && (
+                <div style={{ display: 'flex', gap: 4, padding: '8px 18px 0', flexShrink: 0 }}>
+                  {[['basics', 'Basics'], ['pair', 'Pair Content']].map(([key, label]) => (
+                    <button
+                      key={key}
+                      className={`scenario-tab${manageTab === key ? ' active' : ''}`}
+                      onClick={() => setManageTab(key)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ overflowY: 'auto', padding: '14px 18px', flex: 1 }}>
+                {manageTab === 'basics' && (
+                  <DropFormInline
+                    initial={drop}
+                    scenarioFolders={scenarioFolders}
+                    onSave={(saved) => { load(); setManageDrop(saved); setManageTab('pair'); setPairSubTab('squad'); }}
+                    onCancel={closeManage}
+                  />
+                )}
+
+                {manageTab === 'pair' && drop && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {!drop.scenario_name && (
+                      <p style={{ margin: 0, fontSize: 12, color: '#b45309' }}>
+                        This drop has no scenario set — set it on the Basics tab so candidate challenges can be filtered correctly.
+                      </p>
+                    )}
+
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {[['squad', 'Squad / Victim'], ['role', 'Individual / Role'], ['shared', 'Shared']].map(([key, label]) => (
+                        <button
+                          key={key}
+                          className={`scenario-tab${pairSubTab === key ? ' active' : ''}`}
+                          onClick={() => setPairSubTab(key)}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {pairSubTab === 'squad' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        {DROP_VICTIM_ROWS.map((row) => {
+                          const challengeCandidates = scenarioChallenges
+                            .filter((a) => a.drop_number == null || (a.drop_number === drop.number && a.victim_name === row.victimName))
+                            .map((a) => ({ id: a.id, label: a.title, ref: a }));
+                          const challengeSelected = scenarioChallenges
+                            .filter((a) => a.drop_number === drop.number && a.victim_name === row.victimName)
+                            .map((a) => a.id);
+                          const contentCandidates = localContent
+                            .filter((c) => c.drop_number == null || (c.drop_number === drop.number && c.victim_code === row.victimCode))
+                            .map((c) => ({ id: c.id, label: c.title, ref: c }));
+                          const contentSelected = localContent
+                            .filter((c) => c.drop_number === drop.number && c.victim_code === row.victimCode)
+                            .map((c) => c.id);
+                          return (
+                            <div key={row.key}>
+                              <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.1em', color: 'var(--primary)', marginBottom: 6, textTransform: 'uppercase' }}>
+                                {row.label}
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                <div>
+                                  <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, letterSpacing: '.06em' }}>CHALLENGES</div>
+                                  <SearchPickerField
+                                    candidates={challengeCandidates}
+                                    selectedIds={challengeSelected}
+                                    busyIds={new Set(Object.keys(pairing).filter((k) => pairing[k]).map((k) => k.slice(2)))}
+                                    onAdd={(c) => addAssignmentVictim(c.ref, drop, row.victimName)}
+                                    onRemove={(c) => removeAssignmentVictim(c.ref)}
+                                    placeholder="Search challenges…"
+                                    emptyLabel="No unpaired challenges for this scenario."
+                                  />
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, letterSpacing: '.06em' }}>CASE FILES</div>
+                                  <SearchPickerField
+                                    candidates={contentCandidates}
+                                    selectedIds={contentSelected}
+                                    busyIds={new Set(Object.keys(pairing).filter((k) => pairing[k]).map((k) => k.slice(2)))}
+                                    onAdd={(c) => addContentItem(c.ref, drop, row.victimCode)}
+                                    onRemove={(c) => removeContentItem(c.ref)}
+                                    placeholder="Search case files…"
+                                    emptyLabel="No unpaired case files."
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {pairSubTab === 'role' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
+                          A challenge can be added under multiple roles. Adding a challenge to any role clears its victim — role work and squad work are separate.
+                        </p>
+                        {DROP_ROLE_ROWS.map((row) => {
+                          const candidates = scenarioChallenges
+                            .filter((a) => !a.victim_name && (a.drop_number == null || a.drop_number === drop.number))
+                            .map((a) => ({ id: a.id, label: a.title, ref: a }));
+                          const selected = scenarioChallenges
+                            .filter((a) => a.drop_number === drop.number && (a.role_filters ?? []).includes(row.key))
+                            .map((a) => a.id);
+                          return (
+                            <div key={row.key}>
+                              <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.1em', color: 'var(--primary)', marginBottom: 6, textTransform: 'uppercase' }}>
+                                {row.label}
+                              </div>
+                              <SearchPickerField
+                                candidates={candidates}
+                                selectedIds={selected}
+                                busyIds={new Set(Object.keys(pairing).filter((k) => pairing[k]).map((k) => k.slice(2)))}
+                                onAdd={(c) => addAssignmentRole(c.ref, drop, row.key)}
+                                onRemove={(c) => removeAssignmentRole(c.ref, row.key)}
+                                placeholder="Search individual challenges…"
+                                emptyLabel="No unpaired individual challenges for this scenario."
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {pairSubTab === 'shared' && (() => {
+                      const challengeCandidates = scenarioChallenges
+                        .filter((a) => a.drop_number == null || (a.drop_number === drop.number && !a.victim_name && (a.role_filters?.length ?? 0) === 0))
+                        .map((a) => ({ id: a.id, label: a.title, ref: a }));
+                      const challengeSelected = scenarioChallenges
+                        .filter((a) => a.drop_number === drop.number && !a.victim_name && (a.role_filters?.length ?? 0) === 0)
+                        .map((a) => a.id);
+                      const contentCandidates = localContent
+                        .filter((c) => c.drop_number == null || (c.drop_number === drop.number && !c.victim_code))
+                        .map((c) => ({ id: c.id, label: c.title, ref: c }));
+                      const contentSelected = localContent
+                        .filter((c) => c.drop_number === drop.number && !c.victim_code)
+                        .map((c) => c.id);
+                      return (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          <div>
+                            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, letterSpacing: '.06em' }}>CHALLENGES</div>
+                            <SearchPickerField
+                              candidates={challengeCandidates}
+                              selectedIds={challengeSelected}
+                              busyIds={new Set(Object.keys(pairing).filter((k) => pairing[k]).map((k) => k.slice(2)))}
+                              onAdd={(c) => addAssignmentShared(c.ref, drop)}
+                              onRemove={(c) => removeAssignmentShared(c.ref)}
+                              placeholder="Search challenges…"
+                              emptyLabel="No unpaired challenges for this scenario."
+                            />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, letterSpacing: '.06em' }}>CASE FILES</div>
+                            <SearchPickerField
+                              candidates={contentCandidates}
+                              selectedIds={contentSelected}
+                              busyIds={new Set(Object.keys(pairing).filter((k) => pairing[k]).map((k) => k.slice(2)))}
+                              onAdd={(c) => addContentItem(c.ref, drop, null)}
+                              onRemove={(c) => removeContentItem(c.ref)}
+                              placeholder="Search case files…"
+                              emptyLabel="No unpaired case files."
+                            />
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
+                      Case files aren't tagged to a scenario in the database, so their candidate lists show every unpaired case file regardless of scenario — use the title to pick the right one.
+                    </p>
+
+                    <ScenarioIntelPanel scenarios={scenarios} dropNumber={drop.number} />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
