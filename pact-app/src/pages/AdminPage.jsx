@@ -965,241 +965,6 @@ function CohortScenarioPanel({ cohorts, onCohortsChange }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════
-   DROP SETUP PANEL — pair challenges + case files to a
-   scenario / drop number / victim (or shared/all-squads)
-═══════════════════════════════════════════════════════════ */
-function DropSetupPanel({ assignments, contentItems, scenarioFolders, onAssignmentsChange, onContentPublished }) {
-  const [selectedScenario, setSelectedScenario] = useState(null);
-  const [drops,            setDrops]            = useState([]);
-  const [loadingDrops,     setLoadingDrops]      = useState(false);
-  const [addOpen,          setAddOpen]           = useState(false);
-  const [expandedDropId,   setExpandedDropId]    = useState(null);
-  const [localContent,     setLocalContent]      = useState(contentItems);
-  const [pairing,          setPairing]           = useState({}); // key -> bool
-
-  useEffect(() => { setLocalContent(contentItems); }, [contentItems]);
-
-  const challengeItems = assignments.filter((a) => a.type === 'challenge');
-
-  const loadDrops = useCallback(() => {
-    if (!selectedScenario) { setDrops([]); return; }
-    setLoadingDrops(true);
-    getCampaignDrops()
-      .then((d) => setDrops((Array.isArray(d) ? d : []).filter((dr) => dr.scenario_name === selectedScenario)))
-      .catch(() => setDrops([]))
-      .finally(() => setLoadingDrops(false));
-  }, [selectedScenario]);
-
-  useEffect(() => { loadDrops(); }, [loadDrops]);
-
-  const pairAssignment = async (assignment, drop, row) => {
-    const key = `a:${assignment.id}`;
-    const isPaired = assignment.drop_number === drop.number &&
-      (row.isShared ? !assignment.victim_name : assignment.victim_name === row.victimName);
-    const patch = isPaired
-      ? { drop_number: null, victim_name: null }
-      : { drop_number: drop.number, victim_name: row.isShared ? null : row.victimName };
-    setPairing((p) => ({ ...p, [key]: true }));
-    try {
-      await updateAssignment(assignment.id, patch);
-      onAssignmentsChange((prev) => prev.map((a) => a.id === assignment.id ? { ...a, ...patch } : a));
-    } catch { /* ignore */ }
-    finally { setPairing((p) => ({ ...p, [key]: false })); }
-  };
-
-  const pairContentItem = async (item, drop, row) => {
-    const key = `c:${item.id}`;
-    const isPaired = item.drop_number === drop.number &&
-      (row.isShared ? !item.victim_code : item.victim_code === row.victimCode);
-    const patch = isPaired
-      ? { drop_number: null, victim_code: null }
-      : { drop_number: drop.number, victim_code: row.isShared ? null : row.victimCode };
-    setPairing((p) => ({ ...p, [key]: true }));
-    try {
-      await updateContentItem(item.id, patch);
-      setLocalContent((prev) => prev.map((c) => c.id === item.id ? { ...c, ...patch } : c));
-      onContentPublished?.();
-    } catch { /* ignore */ }
-    finally { setPairing((p) => ({ ...p, [key]: false })); }
-  };
-
-  const ROWS = [
-    ...Object.values(VICTIMS).map((v) => ({ key: v.code, label: v.code, victimName: v.name, victimCode: v.code, isShared: false })),
-    { key: '__shared__', label: 'Shared / All Squads', victimName: null, victimCode: null, isShared: true },
-  ];
-
-  if (scenarioFolders === null) {
-    return <div style={{ padding: 24, textAlign: 'center' }}><div className="spinner" /></div>;
-  }
-
-  if (!selectedScenario) {
-    return (
-      <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
-        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)', marginBottom: 4 }}>
-          SELECT SCENARIO
-        </div>
-        <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 16px' }}>
-          Pick a scenario to pair its challenges and case files to a drop number and victim.
-        </p>
-        {scenarioFolders.length === 0 ? (
-          <p style={{ color: 'var(--muted)', fontSize: 13 }}>No scenario folders found at <code>{R2_SCENARIOS_PREFIX}</code>.</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 420 }}>
-            {scenarioFolders.map((name) => (
-              <button
-                key={name}
-                onClick={() => setSelectedScenario(name)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  padding: '12px 16px', background: 'var(--surface)',
-                  border: '1px solid var(--border)', borderRadius: 6,
-                  cursor: 'pointer', textAlign: 'left',
-                }}
-              >
-                <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--bright)' }}>
-                  {scenarioLabel(name)}
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-        <button
-          onClick={() => setSelectedScenario(null)}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontSize: 12, fontFamily: 'var(--mono)', padding: 0, letterSpacing: '.06em' }}
-        >
-          ← ALL SCENARIOS
-        </button>
-        <span style={{ color: 'var(--border)' }}>/</span>
-        <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 700, color: 'var(--bright)', letterSpacing: '.06em' }}>
-          {scenarioLabel(selectedScenario)}
-        </span>
-        <button
-          className="btn-submit"
-          style={{ width: 'auto', marginLeft: 'auto' }}
-          onClick={() => setAddOpen((v) => !v)}
-        >
-          {addOpen ? 'Cancel' : '+ New Drop'}
-        </button>
-      </div>
-
-      {addOpen && (
-        <div style={{ marginBottom: 16, padding: '12px 16px', background: 'var(--surface-2, #f8fafc)', borderRadius: 8, border: '1px solid var(--border)' }}>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>NEW DROP</div>
-          <DropFormInline
-            defaultScenario={selectedScenario}
-            scenarioFolders={scenarioFolders}
-            onSave={() => { setAddOpen(false); loadDrops(); }}
-            onCancel={() => setAddOpen(false)}
-          />
-        </div>
-      )}
-
-      {loadingDrops ? (
-        <div style={{ textAlign: 'center', padding: 32 }}><div className="spinner" /></div>
-      ) : drops.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 32, color: 'var(--muted)', fontSize: 13 }}>
-          No drops tagged to this scenario yet. Create one above.
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {[...drops].sort((a, b) => a.number - b.number).map((drop) => {
-            const isOpen = expandedDropId === drop.id;
-            return (
-              <div key={drop.id} style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: 'var(--surface, #fff)' }}>
-                <button
-                  onClick={() => setExpandedDropId(isOpen ? null : drop.id)}
-                  style={{
-                    width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
-                  }}
-                >
-                  <span style={{
-                    fontFamily: 'var(--mono)', fontSize: 11, fontWeight: 700,
-                    padding: '2px 8px', borderRadius: 4, flexShrink: 0,
-                    background: 'var(--surface-2, #f1f5f9)', color: 'var(--muted)',
-                  }}>
-                    DROP {drop.number}
-                  </span>
-                  <span style={{ fontWeight: 600, fontSize: 14, flex: 1 }}>{drop.title}</span>
-                  <span style={{ color: 'var(--muted)', fontSize: 11 }}>{isOpen ? '▲' : '▼'}</span>
-                </button>
-
-                {isOpen && (
-                  <div style={{ borderTop: '1px solid var(--border)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                    {ROWS.map((row) => {
-                      const candidateAssignments = challengeItems.filter((a) =>
-                        a.scenario_name === selectedScenario &&
-                        (a.drop_number == null || (a.drop_number === drop.number &&
-                          (row.isShared ? !a.victim_name : a.victim_name === row.victimName)))
-                      );
-                      const candidateContent = localContent.filter((c) =>
-                        c.drop_number == null || (c.drop_number === drop.number &&
-                          (row.isShared ? !c.victim_code : c.victim_code === row.victimCode))
-                      );
-                      return (
-                        <div key={row.key}>
-                          <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.1em', color: 'var(--primary)', marginBottom: 6, textTransform: 'uppercase' }}>
-                            {row.label}
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                            <div>
-                              <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, letterSpacing: '.06em' }}>CHALLENGES</div>
-                              {candidateAssignments.length === 0 ? (
-                                <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>No unpaired challenges for this scenario.</p>
-                              ) : candidateAssignments.map((a) => {
-                                const checked = a.drop_number === drop.number &&
-                                  (row.isShared ? !a.victim_name : a.victim_name === row.victimName);
-                                const busy = !!pairing[`a:${a.id}`];
-                                return (
-                                  <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '2px 0', cursor: 'pointer' }}>
-                                    <input type="checkbox" checked={checked} disabled={busy} onChange={() => pairAssignment(a, drop, row)} />
-                                    {a.title}
-                                  </label>
-                                );
-                              })}
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, letterSpacing: '.06em' }}>CASE FILES</div>
-                              {candidateContent.length === 0 ? (
-                                <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>No unpaired case files.</p>
-                              ) : candidateContent.map((c) => {
-                                const checked = c.drop_number === drop.number &&
-                                  (row.isShared ? !c.victim_code : c.victim_code === row.victimCode);
-                                const busy = !!pairing[`c:${c.id}`];
-                                return (
-                                  <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '2px 0', cursor: 'pointer' }}>
-                                    <input type="checkbox" checked={checked} disabled={busy} onChange={() => pairContentItem(c, drop, row)} />
-                                    {c.title}
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
-                      Case files aren't tagged to a scenario in the database, so the list above shows every unpaired case file regardless of scenario — use the title to pick the right one.
-                    </p>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignmentsChange, onContentPublished }) {
   const [subTab,            setSubTab]            = useState('drops');
   const [refreshKey,        setRefreshKey]        = useState(0);
@@ -1227,9 +992,6 @@ function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignm
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       <div className="admin-mode-tabs" style={{ padding: '0 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-        <button className={`admin-mode-tab${subTab === 'setup'      ? ' active' : ''}`} onClick={() => setSubTab('setup')}>
-          Drop Setup
-        </button>
         <button className={`admin-mode-tab${subTab === 'drops'      ? ' active' : ''}`} onClick={() => setSubTab('drops')}>
           Scenario Drops
         </button>
@@ -1249,16 +1011,6 @@ function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignm
           Intel Library
         </button>
       </div>
-
-      {subTab === 'setup' && (
-        <DropSetupPanel
-          assignments={assignments}
-          contentItems={contentItems}
-          scenarioFolders={scenarioFolders}
-          onAssignmentsChange={onAssignmentsChange}
-          onContentPublished={onContentPublished}
-        />
-      )}
 
       {subTab === 'drops' && (
         <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
@@ -1334,7 +1086,14 @@ function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignm
       )}
 
       {subTab === 'release' && (
-        <CampaignDropsPanel cohorts={cohorts} scenarioFolders={scenarioFolders ?? []} />
+        <CampaignDropsPanel
+          cohorts={cohorts}
+          scenarioFolders={scenarioFolders ?? []}
+          assignments={assignments}
+          contentItems={contentItems}
+          onAssignmentsChange={onAssignmentsChange}
+          onContentPublished={onContentPublished}
+        />
       )}
 
       {subTab === 'challenges' && (
@@ -3480,7 +3239,12 @@ function ScenarioIntelPanel({ scenarios, dropNumber }) {
   );
 }
 
-function CampaignDropsPanel({ cohorts, scenarioFolders = [] }) {
+const DROP_PAIR_ROWS = [
+  ...Object.values(VICTIMS).map((v) => ({ key: v.code, label: v.code, victimName: v.name, victimCode: v.code, isShared: false })),
+  { key: '__shared__', label: 'Shared / All Squads', victimName: null, victimCode: null, isShared: true },
+];
+
+function CampaignDropsPanel({ cohorts, scenarioFolders = [], assignments = [], contentItems = [], onAssignmentsChange, onContentPublished }) {
   const [drops,     setDrops]    = useState([]);
   const [scenarios, setScenarios] = useState([]);
   const [loading,   setLoading]  = useState(true);
@@ -3491,6 +3255,44 @@ function CampaignDropsPanel({ cohorts, scenarioFolders = [] }) {
   const [working,   setWorking]  = useState(null);
   const [err,       setErr]      = useState('');
   const [warn,      setWarn]     = useState('');
+  const [pairOpenId, setPairOpenId] = useState(null);
+  const [localContent, setLocalContent] = useState(contentItems);
+  const [pairing,      setPairing]      = useState({}); // key -> bool
+
+  useEffect(() => { setLocalContent(contentItems); }, [contentItems]);
+
+  const challengeItems = assignments.filter((a) => a.type === 'challenge');
+
+  const pairAssignment = async (assignment, drop, row) => {
+    const key = `a:${assignment.id}`;
+    const isPaired = assignment.drop_number === drop.number &&
+      (row.isShared ? !assignment.victim_name : assignment.victim_name === row.victimName);
+    const patch = isPaired
+      ? { drop_number: null, victim_name: null }
+      : { drop_number: drop.number, victim_name: row.isShared ? null : row.victimName };
+    setPairing((p) => ({ ...p, [key]: true }));
+    try {
+      await updateAssignment(assignment.id, patch);
+      onAssignmentsChange?.((prev) => prev.map((a) => a.id === assignment.id ? { ...a, ...patch } : a));
+    } catch { /* ignore */ }
+    finally { setPairing((p) => ({ ...p, [key]: false })); }
+  };
+
+  const pairContentItem = async (item, drop, row) => {
+    const key = `c:${item.id}`;
+    const isPaired = item.drop_number === drop.number &&
+      (row.isShared ? !item.victim_code : item.victim_code === row.victimCode);
+    const patch = isPaired
+      ? { drop_number: null, victim_code: null }
+      : { drop_number: drop.number, victim_code: row.isShared ? null : row.victimCode };
+    setPairing((p) => ({ ...p, [key]: true }));
+    try {
+      await updateContentItem(item.id, patch);
+      setLocalContent((prev) => prev.map((c) => c.id === item.id ? { ...c, ...patch } : c));
+      onContentPublished?.();
+    } catch { /* ignore */ }
+    finally { setPairing((p) => ({ ...p, [key]: false })); }
+  };
 
   const load = useCallback(() => {
     setLoading(true);
@@ -3673,6 +3475,13 @@ function CampaignDropsPanel({ cohorts, scenarioFolders = [] }) {
                     <button
                       className="btn-secondary"
                       style={{ fontSize: 12, padding: '4px 10px' }}
+                      onClick={() => setPairOpenId(pairOpenId === drop.id ? null : drop.id)}
+                    >
+                      {pairOpenId === drop.id ? 'Hide Pairing' : 'Pair Content'}
+                    </button>
+                    <button
+                      className="btn-secondary"
+                      style={{ fontSize: 12, padding: '4px 10px' }}
                       onClick={() => setEditDrop(isEditing ? null : drop)}
                     >
                       {isEditing ? 'Cancel' : 'Edit'}
@@ -3733,6 +3542,72 @@ function CampaignDropsPanel({ cohorts, scenarioFolders = [] }) {
                 {/* Scenario intel — linked R2 packages */}
                 {!isEditing && (
                   <ScenarioIntelPanel scenarios={scenarios} dropNumber={drop.number} />
+                )}
+
+                {/* Pair challenges + case files to this drop's victims */}
+                {!isEditing && pairOpenId === drop.id && (
+                  <div style={{ borderTop: '1px solid var(--border)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {!drop.scenario_name && (
+                      <p style={{ margin: 0, fontSize: 12, color: '#b45309' }}>
+                        This drop has no scenario set — edit it first so candidate challenges can be filtered correctly.
+                      </p>
+                    )}
+                    {DROP_PAIR_ROWS.map((row) => {
+                      const candidateAssignments = challengeItems.filter((a) =>
+                        a.scenario_name === drop.scenario_name &&
+                        (a.drop_number == null || (a.drop_number === drop.number &&
+                          (row.isShared ? !a.victim_name : a.victim_name === row.victimName)))
+                      );
+                      const candidateContent = localContent.filter((c) =>
+                        c.drop_number == null || (c.drop_number === drop.number &&
+                          (row.isShared ? !c.victim_code : c.victim_code === row.victimCode))
+                      );
+                      return (
+                        <div key={row.key}>
+                          <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.1em', color: 'var(--primary)', marginBottom: 6, textTransform: 'uppercase' }}>
+                            {row.label}
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div>
+                              <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, letterSpacing: '.06em' }}>CHALLENGES</div>
+                              {candidateAssignments.length === 0 ? (
+                                <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>No unpaired challenges for this scenario.</p>
+                              ) : candidateAssignments.map((a) => {
+                                const checked = a.drop_number === drop.number &&
+                                  (row.isShared ? !a.victim_name : a.victim_name === row.victimName);
+                                const busy = !!pairing[`a:${a.id}`];
+                                return (
+                                  <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '2px 0', cursor: 'pointer' }}>
+                                    <input type="checkbox" checked={checked} disabled={busy} onChange={() => pairAssignment(a, drop, row)} />
+                                    {a.title}
+                                  </label>
+                                );
+                              })}
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, letterSpacing: '.06em' }}>CASE FILES</div>
+                              {candidateContent.length === 0 ? (
+                                <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>No unpaired case files.</p>
+                              ) : candidateContent.map((c) => {
+                                const checked = c.drop_number === drop.number &&
+                                  (row.isShared ? !c.victim_code : c.victim_code === row.victimCode);
+                                const busy = !!pairing[`c:${c.id}`];
+                                return (
+                                  <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '2px 0', cursor: 'pointer' }}>
+                                    <input type="checkbox" checked={checked} disabled={busy} onChange={() => pairContentItem(c, drop, row)} />
+                                    {c.title}
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
+                      Case files aren't tagged to a scenario in the database, so the list above shows every unpaired case file regardless of scenario — use the title to pick the right one.
+                    </p>
+                  </div>
                 )}
 
                 {/* Inline edit form */}
