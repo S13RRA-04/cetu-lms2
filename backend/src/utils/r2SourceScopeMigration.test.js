@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const migration = require('./20240101000067-add-r2-source-scope-to-course-content-items');
+const migration = require('../migrations/20240101000067-add-r2-source-scope-to-course-content-items');
 
 test('R2 source-scope migration is safe to retry after a partial deployment', async () => {
   const statements = [];
