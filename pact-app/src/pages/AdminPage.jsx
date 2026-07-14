@@ -64,6 +64,7 @@ const ROLE_LABELS = {
   task_force_officer:               'Task Force Officer',
   cyber_analyst:                    'Cyber Analyst',
   digital_evidence_lead:            'Digital Evidence Lead / CART Liaison',
+  forensic_accountant:              'Forensic Accountant',
 };
 const ROLE_ORDER = Object.keys(ROLE_LABELS);
 

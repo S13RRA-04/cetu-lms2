@@ -13,6 +13,9 @@ const PROF_ROLE_LABELS = {
   supervisory_special_agent:        'Supervisory Special Agent',
   supervisory_intelligence_analyst: 'Supervisory Intelligence Analyst',
   task_force_officer:               'Task Force Officer',
+  cyber_analyst:                    'Cyber Analyst',
+  digital_evidence_lead:            'Digital Evidence Lead / CART Liaison',
+  forensic_accountant:              'Forensic Accountant',
 };
 
 const TYPE_COLOR = {
