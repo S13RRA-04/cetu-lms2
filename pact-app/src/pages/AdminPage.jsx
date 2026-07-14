@@ -41,6 +41,7 @@ import { VICTIMS } from '../constants/victims.js';
 import { PROFESSIONAL_ROLES } from '../constants/professionalRoles.js';
 import TransmissionInterceptor from './TransmissionInterceptor.jsx';
 import VaultKeypad from './VaultKeypad.jsx';
+import { guessContentType } from '../lib/contentType.js';
 import SignalEntry from './SignalEntry.jsx';
 
 const TYPE_COLOR = {
@@ -2867,18 +2868,6 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
       </div>
     </div>
   );
-}
-
-function guessContentType(filename) {
-  const lower = filename.toLowerCase();
-  const ext   = lower.split('.').pop();
-  if (lower.includes('brief') || lower.includes('bulletin')) return 'briefing';
-  if (lower.includes('eviden') || lower.includes('artifact') || lower.includes('log') || lower.includes('ioc')) return 'evidence';
-  if (lower.includes('intel') || lower.includes('report') || lower.includes('analysis')) return 'intel_report';
-  if (['pptx', 'ppt'].includes(ext)) return 'slides';
-  if (['pdf', 'docx', 'doc'].includes(ext)) return 'handout';
-  if (['xlsx', 'xls', 'csv'].includes(ext)) return 'form';
-  return 'resource';
 }
 
 function PublishFileForm({ file, onPublished, onCancel }) {
