@@ -3239,10 +3239,9 @@ function ScenarioIntelPanel({ scenarios, dropNumber }) {
   );
 }
 
-const DROP_PAIR_ROWS = [
-  ...Object.values(VICTIMS).map((v) => ({ key: v.code, label: v.code, victimName: v.name, victimCode: v.code, isShared: false })),
-  { key: '__shared__', label: 'Shared / All Squads', victimName: null, victimCode: null, isShared: true },
-];
+const DROP_VICTIM_ROWS = Object.values(VICTIMS).map((v) => ({ key: v.code, label: v.code, victimName: v.name, victimCode: v.code }));
+const DROP_SHARED_ROW  = { key: '__shared__', label: 'Shared / All Squads' };
+const DROP_ROLE_ROWS   = ROLE_ORDER.map((role) => ({ key: role, label: ROLE_LABELS[role] }));
 
 function CampaignDropsPanel({ cohorts, scenarioFolders = [], assignments = [], contentItems = [], onAssignmentsChange, onContentPublished }) {
   const [drops,     setDrops]    = useState([]);
@@ -3263,13 +3262,8 @@ function CampaignDropsPanel({ cohorts, scenarioFolders = [], assignments = [], c
 
   const challengeItems = assignments.filter((a) => a.type === 'challenge');
 
-  const pairAssignment = async (assignment, drop, row) => {
+  const applyAssignmentPatch = async (assignment, patch) => {
     const key = `a:${assignment.id}`;
-    const isPaired = assignment.drop_number === drop.number &&
-      (row.isShared ? !assignment.victim_name : assignment.victim_name === row.victimName);
-    const patch = isPaired
-      ? { drop_number: null, victim_name: null }
-      : { drop_number: drop.number, victim_name: row.isShared ? null : row.victimName };
     setPairing((p) => ({ ...p, [key]: true }));
     try {
       await updateAssignment(assignment.id, patch);
@@ -3278,13 +3272,38 @@ function CampaignDropsPanel({ cohorts, scenarioFolders = [], assignments = [], c
     finally { setPairing((p) => ({ ...p, [key]: false })); }
   };
 
-  const pairContentItem = async (item, drop, row) => {
+  // Victim rows are squad work — mutually exclusive with role filtering, so
+  // picking a victim clears any role_filters the challenge had.
+  const pairAssignmentVictim = (assignment, drop, victimName) => {
+    const isPaired = assignment.drop_number === drop.number && assignment.victim_name === victimName;
+    return applyAssignmentPatch(assignment, isPaired
+      ? { drop_number: null, victim_name: null }
+      : { drop_number: drop.number, victim_name: victimName, role_filters: [] });
+  };
+
+  // Role rows are individual work — role_filters is multi-select, so this
+  // toggles one role in the array rather than replacing the whole thing.
+  const pairAssignmentRole = (assignment, drop, role) => {
+    const onThisDrop = assignment.drop_number === drop.number && !assignment.victim_name;
+    const current    = onThisDrop ? (assignment.role_filters ?? []) : [];
+    const nextRoles  = current.includes(role) ? current.filter((r) => r !== role) : [...current, role];
+    return applyAssignmentPatch(assignment, { drop_number: drop.number, victim_name: null, role_filters: nextRoles });
+  };
+
+  const pairAssignmentShared = (assignment, drop) => {
+    const isPaired = assignment.drop_number === drop.number && !assignment.victim_name && (assignment.role_filters?.length ?? 0) === 0;
+    return applyAssignmentPatch(assignment, isPaired
+      ? { drop_number: null, victim_name: null, role_filters: [] }
+      : { drop_number: drop.number, victim_name: null, role_filters: [] });
+  };
+
+  const pairContentItem = async (item, drop, victimCode) => {
     const key = `c:${item.id}`;
     const isPaired = item.drop_number === drop.number &&
-      (row.isShared ? !item.victim_code : item.victim_code === row.victimCode);
+      (victimCode == null ? !item.victim_code : item.victim_code === victimCode);
     const patch = isPaired
       ? { drop_number: null, victim_code: null }
-      : { drop_number: drop.number, victim_code: row.isShared ? null : row.victimCode };
+      : { drop_number: drop.number, victim_code: victimCode ?? null };
     setPairing((p) => ({ ...p, [key]: true }));
     try {
       await updateContentItem(item.id, patch);
@@ -3544,71 +3563,163 @@ function CampaignDropsPanel({ cohorts, scenarioFolders = [], assignments = [], c
                   <ScenarioIntelPanel scenarios={scenarios} dropNumber={drop.number} />
                 )}
 
-                {/* Pair challenges + case files to this drop's victims */}
-                {!isEditing && pairOpenId === drop.id && (
-                  <div style={{ borderTop: '1px solid var(--border)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                    {!drop.scenario_name && (
-                      <p style={{ margin: 0, fontSize: 12, color: '#b45309' }}>
-                        This drop has no scenario set — edit it first so candidate challenges can be filtered correctly.
-                      </p>
-                    )}
-                    {DROP_PAIR_ROWS.map((row) => {
-                      const candidateAssignments = challengeItems.filter((a) =>
-                        a.scenario_name === drop.scenario_name &&
-                        (a.drop_number == null || (a.drop_number === drop.number &&
-                          (row.isShared ? !a.victim_name : a.victim_name === row.victimName)))
-                      );
-                      const candidateContent = localContent.filter((c) =>
-                        c.drop_number == null || (c.drop_number === drop.number &&
-                          (row.isShared ? !c.victim_code : c.victim_code === row.victimCode))
-                      );
-                      return (
-                        <div key={row.key}>
-                          <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.1em', color: 'var(--primary)', marginBottom: 6, textTransform: 'uppercase' }}>
-                            {row.label}
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                            <div>
-                              <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, letterSpacing: '.06em' }}>CHALLENGES</div>
-                              {candidateAssignments.length === 0 ? (
+                {/* Pair challenges + case files to this drop's victims, roles, or everyone */}
+                {!isEditing && pairOpenId === drop.id && (() => {
+                  const scenarioChallenges = challengeItems.filter((a) => a.scenario_name === drop.scenario_name);
+
+                  return (
+                    <div style={{ borderTop: '1px solid var(--border)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+                      {!drop.scenario_name && (
+                        <p style={{ margin: 0, fontSize: 12, color: '#b45309' }}>
+                          This drop has no scenario set — edit it first so candidate challenges can be filtered correctly.
+                        </p>
+                      )}
+
+                      {/* ── Squad / victim work ── */}
+                      <div>
+                        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)', marginBottom: 8 }}>
+                          SQUAD / VICTIM WORK
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {DROP_VICTIM_ROWS.map((row) => {
+                            const candidateAssignments = scenarioChallenges.filter((a) =>
+                              a.drop_number == null || (a.drop_number === drop.number && a.victim_name === row.victimName)
+                            );
+                            const candidateContent = localContent.filter((c) =>
+                              c.drop_number == null || (c.drop_number === drop.number && c.victim_code === row.victimCode)
+                            );
+                            return (
+                              <div key={row.key}>
+                                <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.1em', color: 'var(--muted)', marginBottom: 4, textTransform: 'uppercase' }}>
+                                  {row.label}
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                  <div>
+                                    <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, letterSpacing: '.06em' }}>CHALLENGES</div>
+                                    {candidateAssignments.length === 0 ? (
+                                      <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>No unpaired challenges for this scenario.</p>
+                                    ) : candidateAssignments.map((a) => {
+                                      const checked = a.drop_number === drop.number && a.victim_name === row.victimName;
+                                      const busy = !!pairing[`a:${a.id}`];
+                                      return (
+                                        <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '2px 0', cursor: 'pointer' }}>
+                                          <input type="checkbox" checked={checked} disabled={busy} onChange={() => pairAssignmentVictim(a, drop, row.victimName)} />
+                                          {a.title}
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, letterSpacing: '.06em' }}>CASE FILES</div>
+                                    {candidateContent.length === 0 ? (
+                                      <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>No unpaired case files.</p>
+                                    ) : candidateContent.map((c) => {
+                                      const checked = c.drop_number === drop.number && c.victim_code === row.victimCode;
+                                      const busy = !!pairing[`c:${c.id}`];
+                                      return (
+                                        <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '2px 0', cursor: 'pointer' }}>
+                                          <input type="checkbox" checked={checked} disabled={busy} onChange={() => pairContentItem(c, drop, row.victimCode)} />
+                                          {c.title}
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* ── Individual / role work ── */}
+                      <div>
+                        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)', marginBottom: 8 }}>
+                          INDIVIDUAL / ROLE WORK
+                        </div>
+                        <p style={{ margin: '0 0 8px', fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
+                          A challenge can be checked under multiple roles. Picking any role here clears its victim (role work and squad work are separate).
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {DROP_ROLE_ROWS.map((row) => {
+                            const candidateAssignments = scenarioChallenges.filter((a) =>
+                              !a.victim_name && (a.drop_number == null || a.drop_number === drop.number)
+                            );
+                            return (
+                              <div key={row.key}>
+                                <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.1em', color: 'var(--muted)', marginBottom: 4, textTransform: 'uppercase' }}>
+                                  {row.label}
+                                </div>
+                                {candidateAssignments.length === 0 ? (
+                                  <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>No unpaired individual challenges for this scenario.</p>
+                                ) : candidateAssignments.map((a) => {
+                                  const checked = a.drop_number === drop.number && (a.role_filters ?? []).includes(row.key);
+                                  const busy = !!pairing[`a:${a.id}`];
+                                  return (
+                                    <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '2px 0', cursor: 'pointer' }}>
+                                      <input type="checkbox" checked={checked} disabled={busy} onChange={() => pairAssignmentRole(a, drop, row.key)} />
+                                      {a.title}
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* ── Shared with everyone ── */}
+                      <div>
+                        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)', marginBottom: 8 }}>
+                          SHARED WITH EVERYONE
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          <div>
+                            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, letterSpacing: '.06em' }}>CHALLENGES</div>
+                            {(() => {
+                              const candidates = scenarioChallenges.filter((a) =>
+                                a.drop_number == null || (a.drop_number === drop.number && !a.victim_name && (a.role_filters?.length ?? 0) === 0)
+                              );
+                              return candidates.length === 0 ? (
                                 <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>No unpaired challenges for this scenario.</p>
-                              ) : candidateAssignments.map((a) => {
-                                const checked = a.drop_number === drop.number &&
-                                  (row.isShared ? !a.victim_name : a.victim_name === row.victimName);
+                              ) : candidates.map((a) => {
+                                const checked = a.drop_number === drop.number && !a.victim_name && (a.role_filters?.length ?? 0) === 0;
                                 const busy = !!pairing[`a:${a.id}`];
                                 return (
                                   <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '2px 0', cursor: 'pointer' }}>
-                                    <input type="checkbox" checked={checked} disabled={busy} onChange={() => pairAssignment(a, drop, row)} />
+                                    <input type="checkbox" checked={checked} disabled={busy} onChange={() => pairAssignmentShared(a, drop)} />
                                     {a.title}
                                   </label>
                                 );
-                              })}
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, letterSpacing: '.06em' }}>CASE FILES</div>
-                              {candidateContent.length === 0 ? (
+                              });
+                            })()}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, letterSpacing: '.06em' }}>CASE FILES</div>
+                            {(() => {
+                              const candidates = localContent.filter((c) => c.drop_number == null || (c.drop_number === drop.number && !c.victim_code));
+                              return candidates.length === 0 ? (
                                 <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>No unpaired case files.</p>
-                              ) : candidateContent.map((c) => {
-                                const checked = c.drop_number === drop.number &&
-                                  (row.isShared ? !c.victim_code : c.victim_code === row.victimCode);
+                              ) : candidates.map((c) => {
+                                const checked = c.drop_number === drop.number && !c.victim_code;
                                 const busy = !!pairing[`c:${c.id}`];
                                 return (
                                   <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '2px 0', cursor: 'pointer' }}>
-                                    <input type="checkbox" checked={checked} disabled={busy} onChange={() => pairContentItem(c, drop, row)} />
+                                    <input type="checkbox" checked={checked} disabled={busy} onChange={() => pairContentItem(c, drop, null)} />
                                     {c.title}
                                   </label>
                                 );
-                              })}
-                            </div>
+                              });
+                            })()}
                           </div>
                         </div>
-                      );
-                    })}
-                    <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
-                      Case files aren't tagged to a scenario in the database, so the list above shows every unpaired case file regardless of scenario — use the title to pick the right one.
-                    </p>
-                  </div>
-                )}
+                      </div>
+
+                      <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
+                        Case files aren't tagged to a scenario in the database, so their candidate lists show every unpaired case file regardless of scenario — use the title to pick the right one.
+                      </p>
+                    </div>
+                  );
+                })()}
 
                 {/* Inline edit form */}
                 {isEditing && (
