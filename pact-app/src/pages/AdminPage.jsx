@@ -827,6 +827,17 @@ function CohortScenarioPanel({ cohorts, onCohortsChange }) {
     }
   };
 
+  const [revealing, setRevealing] = useState({});
+
+  const toggleTargetReveal = async (cohort) => {
+    setRevealing((r) => ({ ...r, [cohort.id]: true }));
+    try {
+      const updated = await updateCohort(cohort.id, { target_revealed: !cohort.target_revealed });
+      onCohortsChange((prev) => prev.map((c) => c.id === cohort.id ? { ...c, ...updated } : c));
+    } catch {}
+    finally { setRevealing((r) => ({ ...r, [cohort.id]: false })); }
+  };
+
   if (cohorts.length === 0) {
     return (
       <div style={{ padding: 32 }}>
@@ -893,6 +904,16 @@ function CohortScenarioPanel({ cohorts, onCohortsChange }) {
                   {flashState === 'saved' && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: '#10b981' }}>◉ SAVED</span>}
                   {flashState === 'error' && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: '#ef4444' }}>FAILED</span>}
                 </div>
+
+                <button
+                  className={cohort.target_revealed ? 'btn-secondary' : 'btn-primary'}
+                  style={{ fontSize: 11, padding: '4px 10px', flexShrink: 0 }}
+                  disabled={!!revealing[cohort.id]}
+                  onClick={() => toggleTargetReveal(cohort)}
+                  title="Reveals each squad's assigned victim per their Squad Victims selection below"
+                >
+                  {revealing[cohort.id] ? 'SAVING…' : cohort.target_revealed ? 'Conceal Target' : 'Reveal Target'}
+                </button>
 
                 <button
                   className="btn-secondary"
