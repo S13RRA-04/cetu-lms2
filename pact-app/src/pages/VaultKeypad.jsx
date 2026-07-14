@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { verifyVaultPin } from '../api/pact.js';
 import DecryptText from '../components/DecryptText.jsx';
+import { insertVaultCode, MAX_VAULT_CODE_LENGTH } from '../lib/vaultCode.js';
 
 const MAX_ATTEMPTS = 5;
-const MAX_CODE_LEN = 64;
 
 /* ── Animated vault door ────────────────────────────────────────────────────── */
 function VaultDoor({ open, accent }) {
@@ -132,7 +132,7 @@ export default function VaultKeypad({ drop, onUnlock, verifyPin = null }) {
 
   const press = useCallback((char) => {
     if (status !== 'idle') return;
-    setCode((c) => c.length < MAX_CODE_LEN ? c + char : c);
+    setCode((c) => c.length < MAX_VAULT_CODE_LENGTH ? c + char : c);
     clearTimeout(flashTimer.current);
     setKeyFlash(true);
     flashTimer.current = setTimeout(() => setKeyFlash(false), 80);
@@ -189,6 +189,20 @@ export default function VaultKeypad({ drop, onUnlock, verifyPin = null }) {
   }, [status]);
 
   const isBlocked = status !== 'idle';
+
+  const pasteCode = useCallback((event) => {
+    event.preventDefault();
+    if (status !== 'idle') return;
+
+    const pasted = event.clipboardData.getData('text');
+    const input = event.currentTarget;
+    const start = input.selectionStart ?? code.length;
+    const end = input.selectionEnd ?? start;
+    const { value: nextCode, caret } = insertVaultCode(code, pasted, start, end);
+
+    setCode(nextCode);
+    requestAnimationFrame(() => inputRef.current?.setSelectionRange(caret, caret));
+  }, [code, status]);
 
   return (
     <div className="vk-root">
@@ -268,15 +282,16 @@ export default function VaultKeypad({ drop, onUnlock, verifyPin = null }) {
               className="vk-code-input"
               value={code}
               onChange={(event) => {
-                if (status === 'idle') setCode(event.target.value.slice(0, MAX_CODE_LEN));
+                if (status === 'idle') setCode(event.target.value.slice(0, MAX_VAULT_CODE_LENGTH));
               }}
+              onPaste={pasteCode}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault();
                   submit();
                 }
               }}
-              maxLength={MAX_CODE_LEN}
+              maxLength={MAX_VAULT_CODE_LENGTH}
               disabled={isBlocked}
               autoComplete="off"
               autoCapitalize="off"
@@ -284,6 +299,7 @@ export default function VaultKeypad({ drop, onUnlock, verifyPin = null }) {
               aria-label="Vault access code"
             />
           </div>
+          <span className="vk-paste-hint">Paste supported: Ctrl/Cmd+V or mobile Paste</span>
         </motion.div>
 
         {/* ── Status row ── */}

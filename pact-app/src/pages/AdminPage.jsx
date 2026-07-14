@@ -773,18 +773,28 @@ function SquadSubmissions({ groups, grades, savedGrades, onSelect }) {
   );
 }
 
+const ACCOUNT_ROLE_LABELS = {
+  student:    'Student',
+  instructor: 'Instructor',
+  admin:      'Admin',
+  superadmin: 'Superadmin',
+};
+
 /* ═══════════════════════════════════════════════════════════
-   USERS PANEL — edit a user's professional role from Command
+   USERS PANEL — check account status, edit professional role,
+   unlock/deactivate accounts from Command
 ═══════════════════════════════════════════════════════════ */
 function UsersPanel() {
   const [users,     setUsers]     = useState(null); // null = loading
   const [search,    setSearch]    = useState('');
   const [roleFilter,setRoleFilter]= useState('');
+  const [statusFilter, setStatusFilter] = useState(''); // '' | 'locked' | 'active' | 'never_logged_in'
+  const [accountTypeFilter, setAccountTypeFilter] = useState(''); // '' | student | instructor | admin | superadmin
   const [saving,    setSaving]    = useState({}); // userId -> bool
   const [flash,     setFlash]     = useState({}); // userId -> 'saved' | 'error'
 
   useEffect(() => {
-    getUsers({ role: 'student', limit: 500 })
+    getUsers({ limit: 500 })
       .then((data) => setUsers(Array.isArray(data) ? data : []))
       .catch(() => setUsers([]));
   }, []);
@@ -804,6 +814,21 @@ function UsersPanel() {
     }
   };
 
+  const handleToggleActive = async (user) => {
+    setSaving((s) => ({ ...s, [user.id]: true }));
+    try {
+      const updated = await updateUser(user.id, { is_active: !user.is_active });
+      setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, ...updated } : u));
+      setFlash((f) => ({ ...f, [user.id]: 'saved' }));
+      setTimeout(() => setFlash((f) => ({ ...f, [user.id]: null })), 1800);
+    } catch {
+      setFlash((f) => ({ ...f, [user.id]: 'error' }));
+      setTimeout(() => setFlash((f) => ({ ...f, [user.id]: null })), 2500);
+    } finally {
+      setSaving((s) => ({ ...s, [user.id]: false }));
+    }
+  };
+
   if (users === null) {
     return (
       <div style={{ padding: 32 }}>
@@ -812,10 +837,16 @@ function UsersPanel() {
     );
   }
 
+  const lockedCount = users.filter((u) => !u.is_active).length;
+
   const q = search.trim().toLowerCase();
   const visible = users.filter((u) => {
+    if (accountTypeFilter && u.role !== accountTypeFilter) return false;
     if (roleFilter === '__none__' && u.professional_role) return false;
     if (roleFilter && roleFilter !== '__none__' && u.professional_role !== roleFilter) return false;
+    if (statusFilter === 'locked' && u.is_active) return false;
+    if (statusFilter === 'active' && !u.is_active) return false;
+    if (statusFilter === 'never_logged_in' && u.last_login) return false;
     if (!q) return true;
     return (
       u.first_name?.toLowerCase().includes(q) ||
@@ -831,10 +862,10 @@ function UsersPanel() {
         USER MANAGEMENT
       </div>
       <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 16px', lineHeight: 1.6 }}>
-        Assign or correct a student's professional role. This drives which role-gated taskings are routed to them.
+        Check any account's status, assign or correct a student's professional role, or unlock a deactivated account.
       </p>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         <input
           type="text"
           placeholder="Search name, email, username…"
@@ -847,6 +878,19 @@ function UsersPanel() {
           }}
         />
         <select
+          value={accountTypeFilter}
+          onChange={(e) => setAccountTypeFilter(e.target.value)}
+          style={{
+            padding: '7px 10px', borderRadius: 4, border: '1px solid var(--border)',
+            background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--mono)',
+          }}
+        >
+          <option value="">All account types</option>
+          {Object.entries(ACCOUNT_ROLE_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
+        <select
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value)}
           style={{
@@ -854,16 +898,31 @@ function UsersPanel() {
             background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--mono)',
           }}
         >
-          <option value="">All roles</option>
+          <option value="">All professional roles</option>
           <option value="__none__">No role assigned</option>
           {PROFESSIONAL_ROLES.map((r) => (
             <option key={r.value} value={r.value}>{r.label}</option>
           ))}
         </select>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          style={{
+            padding: '7px 10px', borderRadius: 4,
+            border: `1px solid ${statusFilter === 'locked' ? '#ef4444' : 'var(--border)'}`,
+            background: 'var(--surface)', color: statusFilter === 'locked' ? '#ef4444' : 'var(--text)',
+            fontSize: 12, fontFamily: 'var(--mono)',
+          }}
+        >
+          <option value="">All statuses</option>
+          <option value="locked">Locked only{lockedCount > 0 ? ` (${lockedCount})` : ''}</option>
+          <option value="active">Active only</option>
+          <option value="never_logged_in">Never logged in</option>
+        </select>
       </div>
 
       {visible.length === 0 ? (
-        <p style={{ color: 'var(--muted)', fontSize: 13 }}>No students match.</p>
+        <p style={{ color: 'var(--muted)', fontSize: 13 }}>No accounts match.</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {visible.map((u) => (
@@ -871,33 +930,64 @@ function UsersPanel() {
               key={u.id}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
-                border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)',
+                border: `1px solid ${u.is_active ? 'var(--border)' : '#ef444455'}`, borderRadius: 6,
+                background: u.is_active ? 'var(--surface)' : 'rgba(239,68,68,0.05)',
               }}
             >
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--bright)' }}>
+                <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--bright)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   {u.first_name} {u.last_name}
+                  <span style={{
+                    fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.08em',
+                    color: u.is_active ? '#10b981' : '#ef4444',
+                    background: u.is_active ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
+                    padding: '2px 6px', borderRadius: 10,
+                  }}>
+                    {u.is_active ? 'ACTIVE' : 'LOCKED'}
+                  </span>
+                  <span style={{
+                    fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.08em', color: 'var(--muted)',
+                    background: 'var(--surface-2, var(--bg))', border: '1px solid var(--border)',
+                    padding: '2px 6px', borderRadius: 10,
+                  }}>
+                    {(ACCOUNT_ROLE_LABELS[u.role] ?? u.role ?? '').toUpperCase()}
+                  </span>
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--mono)' }}>
-                  {u.email}
+                  {u.email} · {u.last_login ? `last login ${relativeTime(u.last_login)}` : 'never logged in'}
                 </div>
               </div>
-              <select
-                value={u.professional_role ?? ''}
-                onChange={(e) => handleRoleChange(u, e.target.value)}
+              {u.role === 'student' ? (
+                <select
+                  value={u.professional_role ?? ''}
+                  onChange={(e) => handleRoleChange(u, e.target.value)}
+                  disabled={!!saving[u.id]}
+                  style={{
+                    width: 220, padding: '5px 8px', borderRadius: 4,
+                    border: `1.5px solid ${u.professional_role ? 'var(--border)' : '#f59e0b'}`,
+                    background: 'var(--surface-2, var(--bg))', color: 'var(--text)',
+                    fontSize: 12, fontFamily: 'var(--mono)',
+                  }}
+                >
+                  <option value="">No role assigned</option>
+                  {PROFESSIONAL_ROLES.map((r) => (
+                    <option key={r.value} value={r.value}>{r.label}</option>
+                  ))}
+                </select>
+              ) : (
+                <span style={{ width: 220, fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--mono)', textAlign: 'center' }}>
+                  — n/a —
+                </span>
+              )}
+              <button
+                className={u.is_active ? 'btn-secondary' : 'btn-primary'}
+                style={{ fontSize: 11, padding: '5px 10px', flexShrink: 0 }}
                 disabled={!!saving[u.id]}
-                style={{
-                  width: 220, padding: '5px 8px', borderRadius: 4,
-                  border: `1.5px solid ${u.professional_role ? 'var(--border)' : '#f59e0b'}`,
-                  background: 'var(--surface-2, var(--bg))', color: 'var(--text)',
-                  fontSize: 12, fontFamily: 'var(--mono)',
-                }}
+                onClick={() => handleToggleActive(u)}
+                title={u.is_active ? 'Deactivate this account' : 'Unlock this account so the student can log in again'}
               >
-                <option value="">No role assigned</option>
-                {PROFESSIONAL_ROLES.map((r) => (
-                  <option key={r.value} value={r.value}>{r.label}</option>
-                ))}
-              </select>
+                {u.is_active ? 'Deactivate' : 'Unlock'}
+              </button>
               {saving[u.id] && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)' }}>SAVING…</span>}
               {flash[u.id] === 'saved' && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: '#10b981' }}>◉ SAVED</span>}
               {flash[u.id] === 'error' && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: '#ef4444' }}>FAILED</span>}

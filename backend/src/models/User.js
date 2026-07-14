@@ -22,6 +22,8 @@ module.exports = (sequelize) => {
         defaultValue: 'student',
       },
       professional_role: {
+        // Keep in sync with enum_users_professional_role (see migrations
+        // 20240101000031, 20240101000058, 20240101000063).
         type: DataTypes.ENUM(
           'special_agent',
           'intelligence_analyst',
@@ -29,7 +31,10 @@ module.exports = (sequelize) => {
           'operational_support_da',
           'supervisory_special_agent',
           'supervisory_intelligence_analyst',
-          'task_force_officer'
+          'task_force_officer',
+          'cyber_analyst',
+          'digital_evidence_lead',
+          'forensic_accountant'
         ),
         allowNull: true,
         defaultValue: null,

@@ -7130,6 +7130,15 @@ body {
   cursor: default;
 }
 
+.vk-paste-hint {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: .08em;
+  color: rgba(148, 163, 184, 0.65);
+}
+
 .vk-code-cursor {
   display: inline-block;
   width: 2px;
