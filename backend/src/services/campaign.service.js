@@ -6,7 +6,7 @@ const { CampaignDrop, CampaignDropUnlock, Assignment, AssignmentUnlock,
         Squad, Course, Cohort } = require('../models');
 const { NotFoundError, AppError } = require('../utils/errors');
 const { codeToName } = require('../constants/victims');
-const { partitionDropMaterials, unpublishedIds } = require('../utils/campaignRelease');
+const { partitionDropMaterials, unpublishedIds, buildReleasePreview } = require('../utils/campaignRelease');
 const { invalidateCourseContentLists } = require('./courseContent.service');
 const { invalidateAssignmentLists } = require('./assignment.service');
 const { scenarioSlugFromName } = require('../utils/r2CaseFile');
@@ -88,6 +88,26 @@ async function deleteDrop(dropId) {
   await drop.destroy();
 }
 
+async function previewRelease(dropId, cohortId) {
+  const drop = await CampaignDrop.findByPk(dropId);
+  if (!drop) throw new NotFoundError('CampaignDrop');
+  const cohort = await Cohort.findByPk(cohortId);
+  if (!cohort) throw new NotFoundError('Cohort');
+
+  const [squads, assignments, contentItems, scenarioPackages] = await Promise.all([
+    Squad.findAll({ where: { cohort_id: cohortId }, attributes: ['id', 'number', 'victim_code'] }),
+    Assignment.findAll({ where: { course_id: drop.course_id, drop_number: drop.number } }),
+    CourseContentItem.findAll({ where: { course_id: drop.course_id, drop_number: drop.number } }),
+    ScenarioPackage.findAll({ where: { course_id: drop.course_id, drop_number: drop.number, is_published: true } }),
+  ]);
+
+  return {
+    drop: { id: drop.id, number: drop.number, title: drop.title },
+    cohort: { id: cohort.id, name: cohort.name },
+    ...buildReleasePreview(squads, { assignments, contentItems, scenarioPackages, codeToName }),
+  };
+}
+
 /* Fan out a drop release per squad, using each squad's manually-assigned
    victim to decide which victim-tagged assignments/content/R2 packages it
    gets. Untagged (victim-less) items stay cohort-wide, matching the old
@@ -143,6 +163,24 @@ async function releaseDrop(dropId, cohortId, unlockerId) {
     );
     invalidateAssignmentLists();
   }
+
+  // A squad's victim can change after an earlier release. Remove old
+  // squad-scoped unlocks for this drop before rebuilding access from the
+  // current victim assignments. Cohort-wide unlocks remain untouched.
+  const assignmentIds = assignments.map((item) => item.id);
+  const contentIds = contentItems.map((item) => item.id);
+  const [reconciledAssignmentUnlocks, reconciledContentUnlocks] = await Promise.all([
+    assignmentIds.length > 0
+      ? AssignmentUnlock.destroy({
+          where: { cohort_id: cohortId, assignment_id: { [Op.in]: assignmentIds }, squad_id: { [Op.ne]: null } },
+        })
+      : 0,
+    contentIds.length > 0
+      ? CourseContentUnlock.destroy({
+          where: { cohort_id: cohortId, content_id: { [Op.in]: contentIds }, squad_id: { [Op.ne]: null } },
+        })
+      : 0,
+  ]);
 
   const assignedSquads = hasVictimScopedMaterial ? squads.filter((squad) => squad.victim_code) : [];
   const skippedSquads = hasVictimScopedMaterial
@@ -215,6 +253,8 @@ async function releaseDrop(dropId, cohortId, unlockerId) {
     released_assignments: releasedAssignments,
     released_content:     releasedContent,
     released_packages:    releasedPackages,
+    reconciled_assignment_unlocks: reconciledAssignmentUnlocks,
+    reconciled_content_unlocks: reconciledContentUnlocks,
     skipped_squads:       skippedSquads,
   };
 }
@@ -274,4 +314,4 @@ async function lockDrop(dropId, cohortId, { revokeRelated = false } = {}) {
   });
 }
 
-module.exports = { listDrops, createDrop, updateDrop, deleteDrop, releaseDrop, lockDrop, verifyVaultPin, normalizeDropData };
+module.exports = { listDrops, createDrop, updateDrop, deleteDrop, previewRelease, releaseDrop, lockDrop, verifyVaultPin, normalizeDropData };

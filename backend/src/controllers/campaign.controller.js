@@ -47,4 +47,9 @@ async function lockDrop(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listDrops, createDrop, updateDrop, deleteDrop, releaseDrop, lockDrop, verifyVaultPin };
+async function previewRelease(req, res, next) {
+  try { res.json(await campaignService.previewRelease(req.params.did, req.query.cohort_id)); }
+  catch (err) { next(err); }
+}
+
+module.exports = { listDrops, createDrop, updateDrop, deleteDrop, previewRelease, releaseDrop, lockDrop, verifyVaultPin };

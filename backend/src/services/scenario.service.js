@@ -5,6 +5,15 @@ const { r2Client, R2_BUCKET, R2_DECKS_PREFIX } = require('../config/r2');
 const { ScenarioPackage, ScenarioPackageUnlock, Course, Cohort, Enrollment, Squad } = require('../models');
 const { NotFoundError, ForbiddenError } = require('../utils/errors');
 const TtlCache = require('../utils/ttlCache');
+const { scenarioSlugFromName } = require('../utils/r2CaseFile');
+
+// scenario_name must be the same slug form assignments/course-content/campaign
+// drops use (e.g. "packet-heist") — the student Evidence Repository groups
+// packages and drop files by strict equality on this field, so anything else
+// silently splits one case file into two.
+function normalizeScenarioName(name) {
+  return name ? (scenarioSlugFromName(name) || null) : null;
+}
 
 const R2_PUBLIC_BASE_URL = (process.env.R2_PUBLIC_BASE_URL ?? '').replace(/\/$/, '');
 
@@ -73,7 +82,7 @@ async function syncFromR2(courseId) {
       const title = slugToTitle(slug);
       await ScenarioPackage.create({
         course_id:      courseId,
-        scenario_name:  title,
+        scenario_name:  normalizeScenarioName(slug),
         title,
         file_name:      slug,   // slug used as identifier
         r2_key:         prefix, // full prefix, e.g. "scenarios/brokered-exit/"
@@ -200,7 +209,11 @@ async function getFilesAdmin(packageId) {
 async function create(courseId, data) {
   const course = await Course.findByPk(courseId);
   if (!course) throw new NotFoundError('Course');
-  const pkg = await ScenarioPackage.create({ ...data, course_id: courseId });
+  const pkg = await ScenarioPackage.create({
+    ...data,
+    course_id: courseId,
+    ...(Object.hasOwn(data, 'scenario_name') ? { scenario_name: normalizeScenarioName(data.scenario_name) } : {}),
+  });
   packageListCache.invalidate(`packages:${courseId}`);
   return pkg;
 }
@@ -209,7 +222,10 @@ async function update(id, data) {
   const pkg = await ScenarioPackage.findByPk(id);
   if (!pkg) throw new NotFoundError('ScenarioPackage');
   packageListCache.invalidate(`packages:${pkg.course_id}`);
-  return pkg.update(data);
+  return pkg.update({
+    ...data,
+    ...(Object.hasOwn(data, 'scenario_name') ? { scenario_name: normalizeScenarioName(data.scenario_name) } : {}),
+  });
 }
 
 async function remove(id) {
@@ -295,7 +311,7 @@ async function quickRelease(courseId, cohortId, { r2_key, title, scenario_name, 
   const pkg = await ScenarioPackage.create({
     course_id:      courseId,
     title:          title || file_name,
-    scenario_name:  scenario_name || title || file_name,
+    scenario_name:  normalizeScenarioName(scenario_name || title || file_name),
     description:    description || null,
     file_name,
     r2_key,
@@ -320,4 +336,5 @@ module.exports = {
   listForStudent, listForAdmin, getDownloadUrl, getFilesAdmin,
   create, update, remove, unlockForCohort, lockForCohort,
   browseR2, getPresignedUploadUrl, deleteR2Object, quickRelease,
+  normalizeScenarioName,
 };

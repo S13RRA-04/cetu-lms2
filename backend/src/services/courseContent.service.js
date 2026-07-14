@@ -7,6 +7,7 @@ const { NotFoundError, ForbiddenError } = require('../utils/errors');
 const { v4: uuidv4 } = require('uuid');
 const TtlCache = require('../utils/ttlCache');
 const { parseDropCaseFile, scenarioSlugFromName } = require('../utils/r2CaseFile');
+const { contentMatchesSquadVictim } = require('../utils/campaignRelease');
 
 const contentCache = new TtlCache(15_000);
 
@@ -38,7 +39,7 @@ async function uploadToR2(buffer, fileName, mimeType) {
 async function listForStudent(courseId, userId) {
   const enrollment = await Enrollment.findOne({
     where:   { user_id: userId, course_id: courseId },
-    include: [{ association: 'squad', attributes: ['id'] }],
+    include: [{ association: 'squad', attributes: ['id', 'victim_code'] }],
   });
   if (!enrollment) throw new ForbiddenError('Not enrolled');
 
@@ -62,7 +63,8 @@ async function listForStudent(courseId, userId) {
 
   const unlockedSet = new Set(unlocks.map((u) => u.content_id));
   return items.map((item) => {
-    const unlocked = unlockedSet.has(item.id);
+    const unlocked = unlockedSet.has(item.id)
+      && contentMatchesSquadVictim(item.victim_code, enrollment.squad?.victim_code ?? null);
     return {
       ...item.toJSON(),
       is_unlocked:  unlocked,
@@ -130,9 +132,13 @@ async function getDownloadUrl(contentId, userId, userRole = 'student') {
     const { Enrollment: EnrollmentModel } = require('../models');
     const enrollment = await EnrollmentModel.findOne({
       where:   { user_id: userId, course_id: item.course_id },
-      include: [{ association: 'squad', attributes: ['id'] }],
+      include: [{ association: 'squad', attributes: ['id', 'victim_code'] }],
     });
     if (!enrollment) throw new ForbiddenError('Not enrolled');
+
+    if (!contentMatchesSquadVictim(item.victim_code, enrollment.squad?.victim_code ?? null)) {
+      throw new ForbiddenError('Content is assigned to a different investigation target');
+    }
 
     if (enrollment.cohort_id) {
       const squadId   = enrollment.squad?.id ?? null;

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { Fragment, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
   getAdminAssignments,
   getSubmissions,
@@ -23,6 +23,7 @@ import {
   createCampaignDrop,
   updateCampaignDrop,
   deleteCampaignDrop,
+  previewCampaignDropRelease,
   releaseCampaignDrop,
   lockCampaignDrop,
   updateCohort,
@@ -3847,6 +3848,8 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
   const [cohortId,  setCohortId] = useState(() => cohorts[0]?.id ?? '');
   const [delDrop,   setDelDrop]  = useState(null);
   const [lockTarget, setLockTarget] = useState(null);
+  const [releasePreview, setReleasePreview] = useState(null);
+  const [releasePreviewExpanded, setReleasePreviewExpanded] = useState(null);
   const [working,   setWorking]  = useState(null);
   const [err,       setErr]      = useState('');
   const [warn,      setWarn]     = useState('');
@@ -3980,10 +3983,26 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
       if (result?.skipped_squads?.length > 0) {
         setWarn(`Squad${result.skipped_squads.length > 1 ? 's' : ''} ${result.skipped_squads.join(', ')} skipped — no victim assigned yet. Set it in Command Center.`);
       }
+      setReleasePreview(null);
+      setReleasePreviewExpanded(null);
       load();
     }
     catch (e) { setErr(e.response?.data?.error?.message ?? 'Release failed'); }
     finally { setWorking(null); }
+  };
+
+  const openReleasePreview = async (drop) => {
+    if (!cohortId) { setErr('Select a cohort first.'); return; }
+    setWorking(drop.id + ':preview');
+    setErr('');
+    try {
+      setReleasePreview(await previewCampaignDropRelease(drop.id, cohortId));
+      setReleasePreviewExpanded(null);
+    } catch (e) {
+      setErr(e.response?.data?.error?.message ?? 'Unable to build release preview');
+    } finally {
+      setWorking(null);
+    }
   };
 
   const handleLock = async (drop, revokeRelated = false) => {
@@ -4120,9 +4139,9 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
                         className="btn-submit"
                         style={{ fontSize: 12, padding: '4px 12px', width: 'auto' }}
                         disabled={isWorking}
-                        onClick={() => handleRelease(drop)}
+                        onClick={() => openReleasePreview(drop)}
                       >
-                        {working === drop.id + ':release' ? '…' : 'Release'}
+                        {working === drop.id + ':preview' ? '…' : 'Release'}
                       </button>
                     )
                   )}
@@ -4143,6 +4162,112 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
               </div>
             );
           })}
+        </div>
+      )}
+
+      {releasePreview && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+        }}>
+          <div style={{ background: '#fff', borderRadius: 10, padding: 24, maxWidth: 720, width: '94%', boxShadow: '0 8px 32px rgba(0,0,0,.2)' }}>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>Release Drop {releasePreview.drop.number}?</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
+              {releasePreview.drop.title} → {releasePreview.cohort.name}
+            </div>
+            <div style={{ overflowX: 'auto', marginBottom: 14 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border)' }}>
+                    <th style={{ padding: '7px 6px' }}>Squad</th>
+                    <th style={{ padding: '7px 6px' }}>Victim</th>
+                    <th style={{ padding: '7px 6px', textAlign: 'right' }}>Challenges</th>
+                    <th style={{ padding: '7px 6px', textAlign: 'right' }}>Case Files</th>
+                    <th style={{ padding: '7px 6px', textAlign: 'right' }}>Packages</th>
+                    <th style={{ padding: '7px 6px', textAlign: 'right' }}>Total Files</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {releasePreview.squads.map((row) => {
+                    const categories = [
+                      ['challenges', row.challenges, row.details.challenges],
+                      ['case_files', row.case_files, row.details.case_files],
+                      ['packages', row.packages, row.details.packages],
+                      ['total_files', row.total_files, [...row.details.case_files, ...row.details.packages]],
+                    ];
+                    const active = categories.find(([key]) => releasePreviewExpanded === `${row.squad_id}:${key}`);
+                    return (
+                      <Fragment key={row.squad_id}>
+                        <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td style={{ padding: '8px 6px', fontWeight: 600 }}>Squad {row.squad_number}</td>
+                          <td style={{ padding: '8px 6px', color: row.victim_code ? 'var(--text)' : '#b45309' }}>{row.victim_code ?? 'UNASSIGNED'}</td>
+                          {categories.map(([key, count]) => (
+                            <td key={key} style={{ padding: '8px 6px', textAlign: 'right' }}>
+                              <button
+                                type="button"
+                                disabled={count === 0}
+                                onClick={() => setReleasePreviewExpanded((current) => current === `${row.squad_id}:${key}` ? null : `${row.squad_id}:${key}`)}
+                                style={{ border: 0, background: 'none', padding: '2px 4px', color: count ? 'var(--primary)' : 'var(--muted)', fontWeight: key === 'total_files' ? 700 : 500, cursor: count ? 'pointer' : 'default', textDecoration: count ? 'underline' : 'none' }}
+                                title={count ? 'Show assigned items' : 'No assigned items'}
+                              >
+                                {count} {releasePreviewExpanded === `${row.squad_id}:${key}` ? '▴' : count ? '▾' : ''}
+                              </button>
+                            </td>
+                          ))}
+                        </tr>
+                        {active && (
+                          <tr>
+                            <td colSpan={6} style={{ padding: '8px 14px 12px', background: 'var(--surface-2, #f8fafc)', borderBottom: '1px solid var(--border)' }}>
+                              <div style={{ fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 700, marginBottom: 5, textTransform: 'uppercase' }}>
+                                Squad {row.squad_number} — {active[0].replace('_', ' ')}
+                              </div>
+                              {active[2].map((item, index) => (
+                                <div key={`${active[0]}:${item.id}:${index}`} style={{ fontSize: 12, padding: '3px 0' }}>
+                                  {item.title}{item.file_name && item.file_name !== item.title ? ` — ${item.file_name}` : ''}
+                                </div>
+                              ))}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 16 }}>
+              Shared cohort-wide:{' '}
+              {[['challenges', 'challenges'], ['case_files', 'Case Files'], ['packages', 'packages']].map(([key, label], index) => (
+                <Fragment key={key}>
+                  {index > 0 ? ', ' : ''}
+                  <button
+                    type="button"
+                    disabled={releasePreview.shared[key] === 0}
+                    onClick={() => setReleasePreviewExpanded((current) => current === `shared:${key}` ? null : `shared:${key}`)}
+                    style={{ border: 0, background: 'none', padding: 0, color: releasePreview.shared[key] ? 'var(--primary)' : 'var(--muted)', textDecoration: releasePreview.shared[key] ? 'underline' : 'none', cursor: releasePreview.shared[key] ? 'pointer' : 'default', fontSize: 'inherit' }}
+                  >
+                    {releasePreview.shared[key]} {label}
+                  </button>
+                </Fragment>
+              ))}.
+              {releasePreviewExpanded?.startsWith('shared:') && (() => {
+                const key = releasePreviewExpanded.split(':')[1];
+                return (
+                  <div style={{ marginTop: 7, padding: '7px 10px', background: 'var(--surface-2, #f8fafc)', color: 'var(--text)' }}>
+                    {releasePreview.shared.details[key].map((item) => (
+                      <div key={item.id} style={{ padding: '2px 0' }}>{item.title}{item.file_name && item.file_name !== item.title ? ` — ${item.file_name}` : ''}</div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className="btn-secondary" onClick={() => { setReleasePreview(null); setReleasePreviewExpanded(null); }} disabled={!!working}>Cancel</button>
+              <button className="btn-submit" style={{ width: 'auto' }} onClick={() => handleRelease(releasePreview.drop)} disabled={!!working}>
+                {working ? 'Releasing…' : 'Confirm Release'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

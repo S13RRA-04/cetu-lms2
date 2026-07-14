@@ -175,6 +175,9 @@ export const deleteCampaignDrop = (dropId) =>
 export const releaseCampaignDrop = (dropId, cohortId) =>
   client.post(`/courses/${COURSE_ID}/campaign/drops/${dropId}/release`, { cohort_id: cohortId }).then((r) => r.data);
 
+export const previewCampaignDropRelease = (dropId, cohortId) =>
+  client.get(`/courses/${COURSE_ID}/campaign/drops/${dropId}/release-preview`, { params: { cohort_id: cohortId } }).then((r) => r.data);
+
 export const lockCampaignDrop = (dropId, cohortId, revokeRelated = false) =>
   client.post(`/courses/${COURSE_ID}/campaign/drops/${dropId}/lock`, {
     cohort_id: cohortId,

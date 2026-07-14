@@ -7,6 +7,7 @@ const {
   updateCampaignDropSchema,
   verifyVaultPinSchema,
   lockCampaignDropSchema,
+  releasePreviewSchema,
 } = require('./campaign.validator');
 
 test('campaign drop creation requires complete vault configuration', () => {
@@ -45,4 +46,9 @@ test('drop lock accepts explicit related-access revocation', () => {
   });
   assert.equal(error, undefined);
   assert.equal(value.revoke_related, true);
+});
+
+test('release preview requires a valid cohort id', () => {
+  assert.ok(releasePreviewSchema.validate({ cohort_id: 'not-a-uuid' }).error);
+  assert.equal(releasePreviewSchema.validate({ cohort_id: '6ba7b810-9dad-11d1-80b4-00c04fd430c8' }).error, undefined);
 });

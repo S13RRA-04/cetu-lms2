@@ -21,7 +21,7 @@ const {
   createModuleSchema, updateModuleSchema,
 } = require('../validators/course.validator');
 const { createAssignmentSchema, updateAssignmentSchema, gradeSchema, unlockSchema } = require('../validators/assignment.validator');
-const { createCampaignDropSchema, updateCampaignDropSchema, verifyVaultPinSchema, lockCampaignDropSchema } = require('../validators/campaign.validator');
+const { createCampaignDropSchema, updateCampaignDropSchema, verifyVaultPinSchema, lockCampaignDropSchema, releasePreviewSchema } = require('../validators/campaign.validator');
 const { syncDropCaseFilesSchema } = require('../validators/courseContent.validator');
 
 const router = Router();
@@ -148,6 +148,7 @@ router.get('/:id/campaign/drops',              requireAuth,                    c
 router.post('/:id/campaign/drops',             requireAuth, requireInstructor, validate(createCampaignDropSchema), campaignCtrl.createDrop);
 router.put('/:id/campaign/drops/:did',         requireAuth, requireInstructor, validate(updateCampaignDropSchema), campaignCtrl.updateDrop);
 router.delete('/:id/campaign/drops/:did',      requireAuth, requireInstructor, campaignCtrl.deleteDrop);
+router.get('/:id/campaign/drops/:did/release-preview', requireAuth, requireInstructor, validate(releasePreviewSchema, 'query'), campaignCtrl.previewRelease);
 router.post('/:id/campaign/drops/:did/release',  requireAuth, requireInstructor, campaignCtrl.releaseDrop);
 router.post('/:id/campaign/drops/:did/lock',     requireAuth, requireInstructor, validate(lockCampaignDropSchema), campaignCtrl.lockDrop);
 router.post('/:id/campaign/drops/:did/verify-pin', requireAuth, validate(verifyVaultPinSchema), campaignCtrl.verifyVaultPin);

@@ -19,6 +19,14 @@ function fileType(filename) {
   return EXT_TYPE[ext] || 'FILE';
 }
 
+/* "packet-heist" → "Packet Heist" — scenario_name is stored as a slug so
+   packages and drop files group together by strict equality; this is purely
+   the display form. */
+function scenarioLabel(name) {
+  if (!name) return 'Unassigned';
+  return name.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function FileIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -192,7 +200,7 @@ export default function ScenariosPage() {
                 <div className="ep-folder-header">
                   <div>
                     <div className="ep-folder-stamp">CASE FILE</div>
-                    <div className="ep-folder-name">{scenarioName}</div>
+                    <div className="ep-folder-name">{scenarioLabel(scenarioName)}</div>
                     <div className="ep-folder-meta">
                       {authorizedCount} package{authorizedCount !== 1 ? 's' : ''} and {scenarioFiles.length} drop file{scenarioFiles.length !== 1 ? 's' : ''} authorized
                     </div>

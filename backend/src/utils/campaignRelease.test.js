@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { partitionDropMaterials, unpublishedIds } = require('./campaignRelease');
+const { partitionDropMaterials, unpublishedIds, contentMatchesSquadVictim, buildReleasePreview } = require('./campaignRelease');
 
 test('squad-agnostic drop material does not require victim-scoped release', () => {
   const result = partitionDropMaterials(
@@ -35,4 +35,32 @@ test('drop release identifies every paired Case File or challenge that still nee
     { id: 'legacy-draft', is_published: false },
     { id: 'unset-publication-state', is_published: null },
   ]), ['legacy-draft', 'unset-publication-state']);
+});
+
+test('victim-scoped Case Files only match the squad current victim assignment', () => {
+  assert.equal(contentMatchesSquadVictim(null, 'REDSTONE'), true);
+  assert.equal(contentMatchesSquadVictim('REDSTONE', 'REDSTONE'), true);
+  assert.equal(contentMatchesSquadVictim('PIXELPLAY', 'REDSTONE'), false);
+});
+
+test('release preview reports shared and victim-specific files per squad', () => {
+  const preview = buildReleasePreview(
+    [{ id: 's4', number: 4, victim_code: 'REDSTONE' }],
+    {
+      assignments: [],
+      contentItems: [
+        { id: 'shared', victim_code: null },
+        { id: 'r1', victim_code: 'REDSTONE' },
+        { id: 'r2', victim_code: 'REDSTONE' },
+        { id: 'p1', victim_code: 'PIXELPLAY' },
+      ],
+      scenarioPackages: [{ id: 'rp', victim_code: 'REDSTONE' }],
+      codeToName: (code) => code,
+    },
+  );
+  assert.equal(preview.squads[0].victim_code, 'REDSTONE');
+  assert.equal(preview.squads[0].total_files, 4);
+  assert.equal(preview.squads[0].case_files, 3);
+  assert.deepEqual(preview.squads[0].details.case_files.map((item) => item.id), ['shared', 'r1', 'r2']);
+  assert.deepEqual(preview.squads[0].details.packages.map((item) => item.id), ['rp']);
 });

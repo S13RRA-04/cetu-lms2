@@ -25,4 +25,49 @@ function unpublishedIds(items) {
   return items.filter((item) => item.is_published !== true).map((item) => item.id);
 }
 
-module.exports = { partitionDropMaterials, unpublishedIds };
+function contentMatchesSquadVictim(itemVictimCode, squadVictimCode) {
+  return !itemVictimCode || itemVictimCode === squadVictimCode;
+}
+
+function buildReleasePreview(squads, materials) {
+  const partitioned = partitionDropMaterials(materials.assignments, materials.contentItems, materials.scenarioPackages);
+  const assignmentDetail = (item) => ({ id: item.id, title: item.title });
+  const fileDetail = (item) => ({ id: item.id, title: item.title, file_name: item.file_name ?? null });
+  const packageDetail = (item) => ({ id: item.id, title: item.title, file_name: item.file_name ?? null });
+  const sharedDetails = {
+    challenges: partitioned.sharedAssignments.map(assignmentDetail),
+    case_files: partitioned.sharedContent.map(fileDetail),
+    packages: partitioned.sharedPackages.map(packageDetail),
+  };
+  return {
+    shared: {
+      challenges: sharedDetails.challenges.length,
+      case_files: sharedDetails.case_files.length,
+      packages: sharedDetails.packages.length,
+      details: sharedDetails,
+    },
+    squads: [...squads].sort((a, b) => a.number - b.number).map((squad) => {
+      const victimName = squad.victim_code ? materials.codeToName(squad.victim_code) : null;
+      const victimChallenges = victimName ? partitioned.victimAssignments.filter((item) => item.victim_name === victimName) : [];
+      const victimFiles = squad.victim_code ? partitioned.victimContent.filter((item) => item.victim_code === squad.victim_code) : [];
+      const victimPackages = squad.victim_code ? partitioned.victimPackages.filter((item) => item.victim_code === squad.victim_code) : [];
+      const details = {
+        challenges: [...partitioned.sharedAssignments, ...victimChallenges].map(assignmentDetail),
+        case_files: [...partitioned.sharedContent, ...victimFiles].map(fileDetail),
+        packages: [...partitioned.sharedPackages, ...victimPackages].map(packageDetail),
+      };
+      return {
+        squad_id: squad.id,
+        squad_number: squad.number,
+        victim_code: squad.victim_code ?? null,
+        challenges: details.challenges.length,
+        case_files: details.case_files.length,
+        packages: details.packages.length,
+        total_files: details.case_files.length + details.packages.length,
+        details,
+      };
+    }),
+  };
+}
+
+module.exports = { partitionDropMaterials, unpublishedIds, contentMatchesSquadVictim, buildReleasePreview };
