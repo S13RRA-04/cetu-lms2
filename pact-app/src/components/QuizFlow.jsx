@@ -25,16 +25,31 @@ function isResolved(qs) {
   return !!(qs && (qs.revealed || qs.forced));
 }
 
-function mergeQState(a, b) {
-  if (!a) return b;
-  if (!b) return a;
+/* Returns 'a' or 'b' — which side's qState (and answer) should win. Kept
+   separate from the merged qState value itself because that value gets a
+   fresh object spread (for the hintUsed OR), so it can never be compared by
+   reference back to `a`/`b` to figure out which side supplied the answer —
+   that reference-equality trick silently always resolved to 'b' for any
+   question still in progress on both sides (the tie-break branch below always
+   builds a new object), which is exactly the window where a student is mid-
+   drag on a multi-part drag_match answer. Answers were getting replaced by
+   whatever the other side last synced, every single reconciliation. */
+function mergeQStateWinner(a, b) {
+  if (!a) return 'b';
+  if (!b) return 'a';
   const aResolved = isResolved(a);
   const bResolved = isResolved(b);
-  if (aResolved && !bResolved) return a;
-  if (bResolved && !aResolved) return b;
-  if (aResolved && bResolved) return b;
-  const winner = (a.available ?? Infinity) <= (b.available ?? Infinity) ? a : b;
-  return { ...winner, hintUsed: !!(a.hintUsed || b.hintUsed) };
+  if (aResolved && !bResolved) return 'a';
+  if (bResolved && !aResolved) return 'b';
+  if (aResolved && bResolved) return 'b';
+  return (a.available ?? Infinity) <= (b.available ?? Infinity) ? 'a' : 'b';
+}
+
+function mergeQState(a, b) {
+  const side   = mergeQStateWinner(a, b);
+  const winner = side === 'a' ? a : b;
+  if (!winner) return winner;
+  return { ...winner, hintUsed: !!(a?.hintUsed || b?.hintUsed) };
 }
 
 function mergeQuizState(local, remote, questions) {
@@ -50,7 +65,7 @@ function mergeQuizState(local, remote, questions) {
     const b = remoteQ[q.id];
     const merged = mergeQState(a, b);
     if (merged) qStates[q.id] = merged;
-    answers[q.id] = merged === a ? localA[q.id] : remoteA[q.id];
+    answers[q.id] = mergeQStateWinner(a, b) === 'a' ? localA[q.id] : remoteA[q.id];
   }
 
   let qIdx = questions.findIndex((q) => !isResolved(qStates[q.id]));

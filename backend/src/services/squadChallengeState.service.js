@@ -11,16 +11,29 @@ function isResolved(qs) {
    `available`) wins so a stale/default push from one squad member can't
    clobber another member's in-progress attempts on the same question. Hint
    usage is OR'd — a hint spent by anyone in the squad stays spent. */
-function mergeQState(a, b) {
-  if (!a) return b;
-  if (!b) return a;
+// Returns 'a' or 'b' — kept separate from mergeQState's return value because
+// that value gets a fresh object spread (for the hintUsed OR), so it can
+// never be compared by reference back to `a`/`b` to tell which side supplied
+// the answer. (A prior version tried `merged === a`, which — for any question
+// still unresolved on both sides, i.e. the tie-break branch below — always
+// built a new object and so always evaluated to false, silently discarding
+// the stored side's in-progress answer on every merge.)
+function mergeQStateWinner(a, b) {
+  if (!a) return 'b';
+  if (!b) return 'a';
   const aResolved = isResolved(a);
   const bResolved = isResolved(b);
-  if (aResolved && !bResolved) return a;
-  if (bResolved && !aResolved) return b;
-  if (aResolved && bResolved) return b; // both resolved — values should already agree; take the latest
-  const winner = (a.available ?? Infinity) <= (b.available ?? Infinity) ? a : b;
-  return { ...winner, hintUsed: !!(a.hintUsed || b.hintUsed) };
+  if (aResolved && !bResolved) return 'a';
+  if (bResolved && !aResolved) return 'b';
+  if (aResolved && bResolved) return 'b'; // both resolved — values should already agree; take the latest
+  return (a.available ?? Infinity) <= (b.available ?? Infinity) ? 'a' : 'b';
+}
+
+function mergeQState(a, b) {
+  const side   = mergeQStateWinner(a, b);
+  const winner = side === 'a' ? a : b;
+  if (!winner) return winner;
+  return { ...winner, hintUsed: !!(a?.hintUsed || b?.hintUsed) };
 }
 
 function mergeState(stored, incoming, questions) {
@@ -36,7 +49,7 @@ function mergeState(stored, incoming, questions) {
     const b = incomingQ[q.id];
     const merged = mergeQState(a, b);
     if (merged) qStates[q.id] = merged;
-    answers[q.id] = merged === a ? storedA[q.id] : incomingA[q.id];
+    answers[q.id] = mergeQStateWinner(a, b) === 'a' ? storedA[q.id] : incomingA[q.id];
   }
 
   // Recomputed server-side (not trusted from the client) — the squad's shared
