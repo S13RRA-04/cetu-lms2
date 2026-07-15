@@ -91,7 +91,7 @@ function SignalWave() {
 }
 
 /* ── Main component ───────────────────────────────────────────────────────── */
-export default function SignalEntry({ drop, onVerify }) {
+export default function SignalEntry({ drop, onVerify, verifySignal = null }) {
   const [input,     setInput]     = useState('');
   const [status,    setStatus]    = useState('idle'); // idle | wrong | verified
   const [shakeKey,  setShakeKey]  = useState(0);
@@ -112,11 +112,18 @@ export default function SignalEntry({ drop, onVerify }) {
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [drop.html_signal]);
 
-  const submit = useCallback(() => {
+  const submit = useCallback(async () => {
     if (!input.trim() || status === 'verified') return;
-    const expected = (drop.html_signal ?? '').trim().toLowerCase();
-    const entered  = input.trim().toLowerCase();
-    if (entered === expected) {
+    const entered = input.trim();
+    let valid = false;
+    try {
+      valid = verifySignal
+        ? (await verifySignal(entered)).valid
+        : entered.toLowerCase() === (drop.html_signal ?? '').trim().toLowerCase();
+    } catch {
+      valid = false;
+    }
+    if (valid) {
       setStatus('verified');
       setTimeout(() => onVerify(), 1800);
     } else {
@@ -126,7 +133,7 @@ export default function SignalEntry({ drop, onVerify }) {
       setInput('');
       setTimeout(() => setStatus('idle'), 1400);
     }
-  }, [input, status, drop.html_signal, onVerify]);
+  }, [input, status, drop.html_signal, onVerify, verifySignal]);
 
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Enter') submit(); };

@@ -10,6 +10,22 @@ test('normalizePuzzleConfig defaults cipher_wheel to caesar shift 13 and strips 
   assert.deepEqual(config, { cipherText: 'uryyb', method: 'caesar', shift: 13 });
 });
 
+test('normalizePuzzleConfig supports layered Signal Hunt and Vault Lock games', () => {
+  assert.deepEqual(normalizePuzzleConfig('signal_hunt', { signalCode: 'BRAVO-7', stray: true }), { signalCode: 'BRAVO-7' });
+  assert.deepEqual(normalizePuzzleConfig('vault_lock', { stray: true }), {});
+});
+
+test('assertCompletePuzzleConfig validates layered Signal Hunt and Vault Lock games', () => {
+  assert.doesNotThrow(() => assertCompletePuzzleConfig('signal_hunt', {
+    prompt: 'Inspect source', answer: 'BRAVO-7', config: { signalCode: 'BRAVO-7' },
+  }));
+  assert.doesNotThrow(() => assertCompletePuzzleConfig('vault_lock', {
+    prompt: 'Decrypt evidence', answer: 'RESTON IT', config: {},
+  }));
+  assert.throws(() => assertCompletePuzzleConfig('signal_hunt', { prompt: 'Inspect', answer: '', config: {} }));
+  assert.throws(() => assertCompletePuzzleConfig('vault_lock', { prompt: '', answer: 'x', config: {} }));
+});
+
 test('normalizePuzzleConfig coerces cipher_wheel shift into 1-25 and ignores shift for rot13', () => {
   assert.equal(normalizePuzzleConfig('cipher_wheel', { method: 'caesar', shift: 40 }).shift, 25);
   assert.equal(normalizePuzzleConfig('cipher_wheel', { method: 'caesar', shift: 0 }).shift, 1);

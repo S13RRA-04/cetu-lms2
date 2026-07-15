@@ -2,10 +2,9 @@
 // AppShell.jsx (the real student gate) and DropSequencePreview (the admin
 // preview), replacing what used to be two hand-duplicated if/else chains.
 //
-// Gate order is fixed: Signal Hunt -> Vault Lock -> new-type puzzles
-// (order_index ascending) -> Transmission. Signal/Vault stay exactly as they
-// were before this system existed; this module only adds the new-type slice
-// in between them and the terminal Transmission stage.
+// Legacy drops may still carry fixed Signal/Vault fields. New Signal Hunt and
+// Vault Lock games live in the ordered puzzles array, so they can be layered
+// anywhere alongside the other game types before the terminal Transmission.
 
 /**
  * @param {object} drop - a campaign-drop object as returned by GET .../campaign/drops

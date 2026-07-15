@@ -2,7 +2,7 @@
 
 const Joi = require('joi');
 
-const PUZZLE_TYPES = ['cipher_wheel', 'log_grep', 'hash_match'];
+const PUZZLE_TYPES = ['signal_hunt', 'vault_lock', 'cipher_wheel', 'log_grep', 'hash_match'];
 const HASH_ALGORITHMS = ['md5', 'sha1', 'sha256'];
 
 const fields = {
@@ -26,6 +26,10 @@ const perTypeConfigCheck = (value, helpers) => {
     if (!config.inputText || !String(config.inputText).trim()) return helpers.message({ custom: 'hash_match puzzles require config.inputText' });
     if (!HASH_ALGORITHMS.includes(config.algorithm)) return helpers.message({ custom: `hash_match puzzles require config.algorithm to be one of ${HASH_ALGORITHMS.join(', ')}` });
     return value;
+  }
+
+  if (value.puzzle_type === 'signal_hunt' && (!config.signalCode || !String(config.signalCode).trim())) {
+    return helpers.message({ custom: 'signal_hunt games require config.signalCode' });
   }
 
   if (!answer) return helpers.message({ custom: `${value.puzzle_type} puzzles require an answer` });

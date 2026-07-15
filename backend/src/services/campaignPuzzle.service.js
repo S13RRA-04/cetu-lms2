@@ -10,6 +10,8 @@ const HASH_ALGORITHMS = ['md5', 'sha1', 'sha256'];
 // Pure, per-type config shaping — strips unknown keys, applies type defaults.
 function normalizePuzzleConfig(puzzleType, config = {}) {
   const raw = config && typeof config === 'object' ? config : {};
+  if (puzzleType === 'signal_hunt') return { signalCode: String(raw.signalCode ?? '') };
+  if (puzzleType === 'vault_lock') return {};
   if (puzzleType === 'cipher_wheel') {
     const method = ['caesar', 'rot13', 'atbash'].includes(raw.method) ? raw.method : 'caesar';
     const rawShift = Math.trunc(Number(raw.shift));
@@ -27,6 +29,7 @@ function normalizePuzzleConfig(puzzleType, config = {}) {
     const algorithm = HASH_ALGORITHMS.includes(raw.algorithm) ? raw.algorithm : 'sha256';
     return { inputText: String(raw.inputText ?? ''), algorithm };
   }
+
   return raw;
 }
 
@@ -47,6 +50,19 @@ function assertCompletePuzzleConfig(puzzleType, data) {
     if (!HASH_ALGORITHMS.includes(config.algorithm)) {
       throw new AppError(`hash_match puzzles require config.algorithm to be one of ${HASH_ALGORITHMS.join(', ')}`, 400, 'VALIDATION_ERROR');
     }
+    return;
+  }
+
+  if (puzzleType === 'signal_hunt') {
+    if (!prompt) throw new AppError('signal_hunt games require a prompt', 400, 'VALIDATION_ERROR');
+    if (!answer) throw new AppError('signal_hunt games require an answer', 400, 'VALIDATION_ERROR');
+    if (!config.signalCode || !String(config.signalCode).trim()) throw new AppError('signal_hunt games require config.signalCode', 400, 'VALIDATION_ERROR');
+    return;
+  }
+
+  if (puzzleType === 'vault_lock') {
+    if (!prompt) throw new AppError('vault_lock games require instructions', 400, 'VALIDATION_ERROR');
+    if (!answer) throw new AppError('vault_lock games require an answer', 400, 'VALIDATION_ERROR');
     return;
   }
 

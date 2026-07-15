@@ -8,8 +8,13 @@ test('instructor can open the squad and role release simulator', async ({ page }
   const user = { id: 'instructor-1', email: 'instructor@example.test', role: 'instructor' };
   const drop = {
     id: 'drop-4', number: 4, title: 'Packet Heist — Drop 4', scenario_name: 'packet-heist',
-    signal_enabled: false, vault_enabled: true, vault_hint: 'Decrypt the identifier', vault_pin: 'RESTON IT',
-    puzzles: [], is_unlocked: false,
+    signal_enabled: false, vault_enabled: false,
+    puzzles: [{
+      id: 'puzzle-1', drop_id: 'drop-4', puzzle_type: 'cipher_wheel', enabled: true, order_index: 0,
+      prompt: 'Decrypt the intercepted identifier.', answer: 'RESTON IT',
+      config: { method: 'rot13', cipherText: 'ERFGBA VG' },
+    }],
+    is_unlocked: false,
   };
   const squads = [
     {
@@ -32,11 +37,14 @@ test('instructor can open the squad and role release simulator', async ({ page }
     const url = route.request().url();
     if (url.includes(`/courses/${COURSE_ID}/campaign/drops/drop-4/release-preview`)) {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-        drop: { id: drop.id, number: drop.number, title: drop.title, signal_enabled: false, vault_enabled: true, enabled_puzzles: [] },
+        drop: { id: drop.id, number: drop.number, title: drop.title, signal_enabled: false, vault_enabled: false, enabled_puzzles: [{ id: 'puzzle-1', puzzle_type: 'cipher_wheel', order_index: 0 }] },
         cohort: { id: 'cohort-1', name: 'PACT July 26' },
         shared: { challenges: 1, case_files: 1, packages: 0, details: squads[0].details },
         squads,
       }) });
+    }
+    if (url.includes(`/courses/${COURSE_ID}/campaign/drops/drop-4/puzzles`)) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(drop.puzzles) });
     }
     if (url.includes(`/courses/${COURSE_ID}/campaign/drops`)) {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([drop]) });
@@ -50,6 +58,22 @@ test('instructor can open the squad and role release simulator', async ({ page }
   await page.goto('/admin');
   await page.getByRole('button', { name: 'Content Gating' }).click();
   await page.getByRole('button', { name: 'Release Drops' }).click();
+  await page.getByRole('button', { name: 'Manage' }).click();
+  await page.getByRole('button', { name: 'Games' }).click();
+  await page.waitForTimeout(250);
+  expect(pageErrors).toEqual([]);
+  await expect(page.locator('.route-error-details pre')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Add Game Layer' }).click();
+  const gameSelector = page.getByLabel('Game type');
+  await expect(gameSelector.locator('option')).toHaveCount(11);
+  await expect(gameSelector.locator('option')).toHaveText([
+    'Signal Hunt', 'Vault Lock',
+    'Cipher Wheel — Caesar', 'Cipher Wheel — ROT13', 'Cipher Wheel — Atbash',
+    'Log Grep — Authentication', 'Log Grep — Firewall', 'Log Grep — VPN',
+    'Hash Match — MD5', 'Hash Match — SHA-1', 'Hash Match — SHA-256',
+  ]);
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await page.getByTitle('Close').click();
   await page.getByRole('button', { name: 'Preview Release' }).click();
 
   await expect(page.getByText('READ-ONLY RELEASE SIMULATOR')).toBeVisible();
@@ -57,6 +81,9 @@ test('instructor can open the squad and role release simulator', async ({ page }
   await expect(page.getByRole('button', { name: /Cyber Analyst, Squad 1: 1 challenges, 1 case files/ })).toBeVisible();
   await page.getByRole('button', { name: /Cyber Analyst, Squad 1/ }).click();
   await page.getByRole('button', { name: /Walk Through as SQUAD 1.*Cyber Analyst/ }).click();
-  await expect(page.getByText('ENCRYPTED EVIDENCE VAULT')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'CIPHER WHEEL' })).toBeVisible();
+  await expect(page.getByText('ERFGBA VG')).toBeVisible();
+  await expect(page.getByText('RESTON IT')).toHaveCount(0);
+  await expect(page.getByText('WORKBENCH OUTPUT')).toHaveCount(0);
   expect(pageErrors).toEqual([]);
 });

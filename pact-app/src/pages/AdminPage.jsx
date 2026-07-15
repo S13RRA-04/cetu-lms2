@@ -26,6 +26,7 @@ import {
   previewCampaignDropRelease,
   releaseCampaignDrop,
   lockCampaignDrop,
+  verifyDropPuzzle,
   updateCohort,
   getSquadsByCohort,
   updateSquad,
@@ -3251,7 +3252,17 @@ function DropSequencePreview({ draft, onClose, idLine = null }) {
           onUnlock={() => setCompleted((v) => ({ ...v, vault: true }))}
         />
       )}
-      {stage.kind === 'puzzle' && <DropPuzzleGate puzzle={stage.puzzle} onComplete={() => setCompleted((v) => ({ ...v, puzzleIds: new Set([...v.puzzleIds, stage.puzzle.id]) }))} />}
+      {stage.kind === 'puzzle' && stage.puzzle.puzzle_type === 'signal_hunt' && <SignalEntry
+        drop={{ ...drop, html_signal: stage.puzzle.config?.signalCode, signal_prompt: stage.puzzle.prompt }}
+        verifySignal={(answer) => verifyDropPuzzle(stage.puzzle.drop_id, stage.puzzle.id, answer)}
+        onVerify={() => setCompleted((v) => ({ ...v, puzzleIds: new Set([...v.puzzleIds, stage.puzzle.id]) }))}
+      />}
+      {stage.kind === 'puzzle' && stage.puzzle.puzzle_type === 'vault_lock' && <VaultKeypad
+        drop={{ ...drop, vault_hint: stage.puzzle.prompt }}
+        verifyPin={(answer) => verifyDropPuzzle(stage.puzzle.drop_id, stage.puzzle.id, answer)}
+        onUnlock={() => setCompleted((v) => ({ ...v, puzzleIds: new Set([...v.puzzleIds, stage.puzzle.id]) }))}
+      />}
+      {stage.kind === 'puzzle' && !['signal_hunt', 'vault_lock'].includes(stage.puzzle.puzzle_type) && <DropPuzzleGate puzzle={stage.puzzle} onComplete={() => setCompleted((v) => ({ ...v, puzzleIds: new Set([...v.puzzleIds, stage.puzzle.id]) }))} />}
       {stage.kind === 'transmission' && (
         <TransmissionInterceptor
           drop={drop}
@@ -3422,12 +3433,8 @@ function DropFormInline({ initial, defaultScenario, onSave, onCancel }) {
   });
   const [saving, setSaving] = useState(false);
   const [err,    setErr]    = useState('');
-  const [advancedOpen, setAdvancedOpen] = useState(
-    !!(initial?.vault_hint || initial?.vault_pin || initial?.html_signal || initial?.signal_prompt)
-  );
   const [previewOpen, setPreviewOpen] = useState(false);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-  const setEnabled = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.checked }));
 
   const handleSave = async () => {
     if (!form.number || !form.title.trim()) { setErr('Drop number and title are required.'); return; }
@@ -3523,85 +3530,7 @@ function DropFormInline({ initial, defaultScenario, onSave, onCancel }) {
           style={{ width: '100%', resize: 'vertical' }}
         />
       </div>
-      <button
-        type="button"
-        onClick={() => setAdvancedOpen((v) => !v)}
-        style={{
-          background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: 8,
-          fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--primary)', letterSpacing: '.06em',
-        }}
-      >
-        {advancedOpen ? '− Hide advanced: Vault Lock & Signal Hunt' : '+ Advanced: Vault Lock & Signal Hunt'}
-      </button>
-      {advancedOpen && (
-        <>
-          <div style={{ background: 'rgba(0,176,255,0.04)', border: '1px solid rgba(0,176,255,0.15)', borderRadius: 4, padding: '10px 12px', marginBottom: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-              <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: '.18em', color: 'rgba(0,176,255,0.7)', textTransform: 'uppercase' }}>
-                Vault Lock / Decryption Challenge
-              </div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--mono)', fontSize: 10, color: form.vault_enabled ? '#00b0ff' : 'var(--muted)', cursor: 'pointer' }}>
-                <input type="checkbox" checked={form.vault_enabled} onChange={setEnabled('vault_enabled')} />
-                {form.vault_enabled ? 'ENABLED' : 'DISABLED'}
-              </label>
-            </div>
-            <div style={{ marginBottom: 8 }}>
-              <label className="admin-grade-label">Cipher Challenge Instructions (shown to students)</label>
-              <textarea
-                value={form.vault_hint}
-                onChange={set('vault_hint')}
-                rows={3}
-                placeholder="Tell learners what to decrypt, which method or tool to use, and how to format their answer."
-                style={{ width: '100%', resize: 'vertical' }}
-              />
-            </div>
-            <div>
-              <label className="admin-grade-label">Expected Answer (secret — verified by the backend)</label>
-              <input
-                value={form.vault_pin}
-                onChange={set('vault_pin')}
-                maxLength={64}
-                autoComplete="off"
-                placeholder="Enter the exact answer learners must derive"
-                style={{ width: '100%', fontFamily: 'monospace', letterSpacing: '.1em', textTransform: 'uppercase' }}
-              />
-              <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--muted)' }}>
-                Comparison ignores capitalization and surrounding spaces. This value is never returned to learner clients.
-              </p>
-            </div>
-          </div>
-          <div style={{ background: 'rgba(0,255,157,0.03)', border: '1px solid rgba(0,255,157,0.15)', borderRadius: 4, padding: '10px 12px', marginBottom: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-              <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: '.18em', color: 'rgba(0,255,157,0.65)', textTransform: 'uppercase' }}>
-                HTML Signal Hunt
-              </div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--mono)', fontSize: 10, color: form.signal_enabled ? '#00c978' : 'var(--muted)', cursor: 'pointer' }}>
-                <input type="checkbox" checked={form.signal_enabled} onChange={setEnabled('signal_enabled')} />
-                {form.signal_enabled ? 'ENABLED' : 'DISABLED'}
-              </label>
-            </div>
-            <div style={{ marginBottom: 8 }}>
-              <label className="admin-grade-label">Signal Code (embedded in page &lt;head&gt; as a hidden HTML comment)</label>
-              <input
-                value={form.html_signal}
-                onChange={set('html_signal')}
-                placeholder="e.g. BRAVO-7-TANGO"
-                style={{ width: '100%', fontFamily: 'monospace', letterSpacing: '.1em', textTransform: 'uppercase' }}
-              />
-            </div>
-            <div>
-              <label className="admin-grade-label">Hunt Prompt (shown to students — what to look for)</label>
-              <textarea
-                value={form.signal_prompt}
-                onChange={set('signal_prompt')}
-                rows={2}
-                placeholder="A signal has been embedded in this operations channel. Inspect the page source to intercept it."
-                style={{ width: '100%', resize: 'vertical' }}
-              />
-            </div>
-          </div>
-        </>
-      )}
+      {initial && <p style={{ margin: '0 0 8px', fontSize: 11, color: 'var(--muted)' }}>Configure Signal Hunt, Vault Lock, and layered games from the Games tab.</p>}
       {err && <div className="err-msg">{err}</div>}
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
         <button className="btn-submit" style={{ width: 'auto' }} onClick={handleSave} disabled={saving}>
@@ -4001,6 +3930,8 @@ function SearchPickerField({ candidates, selectedIds, busyIds, onAdd, onRemove, 
 const DROP_VICTIM_ROWS = Object.values(VICTIMS).map((v) => ({ key: v.code, label: v.code, victimName: v.name, victimCode: v.code }));
 const DROP_ROLE_ROWS   = ROLE_ORDER.map((role) => ({ key: role, label: ROLE_LABELS[role] }));
 const DROP_PUZZLE_NAMES = {
+  signal_hunt: 'Signal Hunt',
+  vault_lock: 'Vault Lock',
   cipher_wheel: 'Cipher Wheel',
   log_grep: 'Log Grep',
   hash_match: 'Hash Match',
@@ -4636,7 +4567,7 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
               {/* Step tabs */}
               {!isNew && (
                 <div style={{ display: 'flex', gap: 4, padding: '8px 18px 0', flexShrink: 0 }}>
-                  {[['basics', 'Basics'], ['puzzles', 'Puzzles'], ['pair', 'Pair Content']].map(([key, label]) => (
+                  {[['basics', 'Basics'], ['puzzles', 'Games'], ['pair', 'Pair Content']].map(([key, label]) => (
                     <button
                       key={key}
                       className={`scenario-tab${manageTab === key ? ' active' : ''}`}
@@ -4841,7 +4772,10 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
                     <ScenarioIntelPanel scenarios={scenarios} dropNumber={drop.number} />
                   </div>
                 )}
-                {manageTab === 'puzzles' && drop && <DropPuzzleManager drop={drop} onChanged={(puzzles) => setManageDrop((current) => ({ ...current, puzzles }))} />}
+                {manageTab === 'puzzles' && drop && <DropPuzzleManager
+                  drop={drop}
+                  onChanged={(puzzles) => setManageDrop((current) => ({ ...current, puzzles }))}
+                />}
               </div>
             </div>
           </div>

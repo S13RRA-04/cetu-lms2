@@ -13,6 +13,7 @@ import CourseContentPage from './pages/CourseContentPage.jsx';
 import IntelPage         from './pages/IntelPage.jsx';
 import AppShell       from './layouts/AppShell.jsx';
 import LoggedOutPage  from './pages/LoggedOutPage.jsx';
+import RouteErrorPage from './pages/RouteErrorPage.jsx';
 
 function Guard({ children }) {
   const { user } = useAuthStore();
@@ -26,25 +27,28 @@ function AdminGuard({ children }) {
   return children;
 }
 
-const router = createBrowserRouter([
-  { path: '/login',      element: <LoginPage /> },
-  { path: '/register',   element: <RegisterPage /> },
-  { path: '/logged-out', element: <LoggedOutPage /> },
-  {
-    element: <Guard><AppShell /></Guard>,
-    children: [
-      { path: '/',                 element: <DashboardHome /> },
-      { path: '/assignment/:id',   element: <AssignmentPage /> },
-      { path: '/grades',           element: <GradesPage /> },
-      { path: '/scoreboard',       element: <ScoreboardPage /> },
-      { path: '/scenarios',        element: <ScenariosPage /> },
-      { path: '/course-content',   element: <CourseContentPage /> },
-      { path: '/intel',            element: <IntelPage /> },
-      { path: '/admin',            element: <AdminGuard><AdminPage /></AdminGuard> },
-    ],
-  },
-  { path: '*', element: <Navigate to="/" replace /> },
-]);
+const router = createBrowserRouter([{
+  errorElement: <RouteErrorPage />,
+  children: [
+    { path: '/login',      element: <LoginPage /> },
+    { path: '/register',   element: <RegisterPage /> },
+    { path: '/logged-out', element: <LoggedOutPage /> },
+    {
+      element: <Guard><AppShell /></Guard>,
+      children: [
+        { path: '/',                 element: <DashboardHome /> },
+        { path: '/assignment/:id',   element: <AssignmentPage /> },
+        { path: '/grades',           element: <GradesPage /> },
+        { path: '/scoreboard',       element: <ScoreboardPage /> },
+        { path: '/scenarios',        element: <ScenariosPage /> },
+        { path: '/course-content',   element: <CourseContentPage /> },
+        { path: '/intel',            element: <IntelPage /> },
+        { path: '/admin',            element: <AdminGuard><AdminPage /></AdminGuard> },
+      ],
+    },
+    { path: '*', element: <Navigate to="/" replace /> },
+  ],
+}]);
 
 /* Decode a JWT payload without verifying the signature (client-side expiry check only) */
 function jwtExp(token) {

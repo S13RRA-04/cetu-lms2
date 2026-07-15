@@ -14,13 +14,6 @@ function rotate(text, shift) {
   });
 }
 
-function atbash(text) {
-  return text.replace(/[a-z]/gi, (char) => {
-    const base = char <= 'Z' ? 65 : 97;
-    return String.fromCharCode(base + 25 - (char.charCodeAt(0) - base));
-  });
-}
-
 export default function DropPuzzleGate({ puzzle, onComplete, verifyAnswer = null }) {
   const [answer, setAnswer] = useState('');
   const [shift, setShift] = useState(puzzle.config?.method === 'rot13' ? 13 : puzzle.config?.shift ?? 1);
@@ -30,10 +23,12 @@ export default function DropPuzzleGate({ puzzle, onComplete, verifyAnswer = null
   const [showHelp, setShowHelp] = useState(false);
   const [title, subtitle] = LABELS[puzzle.puzzle_type] ?? ['DECRYPTION GATE', 'ANALYSIS REQUIRED'];
 
+  // Caesar puzzles intentionally provide a rotation workbench. Fixed-method
+  // ROT13/Atbash puzzles must not render plaintext automatically because that
+  // would disclose the expected answer before the learner submits it.
   const decoded = useMemo(() => {
-    const text = puzzle.config?.cipherText ?? '';
-    if (puzzle.config?.method === 'atbash') return atbash(text);
-    return rotate(text, puzzle.config?.method === 'rot13' ? 13 : shift);
+    if (puzzle.config?.method !== 'caesar') return null;
+    return rotate(puzzle.config?.cipherText ?? '', shift);
   }, [puzzle.config, shift]);
 
   const logLines = useMemo(() => {
@@ -90,8 +85,10 @@ export default function DropPuzzleGate({ puzzle, onComplete, verifyAnswer = null
                 <input type="range" min="1" max="25" value={shift} onChange={(e) => setShift(Number(e.target.value))} />
               </label>
             )}
-            <div className="dpg-label">WORKBENCH OUTPUT</div>
-            <pre className="dpg-output">{decoded}</pre>
+            {decoded != null && <>
+              <div className="dpg-label">WORKBENCH OUTPUT</div>
+              <pre className="dpg-output">{decoded}</pre>
+            </>}
           </section>
         )}
 

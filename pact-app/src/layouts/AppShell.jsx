@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAssignments, getMyEnrollment, getCampaignDrops, getScenarios } from '../api/pact.js';
+import { getAssignments, getMyEnrollment, getCampaignDrops, getScenarios, verifyDropPuzzle } from '../api/pact.js';
 import AppLayout          from './AppLayout.jsx';
 import InductionSequence  from '../pages/InductionSequence.jsx';
 import RoleSelection      from '../pages/RoleSelection.jsx';
@@ -316,6 +316,20 @@ export default function AppShell() {
       return <VaultKeypad drop={pendingDrop} onUnlock={handleVaultUnlock} />;
     }
     if (stage.kind === 'puzzle') {
+      if (stage.puzzle.puzzle_type === 'signal_hunt') {
+        return <SignalEntry
+          drop={{ ...pendingDrop, html_signal: stage.puzzle.config?.signalCode, signal_prompt: stage.puzzle.prompt }}
+          verifySignal={(answer) => verifyDropPuzzle(stage.puzzle.drop_id, stage.puzzle.id, answer)}
+          onVerify={() => handlePuzzleComplete(stage.puzzle.id)}
+        />;
+      }
+      if (stage.puzzle.puzzle_type === 'vault_lock') {
+        return <VaultKeypad
+          drop={{ ...pendingDrop, vault_hint: stage.puzzle.prompt }}
+          verifyPin={(answer) => verifyDropPuzzle(stage.puzzle.drop_id, stage.puzzle.id, answer)}
+          onUnlock={() => handlePuzzleComplete(stage.puzzle.id)}
+        />;
+      }
       return <DropPuzzleGate puzzle={stage.puzzle} onComplete={() => handlePuzzleComplete(stage.puzzle.id)} />;
     }
     return <TransmissionInterceptor drop={pendingDrop} onAcknowledge={handleTransmissionAck} />;
