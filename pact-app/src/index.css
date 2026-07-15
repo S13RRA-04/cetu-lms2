@@ -8427,3 +8427,22 @@ body {
 .route-error-secondary:hover { border-color:#d7e2ea; }
 .route-error-help { margin:18px 0 0; font-size:11px!important; color:#718292!important; }
 @media (max-width:600px){.route-error-page{padding:12px}.route-error-panel{padding:22px}.route-error-actions>*{flex:1;text-align:center}}
+.pre-range-briefing { margin:0 0 22px; border:1px solid rgba(0,255,157,.28); border-left:4px solid var(--primary); border-radius:6px; padding:20px; background:linear-gradient(135deg,rgba(0,255,157,.055),rgba(0,0,0,.02)); color:var(--text); }
+.pre-range-header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:16px; }
+.pre-range-header h2 { margin:4px 0 0; color:var(--bright); font-size:21px; }
+.pre-range-kicker,.pre-range-duration { font-family:var(--mono); font-size:10px; letter-spacing:.14em; color:var(--primary); }
+.pre-range-duration { border:1px solid var(--primary); border-radius:3px; padding:5px 8px; white-space:nowrap; font-weight:700; }
+.pre-range-briefing section+section { margin-top:18px; padding-top:16px; border-top:1px solid var(--border); }
+.pre-range-briefing h3 { margin:0 0 9px; font-size:13px; text-transform:uppercase; letter-spacing:.08em; }
+.pre-range-briefing ul { margin:0; padding-left:20px; line-height:1.58; font-size:13px; }
+.pre-range-briefing li+li { margin-top:5px; }
+.pre-range-rules { color:#fca5a5; }
+.pre-range-note { font-size:13px; color:var(--muted); line-height:1.55; }
+.pre-range-criteria { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:6px; }
+.pre-range-criterion { display:flex; justify-content:space-between; gap:12px; padding:7px 9px; background:rgba(255,255,255,.035); font-size:12px; }
+.pre-range-criterion strong { color:var(--primary); font-family:var(--mono); font-size:9px; white-space:nowrap; }
+.pre-range-criterion small { display:block; margin-top:3px; color:var(--muted); line-height:1.4; }
+.pre-range-scale { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:12px; }
+.pre-range-scale div { display:flex; gap:7px; padding:7px; border:1px solid var(--border); font-size:11px; }
+.pre-range-scale strong { color:var(--primary); }
+@media(max-width:700px) { .pre-range-scale { grid-template-columns:1fr 1fr; } }

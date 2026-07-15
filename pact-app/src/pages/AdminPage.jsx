@@ -28,6 +28,9 @@ import {
   lockCampaignDrop,
   verifyDropPuzzle,
   updateCohort,
+  getPreRangeBriefing,
+  releasePreRangeBriefing,
+  lockPreRangeBriefing,
   getSquadsByCohort,
   updateSquad,
   quickReleaseScenario,
@@ -49,6 +52,7 @@ import { FormattedText } from '../components/FormattedText.jsx';
 import DropPuzzleManager from '../components/DropPuzzleManager.jsx';
 import DropPuzzleGate from './DropPuzzleGate.jsx';
 import { getNextStage } from '../lib/dropPuzzles.js';
+import PreRangeBriefing from '../components/PreRangeBriefing.jsx';
 
 const TYPE_COLOR = {
   module:     '#2563eb',
@@ -1285,6 +1289,9 @@ function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignm
         <button className={`admin-mode-tab${subTab === 'release'    ? ' active' : ''}`} onClick={() => setSubTab('release')}>
           Release Drops
         </button>
+        <button className={`admin-mode-tab${subTab === 'briefing'   ? ' active' : ''}`} onClick={() => setSubTab('briefing')}>
+          Pre-Range Briefing
+        </button>
         <button className={`admin-mode-tab${subTab === 'challenges' ? ' active' : ''}`} onClick={() => setSubTab('challenges')}>
           Challenges
         </button>
@@ -1381,6 +1388,8 @@ function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignm
           onContentPublished={onContentPublished}
         />
       )}
+
+      {subTab === 'briefing' && <PreRangeBriefingManager cohorts={cohorts} />}
 
       {subTab === 'challenges' && (
         <ChallengesGating
@@ -3943,6 +3952,49 @@ function transmissionGateNames(drop) {
     ...(drop.vault_enabled ? ['Vault Lock'] : []),
     ...(drop.enabled_puzzles ?? []).map((puzzle) => DROP_PUZZLE_NAMES[puzzle.puzzle_type] ?? puzzle.puzzle_type),
   ];
+}
+
+function PreRangeBriefingManager({ cohorts }) {
+  const [cohortId, setCohortId] = useState(cohorts[0]?.id ?? '');
+  const [status, setStatus] = useState(null);
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState('');
+
+  const load = useCallback(() => {
+    if (!cohortId) { setStatus(null); return; }
+    setError('');
+    getPreRangeBriefing(cohortId).then(setStatus).catch((err) => setError(err.response?.data?.error?.message ?? 'Unable to load briefing'));
+  }, [cohortId]);
+
+  useEffect(load, [load]);
+
+  const setReleased = async (release) => {
+    setWorking(true); setError('');
+    try { setStatus(await (release ? releasePreRangeBriefing(cohortId) : lockPreRangeBriefing(cohortId))); }
+    catch (err) { setError(err.response?.data?.error?.message ?? `Unable to ${release ? 'release' : 'retract'} briefing`); }
+    finally { setWorking(false); }
+  };
+
+  return (
+    <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
+      <div style={{ display: 'flex', alignItems: 'end', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+        <label style={{ display: 'grid', gap: 5, fontSize: 12, fontWeight: 700 }}>
+          Release to cohort
+          <select value={cohortId} onChange={(event) => setCohortId(event.target.value)} style={{ minWidth: 240 }}>
+            {cohorts.map((cohort) => <option key={cohort.id} value={cohort.id}>{cohort.name}</option>)}
+          </select>
+        </label>
+        <button className={status?.released ? 'btn-secondary' : 'btn-submit'} disabled={!cohortId || working} onClick={() => setReleased(!status?.released)} style={{ width: 'auto' }}>
+          {working ? 'Working…' : status?.released ? 'Retract Briefing' : 'Release Briefing'}
+        </button>
+        <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: status?.released ? '#10b981' : 'var(--muted)' }}>
+          {status?.released ? `RELEASED ${new Date(status.released_at).toLocaleString()}` : 'NOT RELEASED'}
+        </span>
+      </div>
+      {error && <div className="alert alert-error" role="alert">{error}</div>}
+      {status?.briefing && <PreRangeBriefing briefing={status.briefing} />}
+    </div>
+  );
 }
 
 function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAssignmentsChange, onContentPublished }) {

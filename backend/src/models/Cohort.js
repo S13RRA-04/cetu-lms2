@@ -13,6 +13,8 @@ module.exports = (sequelize) => {
       is_active:        { type: DataTypes.BOOLEAN, defaultValue: true },
       target_revealed:  { type: DataTypes.BOOLEAN, defaultValue: false },
       scenario_name:    { type: DataTypes.STRING(255), allowNull: true },
+      pre_range_briefing_released_at: { type: DataTypes.DATE, allowNull: true },
+      pre_range_briefing_released_by: { type: DataTypes.UUID, allowNull: true },
     },
     { tableName: 'cohorts' }
   );

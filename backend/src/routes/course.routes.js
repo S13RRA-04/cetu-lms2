@@ -14,6 +14,7 @@ const courseContentCtrl = require('../controllers/courseContent.controller');
 const intelCtrl        = require('../controllers/intel.controller');
 const chatCtrl         = require('../controllers/chat.controller');
 const squadStateCtrl   = require('../controllers/squadChallengeState.controller');
+const preRangeBriefingCtrl = require('../controllers/preRangeBriefing.controller');
 const { requireAuth, requireInstructor, requireAdmin } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
 const { auditLog } = require('../middleware/audit');
@@ -116,6 +117,11 @@ router.delete('/:id/cohorts/:cid',            requireAuth, requireInstructor, au
 router.post('/:id/cohorts/:cid/members',      requireAuth, requireInstructor, cohortCtrl.addMember);
 router.post('/:id/cohorts/:cid/members/bulk', requireAuth, requireInstructor, cohortCtrl.addMembers);
 router.delete('/:id/cohorts/:cid/members/:uid', requireAuth, requireInstructor, cohortCtrl.removeMember);
+
+// Cohort-scoped KCR pre-range briefing. Students receive content only after release.
+router.get('/:id/cohorts/:cid/pre-range-briefing', requireAuth, preRangeBriefingCtrl.get);
+router.post('/:id/cohorts/:cid/pre-range-briefing/release', requireAuth, requireInstructor, auditLog('release', 'pre_range_briefing'), preRangeBriefingCtrl.release);
+router.post('/:id/cohorts/:cid/pre-range-briefing/lock', requireAuth, requireInstructor, auditLog('lock', 'pre_range_briefing'), preRangeBriefingCtrl.lock);
 
 // Scenario packages
 router.get('/:id/scenarios',                       requireAuth,                    scenarioCtrl.list);

@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { getMyEnrollment, getAssignments, getCampaignDrops } from '../api/pact.js';
+import { getMyEnrollment, getAssignments, getCampaignDrops, getPreRangeBriefing } from '../api/pact.js';
 import useAuthStore from '../store/authStore.js';
 import DecryptText from '../components/DecryptText.jsx';
+import PreRangeBriefing from '../components/PreRangeBriefing.jsx';
 
 const PROF_ROLE_LABELS = {
   special_agent:                    'Special Agent',
@@ -63,6 +64,7 @@ export default function DashboardHome() {
   const [loading,        setLoading]        = useState(true);
   const [activeSection,  setActiveSection]  = useState(null);
   const [showGlossary,   setShowGlossary]   = useState(false);
+  const [preRangeBriefing, setPreRangeBriefing] = useState(null);
 
   useEffect(() => {
     getMyEnrollment().catch(() => null).then((enroll) => {
@@ -71,10 +73,12 @@ export default function DashboardHome() {
       return Promise.all([
         getAssignments().catch(() => []),
         cohortId ? getCampaignDrops(cohortId).catch(() => []) : Promise.resolve([]),
+        cohortId ? getPreRangeBriefing(cohortId).catch(() => null) : Promise.resolve(null),
       ]);
-    }).then(([raw, dropData]) => {
+    }).then(([raw, dropData, briefingData]) => {
       setAssignments(Array.isArray(raw) ? raw : (raw?.data ?? []));
       setDrops(Array.isArray(dropData) ? dropData : []);
+      setPreRangeBriefing(briefingData?.released ? briefingData.briefing : null);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -146,6 +150,8 @@ export default function DashboardHome() {
       </div>
 
       {/* ── Command Post bulletin ── */}
+      {preRangeBriefing && <PreRangeBriefing briefing={preRangeBriefing} />}
+
       {activeDrop?.narrative_intro && (
         <div className="ops-cp-bulletin">
           <div className="ops-cp-header">

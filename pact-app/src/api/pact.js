@@ -92,6 +92,15 @@ export const getCohorts = () =>
 export const updateCohort = (cohortId, data) =>
   client.put(`/courses/${COURSE_ID}/cohorts/${cohortId}`, data).then((r) => r.data);
 
+export const getPreRangeBriefing = (cohortId) =>
+  client.get(`/courses/${COURSE_ID}/cohorts/${cohortId}/pre-range-briefing`).then((r) => r.data);
+
+export const releasePreRangeBriefing = (cohortId) =>
+  client.post(`/courses/${COURSE_ID}/cohorts/${cohortId}/pre-range-briefing/release`).then((r) => r.data);
+
+export const lockPreRangeBriefing = (cohortId) =>
+  client.post(`/courses/${COURSE_ID}/cohorts/${cohortId}/pre-range-briefing/lock`).then((r) => r.data);
+
 /* ── Squads ── */
 export const getSquadsByCohort = (cohortId) =>
   client.get(`/courses/${COURSE_ID}/cohorts/${cohortId}/squads`).then((r) => r.data);
