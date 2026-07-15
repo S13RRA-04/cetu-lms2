@@ -171,6 +171,11 @@ async function submit(assignmentId, userId, content) {
     const parsed = typeof content === 'string' ? JSON.parse(content) : null;
     if (parsed?.totalScore !== undefined && parsed?.maxScore !== undefined) {
       await gradeService.autoGradeQuiz(assignment, userId, squadId, parsed.totalScore, parsed.maxScore);
+      // Every question in a quiz-routed submission is auto-gradable (see
+      // AssignmentPage.jsx's hasQuiz routing — mixing in a manually-graded
+      // prompt question routes the whole assignment to ChallengeFlow
+      // instead), so nothing is left for an instructor to review.
+      await submission.update({ status: 'graded' });
     }
   } catch (err) {
     logger.error('Quiz auto-grade failed', { error: err.message, assignmentId, userId });
