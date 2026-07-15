@@ -45,9 +45,19 @@ async function upsertGrade(assignmentId, userId, data, graderId) {
   const student = await User.findByPk(userId);
   if (!student) throw new NotFoundError('User');
 
+  const enrollment = await Enrollment.findOne({ where: { user_id: userId, course_id: assignment.course_id } });
+  const sharedRoleTasking = Array.isArray(assignment.role_filters) && assignment.role_filters.length > 0 && enrollment?.squad_id;
+  const targetUserIds = sharedRoleTasking
+    ? (await Enrollment.findAll({
+      where: { squad_id: enrollment.squad_id, course_id: assignment.course_id, status: 'active' },
+      include: [{ model: User, attributes: ['id', 'professional_role'] }],
+    })).filter((member) => assignment.role_filters.includes(member.User?.professional_role)).map((member) => member.user_id)
+    : [userId];
+
   const grade = await sequelize.transaction(async (t) => {
+    const writeGrade = async (targetUserId) => {
     const [g, created] = await Grade.findOrCreate({
-      where:    { assignment_id: assignmentId, user_id: userId },
+      where:    { assignment_id: assignmentId, user_id: targetUserId },
       defaults: {
         score:         data.score,
         max_score:     assignment.max_score,
@@ -70,9 +80,12 @@ async function upsertGrade(assignmentId, userId, data, graderId) {
     }
     await Submission.update(
       { status: 'graded' },
-      { where: { assignment_id: assignmentId, user_id: userId, status: 'submitted' }, transaction: t }
+      { where: { assignment_id: assignmentId, user_id: targetUserId, status: 'submitted' }, transaction: t }
     );
     return g;
+    };
+    const grades = await Promise.all(targetUserIds.map(writeGrade));
+    return grades.find((item) => item.user_id === userId) ?? grades[0];
   });
 
   // Invalidate scoreboard cache so the next fetch reflects this grade

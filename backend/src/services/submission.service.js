@@ -140,7 +140,9 @@ async function submit(assignmentId, userId, content) {
   const enrollment = await _checkUnlocked(assignment, userId);
   const squadId = enrollment.squad_id ?? null;
 
-  if (assignment.grading_mode === 'squad' && !squadId) {
+  const sharedRoleTasking = Array.isArray(assignment.role_filters) && assignment.role_filters.length > 0;
+  const sharedSubmission = assignment.grading_mode === 'squad' || sharedRoleTasking;
+  if (sharedSubmission && !squadId) {
     throw new AppError('You must be assigned to a squad to submit this assignment', 400, 'NO_SQUAD');
   }
 
@@ -159,6 +161,20 @@ async function submit(assignmentId, userId, content) {
     },
     { conflictFields: ['assignment_id', 'user_id'] }
   );
+
+  if (sharedRoleTasking) {
+    const members = await Enrollment.findAll({
+      where: { squad_id: squadId, course_id: assignment.course_id, status: 'active' },
+      include: [{ model: User, attributes: ['id', 'professional_role'] }],
+    });
+    const eligibleIds = members
+      .filter((member) => assignment.role_filters.includes(member.User?.professional_role))
+      .map((member) => member.user_id);
+    await Promise.all(eligibleIds.filter((id) => id !== userId).map((id) => Submission.upsert({
+      assignment_id: assignmentId, user_id: id, squad_id: squadId, content,
+      submitted_at: new Date(), status: 'submitted', progress: 100,
+    }, { conflictFields: ['assignment_id', 'user_id'] })));
+  }
 
   invalidateStudentCache(assignment.course_id, userId);
 

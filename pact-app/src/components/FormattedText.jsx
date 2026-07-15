@@ -47,7 +47,7 @@ export function FormattedText({ value, emptyText = 'No response recorded' }) {
   return <div className="formatted-text">{nodes}</div>;
 }
 
-export function FormattedTextEditor({ value, onChange, placeholder, rows = 6, required = false, className = '' }) {
+export function FormattedTextEditor({ value, onChange, placeholder, rows = 6, required = false, className = '', onFocus, onBlur }) {
   const ref = useRef(null);
   const insert = (before, after = before, fallback = 'text') => {
     const el = ref.current;
@@ -72,7 +72,7 @@ export function FormattedTextEditor({ value, onChange, placeholder, rows = 6, re
       <button type="button" onClick={() => template('\n:::columns\n:::column\nLeft column\n:::column\nRight column\n:::\n')} aria-label="Insert columns">COLUMNS</button>
       <span>Markdown formatting</span>
     </div>
-    <textarea ref={ref} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={rows} required={required} />
+    <textarea ref={ref} value={value} onChange={(e) => onChange(e.target.value)} onFocus={onFocus} onBlur={onBlur} placeholder={placeholder} rows={rows} required={required} />
     <details className="formatted-preview"><summary>Preview formatting</summary><FormattedText value={value} /></details>
   </div>;
 }

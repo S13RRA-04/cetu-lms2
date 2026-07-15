@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { loadDraftSync, clearDraftSync } from '../hooks/useDraft.js';
-import { updateProgress } from '../api/pact.js';
+import { updateProgress, getSquadChallengeState, saveSquadChallengeState } from '../api/pact.js';
 import SubmitSequence from './SubmitSequence.jsx';
 import { FormattedText, FormattedTextEditor } from './FormattedText.jsx';
 
@@ -99,6 +99,9 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
   const [error,     setError]     = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [saveError, setSaveError] = useState(false);
+  const [typing, setTyping] = useState({});
+  const sharedChallenge = assignment.grading_mode === 'squad' || (assignment.role_filters?.length ?? 0) > 0;
+  const sharedTimers = useRef({});
 
   useEffect(() => {
     if (submitted) return;
@@ -126,7 +129,50 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
     }, 700);
   }, [answers, freetext, assignment.id, submitted]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const isSquad = assignment.grading_mode === 'squad';
+  const isSquad = sharedChallenge;
+
+  useEffect(() => {
+    if (!sharedChallenge || submitted) return;
+    let cancelled = false;
+    const apply = (remote) => {
+      const manual = remote?.manual;
+      if (!manual || cancelled) return;
+      setAnswers(manual.answers ?? {});
+      setFreetext(manual.answers?.__report__ ?? '');
+      setTyping(manual.typing ?? {});
+    };
+    getSquadChallengeState(assignment.id).then(apply).catch(() => {});
+    const timer = setInterval(() => getSquadChallengeState(assignment.id).then(apply).catch(() => {}), 1200);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [assignment.id, sharedChallenge, submitted]);
+
+  const syncField = (field, value, isTyping = true) => {
+    clearTimeout(sharedTimers.current[field]);
+    sharedTimers.current[field] = setTimeout(() => {
+      saveSquadChallengeState(assignment.id, { manual: { answers: { [field]: value }, typing: { [field]: isTyping } } })
+        .then((remote) => {
+          const manual = remote?.manual;
+          if (!manual) return;
+          setTyping(manual.typing ?? {});
+        })
+        .catch(() => setSaveError(true));
+    }, isTyping ? 350 : 0);
+  };
+
+  const updateSharedAnswer = (field, value) => {
+    if (deliverables) setAnswers((previous) => ({ ...previous, [field]: value }));
+    else setFreetext(value);
+    if (sharedChallenge) syncField(field, value, true);
+  };
+
+  const stopTyping = (field, value) => {
+    if (sharedChallenge) syncField(field, value, false);
+  };
+
+  const typingLabel = (field) => {
+    const presence = typing[field];
+    return presence?.name ? `${presence.name} is typing…` : null;
+  };
 
   const canSubmit = deliverables
     ? deliverables.every((_, i) => (answers[i] ?? '').trim().length > 0)
@@ -199,11 +245,14 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
                 </label>
                 <FormattedTextEditor
                   value={answers[i] ?? ''}
-                  onChange={(value) => setAnswers((prev) => ({ ...prev, [i]: value }))}
+                  onChange={(value) => updateSharedAnswer(String(i), value)}
+                  onFocus={() => sharedChallenge && syncField(String(i), answers[i] ?? '', true)}
+                  onBlur={() => stopTyping(String(i), answers[i] ?? '')}
                   placeholder={`Squad response for: ${prompt}…`}
                   rows={5}
                   required
                 />
+                {sharedChallenge && typingLabel(String(i)) && <div style={{ marginTop: 5, fontSize: 11, color: 'var(--primary)' }}>{typingLabel(String(i))}</div>}
               </motion.div>
             ))}
           </div>
@@ -212,11 +261,14 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
             <div className="section-label" style={{ marginBottom: 10 }}>SQUAD FIELD REPORT</div>
             <FormattedTextEditor
               value={freetext}
-              onChange={setFreetext}
+              onChange={(value) => updateSharedAnswer('__report__', value)}
+              onFocus={() => sharedChallenge && syncField('__report__', freetext, true)}
+              onBlur={() => stopTyping('__report__', freetext)}
               placeholder="Enter your squad's field report…"
               rows={8}
               required
             />
+            {sharedChallenge && typingLabel('__report__') && <div style={{ marginTop: 5, fontSize: 11, color: 'var(--primary)' }}>{typingLabel('__report__')}</div>}
           </div>
         )}
 

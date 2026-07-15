@@ -1,5 +1,5 @@
 'use strict';
-const { SquadChallengeState, Enrollment, Assignment } = require('../models');
+const { SquadChallengeState, Enrollment, Assignment, User } = require('../models');
 const { NotFoundError, AppError, ForbiddenError } = require('../utils/errors');
 
 function isResolved(qs) {
@@ -60,6 +60,26 @@ function mergeState(stored, incoming, questions) {
   return { qIdx, answers, qStates };
 }
 
+function mergeManualState(stored, incoming, user) {
+  const now = Date.now();
+  const previous = stored?.manual ?? {};
+  const patch = incoming?.manual ?? {};
+  const typing = { ...(previous.typing ?? {}) };
+  for (const [field, active] of Object.entries(patch.typing ?? {})) {
+    if (active) typing[field] = { user_id: user.id, name: `${user.first_name} ${user.last_name}`.trim() || 'Squadmate', expires_at: now + 5000 };
+    else delete typing[field];
+  }
+  for (const [field, presence] of Object.entries(typing)) {
+    if (!presence?.expires_at || presence.expires_at <= now) delete typing[field];
+  }
+  return {
+    manual: {
+      answers: { ...(previous.answers ?? {}), ...(patch.answers ?? {}) },
+      typing,
+    },
+  };
+}
+
 async function _resolveSquadId(courseId, userId) {
   const enrollment = await Enrollment.findOne({ where: { user_id: userId, course_id: courseId } });
   return enrollment?.squad_id ?? null;
@@ -74,7 +94,14 @@ async function getState(courseId, assignmentId, userId) {
   if (!squadId) return null;
 
   const row = await SquadChallengeState.findOne({ where: { assignment_id: assignmentId, squad_id: squadId } });
-  return row ? row.quiz_state : null;
+  if (!row) return null;
+  const state = row.quiz_state ?? {};
+  if (state.manual?.typing) {
+    const pruned = mergeManualState(state, { manual: {} }, { id: '', first_name: '', last_name: '' });
+    if (JSON.stringify(pruned) !== JSON.stringify(state)) await row.update({ quiz_state: pruned });
+    return pruned;
+  }
+  return state;
 }
 
 async function saveState(courseId, assignmentId, userId, incomingState) {
@@ -88,15 +115,18 @@ async function saveState(courseId, assignmentId, userId, incomingState) {
   if (!squadId) throw new ForbiddenError('You are not assigned to a squad');
 
   const questions = Array.isArray(assignment.questions) ? assignment.questions : [];
+  const user = await User.findByPk(userId, { attributes: ['id', 'first_name', 'last_name'] });
 
   const [row] = await SquadChallengeState.findOrCreate({
     where:    { assignment_id: assignmentId, squad_id: squadId },
     defaults: { quiz_state: incomingState, updated_by: userId },
   });
 
-  const merged = mergeState(row.quiz_state, incomingState, questions);
+  const merged = incomingState?.manual
+    ? mergeManualState(row.quiz_state, incomingState, user)
+    : mergeState(row.quiz_state, incomingState, questions);
   await row.update({ quiz_state: merged, updated_by: userId });
   return merged;
 }
 
-module.exports = { getState, saveState };
+module.exports = { getState, saveState, mergeManualState };
