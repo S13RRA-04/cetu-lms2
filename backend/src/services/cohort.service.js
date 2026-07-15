@@ -1,6 +1,17 @@
 'use strict';
 const { Cohort, Course, Enrollment, User } = require('../models');
 const { NotFoundError, ConflictError }     = require('../utils/errors');
+const { normalizeScenarioName } = require('./scenario.service');
+
+// scenario_name must be the same slug form assignments/course-content/
+// campaign drops/scenario packages use (e.g. "packet-heist") — the
+// student Evidence Repository filters packages against this field by
+// strict equality, so anything else (e.g. a raw R2 folder name like
+// "PACKET HEIST") silently hides every package for the cohort.
+function normalizeCohortData(data) {
+  if (!Object.hasOwn(data, 'scenario_name')) return data;
+  return { ...data, scenario_name: normalizeScenarioName(data.scenario_name) };
+}
 
 async function listByCourse(courseId) {
   const course = await Course.findByPk(courseId);
@@ -24,13 +35,13 @@ async function getById(cohortId) {
 async function create(courseId, data) {
   const course = await Course.findByPk(courseId);
   if (!course) throw new NotFoundError('Course');
-  return Cohort.create({ ...data, course_id: courseId });
+  return Cohort.create({ ...normalizeCohortData(data), course_id: courseId });
 }
 
 async function update(cohortId, data) {
   const cohort = await Cohort.findByPk(cohortId);
   if (!cohort) throw new NotFoundError('Cohort');
-  return cohort.update(data);
+  return cohort.update(normalizeCohortData(data));
 }
 
 async function remove(cohortId) {
@@ -87,4 +98,4 @@ async function removeMember(cohortId, userId) {
   await enrollment.destroy();
 }
 
-module.exports = { listByCourse, getById, create, update, remove, addMember, addMembers, removeMember };
+module.exports = { listByCourse, getById, create, update, remove, addMember, addMembers, removeMember, normalizeCohortData };

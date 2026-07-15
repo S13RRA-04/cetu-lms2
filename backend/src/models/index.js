@@ -22,6 +22,7 @@ const CourseContentItem     = require('./CourseContentItem')(sequelize);
 const CourseContentUnlock   = require('./CourseContentUnlock')(sequelize);
 const CampaignDrop          = require('./CampaignDrop')(sequelize);
 const CampaignDropUnlock    = require('./CampaignDropUnlock')(sequelize);
+const CampaignDropPuzzle    = require('./CampaignDropPuzzle')(sequelize);
 const KcrEnvironment        = require('./KcrEnvironment')(sequelize);
 const KcrVenue              = require('./KcrVenue')(sequelize);
 const KcrRoom               = require('./KcrRoom')(sequelize);
@@ -138,6 +139,8 @@ CampaignDrop.hasMany(CampaignDropUnlock, { as: 'unlocks', foreignKey: 'drop_id',
 CampaignDropUnlock.belongsTo(CampaignDrop, { foreignKey: 'drop_id' });
 CampaignDropUnlock.belongsTo(Cohort,      { foreignKey: 'cohort_id' });
 CampaignDropUnlock.belongsTo(User, { as: 'unlocker', foreignKey: 'unlocked_by' });
+CampaignDrop.hasMany(CampaignDropPuzzle, { as: 'puzzles', foreignKey: 'drop_id', onDelete: 'CASCADE' });
+CampaignDropPuzzle.belongsTo(CampaignDrop, { foreignKey: 'drop_id' });
 
 // ── CourseContentItem ↔ CourseContentUnlock ────────────────────────────────
 Course.hasMany(CourseContentItem, { as: 'contentItems', foreignKey: 'course_id', onDelete: 'CASCADE' });
@@ -178,6 +181,7 @@ module.exports = {
   CourseContentUnlock,
   CampaignDrop,
   CampaignDropUnlock,
+  CampaignDropPuzzle,
   KcrEnvironment,
   KcrVenue,
   KcrRoom,

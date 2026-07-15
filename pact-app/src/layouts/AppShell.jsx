@@ -8,6 +8,8 @@ import TransmissionInterceptor, { getSeenDropIds, markDropSeen, dropSeenId } fro
 import TargetRevealInterceptor, { targetSeenKey } from '../pages/TargetRevealInterceptor.jsx';
 import VaultKeypad        from '../pages/VaultKeypad.jsx';
 import SignalEntry        from '../pages/SignalEntry.jsx';
+import DropPuzzleGate     from '../pages/DropPuzzleGate.jsx';
+import { getNextStage, getCompletedPuzzleIds, markPuzzleCompleted } from '../lib/dropPuzzles.js';
 import SessionTimeoutWarning from '../components/SessionTimeoutWarning.jsx';
 import DropAlert          from '../components/DropAlert.jsx';
 import EvidenceDrawer     from '../components/EvidenceDrawer.jsx';
@@ -85,6 +87,7 @@ export default function AppShell() {
   const isStudent = user?.role === 'student';
   const [vaultUnlocked,  setVaultUnlocked]  = useState(false);
   const [signalVerified, setSignalVerified] = useState(false);
+  const [puzzleRevision, setPuzzleRevision] = useState(0);
   const [inducted, setInducted] = useState(() => {
     if (!isStudent || !user?.id) return true;
     return !!localStorage.getItem(inductionKey(user.id));
@@ -182,6 +185,7 @@ export default function AppShell() {
     setPendingDrop(null);
     setVaultUnlocked(false);
     setSignalVerified(false);
+    setPuzzleRevision(0);
   }, [user?.id, pendingDrop]);
 
   const handleVaultUnlock = useCallback(() => {
@@ -192,6 +196,11 @@ export default function AppShell() {
   const handleSignalVerify = useCallback(() => {
     if (user?.id && pendingDrop) markSignalVerified(user.id, pendingDrop.id);
     setSignalVerified(true);
+  }, [user?.id, pendingDrop]);
+
+  const handlePuzzleComplete = useCallback((puzzleId) => {
+    if (user?.id && pendingDrop) markPuzzleCompleted(user.id, pendingDrop.id, puzzleId);
+    setPuzzleRevision((value) => value + 1);
   }, [user?.id, pendingDrop]);
 
   const handleAlertView = useCallback(() => {
@@ -294,20 +303,21 @@ export default function AppShell() {
   // Incoming transmission — student, inducted, new drop pending
   // Gate order: Signal → Vault → Transmission
   if (isStudent && pendingDrop) {
-    const needsSignal = pendingDrop.signal_enabled !== false && pendingDrop.html_signal &&
-      !signalVerified &&
-      !isSignalVerified(user?.id, pendingDrop.id);
-    if (needsSignal) {
+    const stage = getNextStage(pendingDrop, {
+      signal: signalVerified || isSignalVerified(user?.id, pendingDrop.id),
+      vault: vaultUnlocked || isVaultUnlocked(user?.id, pendingDrop.id),
+      puzzleIds: getCompletedPuzzleIds(user?.id, pendingDrop.id),
+      revision: puzzleRevision,
+    });
+    if (stage.kind === 'signal') {
       return <SignalEntry drop={pendingDrop} onVerify={handleSignalVerify} />;
     }
-
-    const needsVault = pendingDrop.vault_enabled !== false && pendingDrop.vault_hint &&
-      !vaultUnlocked &&
-      !isVaultUnlocked(user?.id, pendingDrop.id);
-    if (needsVault) {
+    if (stage.kind === 'vault') {
       return <VaultKeypad drop={pendingDrop} onUnlock={handleVaultUnlock} />;
     }
-
+    if (stage.kind === 'puzzle') {
+      return <DropPuzzleGate puzzle={stage.puzzle} onComplete={() => handlePuzzleComplete(stage.puzzle.id)} />;
+    }
     return <TransmissionInterceptor drop={pendingDrop} onAcknowledge={handleTransmissionAck} />;
   }
 

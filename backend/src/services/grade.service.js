@@ -218,23 +218,39 @@ async function getSquadScoreboard(courseId) {
 }
 
 async function _querySquadScoreboard(courseId) {
-  // Pick one representative enrollment per squad (DISTINCT ON so grades are counted once per squad, not per member)
+  // Pick one representative enrollment per squad (DISTINCT ON so grades are
+  // counted once per squad, not per member). The possible-score denominator is
+  // every squad assignment unlocked for that squad at this point in the game:
+  // cohort-wide unlocks plus that squad's scoped unlocks. The DISTINCT eligible
+  // CTE prevents a redundant cohort + squad unlock from double-counting points.
   const [rows] = await sequelize.query(
     `WITH rep AS (
        SELECT DISTINCT ON (e.squad_id) e.squad_id, e.user_id
        FROM enrollments e
        WHERE e.course_id = :courseId AND e.squad_id IS NOT NULL
        ORDER BY e.squad_id, e.user_id
+     ), eligible AS (
+       SELECT DISTINCT s.id AS squad_id, au.assignment_id
+       FROM squads s
+       JOIN assignment_unlocks au
+         ON au.cohort_id = s.cohort_id
+        AND (au.squad_id IS NULL OR au.squad_id = s.id)
+       JOIN assignments unlocked_assignment
+         ON unlocked_assignment.id = au.assignment_id
+        AND unlocked_assignment.course_id = :courseId
+        AND unlocked_assignment.grading_mode = 'squad'
      )
      SELECT s.id           AS "squadId",
             s.number       AS "squadNumber",
             s.name         AS "squadName",
             COALESCE(SUM(g.score),     0) AS "totalScore",
             COALESCE(SUM(a.max_score), 0) AS "maxScore",
-            COUNT(g.id)                   AS "graded"
+            COUNT(g.id)                   AS "graded",
+            COUNT(a.id)                   AS "available"
      FROM squads s
      JOIN rep ON rep.squad_id = s.id
-     JOIN assignments a ON a.course_id = :courseId AND a.grading_mode = 'squad'
+     JOIN eligible el ON el.squad_id = s.id
+     JOIN assignments a ON a.id = el.assignment_id
      LEFT JOIN grades g ON g.assignment_id = a.id AND g.user_id = rep.user_id
      GROUP BY s.id, s.number, s.name
      ORDER BY "totalScore" DESC`,
@@ -247,6 +263,7 @@ async function _querySquadScoreboard(courseId) {
     totalScore:  Math.round(parseFloat(r.totalScore)),
     maxScore:    Math.round(parseFloat(r.maxScore)),
     graded:      parseInt(r.graded, 10),
+    available:   parseInt(r.available, 10),
   }));
 }
 

@@ -8,6 +8,7 @@ const subCtrl      = require('../controllers/submission.controller');
 const cohortCtrl   = require('../controllers/cohort.controller');
 const squadCtrl        = require('../controllers/squad.controller');
 const campaignCtrl     = require('../controllers/campaign.controller');
+const campaignPuzzleCtrl = require('../controllers/campaignPuzzle.controller');
 const scenarioCtrl     = require('../controllers/scenario.controller');
 const courseContentCtrl = require('../controllers/courseContent.controller');
 const intelCtrl        = require('../controllers/intel.controller');
@@ -22,6 +23,7 @@ const {
 } = require('../validators/course.validator');
 const { createAssignmentSchema, updateAssignmentSchema, gradeSchema, unlockSchema } = require('../validators/assignment.validator');
 const { createCampaignDropSchema, updateCampaignDropSchema, verifyVaultPinSchema, lockCampaignDropSchema, releasePreviewSchema } = require('../validators/campaign.validator');
+const { createPuzzleSchema, updatePuzzleSchema, verifyPuzzleSchema, reorderPuzzlesSchema } = require('../validators/campaignPuzzle.validator');
 const { syncDropCaseFilesSchema } = require('../validators/courseContent.validator');
 
 const router = Router();
@@ -152,6 +154,12 @@ router.get('/:id/campaign/drops/:did/release-preview', requireAuth, requireInstr
 router.post('/:id/campaign/drops/:did/release',  requireAuth, requireInstructor, campaignCtrl.releaseDrop);
 router.post('/:id/campaign/drops/:did/lock',     requireAuth, requireInstructor, validate(lockCampaignDropSchema), campaignCtrl.lockDrop);
 router.post('/:id/campaign/drops/:did/verify-pin', requireAuth, validate(verifyVaultPinSchema), campaignCtrl.verifyVaultPin);
+router.get('/:id/campaign/drops/:did/puzzles',            requireAuth, requireInstructor, campaignPuzzleCtrl.listPuzzles);
+router.post('/:id/campaign/drops/:did/puzzles',            requireAuth, requireInstructor, validate(createPuzzleSchema), campaignPuzzleCtrl.createPuzzle);
+router.post('/:id/campaign/drops/:did/puzzles/reorder',    requireAuth, requireInstructor, validate(reorderPuzzlesSchema), campaignPuzzleCtrl.reorderPuzzles);
+router.put('/:id/campaign/drops/:did/puzzles/:puzzleId',   requireAuth, requireInstructor, validate(updatePuzzleSchema), campaignPuzzleCtrl.updatePuzzle);
+router.delete('/:id/campaign/drops/:did/puzzles/:puzzleId', requireAuth, requireInstructor, campaignPuzzleCtrl.deletePuzzle);
+router.post('/:id/campaign/drops/:did/puzzles/:puzzleId/verify', requireAuth, validate(verifyPuzzleSchema), campaignPuzzleCtrl.verifyPuzzle);
 
 // Intel board (per-squad link analysis)
 router.get('/:id/intel',                requireAuth,                    intelCtrl.getBoard);

@@ -10,6 +10,7 @@ const { partitionDropMaterials, unpublishedIds, buildReleasePreview } = require(
 const { invalidateCourseContentLists } = require('./courseContent.service');
 const { invalidateAssignmentLists } = require('./assignment.service');
 const { invalidatePackageLists } = require('./scenario.service');
+const { listPuzzlesForDrops } = require('./campaignPuzzle.service');
 const { scenarioSlugFromName } = require('../utils/r2CaseFile');
 
 async function listDrops(courseId, cohortId, includePin = false) {
@@ -26,6 +27,10 @@ async function listDrops(courseId, cohortId, includePin = false) {
     order: [['number', 'ASC']],
   });
 
+  // Same staff/non-staff visibility flag vault_pin already uses — puzzle
+  // answers must never reach a student client either.
+  const puzzlesByDrop = await listPuzzlesForDrops(drops.map((d) => d.id), { includeAnswers: includePin });
+
   return drops.map((d) => {
     const json = d.toJSON();
     const pin  = json.vault_pin;
@@ -35,6 +40,7 @@ async function listDrops(courseId, cohortId, includePin = false) {
       vault_pin_length: pin ? pin.length : null,
       is_unlocked: cohortId ? (d.unlocks?.length > 0) : null,
       unlocked_at: cohortId ? (d.unlocks?.[0]?.unlocked_at ?? null) : null,
+      puzzles: puzzlesByDrop.get(d.id) ?? [],
     };
   });
 }

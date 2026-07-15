@@ -45,6 +45,9 @@ import VaultKeypad from './VaultKeypad.jsx';
 import { guessContentType } from '../lib/contentType.js';
 import SignalEntry from './SignalEntry.jsx';
 import { FormattedText } from '../components/FormattedText.jsx';
+import DropPuzzleManager from '../components/DropPuzzleManager.jsx';
+import DropPuzzleGate from './DropPuzzleGate.jsx';
+import { getNextStage } from '../lib/dropPuzzles.js';
 
 const TYPE_COLOR = {
   module:     '#2563eb',
@@ -3207,10 +3210,7 @@ function SubmissionDetail({ sub, assignment, existingGrade, onGradeSaved }) {
 ═══════════════════════════════════════════════════════════ */
 
 function DropSequencePreview({ draft, onClose }) {
-  const hasSignal = draft.signal_enabled !== false && !!draft.html_signal?.trim();
-  const hasVault = draft.vault_enabled !== false && !!draft.vault_hint?.trim() && !!draft.vault_pin?.trim();
-  const firstStage = hasSignal ? 'signal' : hasVault ? 'vault' : 'transmission';
-  const [stage, setStage] = useState(firstStage);
+  const [completed, setCompleted] = useState({ signal: false, vault: false, puzzleIds: new Set() });
 
   const drop = {
     id: initialPreviewId(draft),
@@ -3222,9 +3222,9 @@ function DropSequencePreview({ draft, onClose }) {
     html_signal: draft.html_signal?.trim() || null,
     signal_prompt: draft.signal_prompt?.trim() || null,
     signal_enabled: draft.signal_enabled !== false,
+    puzzles: draft.puzzles ?? [],
   };
-
-  const advanceAfterSignal = () => setStage(hasVault ? 'vault' : 'transmission');
+  const stage = getNextStage(drop, completed);
   const verifyPreviewAnswer = async (entered) => ({
     valid: entered.trim().toLowerCase() === draft.vault_pin.trim().toLowerCase(),
   });
@@ -3243,15 +3243,16 @@ function DropSequencePreview({ draft, onClose }) {
       >
         EXIT PREVIEW ×
       </button>
-      {stage === 'signal' && <SignalEntry drop={drop} onVerify={advanceAfterSignal} />}
-      {stage === 'vault' && (
+      {stage.kind === 'signal' && <SignalEntry drop={drop} onVerify={() => setCompleted((v) => ({ ...v, signal: true }))} />}
+      {stage.kind === 'vault' && (
         <VaultKeypad
           drop={drop}
           verifyPin={verifyPreviewAnswer}
-          onUnlock={() => setStage('transmission')}
+          onUnlock={() => setCompleted((v) => ({ ...v, vault: true }))}
         />
       )}
-      {stage === 'transmission' && (
+      {stage.kind === 'puzzle' && <DropPuzzleGate puzzle={stage.puzzle} onComplete={() => setCompleted((v) => ({ ...v, puzzleIds: new Set([...v.puzzleIds, stage.puzzle.id]) }))} />}
+      {stage.kind === 'transmission' && (
         <TransmissionInterceptor
           drop={drop}
           onAcknowledge={onClose}
@@ -4398,7 +4399,7 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
               {/* Step tabs */}
               {!isNew && (
                 <div style={{ display: 'flex', gap: 4, padding: '8px 18px 0', flexShrink: 0 }}>
-                  {[['basics', 'Basics'], ['pair', 'Pair Content']].map(([key, label]) => (
+                  {[['basics', 'Basics'], ['puzzles', 'Puzzles'], ['pair', 'Pair Content']].map(([key, label]) => (
                     <button
                       key={key}
                       className={`scenario-tab${manageTab === key ? ' active' : ''}`}
@@ -4603,6 +4604,7 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
                     <ScenarioIntelPanel scenarios={scenarios} dropNumber={drop.number} />
                   </div>
                 )}
+                {manageTab === 'puzzles' && drop && <DropPuzzleManager drop={drop} onChanged={(puzzles) => setManageDrop((current) => ({ ...current, puzzles }))} />}
               </div>
             </div>
           </div>

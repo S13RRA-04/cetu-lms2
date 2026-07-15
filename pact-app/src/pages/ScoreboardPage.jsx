@@ -138,7 +138,10 @@ export default function ScoreboardPage() {
                   />
                 </div>
                 <span className="ops-board-score" style={{ color: barColor }}>{entry.totalScore}</span>
-                <span className="ops-board-pct">{pct}%</span>
+                <span className="ops-board-pct">
+                  <span>{pct}%</span>
+                  {tab === 'squad' && <small>{entry.graded}/{entry.available ?? entry.graded} graded</small>}
+                </span>
               </motion.div>
             );
           })}
@@ -177,7 +180,10 @@ export default function ScoreboardPage() {
                       />
                     </div>
                     <span className="ops-board-score" style={{ color: 'var(--primary)' }}>{entry.totalScore}</span>
-                    <span className="ops-board-pct">{pct}%</span>
+                    <span className="ops-board-pct">
+                      <span>{pct}%</span>
+                      {tab === 'squad' && <small>{entry.graded}/{entry.available ?? entry.graded} graded</small>}
+                    </span>
                   </motion.div>
                 );
               })()}

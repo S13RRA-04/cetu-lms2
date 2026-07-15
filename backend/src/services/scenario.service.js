@@ -139,7 +139,10 @@ async function listForStudent(courseId, userId) {
 
   const studentSquadNumber = enrollment.squad?.number ?? null;
   const studentVictimCode  = enrollment.squad?.victim_code ?? null;
-  const cohortScenario     = enrollment.cohort?.scenario_name ?? null;
+  // Normalized defensively (not just at write time) — scenario_name has
+  // drifted into raw/unslugified form on more than one model historically,
+  // and a strict-equality mismatch here silently hides every package.
+  const cohortScenario     = normalizeScenarioName(enrollment.cohort?.scenario_name);
 
   const unlockedSet = new Set();
   if (enrollment.cohort_id) {
@@ -168,7 +171,7 @@ async function listForStudent(courseId, userId) {
       (p.victim_code == null
         ? (p.squad_number == null || p.squad_number === studentSquadNumber)
         : p.victim_code === studentVictimCode) &&
-      (cohortScenario == null || p.scenario_name === cohortScenario)
+      (cohortScenario == null || normalizeScenarioName(p.scenario_name) === cohortScenario)
   );
 
   return unlocked.map((p) => ({ ...p.toJSON(), is_unlocked: true }));

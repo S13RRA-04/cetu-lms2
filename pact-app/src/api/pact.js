@@ -166,6 +166,19 @@ export const createCampaignDrop = (data) =>
 export const verifyVaultPin = (dropId, pin) =>
   client.post(`/courses/${COURSE_ID}/campaign/drops/${dropId}/verify-pin`, { pin }).then((r) => r.data);
 
+export const getDropPuzzles = (dropId) =>
+  client.get(`/courses/${COURSE_ID}/campaign/drops/${dropId}/puzzles`).then((r) => r.data);
+export const createDropPuzzle = (dropId, data) =>
+  client.post(`/courses/${COURSE_ID}/campaign/drops/${dropId}/puzzles`, data).then((r) => r.data);
+export const updateDropPuzzle = (dropId, puzzleId, data) =>
+  client.put(`/courses/${COURSE_ID}/campaign/drops/${dropId}/puzzles/${puzzleId}`, data).then((r) => r.data);
+export const deleteDropPuzzle = (dropId, puzzleId) =>
+  client.delete(`/courses/${COURSE_ID}/campaign/drops/${dropId}/puzzles/${puzzleId}`);
+export const reorderDropPuzzles = (dropId, orderedIds) =>
+  client.post(`/courses/${COURSE_ID}/campaign/drops/${dropId}/puzzles/reorder`, { ordered_ids: orderedIds }).then((r) => r.data);
+export const verifyDropPuzzle = (dropId, puzzleId, answer) =>
+  client.post(`/courses/${COURSE_ID}/campaign/drops/${dropId}/puzzles/${puzzleId}/verify`, { answer }).then((r) => r.data);
+
 export const updateCampaignDrop = (dropId, data) =>
   client.put(`/courses/${COURSE_ID}/campaign/drops/${dropId}`, data).then((r) => r.data);
 
