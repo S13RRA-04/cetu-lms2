@@ -27,6 +27,14 @@ const unlockListCache  = new TtlCache(20_000);
 // single admin page load.
 const r2SyncCache = new TtlCache(30_000);
 
+// Both caches are keyed by a single id (courseId / cohortId), so a targeted
+// invalidation is cheap — used by a drop release publishing/unlocking
+// packages outside this module's own create/unlockForCohort paths.
+function invalidatePackageLists(courseId, cohortId) {
+  if (courseId) packageListCache.invalidate(`packages:${courseId}`);
+  if (cohortId) unlockListCache.invalidate(`unlocks:${cohortId}`);
+}
+
 /* Convert a folder slug like "brokered-exit" → "Brokered Exit" */
 function slugToTitle(slug) {
   return slug.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -336,5 +344,5 @@ module.exports = {
   listForStudent, listForAdmin, getDownloadUrl, getFilesAdmin,
   create, update, remove, unlockForCohort, lockForCohort,
   browseR2, getPresignedUploadUrl, deleteR2Object, quickRelease,
-  normalizeScenarioName,
+  normalizeScenarioName, invalidatePackageLists,
 };

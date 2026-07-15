@@ -9,6 +9,7 @@ const { codeToName } = require('../constants/victims');
 const { partitionDropMaterials, unpublishedIds, buildReleasePreview } = require('../utils/campaignRelease');
 const { invalidateCourseContentLists } = require('./courseContent.service');
 const { invalidateAssignmentLists } = require('./assignment.service');
+const { invalidatePackageLists } = require('./scenario.service');
 const { scenarioSlugFromName } = require('../utils/r2CaseFile');
 
 async function listDrops(courseId, cohortId, includePin = false) {
@@ -98,7 +99,9 @@ async function previewRelease(dropId, cohortId) {
     Squad.findAll({ where: { cohort_id: cohortId }, attributes: ['id', 'number', 'victim_code'] }),
     Assignment.findAll({ where: { course_id: drop.course_id, drop_number: drop.number } }),
     CourseContentItem.findAll({ where: { course_id: drop.course_id, drop_number: drop.number } }),
-    ScenarioPackage.findAll({ where: { course_id: drop.course_id, drop_number: drop.number, is_published: true } }),
+    // Not is_published-filtered: release publishes any draft still paired to
+    // this drop, so the preview should reflect what will actually go out.
+    ScenarioPackage.findAll({ where: { course_id: drop.course_id, drop_number: drop.number } }),
   ]);
 
   return {
@@ -130,9 +133,11 @@ async function releaseDrop(dropId, cohortId, unlockerId) {
     Squad.findAll({ where: { cohort_id: cohortId } }),
     Assignment.findAll({ where: { course_id: drop.course_id, drop_number: drop.number } }),
     CourseContentItem.findAll({ where: { course_id: drop.course_id, drop_number: drop.number } }),
-    ScenarioPackage.findAll({
-      where: { course_id: drop.course_id, drop_number: drop.number, is_published: true },
-    }),
+    // Not is_published-filtered: a draft package tied to this drop must still
+    // be fetched here so the publish step below can pick it up — filtering
+    // it out up front (as before) meant it was never published or unlocked
+    // at all, silently skipping it until someone flipped it by hand.
+    ScenarioPackage.findAll({ where: { course_id: drop.course_id, drop_number: drop.number } }),
   ]);
 
   const {
@@ -142,10 +147,11 @@ async function releaseDrop(dropId, cohortId, unlockerId) {
     hasVictimScopedMaterial,
   } = partitionDropMaterials(assignments, contentItems, scenarioPackages);
 
-  // Releasing explicitly paired Case Files and challenges also publishes
-  // them. Unlock rows alone are insufficient because the learner query
-  // intentionally excludes drafts. This also repairs legacy R2 items/seeded
-  // challenges created unpublished before this drop was released.
+  // Releasing explicitly paired Case Files, challenges, and encryption-game
+  // packages also publishes them. Unlock rows alone are insufficient because
+  // the learner query intentionally excludes drafts. This also repairs
+  // legacy R2 items/seeded challenges created unpublished before this drop
+  // was released.
   const contentIdsToPublish = unpublishedIds(contentItems);
   if (contentIdsToPublish.length > 0) {
     await CourseContentItem.update(
@@ -162,6 +168,15 @@ async function releaseDrop(dropId, cohortId, unlockerId) {
       { where: { id: { [Op.in]: assignmentIdsToPublish } } },
     );
     invalidateAssignmentLists();
+  }
+
+  const packageIdsToPublish = unpublishedIds(scenarioPackages);
+  if (packageIdsToPublish.length > 0) {
+    await ScenarioPackage.update(
+      { is_published: true },
+      { where: { id: { [Op.in]: packageIdsToPublish } } },
+    );
+    invalidatePackageLists(drop.course_id, cohortId);
   }
 
   // A squad's victim can change after an earlier release. Remove old
