@@ -2,14 +2,15 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import DecryptText from '../components/DecryptText.jsx';
 import DataStream  from '../components/DataStream.jsx';
+import { dropSeenId } from '../lib/dropSeen.js';
+
+export { dropSeenId } from '../lib/dropSeen.js';
 
 // Tracks which drops a user has already seen.
-// Key includes updatedAt so that updating a drop (e.g. adding cipher) re-shows it.
+// The per-drop key includes both release and content revisions so a re-release
+// reaches learners even when the drop definition itself was not edited.
 export function seenKey(userId) {
   return `pact_drops_seen_v2_${userId}`;
-}
-export function dropSeenId(drop) {
-  return `${drop.id}:${drop.updatedAt ?? ''}`;
 }
 export function getSeenDropIds(userId) {
   try { return JSON.parse(localStorage.getItem(seenKey(userId)) ?? '[]'); }
