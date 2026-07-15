@@ -61,6 +61,29 @@ function normalizeDropData(data) {
   return { ...data, scenario_name: scenarioSlugFromName(data.scenario_name) || null };
 }
 
+// Drop numbers repeat across scenarios. Always include the drop's scenario
+// when resolving paired material so releasing Packet Heist Drop 4 cannot also
+// publish or unlock Brokered Exit Drop 4 content in the same course.
+function pairedMaterialWhere(drop) {
+  return {
+    course_id: drop.course_id,
+    drop_number: drop.number,
+    ...(drop.scenario_name ? { scenario_name: drop.scenario_name } : {}),
+  };
+}
+
+function enabledPuzzlePreview(puzzles) {
+  return puzzles
+    .filter((puzzle) => puzzle.enabled)
+    .map(({ id, puzzle_type, order_index, prompt }) => ({ id, puzzle_type, order_index, prompt }));
+}
+
+function hasEnabledTransmissionGate(drop, puzzles) {
+  return drop.signal_enabled === true
+    || drop.vault_enabled === true
+    || puzzles.some((puzzle) => puzzle.enabled === true);
+}
+
 async function createDrop(courseId, data) {
   const course = await Course.findByPk(courseId);
   if (!course) throw new NotFoundError('Course');
@@ -101,17 +124,29 @@ async function previewRelease(dropId, cohortId) {
   const cohort = await Cohort.findByPk(cohortId);
   if (!cohort) throw new NotFoundError('Cohort');
 
-  const [squads, assignments, contentItems, scenarioPackages] = await Promise.all([
+  const materialWhere = pairedMaterialWhere(drop);
+  const [squads, assignments, contentItems, scenarioPackages, puzzlesByDrop] = await Promise.all([
     Squad.findAll({ where: { cohort_id: cohortId }, attributes: ['id', 'number', 'victim_code'] }),
-    Assignment.findAll({ where: { course_id: drop.course_id, drop_number: drop.number } }),
-    CourseContentItem.findAll({ where: { course_id: drop.course_id, drop_number: drop.number } }),
+    Assignment.findAll({ where: materialWhere }),
+    CourseContentItem.findAll({ where: materialWhere }),
     // Not is_published-filtered: release publishes any draft still paired to
     // this drop, so the preview should reflect what will actually go out.
-    ScenarioPackage.findAll({ where: { course_id: drop.course_id, drop_number: drop.number } }),
+    ScenarioPackage.findAll({ where: materialWhere }),
+    // Answers are deliberately excluded from release-preview responses.
+    listPuzzlesForDrops([drop.id], { includeAnswers: false }),
   ]);
 
+  const enabledPuzzles = enabledPuzzlePreview(puzzlesByDrop.get(drop.id) ?? []);
+
   return {
-    drop: { id: drop.id, number: drop.number, title: drop.title },
+    drop: {
+      id: drop.id,
+      number: drop.number,
+      title: drop.title,
+      signal_enabled: drop.signal_enabled,
+      vault_enabled: drop.vault_enabled,
+      enabled_puzzles: enabledPuzzles,
+    },
     cohort: { id: cohort.id, name: cohort.name },
     ...buildReleasePreview(squads, { assignments, contentItems, scenarioPackages, codeToName }),
   };
@@ -129,21 +164,31 @@ async function releaseDrop(dropId, cohortId, unlockerId) {
   const cohort = await Cohort.findByPk(cohortId);
   if (!cohort) throw new NotFoundError('Cohort');
 
+  const puzzlesByDrop = await listPuzzlesForDrops([drop.id], { includeAnswers: false });
+  if (!hasEnabledTransmissionGate(drop, puzzlesByDrop.get(drop.id) ?? [])) {
+    throw new AppError(
+      'Enable Signal Hunt, Vault Lock, or at least one puzzle before releasing this drop',
+      409,
+      'TRANSMISSION_GATE_REQUIRED',
+    );
+  }
+
   // Upsert the drop unlock record
   const [unlock] = await CampaignDropUnlock.findOrCreate({
     where:    { drop_id: dropId, cohort_id: cohortId },
     defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
   });
 
+  const materialWhere = pairedMaterialWhere(drop);
   const [squads, assignments, contentItems, scenarioPackages] = await Promise.all([
     Squad.findAll({ where: { cohort_id: cohortId } }),
-    Assignment.findAll({ where: { course_id: drop.course_id, drop_number: drop.number } }),
-    CourseContentItem.findAll({ where: { course_id: drop.course_id, drop_number: drop.number } }),
+    Assignment.findAll({ where: materialWhere }),
+    CourseContentItem.findAll({ where: materialWhere }),
     // Not is_published-filtered: a draft package tied to this drop must still
     // be fetched here so the publish step below can pick it up — filtering
     // it out up front (as before) meant it was never published or unlocked
     // at all, silently skipping it until someone flipped it by hand.
-    ScenarioPackage.findAll({ where: { course_id: drop.course_id, drop_number: drop.number } }),
+    ScenarioPackage.findAll({ where: materialWhere }),
   ]);
 
   const {
@@ -293,17 +338,18 @@ async function lockDrop(dropId, cohortId, { revokeRelated = false } = {}) {
 
     if (!revokeRelated) return { revoked };
 
+    const materialWhere = pairedMaterialWhere(drop);
     const [assignments, contentItems, scenarioPackages] = await Promise.all([
       Assignment.findAll({
-        where: { course_id: drop.course_id, drop_number: drop.number },
+        where: materialWhere,
         attributes: ['id'], transaction,
       }),
       CourseContentItem.findAll({
-        where: { course_id: drop.course_id, drop_number: drop.number },
+        where: materialWhere,
         attributes: ['id'], transaction,
       }),
       ScenarioPackage.findAll({
-        where: { course_id: drop.course_id, drop_number: drop.number },
+        where: materialWhere,
         attributes: ['id'], transaction,
       }),
     ]);
@@ -335,4 +381,4 @@ async function lockDrop(dropId, cohortId, { revokeRelated = false } = {}) {
   });
 }
 
-module.exports = { listDrops, createDrop, updateDrop, deleteDrop, previewRelease, releaseDrop, lockDrop, verifyVaultPin, normalizeDropData };
+module.exports = { listDrops, createDrop, updateDrop, deleteDrop, previewRelease, releaseDrop, lockDrop, verifyVaultPin, normalizeDropData, pairedMaterialWhere, enabledPuzzlePreview, hasEnabledTransmissionGate };

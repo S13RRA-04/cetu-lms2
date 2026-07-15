@@ -3859,6 +3859,19 @@ function SearchPickerField({ candidates, selectedIds, busyIds, onAdd, onRemove, 
 
 const DROP_VICTIM_ROWS = Object.values(VICTIMS).map((v) => ({ key: v.code, label: v.code, victimName: v.name, victimCode: v.code }));
 const DROP_ROLE_ROWS   = ROLE_ORDER.map((role) => ({ key: role, label: ROLE_LABELS[role] }));
+const DROP_PUZZLE_NAMES = {
+  cipher_wheel: 'Cipher Wheel',
+  log_grep: 'Log Grep',
+  hash_match: 'Hash Match',
+};
+
+function transmissionGateNames(drop) {
+  return [
+    ...(drop.signal_enabled ? ['Signal Hunt'] : []),
+    ...(drop.vault_enabled ? ['Vault Lock'] : []),
+    ...(drop.enabled_puzzles ?? []).map((puzzle) => DROP_PUZZLE_NAMES[puzzle.puzzle_type] ?? puzzle.puzzle_type),
+  ];
+}
 
 function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAssignmentsChange, onContentPublished }) {
   const [drops,     setDrops]    = useState([]);
@@ -4194,6 +4207,33 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
             <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
               {releasePreview.drop.title} → {releasePreview.cohort.name}
             </div>
+            {(() => {
+              const gates = transmissionGateNames(releasePreview.drop);
+              return (
+                <div style={{
+                  marginBottom: 14, padding: '10px 12px', borderRadius: 7,
+                  border: `1px solid ${gates.length > 0 ? 'var(--border)' : 'rgba(220,38,38,.55)'}`,
+                  background: gates.length > 0 ? 'var(--surface-2, #f8fafc)' : 'rgba(220,38,38,.08)',
+                }}>
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 700, letterSpacing: '.08em', marginBottom: 6 }}>
+                    TRANSMISSION GATES
+                  </div>
+                  {gates.length > 0 ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {gates.map((name, index) => (
+                        <span key={`${name}:${index}`} style={{ padding: '3px 8px', borderRadius: 999, background: 'rgba(14,165,233,.1)', color: 'var(--primary)', fontSize: 11, fontWeight: 600 }}>
+                          {index + 1}. {name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div role="alert" style={{ fontSize: 12, color: '#b91c1c', fontWeight: 700, lineHeight: 1.45 }}>
+                      ⚠ RELEASE BLOCKED — No transmission gates are enabled. Enable Signal Hunt, Vault Lock, or at least one puzzle before releasing this drop.
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             <div style={{ overflowX: 'auto', marginBottom: 14 }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
@@ -4282,7 +4322,13 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button className="btn-secondary" onClick={() => { setReleasePreview(null); setReleasePreviewExpanded(null); }} disabled={!!working}>Cancel</button>
-              <button className="btn-submit" style={{ width: 'auto' }} onClick={() => handleRelease(releasePreview.drop)} disabled={!!working}>
+              <button
+                className="btn-submit"
+                style={{ width: 'auto' }}
+                onClick={() => handleRelease(releasePreview.drop)}
+                disabled={!!working || transmissionGateNames(releasePreview.drop).length === 0}
+                title={transmissionGateNames(releasePreview.drop).length === 0 ? 'Enable at least one transmission gate before releasing.' : undefined}
+              >
                 {working ? 'Releasing…' : 'Confirm Release'}
               </button>
             </div>
