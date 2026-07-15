@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createDropPuzzle, deleteDropPuzzle, getDropPuzzles, reorderDropPuzzles, updateDropPuzzle } from '../api/pact.js';
+import { applyPuzzlePreset, presetsForOption } from '../lib/dropPuzzlePresets.js';
 
 const EMPTY = { puzzle_type: 'cipher_wheel', enabled: true, prompt: '', answer: '', config: { method: 'caesar', shift: 13, cipherText: '' } };
 const NAMES = { cipher_wheel: 'Cipher Wheel', log_grep: 'Log Grep', hash_match: 'Hash Match' };
@@ -27,7 +28,7 @@ function optionForPuzzle(puzzle) {
 
 function blank(optionId) {
   const option = GAME_OPTIONS.find((item) => item.id === optionId) ?? GAME_OPTIONS[0];
-  return { ...EMPTY, puzzle_type: option.type, prompt: '', answer: '', config: structuredClone(option.config) };
+  return { ...EMPTY, puzzle_type: option.type, prompt: '', answer: '', config: structuredClone(option.config), _presetId: '' };
 }
 
 function gameName(puzzle) {
@@ -44,8 +45,9 @@ export default function DropPuzzleManager({ drop, onChanged = null }) {
   const save = async () => {
     setBusy(true); setError('');
     try {
+      const { _presetId, ...draftPayload } = draft;
       const payload = {
-        ...draft,
+        ...draftPayload,
         prompt: draft.prompt?.trim() || null,
         answer: draft.puzzle_type === 'hash_match' ? null : draft.puzzle_type === 'signal_hunt' ? draft.config.signalCode?.trim() : draft.answer?.trim(),
       };
@@ -84,13 +86,32 @@ export default function DropPuzzleManager({ drop, onChanged = null }) {
 }
 
 function PuzzleEditor({ value, onChange, onSave, onCancel, busy }) {
-  const set = (key, next) => onChange({ ...value, [key]: next });
+  const set = (key, next) => onChange({ ...value, [key]: next, _presetId: '' });
   const config = (key, next) => set('config', { ...value.config, [key]: next });
+  const selectedOption = optionForPuzzle(value);
+  const presets = presetsForOption(selectedOption);
   return <div className="publish-form" style={{ marginTop: 12 }}>
     <label className="admin-grade-label" htmlFor="drop-game-type">Game type</label>
-    <select id="drop-game-type" value={optionForPuzzle(value)} disabled={!!value.id} onChange={(e) => onChange(blank(e.target.value))}>
+    <select id="drop-game-type" value={selectedOption} disabled={!!value.id} onChange={(e) => onChange(blank(e.target.value))}>
       {GAME_OPTIONS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
     </select>
+    {presets.length > 0 && <>
+      <label className="admin-grade-label" htmlFor="drop-game-preset">Preconfigured challenge</label>
+      <select
+        id="drop-game-preset"
+        value={value._presetId ?? ''}
+        onChange={(e) => {
+          const cleanDraft = blank(selectedOption);
+          onChange(e.target.value ? applyPuzzlePreset(cleanDraft, e.target.value) : cleanDraft);
+        }}
+      >
+        <option value="">Custom configuration</option>
+        {presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
+      </select>
+      {value._presetId && <p style={{ margin: '6px 0 10px', fontSize: 11, color: 'var(--muted)' }}>
+        {presets.find((preset) => preset.id === value._presetId)?.description}
+      </p>}
+    </>}
     <label style={{ display: 'flex', gap: 7, margin: '10px 0', fontSize: 12 }}><input type="checkbox" checked={value.enabled !== false} onChange={(e) => set('enabled', e.target.checked)} /> Enabled</label>
     <label className="admin-grade-label">Learner prompt{value.puzzle_type === 'hash_match' ? ' (optional)' : ' *'}</label>
     <textarea rows="2" value={value.prompt ?? ''} onChange={(e) => set('prompt', e.target.value)} />

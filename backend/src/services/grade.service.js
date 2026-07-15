@@ -193,13 +193,20 @@ async function _queryScoreboard(courseId) {
     `SELECT u.id AS "userId", u.first_name AS "firstName", u.last_name AS "lastName",
             COALESCE(SUM(g.score), 0)     AS "totalScore",
             COALESCE(SUM(g.max_score), 0) AS "maxScore",
+            COALESCE(puzzle_points.points, 0) AS "puzzlePoints",
             COUNT(g.id)                   AS "graded"
      FROM enrollments e
      JOIN users u ON u.id = e.user_id
      LEFT JOIN grades g ON g.user_id = e.user_id
        AND g.assignment_id IN (SELECT id FROM assignments WHERE course_id = :courseId AND grading_mode != 'squad')
+     LEFT JOIN (
+       SELECT first_solver_id, SUM(points_awarded) AS points
+       FROM squad_puzzle_completions
+       WHERE course_id = :courseId
+       GROUP BY first_solver_id
+     ) puzzle_points ON puzzle_points.first_solver_id = u.id
      WHERE e.course_id = :courseId AND u.role = 'student'
-     GROUP BY u.id, u.first_name, u.last_name
+     GROUP BY u.id, u.first_name, u.last_name, puzzle_points.points
      ORDER BY "totalScore" DESC`,
     { replacements: { courseId } }
   );
@@ -207,7 +214,7 @@ async function _queryScoreboard(courseId) {
     userId:     r.userId,
     firstName:  r.firstName,
     lastName:   r.lastName,
-    totalScore: Math.round(parseFloat(r.totalScore)),
+    totalScore: Math.round(parseFloat(r.totalScore) + parseFloat(r.puzzlePoints ?? 0)),
     maxScore:   Math.round(parseFloat(r.maxScore)),
     graded:     parseInt(r.graded, 10),
   }));

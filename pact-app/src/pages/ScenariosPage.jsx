@@ -91,6 +91,7 @@ export default function ScenariosPage() {
   const [fileMap,    setFileMap]    = useState({});   // pkgId → files[]
   const [extracting, setExtracting] = useState({});   // pkgId → bool
   const [errors,     setErrors]     = useState({});
+  const [openDrops,  setOpenDrops]  = useState({});
 
   useEffect(() => {
     Promise.all([getScenarios(), getCourseContent()])
@@ -208,17 +209,32 @@ export default function ScenariosPage() {
                   <div className="ep-folder-count">{releases.length + scenarioFiles.length}</div>
                 </div>
 
-                {dropGroups.map(({ dropNumber, files }) => (
+                {dropGroups.map(({ dropNumber, files }) => {
+                  const dropKey = `${scenarioName}:${dropNumber}`;
+                  const expanded = Boolean(openDrops[dropKey]);
+                  return (
                   <div className="ep-releases" key={`drop-${dropNumber}`} style={{ marginBottom: 14 }}>
                     <div className="ep-release">
-                      <div className="ep-release-bar">
+                      <button
+                        type="button"
+                        className="ep-release-bar"
+                        onClick={() => setOpenDrops((current) => ({ ...current, [dropKey]: !current[dropKey] }))}
+                        aria-expanded={expanded}
+                        style={{ width: '100%', border: 0, cursor: 'pointer', textAlign: 'left' }}
+                      >
                         <div className="ep-release-bar-left">
                           <span className="ep-release-id">DROP {String(dropNumber).padStart(2, '0')} FILES</span>
                           <span className="ep-auth-badge">AUTHORIZED</span>
                         </div>
-                      </div>
-                      <div className="ep-release-body">
-                        <div className="ep-file-list" style={{ opacity: 1, height: 'auto' }}>
+                        <span className="ep-file-count">{files.length} FILE{files.length !== 1 ? 'S' : ''} {expanded ? '▴' : '▾'}</span>
+                      </button>
+                      <AnimatePresence initial={false}>
+                      {expanded && <motion.div
+                        className="ep-release-body"
+                        initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }} style={{ overflow: 'hidden' }}
+                      >
+                        <div className="ep-file-list" style={{ opacity: 1 }}>
                           {files.map((item) => {
                             const href = item.download_url ?? item.url;
                             const name = item.file_name || item.title;
@@ -240,10 +256,12 @@ export default function ScenariosPage() {
                             );
                           })}
                         </div>
-                      </div>
+                      </motion.div>}
+                      </AnimatePresence>
                     </div>
                   </div>
-                ))}
+                );
+                })}
 
                 {/* Release cards */}
                 <div className="ep-releases">

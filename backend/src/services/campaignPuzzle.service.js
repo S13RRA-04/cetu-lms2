@@ -1,7 +1,8 @@
 'use strict';
 const crypto = require('node:crypto');
 const { Op } = require('sequelize');
-const { CampaignDrop, CampaignDropPuzzle } = require('../models');
+const { CampaignDrop, CampaignDropPuzzle, Enrollment, SquadPuzzleCompletion } = require('../models');
+const { sequelize } = require('../config/database');
 const { NotFoundError, AppError } = require('../utils/errors');
 
 const CAESAR_DEFAULT_SHIFT = 13;
@@ -184,6 +185,48 @@ async function verifyPuzzleAnswer(dropId, puzzleId, submitted) {
   return { valid: puzzle.answer.trim().toLowerCase() === entered };
 }
 
+async function completeForSquad(dropId, puzzleId, userId) {
+  const puzzle = await findPuzzleForDrop(dropId, puzzleId);
+  const drop = await CampaignDrop.findByPk(dropId);
+  const enrollment = await Enrollment.findOne({
+    where: { user_id: userId, course_id: drop.course_id, status: 'active' },
+    attributes: ['squad_id'],
+  });
+  if (!enrollment?.squad_id) return { scope: 'personal', completed_puzzle_ids: [puzzle.id], first_solver: false, points_awarded: 0 };
+
+  const { completion, created } = await sequelize.transaction(async (transaction) => {
+    const [row, wasCreated] = await SquadPuzzleCompletion.findOrCreate({
+      where: { squad_id: enrollment.squad_id, puzzle_id: puzzle.id },
+      defaults: {
+        course_id: drop.course_id, drop_id: drop.id, first_solver_id: userId,
+        points_awarded: 10, solved_at: new Date(),
+      },
+      transaction,
+    });
+    return { completion: row, created: wasCreated };
+  });
+
+  const completed = await SquadPuzzleCompletion.findAll({
+    where: { squad_id: enrollment.squad_id, drop_id: drop.id }, attributes: ['puzzle_id'],
+  });
+  return {
+    event: created ? 'squad.decryption.completed' : null,
+    scope: 'squad', squad_id: enrollment.squad_id,
+    completed_puzzle_ids: completed.map((row) => row.puzzle_id),
+    first_solver: created && completion.first_solver_id === userId,
+    points_awarded: created && completion.first_solver_id === userId ? completion.points_awarded : 0,
+  };
+}
+
+async function getSquadCompletion(dropId, userId) {
+  const drop = await CampaignDrop.findByPk(dropId);
+  if (!drop) throw new NotFoundError('CampaignDrop');
+  const enrollment = await Enrollment.findOne({ where: { user_id: userId, course_id: drop.course_id, status: 'active' }, attributes: ['squad_id'] });
+  if (!enrollment?.squad_id) return { scope: 'personal', completed_puzzle_ids: [] };
+  const rows = await SquadPuzzleCompletion.findAll({ where: { squad_id: enrollment.squad_id, drop_id: drop.id }, attributes: ['puzzle_id'] });
+  return { scope: 'squad', squad_id: enrollment.squad_id, completed_puzzle_ids: rows.map((row) => row.puzzle_id) };
+}
+
 module.exports = {
   normalizePuzzleConfig,
   assertCompletePuzzleConfig,
@@ -195,4 +238,6 @@ module.exports = {
   deletePuzzle,
   reorderPuzzles,
   verifyPuzzleAnswer,
+  completeForSquad,
+  getSquadCompletion,
 };

@@ -187,6 +187,8 @@ export const reorderDropPuzzles = (dropId, orderedIds) =>
   client.post(`/courses/${COURSE_ID}/campaign/drops/${dropId}/puzzles/reorder`, { ordered_ids: orderedIds }).then((r) => r.data);
 export const verifyDropPuzzle = (dropId, puzzleId, answer) =>
   client.post(`/courses/${COURSE_ID}/campaign/drops/${dropId}/puzzles/${puzzleId}/verify`, { answer }).then((r) => r.data);
+export const getDropPuzzleCompletion = (dropId) =>
+  client.get(`/courses/${COURSE_ID}/campaign/drops/${dropId}/puzzle-completion`).then((r) => r.data);
 
 export const updateCampaignDrop = (dropId, data) =>
   client.put(`/courses/${COURSE_ID}/campaign/drops/${dropId}`, data).then((r) => r.data);

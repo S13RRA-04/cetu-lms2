@@ -31,8 +31,16 @@ async function reorderPuzzles(req, res, next) {
 async function verifyPuzzle(req, res, next) {
   try {
     const { valid } = await campaignPuzzleService.verifyPuzzleAnswer(req.params.did, req.params.puzzleId, req.body.answer ?? '');
-    res.json({ valid });
+    const completion = valid && req.user.role === 'student'
+      ? await campaignPuzzleService.completeForSquad(req.params.did, req.params.puzzleId, req.user.id)
+      : null;
+    res.json({ valid, completion });
   } catch (err) { next(err); }
 }
 
-module.exports = { listPuzzles, createPuzzle, updatePuzzle, deletePuzzle, reorderPuzzles, verifyPuzzle };
+async function getCompletion(req, res, next) {
+  try { res.json(await campaignPuzzleService.getSquadCompletion(req.params.did, req.user.id)); }
+  catch (err) { next(err); }
+}
+
+module.exports = { listPuzzles, createPuzzle, updatePuzzle, deletePuzzle, reorderPuzzles, verifyPuzzle, getCompletion };

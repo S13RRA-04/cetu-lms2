@@ -161,6 +161,7 @@ router.post('/:id/campaign/drops/:did/release',  requireAuth, requireInstructor,
 router.post('/:id/campaign/drops/:did/lock',     requireAuth, requireInstructor, validate(lockCampaignDropSchema), campaignCtrl.lockDrop);
 router.post('/:id/campaign/drops/:did/verify-pin', requireAuth, validate(verifyVaultPinSchema), campaignCtrl.verifyVaultPin);
 router.get('/:id/campaign/drops/:did/puzzles',            requireAuth, requireInstructor, campaignPuzzleCtrl.listPuzzles);
+router.get('/:id/campaign/drops/:did/puzzle-completion',  requireAuth,                    campaignPuzzleCtrl.getCompletion);
 router.post('/:id/campaign/drops/:did/puzzles',            requireAuth, requireInstructor, validate(createPuzzleSchema), campaignPuzzleCtrl.createPuzzle);
 router.post('/:id/campaign/drops/:did/puzzles/reorder',    requireAuth, requireInstructor, validate(reorderPuzzlesSchema), campaignPuzzleCtrl.reorderPuzzles);
 router.put('/:id/campaign/drops/:did/puzzles/:puzzleId',   requireAuth, requireInstructor, validate(updatePuzzleSchema), campaignPuzzleCtrl.updatePuzzle);

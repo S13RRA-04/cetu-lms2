@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAssignments, getMyEnrollment, getCampaignDrops, getScenarios, verifyDropPuzzle } from '../api/pact.js';
+import { getAssignments, getMyEnrollment, getCampaignDrops, getScenarios, verifyDropPuzzle, getDropPuzzleCompletion } from '../api/pact.js';
 import AppLayout          from './AppLayout.jsx';
 import InductionSequence  from '../pages/InductionSequence.jsx';
 import RoleSelection      from '../pages/RoleSelection.jsx';
@@ -88,6 +88,7 @@ export default function AppShell() {
   const [vaultUnlocked,  setVaultUnlocked]  = useState(false);
   const [signalVerified, setSignalVerified] = useState(false);
   const [puzzleRevision, setPuzzleRevision] = useState(0);
+  const [squadPuzzleIds, setSquadPuzzleIds] = useState(new Set());
   const [inducted, setInducted] = useState(() => {
     if (!isStudent || !user?.id) return true;
     return !!localStorage.getItem(inductionKey(user.id));
@@ -203,6 +204,27 @@ export default function AppShell() {
     setPuzzleRevision((value) => value + 1);
   }, [user?.id, pendingDrop]);
 
+  const applyPuzzleCompletion = useCallback((puzzleId, completion) => {
+    if (user?.id && pendingDrop) markPuzzleCompleted(user.id, pendingDrop.id, puzzleId);
+    if (completion?.completed_puzzle_ids) setSquadPuzzleIds(new Set(completion.completed_puzzle_ids));
+    setPuzzleRevision((value) => value + 1);
+  }, [user?.id, pendingDrop]);
+
+  useEffect(() => {
+    if (!isStudent || !pendingDrop?.id) return;
+    let cancelled = false;
+    const sync = () => getDropPuzzleCompletion(pendingDrop.id)
+      .then((completion) => {
+        if (cancelled || !completion?.completed_puzzle_ids) return;
+        setSquadPuzzleIds(new Set(completion.completed_puzzle_ids));
+        setPuzzleRevision((value) => value + 1);
+      })
+      .catch(() => {});
+    sync();
+    const id = setInterval(sync, 3000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [isStudent, pendingDrop?.id]);
+
   const handleAlertView = useCallback(() => {
     if (alertDrop) {
       setPendingDrop(alertDrop);
@@ -306,7 +328,7 @@ export default function AppShell() {
     const stage = getNextStage(pendingDrop, {
       signal: signalVerified || isSignalVerified(user?.id, pendingDrop.id),
       vault: vaultUnlocked || isVaultUnlocked(user?.id, pendingDrop.id),
-      puzzleIds: getCompletedPuzzleIds(user?.id, pendingDrop.id),
+      puzzleIds: new Set([...getCompletedPuzzleIds(user?.id, pendingDrop.id), ...squadPuzzleIds]),
       revision: puzzleRevision,
     });
     if (stage.kind === 'signal') {
@@ -319,18 +341,34 @@ export default function AppShell() {
       if (stage.puzzle.puzzle_type === 'signal_hunt') {
         return <SignalEntry
           drop={{ ...pendingDrop, html_signal: stage.puzzle.config?.signalCode, signal_prompt: stage.puzzle.prompt }}
-          verifySignal={(answer) => verifyDropPuzzle(stage.puzzle.drop_id, stage.puzzle.id, answer)}
-          onVerify={() => handlePuzzleComplete(stage.puzzle.id)}
+          verifySignal={async (answer) => {
+            const result = await verifyDropPuzzle(stage.puzzle.drop_id, stage.puzzle.id, answer);
+            if (result.valid) applyPuzzleCompletion(stage.puzzle.id, result.completion);
+            return result;
+          }}
+          onVerify={() => {}}
         />;
       }
       if (stage.puzzle.puzzle_type === 'vault_lock') {
         return <VaultKeypad
           drop={{ ...pendingDrop, vault_hint: stage.puzzle.prompt }}
-          verifyPin={(answer) => verifyDropPuzzle(stage.puzzle.drop_id, stage.puzzle.id, answer)}
-          onUnlock={() => handlePuzzleComplete(stage.puzzle.id)}
+          verifyPin={async (answer) => {
+            const result = await verifyDropPuzzle(stage.puzzle.drop_id, stage.puzzle.id, answer);
+            if (result.valid) applyPuzzleCompletion(stage.puzzle.id, result.completion);
+            return result;
+          }}
+          onUnlock={() => {}}
         />;
       }
-      return <DropPuzzleGate puzzle={stage.puzzle} onComplete={() => handlePuzzleComplete(stage.puzzle.id)} />;
+      return <DropPuzzleGate
+        puzzle={stage.puzzle}
+        verifyAnswer={async (answer) => {
+          const result = await verifyDropPuzzle(stage.puzzle.drop_id, stage.puzzle.id, answer);
+          if (result.valid) applyPuzzleCompletion(stage.puzzle.id, result.completion);
+          return result;
+        }}
+        onComplete={() => {}}
+      />;
     }
     return <TransmissionInterceptor drop={pendingDrop} onAcknowledge={handleTransmissionAck} />;
   }

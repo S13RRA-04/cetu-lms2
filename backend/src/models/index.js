@@ -30,6 +30,7 @@ const KcrArtifact           = require('./KcrArtifact')(sequelize);
 const KcrPlacement          = require('./KcrPlacement')(sequelize);
 const IntelBoard            = require('./IntelBoard')(sequelize);
 const SquadChallengeState   = require('./SquadChallengeState')(sequelize);
+const SquadPuzzleCompletion = require('./SquadPuzzleCompletion')(sequelize);
 
 // ── User ↔ Course (instructor relationship) ────────────────────────────────
 Course.belongsTo(User, { as: 'instructor', foreignKey: 'instructor_id' });
@@ -189,4 +190,5 @@ module.exports = {
   KcrPlacement,
   IntelBoard,
   SquadChallengeState,
+  SquadPuzzleCompletion,
 };
