@@ -10,6 +10,8 @@ test('manual squad state merges separate prompt fields without clobbering work',
   assert.equal(second.manual.answers[1], 'Legal process draft');
   assert.equal(second.manual.typing[0].name, 'Alex One');
   assert.equal(second.manual.typing[1].name, 'Sam Two');
+  assert.equal(second.manual.field_meta[0].name, 'Alex One');
+  assert.equal(second.manual.field_meta[1].name, 'Sam Two');
 });
 
 test('manual squad state removes expired typing presence', () => {

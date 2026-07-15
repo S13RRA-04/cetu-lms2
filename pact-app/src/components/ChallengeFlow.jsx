@@ -100,6 +100,7 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
   const [confirmed, setConfirmed] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const [typing, setTyping] = useState({});
+  const [fieldMeta, setFieldMeta] = useState({});
   const sharedChallenge = assignment.grading_mode === 'squad' || (assignment.role_filters?.length ?? 0) > 0;
   const sharedTimers = useRef({});
 
@@ -140,6 +141,7 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
       setAnswers(manual.answers ?? {});
       setFreetext(manual.answers?.__report__ ?? '');
       setTyping(manual.typing ?? {});
+      setFieldMeta(manual.field_meta ?? {});
     };
     getSquadChallengeState(assignment.id).then(apply).catch(() => {});
     const timer = setInterval(() => getSquadChallengeState(assignment.id).then(apply).catch(() => {}), 1200);
@@ -154,6 +156,7 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
           const manual = remote?.manual;
           if (!manual) return;
           setTyping(manual.typing ?? {});
+          setFieldMeta(manual.field_meta ?? {});
         })
         .catch(() => setSaveError(true));
     }, isTyping ? 350 : 0);
@@ -172,6 +175,16 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
   const typingLabel = (field) => {
     const presence = typing[field];
     return presence?.name ? `${presence.name} is typing…` : null;
+  };
+
+  const collaborators = [...new Map(Object.values(typing)
+    .filter((presence) => presence?.name)
+    .map((presence) => [presence.user_id, presence])).values()];
+
+  const editLabel = (field) => {
+    const meta = fieldMeta[field];
+    if (!meta?.updated_at) return null;
+    return `Last edited by ${meta.name} · ${new Date(meta.updated_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
   };
 
   const canSubmit = deliverables
@@ -218,6 +231,14 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
           SQUAD ASSIGNMENT — response will be graded for your entire squad
         </div>
       )}
+      {sharedChallenge && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12, minHeight: 22 }}>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: 'var(--muted)' }}>ACTIVE COLLABORATORS</span>
+          {collaborators.length ? collaborators.map((presence) => (
+            <span key={presence.user_id} style={{ padding: '3px 7px', borderRadius: 999, background: 'rgba(0,176,255,.12)', color: 'var(--primary)', fontSize: 11 }}>{presence.name}</span>
+          )) : <span style={{ fontSize: 11, color: 'var(--muted)' }}>No one typing</span>}
+        </div>
+      )}
       {saveError && (
         <div className="qz-save-warning">
           Progress isn't syncing to the server right now — your answers are safe on this device and will sync automatically once the connection recovers.
@@ -253,6 +274,7 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
                   required
                 />
                 {sharedChallenge && typingLabel(String(i)) && <div style={{ marginTop: 5, fontSize: 11, color: 'var(--primary)' }}>{typingLabel(String(i))}</div>}
+                {sharedChallenge && editLabel(String(i)) && <div style={{ marginTop: 4, fontSize: 10, color: 'var(--muted)' }}>{editLabel(String(i))}</div>}
               </motion.div>
             ))}
           </div>
@@ -269,6 +291,7 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
               required
             />
             {sharedChallenge && typingLabel('__report__') && <div style={{ marginTop: 5, fontSize: 11, color: 'var(--primary)' }}>{typingLabel('__report__')}</div>}
+            {sharedChallenge && editLabel('__report__') && <div style={{ marginTop: 4, fontSize: 10, color: 'var(--muted)' }}>{editLabel('__report__')}</div>}
           </div>
         )}
 

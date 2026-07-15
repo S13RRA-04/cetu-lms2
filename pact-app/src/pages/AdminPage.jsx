@@ -4017,6 +4017,7 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
   const [pairing,      setPairing]      = useState({}); // key -> bool
   const [caseFileSyncing, setCaseFileSyncing] = useState(false);
   const [caseFileSyncResult, setCaseFileSyncResult] = useState(null);
+  const selectedCohort = cohorts.find((cohort) => cohort.id === cohortId) ?? null;
 
   const openNewDrop = () => { setManageDrop({ isNew: true }); setManageTab('basics'); };
   const openManage  = (drop) => { setManageDrop(drop); setManageTab('pair'); setPairSubTab('squad'); };
@@ -4306,7 +4307,12 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
                   )}
                 </div>
                 {isUnlocked && cohortId && (
-                  <span style={{ fontSize: 11, color: '#10b981', fontWeight: 600, flexShrink: 0 }}>● RELEASED</span>
+                  <span
+                    style={{ fontSize: 11, color: '#10b981', fontWeight: 600, flexShrink: 0 }}
+                    title={`This drop is released to ${selectedCohort?.name ?? 'the selected cohort'}.`}
+                  >
+                    ● RELEASED TO {selectedCohort?.name ?? 'SELECTED COHORT'}
+                  </span>
                 )}
                 <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                   {cohortId && !isUnlocked && (

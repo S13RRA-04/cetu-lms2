@@ -64,10 +64,18 @@ function mergeManualState(stored, incoming, user) {
   const now = Date.now();
   const previous = stored?.manual ?? {};
   const patch = incoming?.manual ?? {};
+  const fieldMeta = { ...(previous.field_meta ?? {}) };
   const typing = { ...(previous.typing ?? {}) };
   for (const [field, active] of Object.entries(patch.typing ?? {})) {
     if (active) typing[field] = { user_id: user.id, name: `${user.first_name} ${user.last_name}`.trim() || 'Squadmate', expires_at: now + 5000 };
     else delete typing[field];
+  }
+  for (const field of Object.keys(patch.answers ?? {})) {
+    fieldMeta[field] = {
+      user_id: user.id,
+      name: `${user.first_name} ${user.last_name}`.trim() || 'Squadmate',
+      updated_at: now,
+    };
   }
   for (const [field, presence] of Object.entries(typing)) {
     if (!presence?.expires_at || presence.expires_at <= now) delete typing[field];
@@ -75,6 +83,7 @@ function mergeManualState(stored, incoming, user) {
   return {
     manual: {
       answers: { ...(previous.answers ?? {}), ...(patch.answers ?? {}) },
+      field_meta: fieldMeta,
       typing,
     },
   };
