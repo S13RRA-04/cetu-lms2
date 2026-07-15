@@ -3209,7 +3209,7 @@ function SubmissionDetail({ sub, assignment, existingGrade, onGradeSaved }) {
    CAMPAIGN DROPS PANEL
 ═══════════════════════════════════════════════════════════ */
 
-function DropSequencePreview({ draft, onClose }) {
+function DropSequencePreview({ draft, onClose, idLine = null }) {
   const [completed, setCompleted] = useState({ signal: false, vault: false, puzzleIds: new Set() });
 
   const drop = {
@@ -3256,9 +3256,85 @@ function DropSequencePreview({ draft, onClose }) {
         <TransmissionInterceptor
           drop={drop}
           onAcknowledge={onClose}
+          idLine={idLine}
         />
       )}
     </>
+  );
+}
+
+function ReleaseExperiencePreview({ drop, impact, onClose }) {
+  const [squadId, setSquadId] = useState(() => impact.squads[0]?.squad_id ?? '');
+  const [role, setRole] = useState(() => ROLE_ORDER[0]);
+  const [running, setRunning] = useState(false);
+  const squad = impact.squads.find((item) => item.squad_id === squadId) ?? impact.squads[0] ?? null;
+  const challenges = (squad?.details.challenges ?? []).filter((item) => {
+    const filters = item.role_filters ?? [];
+    return filters.length === 0 || filters.includes(role);
+  });
+  const caseFiles = squad?.details.case_files ?? [];
+  const packages = squad?.details.packages ?? [];
+  const persona = squad ? `SQUAD ${squad.squad_number} // ${ROLE_LABELS[role] ?? role}` : ROLE_LABELS[role] ?? role;
+
+  if (running) {
+    return (
+      <DropSequencePreview
+        key={`${drop.id}:${squadId}:${role}`}
+        draft={drop}
+        idLine={`INSTRUCTOR PREVIEW // ${persona}`}
+        onClose={() => setRunning(false)}
+      />
+    );
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(3,7,18,.86)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ width: 'min(900px, 96vw)', maxHeight: '90vh', overflowY: 'auto', background: 'var(--surface, #fff)', borderRadius: 10, padding: 22, boxShadow: '0 18px 60px rgba(0,0,0,.4)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 18 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--primary)', letterSpacing: '.12em', marginBottom: 4 }}>READ-ONLY RELEASE SIMULATOR</div>
+            <div style={{ fontWeight: 700, fontSize: 18 }}>{drop.title}</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>Choose a squad and student role, confirm routed content, then walk through the learner experience.</div>
+          </div>
+          <button className="btn-secondary" onClick={onClose}>Exit Preview</button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, .8fr) minmax(240px, 1.2fr)', gap: 14, marginBottom: 16 }}>
+          <label style={{ fontSize: 12, fontWeight: 600 }}>Squad
+            <select value={squadId} onChange={(event) => setSquadId(event.target.value)} style={{ display: 'block', width: '100%', marginTop: 5 }}>
+              {impact.squads.map((item) => <option key={item.squad_id} value={item.squad_id}>Squad {item.squad_number} — {item.victim_code ?? 'No victim assigned'}</option>)}
+            </select>
+          </label>
+          <label style={{ fontSize: 12, fontWeight: 600 }}>Student role
+            <select value={role} onChange={(event) => setRole(event.target.value)} style={{ display: 'block', width: '100%', marginTop: 5 }}>
+              {ROLE_ORDER.map((item) => <option key={item} value={item}>{ROLE_LABELS[item]}</option>)}
+            </select>
+          </label>
+        </div>
+
+        {!squad ? (
+          <div role="alert" className="err-msg">This cohort has no squads to preview.</div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 18 }}>
+            {[
+              ['Challenges', challenges],
+              ['Case Files', caseFiles],
+              ['Packages', packages],
+            ].map(([label, items]) => (
+              <div key={label} style={{ border: '1px solid var(--border)', borderRadius: 7, padding: 10, minHeight: 120 }}>
+                <div style={{ fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 700, marginBottom: 7 }}>{label.toUpperCase()} ({items.length})</div>
+                {items.length === 0 ? <div style={{ fontSize: 11, color: '#b45309' }}>None routed to this persona.</div> : items.map((item) => <div key={item.id} style={{ fontSize: 11, lineHeight: 1.4, padding: '3px 0', borderBottom: '1px solid var(--border)' }}>{item.title}</div>)}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>No content will be published or unlocked during this walkthrough.</div>
+          <button className="btn-submit" style={{ width: 'auto' }} disabled={!squad} onClick={() => setRunning(true)}>Walk Through as {persona}</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -3882,6 +3958,7 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
   const [lockTarget, setLockTarget] = useState(null);
   const [releasePreview, setReleasePreview] = useState(null);
   const [releasePreviewExpanded, setReleasePreviewExpanded] = useState(null);
+  const [experiencePreview, setExperiencePreview] = useState(null);
   const [working,   setWorking]  = useState(null);
   const [err,       setErr]      = useState('');
   const [warn,      setWarn]     = useState('');
@@ -3895,6 +3972,12 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
 
   const openNewDrop = () => { setManageDrop({ isNew: true }); setManageTab('basics'); };
   const openManage  = (drop) => { setManageDrop(drop); setManageTab('pair'); setPairSubTab('squad'); };
+  const openGateConfig = (drop) => {
+    setReleasePreview(null);
+    setReleasePreviewExpanded(null);
+    setManageDrop(drops.find((candidate) => candidate.id === drop.id) ?? drop);
+    setManageTab('puzzles');
+  };
   const closeManage = () => setManageDrop(null);
 
   const handleSyncSelectedCaseFiles = async (drop) => {
@@ -4037,6 +4120,20 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
     }
   };
 
+  const openExperiencePreview = async (drop) => {
+    if (!cohortId) { setErr('Select a cohort first.'); return; }
+    setWorking(drop.id + ':experience');
+    setErr('');
+    try {
+      const impact = await previewCampaignDropRelease(drop.id, cohortId);
+      setExperiencePreview({ drop, impact });
+    } catch (e) {
+      setErr(e.response?.data?.error?.message ?? 'Unable to build learner experience preview');
+    } finally {
+      setWorking(null);
+    }
+  };
+
   const handleLock = async (drop, revokeRelated = false) => {
     if (!cohortId) { setErr('Select a cohort first.'); return; }
     setWorking(drop.id + ':lock');
@@ -4064,6 +4161,14 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
 
   return (
     <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
+      {experiencePreview && (
+        <ReleaseExperiencePreview
+          key={`${experiencePreview.drop.id}:${cohortId}`}
+          drop={experiencePreview.drop}
+          impact={experiencePreview.impact}
+          onClose={() => setExperiencePreview(null)}
+        />
+      )}
       {/* Header row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <div style={{ flex: 1 }}>
@@ -4156,6 +4261,17 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
                   <span style={{ fontSize: 11, color: '#10b981', fontWeight: 600, flexShrink: 0 }}>● RELEASED</span>
                 )}
                 <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  {cohortId && !isUnlocked && (
+                    <button
+                      className="btn-secondary"
+                      style={{ fontSize: 12, padding: '4px 10px' }}
+                      disabled={isWorking}
+                      onClick={() => openExperiencePreview(drop)}
+                      title="Walk through the learner gate and transmission sequence without releasing the drop."
+                    >
+                      {working === drop.id + ':experience' ? '…' : 'Preview Release'}
+                    </button>
+                  )}
                   {cohortId && (
                     isUnlocked ? (
                       <button
@@ -4227,8 +4343,18 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
                       ))}
                     </div>
                   ) : (
-                    <div role="alert" style={{ fontSize: 12, color: '#b91c1c', fontWeight: 700, lineHeight: 1.45 }}>
-                      ⚠ RELEASE BLOCKED — No transmission gates are enabled. Enable Signal Hunt, Vault Lock, or at least one puzzle before releasing this drop.
+                    <div role="alert" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                      <div style={{ fontSize: 12, color: '#b91c1c', fontWeight: 700, lineHeight: 1.45, flex: 1 }}>
+                        ⚠ RELEASE BLOCKED — No transmission gates are enabled. Enable Signal Hunt, Vault Lock, or at least one puzzle before releasing this drop.
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        style={{ borderColor: 'rgba(185,28,28,.45)', color: '#b91c1c', flexShrink: 0 }}
+                        onClick={() => openGateConfig(releasePreview.drop)}
+                      >
+                        Configure Gates
+                      </button>
                     </div>
                   )}
                 </div>

@@ -64,3 +64,22 @@ test('release preview reports shared and victim-specific files per squad', () =>
   assert.deepEqual(preview.squads[0].details.case_files.map((item) => item.id), ['shared', 'r1', 'r2']);
   assert.deepEqual(preview.squads[0].details.packages.map((item) => item.id), ['rp']);
 });
+
+test('release preview preserves role routing metadata for persona simulation', () => {
+  const preview = buildReleasePreview(
+    [{ id: 's1', number: 1, victim_code: null }],
+    {
+      assignments: [{ id: 'a1', title: 'Analyst tasking', role_filters: ['intelligence_analyst'], victim_name: null }],
+      contentItems: [],
+      scenarioPackages: [],
+      codeToName: (code) => code,
+    },
+  );
+
+  assert.deepEqual(preview.squads[0].details.challenges, [{
+    id: 'a1',
+    title: 'Analyst tasking',
+    role_filters: ['intelligence_analyst'],
+    victim_name: null,
+  }]);
+});

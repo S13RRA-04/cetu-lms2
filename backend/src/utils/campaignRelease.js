@@ -31,7 +31,12 @@ function contentMatchesSquadVictim(itemVictimCode, squadVictimCode) {
 
 function buildReleasePreview(squads, materials) {
   const partitioned = partitionDropMaterials(materials.assignments, materials.contentItems, materials.scenarioPackages);
-  const assignmentDetail = (item) => ({ id: item.id, title: item.title });
+  const assignmentDetail = (item) => ({
+    id: item.id,
+    title: item.title,
+    role_filters: item.role_filters ?? [],
+    victim_name: item.victim_name ?? null,
+  });
   const fileDetail = (item) => ({ id: item.id, title: item.title, file_name: item.file_name ?? null });
   const packageDetail = (item) => ({ id: item.id, title: item.title, file_name: item.file_name ?? null });
   const sharedDetails = {
