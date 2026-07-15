@@ -3264,17 +3264,33 @@ function DropSequencePreview({ draft, onClose, idLine = null }) {
 }
 
 function ReleaseExperiencePreview({ drop, impact, onClose }) {
-  const [squadId, setSquadId] = useState(() => impact.squads[0]?.squad_id ?? '');
+  const squads = useMemo(() => Array.isArray(impact?.squads) ? impact.squads : [], [impact]);
+  const [squadId, setSquadId] = useState(() => squads[0]?.squad_id ?? '');
   const [role, setRole] = useState(() => ROLE_ORDER[0]);
   const [running, setRunning] = useState(false);
-  const squad = impact.squads.find((item) => item.squad_id === squadId) ?? impact.squads[0] ?? null;
-  const challenges = (squad?.details.challenges ?? []).filter((item) => {
+  const squad = squads.find((item) => item.squad_id === squadId) ?? squads[0] ?? null;
+  const challenges = (squad?.details?.challenges ?? []).filter((item) => {
     const filters = item.role_filters ?? [];
     return filters.length === 0 || filters.includes(role);
   });
-  const caseFiles = squad?.details.case_files ?? [];
-  const packages = squad?.details.packages ?? [];
+  const caseFiles = squad?.details?.case_files ?? [];
+  const packages = squad?.details?.packages ?? [];
   const persona = squad ? `SQUAD ${squad.squad_number} // ${ROLE_LABELS[role] ?? role}` : ROLE_LABELS[role] ?? role;
+  const coverage = useMemo(() => ROLE_ORDER.flatMap((roleId) => squads.map((squadItem) => {
+    const challengeCount = (squadItem.details?.challenges ?? []).filter((item) => {
+      const filters = item.role_filters ?? [];
+      return filters.length === 0 || filters.includes(roleId);
+    }).length;
+    const caseFileCount = (squadItem.details?.case_files ?? []).length;
+    return {
+      role: roleId,
+      squad_id: squadItem.squad_id,
+      challengeCount,
+      caseFileCount,
+      hasGap: challengeCount === 0 || caseFileCount === 0,
+    };
+  })), [squads]);
+  const gapCount = coverage.filter((item) => item.hasGap).length;
 
   if (running) {
     return (
@@ -3302,7 +3318,7 @@ function ReleaseExperiencePreview({ drop, impact, onClose }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, .8fr) minmax(240px, 1.2fr)', gap: 14, marginBottom: 16 }}>
           <label style={{ fontSize: 12, fontWeight: 600 }}>Squad
             <select value={squadId} onChange={(event) => setSquadId(event.target.value)} style={{ display: 'block', width: '100%', marginTop: 5 }}>
-              {impact.squads.map((item) => <option key={item.squad_id} value={item.squad_id}>Squad {item.squad_number} — {item.victim_code ?? 'No victim assigned'}</option>)}
+              {squads.map((item) => <option key={item.squad_id} value={item.squad_id}>Squad {item.squad_number} — {item.victim_code ?? 'No victim assigned'}</option>)}
             </select>
           </label>
           <label style={{ fontSize: 12, fontWeight: 600 }}>Student role
@@ -3310,6 +3326,55 @@ function ReleaseExperiencePreview({ drop, impact, onClose }) {
               {ROLE_ORDER.map((item) => <option key={item} value={item}>{ROLE_LABELS[item]}</option>)}
             </select>
           </label>
+        </div>
+
+        <div style={{ border: `1px solid ${gapCount ? 'rgba(220,38,38,.35)' : 'var(--border)'}`, borderRadius: 8, marginBottom: 16, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '9px 11px', background: gapCount ? 'rgba(220,38,38,.06)' : 'var(--surface-2, #f8fafc)' }}>
+            <div>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 700, letterSpacing: '.08em' }}>PERSONA COVERAGE MATRIX</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>C = challenges · F = case files · select a cell to inspect that persona</div>
+            </div>
+            <div role="status" style={{ fontSize: 11, fontWeight: 700, color: gapCount ? '#b91c1c' : '#047857', whiteSpace: 'nowrap' }}>
+              {gapCount ? `⚠ ${gapCount} coverage gap${gapCount === 1 ? '' : 's'}` : '✓ Full coverage'}
+            </div>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '7px 9px', borderTop: '1px solid var(--border)', borderRight: '1px solid var(--border)' }}>Student role</th>
+                  {squads.map((item) => (
+                    <th key={item.squad_id} style={{ padding: '7px 6px', borderTop: '1px solid var(--border)', borderRight: '1px solid var(--border)', whiteSpace: 'nowrap' }} title={`Squad ${item.squad_number} — ${item.victim_code ?? 'No victim'}`}>
+                      S{item.squad_number}<div style={{ fontWeight: 400, color: 'var(--muted)', fontSize: 9 }}>{item.victim_code ?? 'UNASSIGNED'}</div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {ROLE_ORDER.map((roleId) => (
+                  <tr key={roleId}>
+                    <th style={{ textAlign: 'left', padding: '6px 9px', borderTop: '1px solid var(--border)', borderRight: '1px solid var(--border)', fontWeight: 500, whiteSpace: 'nowrap' }}>{ROLE_LABELS[roleId]}</th>
+                    {squads.map((squadItem) => {
+                      const cell = coverage.find((item) => item.role === roleId && item.squad_id === squadItem.squad_id);
+                      const selected = squadId === squadItem.squad_id && role === roleId;
+                      return (
+                        <td key={squadItem.squad_id} style={{ padding: 0, borderTop: '1px solid var(--border)', borderRight: '1px solid var(--border)', background: cell.hasGap ? 'rgba(220,38,38,.08)' : selected ? 'rgba(14,165,233,.09)' : 'transparent' }}>
+                          <button
+                            type="button"
+                            onClick={() => { setSquadId(squadItem.squad_id); setRole(roleId); }}
+                            aria-label={`${ROLE_LABELS[roleId]}, Squad ${squadItem.squad_number}: ${cell.challengeCount} challenges, ${cell.caseFileCount} case files${cell.hasGap ? ', coverage gap' : ''}`}
+                            style={{ width: '100%', border: 0, background: 'transparent', padding: '7px 6px', cursor: 'pointer', color: cell.hasGap ? '#b91c1c' : 'var(--text)', fontWeight: selected ? 700 : 500 }}
+                          >
+                            C{cell.challengeCount} / F{cell.caseFileCount}{cell.hasGap ? ' ⚠' : ''}
+                          </button>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {!squad ? (
