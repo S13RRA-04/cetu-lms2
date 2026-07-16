@@ -25,7 +25,7 @@ const COURSE_ID = 'ae2fbd25-2f41-45b1-b9f8-f4fefbad4b63';
 const DROP = 6;
 const SCENARIO = 'packet-heist';
 const ANALYSIS_ID = '3131324c-e7dc-45e7-bd25-588e80528636'; // pre-existing "Brokered Exit" stub
-const ANALYSIS_TITLE = 'Brokered Exit';
+const ANALYSIS_TITLE = 'PACKET HEIST - Drop 6: Search Warrant Analysis Assessment';
 const DELIVERABLE_TITLE = 'PACKET HEIST — Drop 6: Search Warrant Case Disposition';
 
 const analysisQuestions = [
@@ -182,12 +182,12 @@ const analysisQuestions = [
   },
   {
     id: uuidv4(),
-    stem: 'Fill in the blank: the sender alias used in the phishing email that delivered the intrusion to host STEM-LAP-014, and referenced by name as a fallback cover story in Alex’s own draft ops rules, is __________.',
+    stem: 'Fill in the blank: the name used to sign the phishing email that delivered the intrusion to host STEM-LAP-014, and referenced by name as a fallback cover story in Alex’s own draft ops rules, is __________.',
     payload: { kind: 'fill_blank', blanks: [{ accepted: ['M. Vale', 'M Vale', 'MVale'], caseSensitive: false }] },
     scoring: { points: 10, mustPass: false },
     feedback: {
-      correct: 'Correct: "M. Vale" appears both as the phishing sender name (Q2 STEM sponsorship email, DKIM/DMARC fail) and as the designated cover-story alias in the ops rules found on the RestonIT office side.',
-      incorrect: 'Compare the sender name on the STEM sponsorship phishing email against the "if asked about staff validation" line in the ops rules document.',
+      correct: 'Correct: "M. Vale" appears both as the signature on the Q2 STEM sponsorship phishing email (DKIM/DMARC fail) and as the designated cover-story name in the ops rules found on the RestonIT office side.',
+      incorrect: 'Compare the signature on the STEM sponsorship phishing email against the "if asked about staff validation" line in the ops rules document.',
       reference: 'RestonIT Office — Email/Q2 STEM sponsorship, Documents/usb_ops_reston_drop_rules.md',
     },
   },
@@ -267,7 +267,8 @@ async function main() {
       // Fix + populate the pre-existing "Brokered Exit" stub in place.
       await seq.query(
         `UPDATE assignments
-            SET scenario_name = :scenario,
+            SET title = :title,
+                scenario_name = :scenario,
                 drop_number = :drop,
                 description = :description,
                 grading_mode = 'squad',
@@ -278,7 +279,7 @@ async function main() {
           WHERE id = :id`,
         {
           replacements: {
-            id: ANALYSIS_ID, scenario: SCENARIO, drop: DROP,
+            id: ANALYSIS_ID, title: ANALYSIS_TITLE, scenario: SCENARIO, drop: DROP,
             description: 'Assess the Drop 6 search warrant returns from RestonIT’s office and Alex Reston’s residence, distinguish business custody from personal attribution, and state only conclusions supported by the evidence.',
             questions: JSON.stringify(analysisQuestions),
           },

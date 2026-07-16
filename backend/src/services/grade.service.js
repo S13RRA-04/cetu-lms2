@@ -220,7 +220,10 @@ async function _queryScoreboard(courseId) {
      ) puzzle_points ON puzzle_points.first_solver_id = u.id
      WHERE e.course_id = :courseId AND u.role = 'student'
      GROUP BY u.id, u.first_name, u.last_name, puzzle_points.points
-     ORDER BY "totalScore" DESC`,
+     ORDER BY (COALESCE(SUM(g.score), 0) + COALESCE(puzzle_points.points, 0)) DESC,
+              u.last_name ASC,
+              u.first_name ASC,
+              u.id ASC`,
     { replacements: { courseId } }
   );
   return rows.map((r) => ({
