@@ -2,6 +2,7 @@
 require('dotenv').config();
 
 const express      = require('express');
+const http         = require('node:http');
 const path         = require('path');
 const cors         = require('cors');
 const helmet       = require('helmet');
@@ -164,10 +165,11 @@ async function bootstrap() {
     app.use(lti.app);
     logger.info('LTI provider deployed');
 
-    const httpServer = app.listen(PORT, () => {
+    const httpServer = http.createServer(app);
+    await attachSquadChallengeSocket(httpServer);
+    httpServer.listen(PORT, () => {
       logger.info(`CETU LMS backend running on port ${PORT} [${process.env.NODE_ENV}]`);
     });
-    attachSquadChallengeSocket(httpServer);
   } catch (err) {
     logger.error('Failed to start server', { error: err.message, stack: err.stack });
     process.exit(1);

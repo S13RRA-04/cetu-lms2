@@ -64,6 +64,9 @@ export default function useSquadFieldSync({ courseId, assignmentId, enabled }) {
             setConnected(true);
             setFieldLocks(msg.fieldLocks ?? {});
             break;
+          case 'locks':
+            setFieldLocks(msg.fieldLocks ?? {});
+            break;
           case 'claimed':
             setFieldLocks((prev) => ({ ...prev, [msg.field]: msg.user }));
             if (msg.previousUser && msg.previousUser.user_id === user?.id && msg.user?.user_id !== user?.id) {

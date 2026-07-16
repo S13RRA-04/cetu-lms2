@@ -11,6 +11,12 @@ services:
         value: production
       - key: PORT
         value: 3001
+      # Keep this at 1 until REDIS_URL points to a shared Redis service.
+      # Startup fails closed if the count is raised without Redis.
+      - key: BACKEND_INSTANCE_COUNT
+        value: 1
+      - key: REDIS_URL
+        sync: false
       - key: DATABASE_URL
         sync: false   # set manually in dashboard; paste your Neon connection string
       - key: JWT_SECRET
