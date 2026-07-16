@@ -3,6 +3,7 @@ require('dotenv').config();
 
 const express      = require('express');
 const http         = require('node:http');
+const { createHash } = require('node:crypto');
 const path         = require('path');
 const cors         = require('cors');
 const helmet       = require('helmet');
@@ -109,7 +110,18 @@ app.use('/api/v1/lti',     ltiRoutes);
 app.use('/api/v1/kcr',     kcrRoutes);
 app.use('/wopi',           wopiRoutes);
 
-app.get('/api/v1/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+const instanceFingerprint = process.env.RENDER_INSTANCE_ID
+  ? createHash('sha256').update(process.env.RENDER_INSTANCE_ID).digest('hex').slice(0, 12)
+  : 'local';
+app.get('/api/v1/health', (req, res) => res.json({
+  status: 'ok',
+  timestamp: new Date().toISOString(),
+  realtime: {
+    coordination: process.env.REDIS_URL ? 'redis' : 'memory',
+    configured_instances: Number.parseInt(process.env.BACKEND_INSTANCE_COUNT ?? process.env.WEB_CONCURRENCY ?? '1', 10),
+    instance: instanceFingerprint,
+  },
+}));
 
 // ── Serve built frontends in production ──────────────────────────────────────
 if (process.env.NODE_ENV === 'production') {
