@@ -4962,8 +4962,29 @@ const CONTENT_TYPE_LABELS = {
 function CourseContentPanel({ items, cohorts, loaded, onItemsChange, assignments = [] }) {
   const [selected, setSelected] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState({});
 
   const moduleAssignments = assignments.filter((a) => a.type === 'module');
+  const contentSections = useMemo(() => {
+    const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+    const grouped = items.reduce((sections, item) => {
+      const type = item.content_type || 'resource';
+      const existing = sections.get(type) ?? [];
+      existing.push(item);
+      sections.set(type, existing);
+      return sections;
+    }, new Map());
+
+    return Array.from(grouped, ([type, sectionItems]) => ({
+      type,
+      label: CONTENT_TYPE_LABELS[type] ?? type.replaceAll('_', ' '),
+      items: sectionItems.sort((a, b) => collator.compare(a.title ?? '', b.title ?? '')),
+    })).sort((a, b) => collator.compare(a.label, b.label));
+  }, [items]);
+
+  const toggleSection = (type) => {
+    setCollapsedSections((current) => ({ ...current, [type]: !current[type] }));
+  };
 
   if (!loaded) return <div className="loading-screen"><div className="spinner" /></div>;
 
@@ -4976,21 +4997,38 @@ function CourseContentPanel({ items, cohorts, loaded, onItemsChange, assignments
         </div>
         <div className="admin-assignment-list">
           {items.length === 0 && <div className="empty-state" style={{ padding: '24px 16px' }}>No content yet.</div>}
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className={`admin-assignment-row${selected?.id === item.id ? ' selected' : ''}`}
-              onClick={() => { setSelected(item); setShowForm(false); }}
-            >
-              <div className="admin-a-title">{item.title}</div>
-              <div className="admin-a-meta">
-                <span className="type-badge" style={{ fontSize: 9, padding: '2px 6px' }}>{CONTENT_TYPE_LABELS[item.content_type]}</span>
-                {item.is_published
-                  ? <span style={{ fontSize: 10, color: '#10b981' }}>Published</span>
-                  : <span style={{ fontSize: 10, color: '#94a3b8' }}>Draft</span>}
-              </div>
-            </div>
-          ))}
+          {contentSections.map((section) => {
+            const isCollapsed = Boolean(collapsedSections[section.type]);
+            return (
+              <section className="admin-content-section" key={section.type}>
+                <button
+                  type="button"
+                  className="admin-content-section-toggle"
+                  onClick={() => toggleSection(section.type)}
+                  aria-expanded={!isCollapsed}
+                >
+                  <span className="admin-content-section-chevron" aria-hidden="true">▾</span>
+                  <span>{section.label}</span>
+                  <span className="admin-content-section-count">{section.items.length}</span>
+                </button>
+                {!isCollapsed && section.items.map((item) => (
+                  <button
+                    type="button"
+                    key={item.id}
+                    className={`admin-assignment-row${selected?.id === item.id ? ' selected' : ''}`}
+                    onClick={() => { setSelected(item); setShowForm(false); }}
+                  >
+                    <span className="admin-a-title">{item.title}</span>
+                    <span className="admin-a-meta">
+                      {item.is_published
+                        ? <span style={{ fontSize: 10, color: '#10b981' }}>Published</span>
+                        : <span style={{ fontSize: 10, color: '#94a3b8' }}>Draft</span>}
+                    </span>
+                  </button>
+                ))}
+              </section>
+            );
+          })}
         </div>
       </div>
 

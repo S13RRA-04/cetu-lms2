@@ -2148,6 +2148,52 @@ body {
 .admin-mode-tab.active { color: var(--primary); border-bottom-color: var(--primary); background: var(--primary-lt); }
 
 .admin-assignment-list { max-height: 70vh; overflow-y: auto; }
+.admin-content-section { border-top: 1px solid var(--border); }
+.admin-content-section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 9px 12px;
+  background: var(--card-hi);
+  border: 0;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.admin-content-section-toggle:hover { color: var(--bright); }
+.admin-content-section-chevron { font-size: 11px; transition: transform .15s; }
+.admin-content-section-toggle[aria-expanded="false"] .admin-content-section-chevron { transform: rotate(-90deg); }
+.admin-content-section-count {
+  min-width: 20px;
+  margin-left: auto;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(0,0,0,.08);
+  font-size: 9px;
+  text-align: center;
+}
+.admin-assignment-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 11px 16px 11px 30px;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--border);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.admin-assignment-row:hover { background: var(--card-hi); }
+.admin-assignment-row.selected { background: var(--primary-lt); }
+.admin-a-title { color: var(--bright); font-size: 12px; font-weight: 600; }
+.admin-a-meta { display: flex; align-items: center; gap: 6px; }
 .admin-assign-btn {
   display: flex;
   flex-direction: column;
