@@ -102,7 +102,7 @@ function PuzzleEditor({ value, onChange, onSave, onCancel, busy, presetCatalog }
   const selectedPreset = presets.find((preset) => preset.id === value._presetId);
   const previewPreset = presets.find((preset) => preset.id === previewPresetId);
   const visiblePresets = [selectedPreset, previewPreset, ...filteredPresets].filter(
-    (preset, index, items) => preset && items.findIndex(({ id }) => id === preset.id) === index,
+    (preset, index, items) => preset && items.findIndex((item) => item?.id === preset.id) === index,
   );
   const setPresetFilter = (key, next) => setPresetFilters((current) => ({ ...current, [key]: next }));
   useEffect(() => {
