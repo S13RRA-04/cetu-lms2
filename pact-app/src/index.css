@@ -2455,6 +2455,33 @@ body {
 .admin-grade-form { }
 .admin-grade-row { margin-bottom: 14px; }
 .admin-grade-label { display: block; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.preset-filter-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+.preset-filter-grid label > span { display: block; margin-bottom: 5px; color: var(--muted); font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.preset-filter-grid select { width: 100%; text-transform: capitalize; }
+.preset-filter-empty { margin: 6px 0 10px; color: var(--muted); font-size: 11px; }
+.preset-summary { margin: 8px 0 12px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: color-mix(in srgb, var(--surface) 88%, transparent); }
+.preset-summary p { margin: 0 0 8px; color: var(--muted); font-size: 11px; }
+.preset-summary div { display: flex; flex-wrap: wrap; gap: 6px; }
+.preset-summary span { padding: 3px 7px; border: 1px solid var(--border); border-radius: 999px; color: var(--primary); font-size: 9px; letter-spacing: .04em; text-transform: capitalize; }
+@media (max-width: 700px) { .preset-filter-grid { grid-template-columns: 1fr; } }
+.preset-drawer-backdrop { position: fixed; inset: 0; z-index: 1200; display: flex; justify-content: flex-end; background: rgba(0, 0, 0, .58); }
+.preset-drawer { width: min(620px, 94vw); height: 100%; overflow-y: auto; padding: 22px; border-left: 1px solid var(--border); background: var(--surface); box-shadow: -18px 0 50px rgba(0, 0, 0, .28); }
+.preset-drawer > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 15px; border-bottom: 1px solid var(--border); }
+.preset-drawer > header span, .preset-drawer h3 { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.preset-drawer h2 { margin: 4px 0 0; font-size: 21px; }
+.preset-drawer section { margin-top: 20px; }
+.preset-drawer h3 { margin: 0 0 7px; }
+.preset-drawer section > p { margin: 0; line-height: 1.55; }
+.preset-drawer pre { max-height: 260px; margin: 0; padding: 12px; overflow: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.55 var(--mono); }
+.preset-drawer .preset-answer { color: var(--primary); user-select: all; }
+.preset-drawer dl { margin: 0; }
+.preset-drawer dl div { display: grid; grid-template-columns: 140px 1fr; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.preset-drawer dt { color: var(--muted); text-transform: capitalize; }
+.preset-drawer dd { margin: 0; font-family: var(--mono); }
+.preset-preview-tags { display: flex; flex-wrap: wrap; gap: 7px; }
+.preset-preview-tags span { padding: 4px 8px; border: 1px solid var(--border); border-radius: 999px; color: var(--primary); font-size: 10px; text-transform: capitalize; }
+.preset-drawer footer { position: sticky; bottom: -22px; display: flex; gap: 8px; margin: 24px -22px -22px; padding: 14px 22px; border-top: 1px solid var(--border); background: var(--surface); }
+.preset-drawer footer .btn-submit { width: auto; }
 .admin-score-input {
   width: 120px;
   padding: 8px 12px;

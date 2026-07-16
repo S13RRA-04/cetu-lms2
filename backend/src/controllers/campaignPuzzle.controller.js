@@ -1,5 +1,19 @@
 'use strict';
 const campaignPuzzleService = require('../services/campaignPuzzle.service');
+const campaignPuzzlePresetService = require('../services/campaignPuzzlePreset.service');
+
+async function listPresets(req, res, next) {
+  try {
+    res.set({
+      'Cache-Control': 'private, no-store, max-age=0, must-revalidate',
+      Pragma: 'no-cache',
+      Expires: '0',
+      Vary: 'Authorization',
+    });
+    res.json({ data: campaignPuzzlePresetService.listPresets() });
+  }
+  catch (err) { next(err); }
+}
 
 async function listPuzzles(req, res, next) {
   try {
@@ -43,4 +57,4 @@ async function getCompletion(req, res, next) {
   catch (err) { next(err); }
 }
 
-module.exports = { listPuzzles, createPuzzle, updatePuzzle, deletePuzzle, reorderPuzzles, verifyPuzzle, getCompletion };
+module.exports = { listPresets, listPuzzles, createPuzzle, updatePuzzle, deletePuzzle, reorderPuzzles, verifyPuzzle, getCompletion };

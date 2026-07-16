@@ -166,6 +166,9 @@ export const lockAssignment = (assignmentId, cohortId, squadId = null) =>
   client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/lock`, { cohort_id: cohortId, squad_id: squadId }).then((r) => r.data);
 
 /* ── Campaign Drops ── */
+export const getPuzzlePresets = () =>
+  client.get(`/courses/${COURSE_ID}/campaign/puzzle-presets`).then((r) => r.data.data);
+
 export const getCampaignDrops = (cohortId) =>
   client.get(`/courses/${COURSE_ID}/campaign/drops`, { params: { cohort_id: cohortId } }).then((r) => r.data);
 

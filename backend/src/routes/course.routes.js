@@ -152,6 +152,7 @@ router.post('/:id/course-content/:cid/unlock',  requireAuth, requireInstructor, 
 router.post('/:id/course-content/:cid/lock',    requireAuth, requireInstructor, courseContentCtrl.lockForCohort);
 
 // Campaign drops
+router.get('/:id/campaign/puzzle-presets',       requireAuth, requireInstructor, campaignPuzzleCtrl.listPresets);
 router.get('/:id/campaign/drops',              requireAuth,                    campaignCtrl.listDrops);
 router.post('/:id/campaign/drops',             requireAuth, requireInstructor, validate(createCampaignDropSchema), campaignCtrl.createDrop);
 router.put('/:id/campaign/drops/:did',         requireAuth, requireInstructor, validate(updateCampaignDropSchema), campaignCtrl.updateDrop);

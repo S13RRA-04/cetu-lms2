@@ -1,22 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyPuzzlePreset, presetsForOption } from './dropPuzzlePresets.js';
+import { applyPuzzlePreset, filterOptionsForPresets, filterPresets, presetsForOption, searchPresets } from './dropPuzzlePresets.js';
 
-test('firewall games expose the PACKET HEIST through-Drop-4 preset', () => {
-  const presets = presetsForOption('log_firewall');
-  assert.equal(presets.length, 1);
-  assert.match(presets[0].label, /PACKET HEIST/);
-  assert.match(presets[0].label, /through Drop 4/);
+const presets = [
+  { id: 'one', optionId: 'cipher_caesar', label: 'Alpha', description: 'Decode', prompt: 'Prompt', expectedAnswer: 'SECRET', tags: { difficulty: 'beginner', objective: 'cryptography', storyline: 'Story A' }, config: { method: 'caesar', shift: 3, cipherText: 'VHFUHW' } },
+  { id: 'two', optionId: 'log_auth', label: 'Bravo', description: 'Inspect', prompt: 'Find user', expectedAnswer: 'alex', tags: { difficulty: 'advanced', objective: 'log analysis', storyline: 'Story B' }, config: { lineFormat: 'auth', logLines: ['x'] } },
+];
+
+test('frontend helpers search and filter API-provided presets', () => {
+  assert.deepEqual(presetsForOption(presets, 'cipher_caesar').map(({ id }) => id), ['one']);
+  assert.deepEqual(filterPresets(presets, { difficulty: 'advanced' }).map(({ id }) => id), ['two']);
+  assert.deepEqual(searchPresets(presets, 'story a').map(({ id }) => id), ['one']);
+  assert.deepEqual(filterOptionsForPresets(presets).difficulty, ['beginner', 'advanced']);
 });
 
-test('preset application returns a complete independent firewall draft', () => {
-  const [preset] = presetsForOption('log_firewall');
-  const blank = { puzzle_type: 'log_grep', enabled: true, prompt: '', answer: '', config: { lineFormat: 'firewall', logLines: [] } };
-  const first = applyPuzzlePreset(blank, preset.id);
-  const second = applyPuzzlePreset(blank, preset.id);
-  assert.equal(first.config.lineFormat, 'firewall');
-  assert.equal(first.config.logLines.length, 15);
-  assert.equal(first.answer, '192.0.2.201');
-  first.config.logLines.pop();
-  assert.equal(second.config.logLines.length, 15);
+test('frontend applies only a selected API DTO and independently clones config', () => {
+  const blank = { puzzle_type: 'cipher_wheel', prompt: '', answer: '', config: {} };
+  const first = applyPuzzlePreset(blank, presets[0]);
+  const second = applyPuzzlePreset(blank, presets[0]);
+  assert.equal(first.answer, 'SECRET');
+  first.config.shift = 7;
+  assert.equal(second.config.shift, 3);
 });

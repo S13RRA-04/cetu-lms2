@@ -2870,7 +2870,7 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
             <div className="form-field" style={{ margin: 0 }}>
               <label>Signal Code — embedded in page HTML source</label>
               <input value={signalCode} onChange={(e) => setSignalCode(e.target.value.toUpperCase())}
-                placeholder="e.g. BRAVO-7-TANGO" style={{ width: '100%', fontFamily: 'monospace', letterSpacing: '.1em' }} />
+                placeholder="e.g. SIGNAL-CODE" style={{ width: '100%', fontFamily: 'monospace', letterSpacing: '.1em' }} />
             </div>
             <div className="form-field" style={{ margin: 0 }}>
               <label>Hunt Prompt — instruction shown to students</label>
