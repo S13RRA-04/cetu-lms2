@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAssignments, getMyEnrollment, getCampaignDrops, getScenarios, verifyDropPuzzle, getDropPuzzleCompletion } from '../api/pact.js';
+import { getAssignments, getMyEnrollment, getCampaignDrops, getScenarios, verifyDropPuzzle, getDropPuzzleCompletion, setDropLocationSelection } from '../api/pact.js';
 import AppLayout          from './AppLayout.jsx';
 import InductionSequence  from '../pages/InductionSequence.jsx';
 import RoleSelection      from '../pages/RoleSelection.jsx';
@@ -9,6 +9,7 @@ import TargetRevealInterceptor, { targetSeenKey } from '../pages/TargetRevealInt
 import VaultKeypad        from '../pages/VaultKeypad.jsx';
 import SignalEntry        from '../pages/SignalEntry.jsx';
 import DropPuzzleGate     from '../pages/DropPuzzleGate.jsx';
+import LocationChoiceInterceptor from '../pages/LocationChoiceInterceptor.jsx';
 import { getNextStage, getCompletedPuzzleIds, markPuzzleCompleted } from '../lib/dropPuzzles.js';
 import SessionTimeoutWarning from '../components/SessionTimeoutWarning.jsx';
 import DropAlert          from '../components/DropAlert.jsx';
@@ -88,6 +89,7 @@ export default function AppShell() {
   const [vaultUnlocked,  setVaultUnlocked]  = useState(false);
   const [signalVerified, setSignalVerified] = useState(false);
   const [puzzleRevision, setPuzzleRevision] = useState(0);
+  const [awaitingLocationChoice, setAwaitingLocationChoice] = useState(false);
   const [squadPuzzleIds, setSquadPuzzleIds] = useState(new Set());
   const [inducted, setInducted] = useState(() => {
     if (!isStudent || !user?.id) return true;
@@ -182,7 +184,25 @@ export default function AppShell() {
   }, [user?.id]);
 
   const handleTransmissionAck = useCallback(() => {
+    // A drop with location_options needs one more self-report step before the
+    // student proceeds — don't mark it "seen" (which would skip the gate
+    // sequence on a refresh) until that choice is actually resolved.
+    if (pendingDrop?.location_options?.length && !pendingDrop?.location_selection) {
+      setAwaitingLocationChoice(true);
+      return;
+    }
     if (user?.id && pendingDrop) markDropSeen(user.id, pendingDrop);
+    setPendingDrop(null);
+    setVaultUnlocked(false);
+    setSignalVerified(false);
+    setPuzzleRevision(0);
+  }, [user?.id, pendingDrop]);
+
+  const handleLocationChoice = useCallback(async (locationCode) => {
+    if (!pendingDrop) return;
+    await setDropLocationSelection(pendingDrop.id, locationCode);
+    if (user?.id) markDropSeen(user.id, pendingDrop);
+    setAwaitingLocationChoice(false);
     setPendingDrop(null);
     setVaultUnlocked(false);
     setSignalVerified(false);
@@ -320,6 +340,12 @@ export default function AppShell() {
         onAcknowledge={handleScenarioAck}
       />
     );
+  }
+
+  // Field report — drop's narrative is acknowledged, but a location choice
+  // is still outstanding (see handleTransmissionAck)
+  if (isStudent && pendingDrop && awaitingLocationChoice) {
+    return <LocationChoiceInterceptor drop={pendingDrop} onChoose={handleLocationChoice} />;
   }
 
   // Incoming transmission — student, inducted, new drop pending

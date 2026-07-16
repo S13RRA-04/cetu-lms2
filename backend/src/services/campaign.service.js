@@ -3,17 +3,17 @@ const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { CampaignDrop, CampaignDropUnlock, Assignment, AssignmentUnlock,
         CourseContentItem, CourseContentUnlock, ScenarioPackage, ScenarioPackageUnlock,
-        Squad, Course, Cohort, Enrollment } = require('../models');
-const { NotFoundError, AppError } = require('../utils/errors');
+        Squad, Course, Cohort, Enrollment, DropLocationSelection } = require('../models');
+const { NotFoundError, AppError, ForbiddenError } = require('../utils/errors');
 const { codeToName } = require('../constants/victims');
 const { partitionDropMaterials, unpublishedIds, buildReleasePreview } = require('../utils/campaignRelease');
 const { invalidateCourseContentLists } = require('./courseContent.service');
-const { invalidateAssignmentLists } = require('./assignment.service');
+const { invalidateAssignmentLists, invalidateStudentCache } = require('./assignment.service');
 const { invalidatePackageLists } = require('./scenario.service');
 const { listPuzzlesForDrops } = require('./campaignPuzzle.service');
 const { scenarioSlugFromName } = require('../utils/r2CaseFile');
 
-async function listDrops(courseId, cohortId, includePin = false) {
+async function listDrops(courseId, cohortId, includePin = false, userId = null) {
   const drops = await CampaignDrop.findAll({
     where: { course_id: courseId },
     include: cohortId
@@ -29,7 +29,15 @@ async function listDrops(courseId, cohortId, includePin = false) {
 
   // Same staff/non-staff visibility flag vault_pin already uses — puzzle
   // answers must never reach a student client either.
-  const puzzlesByDrop = await listPuzzlesForDrops(drops.map((d) => d.id), { includeAnswers: includePin });
+  const [puzzlesByDrop, selections] = await Promise.all([
+    listPuzzlesForDrops(drops.map((d) => d.id), { includeAnswers: includePin }),
+    // Only students need their own location choice surfaced — staff never
+    // self-report, they configure location_options instead.
+    !includePin && userId
+      ? DropLocationSelection.findAll({ where: { user_id: userId, drop_id: drops.map((d) => d.id) } })
+      : Promise.resolve([]),
+  ]);
+  const selectionByDrop = new Map(selections.map((s) => [s.drop_id, s.location_code]));
 
   return drops.map((d) => {
     const json = d.toJSON();
@@ -41,8 +49,38 @@ async function listDrops(courseId, cohortId, includePin = false) {
       is_unlocked: cohortId ? (d.unlocks?.length > 0) : null,
       unlocked_at: cohortId ? (d.unlocks?.[0]?.unlocked_at ?? null) : null,
       puzzles: puzzlesByDrop.get(d.id) ?? [],
+      location_selection: selectionByDrop.get(d.id) ?? null,
     };
   });
+}
+
+/* Student self-reports which physical location (of drop.location_options)
+   they searched — gates location-tagged assignments/content/packages for
+   this drop to just that location. See utils/dropLocation.js. */
+async function setLocationSelection(dropId, userId, locationCode) {
+  const drop = await CampaignDrop.findByPk(dropId);
+  if (!drop) throw new NotFoundError('CampaignDrop');
+
+  const enrollment = await Enrollment.findOne({ where: { user_id: userId, course_id: drop.course_id } });
+  if (!enrollment) throw new ForbiddenError('Not enrolled in this course');
+
+  const validCodes = (drop.location_options ?? []).map((o) => o.code);
+  if (!validCodes.includes(locationCode)) {
+    throw new AppError(`location_code must be one of: ${validCodes.join(', ') || '(none configured for this drop)'}`, 400, 'INVALID_LOCATION_CODE');
+  }
+
+  const [selection] = await DropLocationSelection.findOrCreate({
+    where:    { drop_id: dropId, user_id: userId },
+    defaults: { location_code: locationCode },
+  });
+  // findOrCreate won't update an existing row — a student can change their
+  // mind before finishing the drop, so upsert explicitly.
+  if (selection.location_code !== locationCode) {
+    selection.location_code = locationCode;
+    await selection.save();
+  }
+  invalidateStudentCache(drop.course_id, userId);
+  return { location_code: selection.location_code };
 }
 
 async function verifyVaultPin(dropId, pin) {
@@ -397,4 +435,4 @@ async function lockDrop(dropId, cohortId, { revokeRelated = false } = {}) {
   });
 }
 
-module.exports = { listDrops, createDrop, updateDrop, deleteDrop, previewRelease, releaseDrop, lockDrop, verifyVaultPin, normalizeDropData, pairedMaterialWhere, enabledPuzzlePreview, hasEnabledTransmissionGate, assertCohortHasActiveLearners };
+module.exports = { listDrops, createDrop, updateDrop, deleteDrop, previewRelease, releaseDrop, lockDrop, verifyVaultPin, normalizeDropData, pairedMaterialWhere, enabledPuzzlePreview, hasEnabledTransmissionGate, assertCohortHasActiveLearners, setLocationSelection };

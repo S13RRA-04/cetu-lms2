@@ -4,22 +4,13 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    plan: starter
-    numInstances: 2
+    plan: free
     healthCheckPath: /api/v1/health
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 3001
-      # Must match the Render instance count; startup fails closed without Redis.
-      - key: BACKEND_INSTANCE_COUNT
-        value: 2
-      - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: cetu-lms-realtime
-          property: connectionString
       - key: DATABASE_URL
         sync: false   # set manually in dashboard; paste your Neon connection string
       - key: JWT_SECRET
@@ -38,10 +29,3 @@ services:
         value: pact
       - key: R2_PUBLIC_BASE_URL
         sync: false   # public CDN URL for R2 bucket (no trailing slash) - required for slide deck downloads
-
-  - type: keyvalue
-    name: cetu-lms-realtime
-    plan: free
-    ipAllowList: []
-    maxmemoryPolicy: volatile-ttl
-    persistenceMode: off

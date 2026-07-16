@@ -7,6 +7,7 @@ const { ScenarioPackage, ScenarioPackageUnlock, Course, Cohort, Enrollment, Squa
 const { NotFoundError, ForbiddenError } = require('../utils/errors');
 const TtlCache = require('../utils/ttlCache');
 const { scenarioSlugFromName } = require('../utils/r2CaseFile');
+const { getStudentLocationMap, locationMatches } = require('../utils/dropLocation');
 
 // scenario_name must be the same slug form assignments/course-content/campaign
 // drops use (e.g. "packet-heist") — the student Evidence Repository groups
@@ -162,17 +163,21 @@ async function listForStudent(courseId, userId) {
     })
   );
 
+  const locationMap = await getStudentLocationMap(courseId, userId);
+
   // Show packages that are unlocked for the cohort, assigned to the student's
   // victim (falling back to the legacy squad_number check for packages
-  // created before victim-based targeting existed), and match the cohort's
-  // scenario if one is set.
+  // created before victim-based targeting existed), match the cohort's
+  // scenario if one is set, and — for location-tagged packages — match the
+  // student's own self-reported search location for that drop.
   const unlocked = packages.filter(
     (p) =>
       unlockedSet.has(p.id) &&
       (p.victim_code == null
         ? (p.squad_number == null || p.squad_number === studentSquadNumber)
         : p.victim_code === studentVictimCode) &&
-      (cohortScenario == null || normalizeScenarioName(p.scenario_name) === cohortScenario)
+      (cohortScenario == null || normalizeScenarioName(p.scenario_name) === cohortScenario) &&
+      locationMatches(p, locationMap)
   );
 
   return unlocked.map((p) => ({ ...p.toJSON(), is_unlocked: true }));
@@ -203,6 +208,11 @@ async function assertStudentUnlocked(pkg, userId) {
     where: { package_id: pkg.id, cohort_id: enrollment.cohort_id },
   });
   if (!unlock) throw new ForbiddenError('This package has not been released for your cohort');
+
+  const locationMap = await getStudentLocationMap(pkg.course_id, userId);
+  if (!locationMatches(pkg, locationMap)) {
+    throw new ForbiddenError('This package is assigned to a different search location');
+  }
 }
 
 /* Returns the file list for a package the student is unlocked for */

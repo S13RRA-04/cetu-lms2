@@ -5,6 +5,7 @@ const { Assignment, AssignmentUnlock, Course, Cohort, Enrollment, User, Submissi
 const { NotFoundError, AppError } = require('../utils/errors');
 const { paginate, paginatedResponse } = require('../utils/pagination');
 const TtlCache = require('../utils/ttlCache');
+const { getStudentLocationMap, locationMatches } = require('../utils/dropLocation');
 
 // Admin assignment list is the same for every instructor request.
 // 15-second TTL absorbs thundering-herd without hiding new submissions long.
@@ -97,7 +98,12 @@ async function _queryListForStudent(courseId, userId) {
   // and anyone else who holds the crypto_forensics certification).
   const professionalRole = student?.professional_role ?? null;
   const studentCertifications = student?.certifications ?? [];
+  // Location-tagged assignments (e.g. a Drop 6 "which scene did you search"
+  // split) stay invisible until the student has self-reported a matching
+  // DropLocationSelection for that drop — see utils/dropLocation.js.
+  const locationMap = await getStudentLocationMap(courseId, userId);
   const visibleAssignments = assignments.filter((a) => {
+    if (!locationMatches(a, locationMap)) return false;
     const filters = a.role_filters;
     if (!filters || filters.length === 0) return true;
     return filters.includes(professionalRole) || studentCertifications.some((c) => filters.includes(c));

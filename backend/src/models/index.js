@@ -31,6 +31,7 @@ const KcrPlacement          = require('./KcrPlacement')(sequelize);
 const IntelBoard            = require('./IntelBoard')(sequelize);
 const SquadChallengeState   = require('./SquadChallengeState')(sequelize);
 const SquadPuzzleCompletion = require('./SquadPuzzleCompletion')(sequelize);
+const DropLocationSelection = require('./DropLocationSelection')(sequelize);
 
 // ── User ↔ Course (instructor relationship) ────────────────────────────────
 Course.belongsTo(User, { as: 'instructor', foreignKey: 'instructor_id' });
@@ -142,6 +143,9 @@ CampaignDropUnlock.belongsTo(Cohort,      { foreignKey: 'cohort_id' });
 CampaignDropUnlock.belongsTo(User, { as: 'unlocker', foreignKey: 'unlocked_by' });
 CampaignDrop.hasMany(CampaignDropPuzzle, { as: 'puzzles', foreignKey: 'drop_id', onDelete: 'CASCADE' });
 CampaignDropPuzzle.belongsTo(CampaignDrop, { foreignKey: 'drop_id' });
+CampaignDrop.hasMany(DropLocationSelection, { as: 'locationSelections', foreignKey: 'drop_id', onDelete: 'CASCADE' });
+DropLocationSelection.belongsTo(CampaignDrop, { foreignKey: 'drop_id' });
+DropLocationSelection.belongsTo(User, { foreignKey: 'user_id' });
 
 // ── CourseContentItem ↔ CourseContentUnlock ────────────────────────────────
 Course.hasMany(CourseContentItem, { as: 'contentItems', foreignKey: 'course_id', onDelete: 'CASCADE' });
@@ -191,4 +195,5 @@ module.exports = {
   IntelBoard,
   SquadChallengeState,
   SquadPuzzleCompletion,
+  DropLocationSelection,
 };

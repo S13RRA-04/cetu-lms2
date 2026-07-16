@@ -12,6 +12,18 @@ test('firewall games expose the PACKET HEIST through-Drop-4 preset', () => {
   assert.match(packetHeist.label, /through Drop 4/);
 });
 
+test('VPN games expose a beginner RestonIT remote-access audit preset', () => {
+  const matches = filterPresets(presetsForOption('log_vpn'), {
+    difficulty: 'beginner',
+    objective: 'remote access auditing',
+    storyline: 'RestonIT Intrusion',
+  });
+
+  assert.deepEqual(matches.map(({ id }) => id), ['vpn-log-restonit-noncompliant-device']);
+  assert.equal(matches[0].answer, 'j.holloway');
+  assert.equal(matches[0].config.lineFormat, 'vpn');
+});
+
 test('every selectable game configuration exposes a ready-to-run preset', () => {
   const optionIds = [
     'signal_hunt', 'vault_lock',

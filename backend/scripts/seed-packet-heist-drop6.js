@@ -7,6 +7,18 @@
  * (rendered to PDF and uploaded to R2 by
  * scripts/render-drop6-evidence.py + backend/scripts/setup-packet-heist-drop6.js).
  *
+ * SUPERSEDED (kept for history): the two assignments this script seeds
+ * (ANALYSIS_ID / DELIVERABLE_TITLE) required squads to synthesize BOTH the
+ * office and residence returns together. That broke down once a real class
+ * ran Drop 6 as two search-scene pairs per squad — no single squad saw both
+ * locations. seed-packet-heist-drop6-locations.js retires these two from
+ * future releases (drop_number set to null so they no longer pair with the
+ * drop) and replaces them with four location-specific assignments, gated by
+ * each *student's* own self-reported search location (see
+ * backend/src/utils/dropLocation.js). Re-running *this* script would re-pair
+ * them to the drop and undo that — don't, unless you're deliberately
+ * reverting the location split.
+ *
  * This script:
  *  - Fixes the pre-existing "Brokered Exit" assignment (id below) which had
  *    scenario_name='brokered-exit' (mismatched vs. every other drop's

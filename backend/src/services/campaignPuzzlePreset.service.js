@@ -120,6 +120,25 @@ const GAME_PRESETS = [
     },
   },
   {
+    id: 'vpn-log-restonit-noncompliant-device',
+    optionId: 'log_vpn',
+    label: 'VPN LOG — RestonIT Noncompliant Device',
+    description: 'Identify the RestonIT account that established remote access from a device that failed compliance checks.',
+    tags: { difficulty: 'beginner', objective: 'remote access auditing', storyline: 'RestonIT Intrusion' },
+    prompt: 'Find the CONNECTED event where device_compliant=false. Submit the username only.',
+    answer: 'j.holloway',
+    config: {
+      lineFormat: 'vpn',
+      logLines: [
+        '2026-04-12T07:42:18Z event=CONNECTED user=a.nguyen source=198.51.100.24 device=RIT-LT-104 device_compliant=true tunnel=corp-east',
+        '2026-04-12T07:48:03Z event=REJECTED user=m.santos source=203.0.113.61 device=UNKNOWN device_compliant=false reason=device_posture',
+        '2026-04-12T07:51:29Z event=CONNECTED user=j.holloway source=203.0.113.88 device=BYOD-771 device_compliant=false tunnel=corp-east',
+        '2026-04-12T08:02:47Z event=DISCONNECTED user=a.nguyen source=198.51.100.24 device=RIT-LT-104 device_compliant=true tunnel=corp-east',
+        '2026-04-12T08:11:15Z event=CONNECTED user=d.wright source=198.51.100.52 device=RIT-LT-219 device_compliant=true tunnel=corp-west',
+      ],
+    },
+  },
+  {
     id: 'hash-md5-legacy-manifest',
     optionId: 'hash_md5',
     label: 'MD5 — Legacy Manifest',

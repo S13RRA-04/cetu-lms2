@@ -8,6 +8,7 @@ const { v4: uuidv4 } = require('uuid');
 const TtlCache = require('../utils/ttlCache');
 const { parseDropCaseFile, scenarioSlugFromName } = require('../utils/r2CaseFile');
 const { contentMatchesSquadVictim } = require('../utils/campaignRelease');
+const { getStudentLocationMap, locationMatches } = require('../utils/dropLocation');
 
 const contentCache = new TtlCache(15_000);
 
@@ -61,10 +62,12 @@ async function listForStudent(courseId, userId) {
       : Promise.resolve([]),
   ]);
 
+  const locationMap = await getStudentLocationMap(courseId, userId);
   const unlockedSet = new Set(unlocks.map((u) => u.content_id));
   return items.map((item) => {
     const unlocked = unlockedSet.has(item.id)
-      && contentMatchesSquadVictim(item.victim_code, enrollment.squad?.victim_code ?? null);
+      && contentMatchesSquadVictim(item.victim_code, enrollment.squad?.victim_code ?? null)
+      && locationMatches(item, locationMap);
     return {
       ...item.toJSON(),
       is_unlocked:  unlocked,
@@ -138,6 +141,10 @@ async function getDownloadUrl(contentId, userId, userRole = 'student') {
 
     if (!contentMatchesSquadVictim(item.victim_code, enrollment.squad?.victim_code ?? null)) {
       throw new ForbiddenError('Content is assigned to a different investigation target');
+    }
+    const locationMap = await getStudentLocationMap(item.course_id, userId);
+    if (!locationMatches(item, locationMap)) {
+      throw new ForbiddenError('Content is assigned to a different search location');
     }
 
     if (enrollment.cohort_id) {

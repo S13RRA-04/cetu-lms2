@@ -31,6 +31,9 @@ module.exports = (sequelize) => {
       drop_number:   { type: DataTypes.SMALLINT,              allowNull: true,  defaultValue: null },
       scenario_name: { type: DataTypes.STRING(255),           allowNull: true,  defaultValue: null },
       victim_name:   { type: DataTypes.STRING(255),           allowNull: true,  defaultValue: null },
+      // Per-student self-report gate — see CourseContentItem.location_code
+      // and utils/dropLocation.js.
+      location_code: { type: DataTypes.STRING(64),            allowNull: true,  defaultValue: null },
       role_filters:  { type: DataTypes.ARRAY(DataTypes.TEXT), allowNull: false, defaultValue: [] },
     },
     { tableName: 'assignments' }

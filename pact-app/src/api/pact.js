@@ -187,6 +187,9 @@ export const createCampaignDrop = (data) =>
 export const verifyVaultPin = (dropId, pin) =>
   client.post(`/courses/${COURSE_ID}/campaign/drops/${dropId}/verify-pin`, { pin }).then((r) => r.data);
 
+export const setDropLocationSelection = (dropId, locationCode) =>
+  client.post(`/courses/${COURSE_ID}/campaign/drops/${dropId}/location-selection`, { location_code: locationCode }).then((r) => r.data);
+
 export const getDropPuzzles = (dropId) =>
   client.get(`/courses/${COURSE_ID}/campaign/drops/${dropId}/puzzles`).then((r) => r.data);
 export const createDropPuzzle = (dropId, data) =>

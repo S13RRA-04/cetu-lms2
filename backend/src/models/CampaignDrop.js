@@ -17,6 +17,10 @@ module.exports = (sequelize) => sequelize.define('CampaignDrop', {
   html_signal:     { type: DataTypes.STRING(128), allowNull: true },
   signal_prompt:   { type: DataTypes.TEXT,        allowNull: true },
   signal_enabled:  { type: DataTypes.BOOLEAN,     allowNull: false, defaultValue: true },
+  // [{ code, label }] — when set, students must self-report which location
+  // they searched (via DropLocationSelection) before location-tagged
+  // assignments/content/packages for this drop become visible to them.
+  location_options: { type: DataTypes.JSONB,      allowNull: true },
 }, {
   tableName: 'campaign_drops',
   indexes: [{ unique: true, fields: ['course_id', 'number'] }],

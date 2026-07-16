@@ -5,7 +5,13 @@ async function listDrops(req, res, next) {
   try {
     const cohortId = req.query.cohort_id ?? null;
     const isStaff  = ['admin', 'superadmin', 'instructor'].includes(req.user?.role);
-    res.json(await campaignService.listDrops(req.params.id, cohortId, isStaff));
+    res.json(await campaignService.listDrops(req.params.id, cohortId, isStaff, req.user.id));
+  } catch (err) { next(err); }
+}
+
+async function setLocationSelection(req, res, next) {
+  try {
+    res.json(await campaignService.setLocationSelection(req.params.did, req.user.id, req.body.location_code));
   } catch (err) { next(err); }
 }
 
@@ -52,4 +58,4 @@ async function previewRelease(req, res, next) {
   catch (err) { next(err); }
 }
 
-module.exports = { listDrops, createDrop, updateDrop, deleteDrop, previewRelease, releaseDrop, lockDrop, verifyVaultPin };
+module.exports = { listDrops, createDrop, updateDrop, deleteDrop, previewRelease, releaseDrop, lockDrop, verifyVaultPin, setLocationSelection };
