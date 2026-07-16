@@ -52,6 +52,7 @@ import VaultKeypad from './VaultKeypad.jsx';
 import { guessContentType } from '../lib/contentType.js';
 import SignalEntry from './SignalEntry.jsx';
 import { FormattedText } from '../components/FormattedText.jsx';
+import { MultipleChoice, TrueFalse } from '../components/QuizFlow.jsx';
 import DropPuzzleManager from '../components/DropPuzzleManager.jsx';
 import DropPuzzleGate from './DropPuzzleGate.jsx';
 import { getNextStage } from '../lib/dropPuzzles.js';
@@ -119,13 +120,20 @@ function QuizAnswerReview({ quizData, questions = [] }) {
 }
 
 function ChallengeDeliverableReview({ delivData, questions = [], maxScore, assignmentId, userId, squadId, isSquad, existingGrade, onGradeSaved }) {
-  const prompts      = questions.filter((q) => q.kind === 'prompt');
-  const perPromptMax = prompts.length > 0 ? Math.round(maxScore / prompts.length) : maxScore;
+  const prompts       = questions.filter((q) => q.kind === 'prompt');
+  const checkQuestions = questions.filter((q) => q.payload != null);
+  const perPromptMax  = prompts.length > 0 ? Math.round((maxScore - checkQuestions.reduce((s, q) => s + (q.scoring?.points ?? 0), 0)) / prompts.length) : maxScore;
+  const submittedChecks = delivData.checks ?? {};
 
   const initScores = () => {
     const ps = existingGrade?.promptScores ?? existingGrade?.prompt_scores;
     if (ps) return ps;
-    return Object.fromEntries(prompts.map((_, i) => [i, '']));
+    return {
+      ...Object.fromEntries(prompts.map((_, i) => [i, ''])),
+      // Auto-suggest full/zero credit for each check question from the
+      // student's submitted answer — the instructor can still override it.
+      ...Object.fromEntries(checkQuestions.map((q) => [q.id, String(submittedChecks[q.id]?.correct ? (q.scoring?.points ?? 0) : 0)])),
+    };
   };
 
   const [promptScores, setPromptScores] = useState(initScores);
@@ -134,8 +142,9 @@ function ChallengeDeliverableReview({ delivData, questions = [], maxScore, assig
   const [err,          setErr]          = useState('');
 
   const scoreOf = (value) => typeof value === 'object' ? Number(value?.score) : parseFloat(value);
-  const total     = prompts.reduce((sum, _, i) => { const v = scoreOf(promptScores[i]); return sum + (isNaN(v) ? 0 : v); }, 0);
-  const allScored = prompts.every((_, i) => !isNaN(scoreOf(promptScores[i])));
+  const scorableKeys = [...prompts.map((_, i) => i), ...checkQuestions.map((q) => q.id)];
+  const total     = scorableKeys.reduce((sum, key) => { const v = scoreOf(promptScores[key]); return sum + (isNaN(v) ? 0 : v); }, 0);
+  const allScored = scorableKeys.every((key) => !isNaN(scoreOf(promptScores[key])));
 
   const handleSave = async () => {
     if (!allScored) { setErr('Score every deliverable before saving.'); return; }
@@ -265,6 +274,49 @@ function ChallengeDeliverableReview({ delivData, questions = [], maxScore, assig
                   )}
                 </div>
               )}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* ── Judgment-check questions (auto-checkable, instructor confirms/adjusts) ── */}
+      {checkQuestions.map((q) => {
+        const record   = submittedChecks[q.id];
+        const pts      = q.scoring?.points ?? 0;
+        const scoreVal = promptScores[q.id];
+        const scoreNum = scoreOf(scoreVal);
+        const pct      = (!isNaN(scoreNum) && pts > 0) ? scoreNum / pts : null;
+        const scoreColor = pct === null ? 'var(--border-hi)' : pct >= 0.8 ? '#10b981' : pct >= 0.5 ? '#f59e0b' : '#ef4444';
+
+        return (
+          <div key={q.id} style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 14px', background: 'var(--surface-2, var(--surface))' }}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--primary)', letterSpacing: '.14em', paddingTop: 2, flexShrink: 0 }}>CHECK</span>
+              <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--bright)', lineHeight: 1.5 }}>{q.stem}</span>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, flexShrink: 0 }}>
+                <input
+                  type="number" min={0} max={pts} value={scoreVal}
+                  onChange={(e) => setScore(q.id, e.target.value)}
+                  style={{
+                    width: 52, padding: '4px 6px', textAlign: 'center', borderRadius: 4,
+                    border: `1.5px solid ${scoreColor}`, background: 'var(--surface)',
+                    color: pct === null ? 'var(--text)' : scoreColor,
+                    fontSize: 16, fontFamily: 'var(--mono)', fontWeight: 700,
+                  }}
+                />
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text)', whiteSpace: 'nowrap' }}>/ {pts} pts</span>
+              </div>
+            </div>
+            <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
+              {q.payload.kind === 'multiple_choice' && (
+                <MultipleChoice q={q} shuffledOpts={q.payload.options} selected={record?.answer} onToggle={() => {}} revealed={!!record?.correct} forced={!record?.correct} />
+              )}
+              {q.payload.kind === 'true_false' && (
+                <TrueFalse q={q} selected={record?.answer} onSelect={() => {}} revealed={!!record?.correct} forced={!record?.correct} />
+              )}
+              <div style={{ marginTop: 6, fontSize: 11, color: record?.correct ? '#10b981' : '#ef4444' }}>
+                Student answered {record?.correct ? 'correctly' : 'incorrectly'} — suggested score pre-filled, adjust if needed.
+              </div>
             </div>
           </div>
         );

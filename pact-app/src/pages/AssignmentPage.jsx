@@ -250,11 +250,17 @@ export default function AssignmentPage() {
   const isSquad    = assignment.grading_mode === 'squad';
   const isLocked   = assignment.is_unlocked === false;
   const isSurvey   = assignment.type === 'survey';
-  const hasQuiz    = !isLocked && !isSurvey && Array.isArray(assignment.questions) &&
+  // A challenge/capstone with at least one free-text "prompt" question is a
+  // workshop, even if it also embeds auto-checkable multiple_choice/true_false
+  // "judgment check" questions alongside the prompt (e.g. Drop 7 role tasking) —
+  // ChallengeFlow renders both. Checking hasQuiz first would route any question
+  // with a payload into QuizFlow, which assumes every question has one and
+  // throws on the payload-less prompt question mixed into the same array.
+  const isWorkshop = !isLocked &&
+    (assignment.type === 'challenge' || assignment.type === 'capstone') &&
+    Array.isArray(assignment.questions) && assignment.questions.some((q) => q.kind === 'prompt');
+  const hasQuiz    = !isLocked && !isSurvey && !isWorkshop && Array.isArray(assignment.questions) &&
     assignment.questions.some((q) => q.payload != null);
-  // Workshop (free-text / prompt deliverables) only when no quiz-style questions present
-  const isWorkshop = !isLocked && !hasQuiz &&
-    (assignment.type === 'challenge' || assignment.type === 'capstone');
 
   return (
     <div className="assignment-page">

@@ -7,6 +7,23 @@ import useSquadFieldSync from '../hooks/useSquadFieldSync.js';
 import useAuthStore from '../store/authStore.js';
 import SubmitSequence from './SubmitSequence.jsx';
 import { FormattedText, FormattedTextEditor } from './FormattedText.jsx';
+import { MultipleChoice, TrueFalse } from './QuizFlow.jsx';
+
+// Mirrors the multiple_choice/true_false branches of QuizFlow's isAnswerCorrect
+// (not exported from there) — used for the self-check "judgment check"
+// questions some challenges embed alongside their free-text prompt(s), e.g.
+// Drop 7 role tasking.
+function isCheckCorrect(q, raw) {
+  const p = q.payload;
+  if (p.kind === 'multiple_choice') {
+    const correct  = new Set(p.correct);
+    const selected = new Set(raw ?? []);
+    if (p.selectionMode === 'single') return selected.size === 1 && correct.has([...selected][0]);
+    return [...correct].every((id) => selected.has(id)) && [...selected].every((id) => correct.has(id));
+  }
+  if (p.kind === 'true_false') return raw === p.correct;
+  return false;
+}
 
 /*
   ChallengeFlow — squad workshop submission UI.
@@ -82,6 +99,7 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
   const deliverables = explicitPrompts.length > 0
     ? explicitPrompts
     : parseDeliverables(assignment.description);
+  const checkQuestions = (assignment.questions ?? []).filter((q) => q.payload != null);
   const saveTimer = useRef(null);
 
   const draft    = loadDraftSync(assignment.id);
@@ -96,6 +114,11 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
     if (useDraft && draft.freetext !== undefined) return draft.freetext;
     if (!existingContent) return '';
     try { const p = JSON.parse(existingContent); return p?.response ?? existingContent; } catch { return existingContent; }
+  });
+  const [checkAnswers, setCheckAnswers] = useState(() => {
+    if (useDraft && draft.checkAnswers) return draft.checkAnswers;
+    if (!existingContent) return {};
+    try { return JSON.parse(existingContent)?.checks ?? {}; } catch { return {}; }
   });
   const [saving,    setSaving]    = useState(false);
   const [error,     setError]     = useState('');
@@ -134,7 +157,7 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
       try {
         localStorage.setItem(
           `pact_draft_${assignment.id}`,
-          JSON.stringify({ answers, freetext, _ts: Date.now() }),
+          JSON.stringify({ answers, freetext, checkAnswers, _ts: Date.now() }),
         );
       } catch {}
 
@@ -146,12 +169,13 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
         ? deliverables.filter((_, i) => (answers[i] ?? '').trim().length > 0).length
         : (freetext.trim().length > 0 ? 1 : 0);
       const totalCount = deliverables ? deliverables.length : 1;
-      const pct = Math.round((answeredCount / totalCount) * 100);
+      const checkedCount = checkQuestions.filter((q) => checkAnswers[q.id] !== undefined).length;
+      const pct = Math.round(((answeredCount + checkedCount) / (totalCount + checkQuestions.length)) * 100);
       updateProgress(assignment.id, pct)
         .then(() => setSaveError(false))
         .catch(() => setSaveError(true));
     }, 700);
-  }, [answers, freetext, assignment.id, submitted]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [answers, freetext, checkAnswers, assignment.id, submitted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isSquad = sharedChallenge;
 
@@ -263,9 +287,10 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
     );
   };
 
-  const canSubmit = deliverables
+  const canSubmit = (deliverables
     ? deliverables.every((_, i) => (answers[i] ?? '').trim().length > 0)
-    : freetext.trim().length > 0;
+    : freetext.trim().length > 0)
+    && checkQuestions.every((q) => checkAnswers[q.id] !== undefined);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -273,9 +298,12 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
     setSaving(true);
     setError('');
     try {
+      const checks = Object.fromEntries(checkQuestions.map((q) => [
+        q.id, { answer: checkAnswers[q.id], correct: isCheckCorrect(q, checkAnswers[q.id]), points: q.scoring?.points ?? 0 },
+      ]));
       const payload = deliverables
-        ? JSON.stringify({ responses: answers, deliverables })
-        : JSON.stringify({ response: freetext });
+        ? JSON.stringify({ responses: answers, deliverables, checks })
+        : JSON.stringify({ response: freetext, checks });
       clearDraftSync(assignment.id);
       await onComplete(payload);
     } catch (err) {
@@ -327,6 +355,49 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
       )}
 
       <form onSubmit={handleSubmit}>
+        {checkQuestions.length > 0 && (
+          <div className="challenge-prompts" style={{ marginBottom: 24 }}>
+            <div className="challenge-prompts-header">
+              <span className="section-label">JUDGMENT CHECKS</span>
+              <span className="challenge-prompts-count">{checkQuestions.length} ITEMS</span>
+            </div>
+            {checkQuestions.map((q, i) => {
+              const raw = checkAnswers[q.id];
+              const answered = raw !== undefined;
+              const setAnswer = (value) => setCheckAnswers((prev) => ({ ...prev, [q.id]: value }));
+              return (
+                <motion.div
+                  key={q.id}
+                  className="challenge-prompt-item"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.2, delay: i * 0.06 }}
+                >
+                  <label className="challenge-prompt-label">
+                    <span className="challenge-prompt-num">{String(i + 1).padStart(2, '0')}</span>
+                    {q.stem}
+                  </label>
+                  {q.payload.kind === 'multiple_choice' && (
+                    <MultipleChoice
+                      q={q}
+                      shuffledOpts={q.payload.options}
+                      selected={raw}
+                      onToggle={(optId) => setAnswer(q.payload.selectionMode === 'single' ? [optId] : (
+                        (raw ?? []).includes(optId) ? raw.filter((id) => id !== optId) : [...(raw ?? []), optId]
+                      ))}
+                      revealed={false}
+                      forced={false}
+                    />
+                  )}
+                  {q.payload.kind === 'true_false' && (
+                    <TrueFalse q={q} selected={raw} onSelect={setAnswer} revealed={false} forced={false} />
+                  )}
+                  {!answered && <div style={{ marginTop: 4, fontSize: 10, color: 'var(--muted)' }}>Select an answer to continue.</div>}
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
         {deliverables ? (
           <div className="challenge-prompts">
             <div className="challenge-prompts-header">
@@ -480,6 +551,43 @@ function ChallengeReview({ assignment, color, existingContent, grade }) {
           </div>
         );
       })}
+
+      {/* Judgment-check review (multiple_choice/true_false questions embedded alongside the prompt) */}
+      {(() => {
+        const checkQuestions = (assignment.questions ?? []).filter((q) => q.payload != null);
+        if (checkQuestions.length === 0) return null;
+        const checks = parsed?.checks ?? {};
+        return (
+          <div style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+            <div style={{ padding: '8px 14px', background: 'var(--surface-2, var(--surface))' }}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: 'var(--muted)' }}>JUDGMENT CHECKS</span>
+            </div>
+            <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {checkQuestions.map((q, i) => {
+                const record = checks[q.id];
+                const raw = record?.answer;
+                const correct = !!record?.correct;
+                return (
+                  <div key={q.id}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--bright)', marginBottom: 6 }}>
+                      {String(i + 1).padStart(2, '0')}. {q.stem}
+                    </div>
+                    {q.payload.kind === 'multiple_choice' && (
+                      <MultipleChoice q={q} shuffledOpts={q.payload.options} selected={raw} onToggle={() => {}} revealed={correct} forced={!correct} />
+                    )}
+                    {q.payload.kind === 'true_false' && (
+                      <TrueFalse q={q} selected={raw} onSelect={() => {}} revealed={correct} forced={!correct} />
+                    )}
+                    <div style={{ marginTop: 5, fontSize: 12, color: correct ? '#10b981' : '#ef4444' }}>
+                      {correct ? (q.feedback?.correct ?? 'Correct.') : (q.feedback?.incorrect ?? 'Incorrect.')}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Freetext fallback (non-deliverable submission) */}
       {labels.length === 0 && parsed?.response && (
