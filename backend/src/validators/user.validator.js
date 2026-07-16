@@ -16,6 +16,9 @@ const PROFESSIONAL_ROLES = [
   'forensic_accountant',
 ];
 
+// Keep in sync with pact-app/src/constants/certifications.js.
+const CERTIFICATIONS = ['DExT', 'CART', 'DFE', 'crypto_forensics'];
+
 const createUserSchema = Joi.object({
   email:      Joi.string().email().required(),
   username:   Joi.string().alphanum().min(3).max(100).required(),
@@ -31,6 +34,7 @@ const updateUserSchema = Joi.object({
   role:              Joi.string().valid('admin', 'instructor', 'student'),
   is_active:         Joi.boolean(),
   professional_role: Joi.string().valid(...PROFESSIONAL_ROLES).allow(null),
+  certifications:    Joi.array().items(Joi.string().valid(...CERTIFICATIONS)),
 }).min(1);
 
 const changePasswordSchema = Joi.object({
@@ -43,4 +47,4 @@ const resetPasswordSchema = Joi.object({
   new_password: Joi.string().min(8).required(),
 });
 
-module.exports = { createUserSchema, updateUserSchema, changePasswordSchema, resetPasswordSchema };
+module.exports = { createUserSchema, updateUserSchema, changePasswordSchema, resetPasswordSchema, PROFESSIONAL_ROLES, CERTIFICATIONS };

@@ -25,6 +25,14 @@ async function getDownloadUrl(req, res, next) {
   } catch (err) { return next(err); }
 }
 
+/* GET /:id/scenarios/:sid/download-all — streams every file in the package as one zip */
+async function downloadAllZip(req, res, next) {
+  try {
+    const isAdmin = req.user.role !== 'student';
+    await scenarioService.zipPackage(req.params.sid, req.user.id, isAdmin, res);
+  } catch (err) { return next(err); }
+}
+
 async function create(req, res, next) {
   try { return res.status(201).json(await scenarioService.create(req.params.id, req.body)); }
   catch (err) { return next(err); }
@@ -106,7 +114,7 @@ async function quickRelease(req, res, next) {
 }
 
 module.exports = {
-  list, getDownloadUrl, create, update, remove,
+  list, getDownloadUrl, downloadAllZip, create, update, remove,
   unlockForCohort, lockForCohort,
   browse, presignUpload, deleteR2Object, quickRelease,
 };

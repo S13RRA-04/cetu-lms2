@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeDropData, pairedMaterialWhere, enabledPuzzlePreview, hasEnabledTransmissionGate } = require('./campaign.service');
+const { normalizeDropData, pairedMaterialWhere, enabledPuzzlePreview, hasEnabledTransmissionGate, assertCohortHasActiveLearners } = require('./campaign.service');
 
 test('normalizeDropData slugifies a raw scenario title so it matches assignment/content records', () => {
   assert.equal(normalizeDropData({ scenario_name: 'PACKET HEIST' }).scenario_name, 'packet-heist');
@@ -48,4 +48,12 @@ test('hasEnabledTransmissionGate requires signal, vault, or an enabled puzzle', 
     { signal_enabled: false, vault_enabled: false },
     [{ enabled: false }, { enabled: true }],
   ), true);
+});
+
+test('drop release rejects a cohort with no active learners', () => {
+  assert.throws(
+    () => assertCohortHasActiveLearners({ name: 'TEST' }, 0),
+    (error) => error.statusCode === 409 && error.code === 'EMPTY_COHORT' && /no active learners/.test(error.message),
+  );
+  assert.doesNotThrow(() => assertCohortHasActiveLearners({ name: 'PACT July' }, 37));
 });

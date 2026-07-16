@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getScenarios, getScenarioDownloadUrl, getCourseContent } from '../api/pact.js';
+import { getScenarios, getScenarioDownloadUrl, downloadScenarioZip, getCourseContent } from '../api/pact.js';
 import useAuthStore from '../store/authStore.js';
 import DecryptText from '../components/DecryptText.jsx';
 import { isScenarioDropContent } from '../lib/contentClassification.js';
@@ -90,6 +90,7 @@ export default function ScenariosPage() {
   const [loading,    setLoading]    = useState(true);
   const [fileMap,    setFileMap]    = useState({});   // pkgId → files[]
   const [extracting, setExtracting] = useState({});   // pkgId → bool
+  const [zipping,    setZipping]    = useState({});   // pkgId → bool
   const [errors,     setErrors]     = useState({});
   const [openDrops,  setOpenDrops]  = useState({});
 
@@ -124,6 +125,31 @@ export default function ScenariosPage() {
       setErrors((e) => ({ ...e, [pkg.id]: err.response?.data?.error?.message ?? 'Extraction failed — access may be restricted.' }));
     } finally {
       setExtracting((e) => ({ ...e, [pkg.id]: false }));
+    }
+  };
+
+  const handleDownloadAll = async (pkg) => {
+    setZipping((z) => ({ ...z, [pkg.id]: true }));
+    setErrors((e) => ({ ...e, [pkg.id]: null }));
+    try {
+      const blob = await downloadScenarioZip(pkg.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${pkg.title.replace(/[^\w.-]+/g, '_')}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      // responseType 'blob' means error bodies arrive as a Blob too, not JSON.
+      let message = 'Zip download failed — access may be restricted.';
+      if (err.response?.data instanceof Blob) {
+        try { message = JSON.parse(await err.response.data.text())?.error?.message ?? message; } catch { /* keep default */ }
+      }
+      setErrors((e) => ({ ...e, [pkg.id]: message }));
+    } finally {
+      setZipping((z) => ({ ...z, [pkg.id]: false }));
     }
   };
 
@@ -270,6 +296,7 @@ export default function ScenariosPage() {
                     const files       = fileMap[pkg.id];
                     const expanded    = files !== undefined;
                     const isExtracting = extracting[pkg.id];
+                    const isZipping   = zipping[pkg.id];
 
                     return (
                       <div key={pkg.id} className={`ep-release${unlocked ? '' : ' ep-release--locked'}`}>
@@ -397,7 +424,7 @@ export default function ScenariosPage() {
 
                         {/* Footer */}
                         {unlocked && (
-                          <div className="ep-release-footer">
+                          <div className="ep-release-footer" style={{ display: 'flex', gap: 8 }}>
                             <button
                               className="ep-extract-btn"
                               onClick={() => handleExtract(pkg)}
@@ -410,6 +437,13 @@ export default function ScenariosPage() {
                               ) : (
                                 <><DownloadIcon /> EXTRACT FILES</>
                               )}
+                            </button>
+                            <button
+                              className="ep-extract-btn"
+                              onClick={() => handleDownloadAll(pkg)}
+                              disabled={isZipping}
+                            >
+                              {isZipping ? 'PACKAGING...' : <><DownloadIcon /> DOWNLOAD ALL</>}
                             </button>
                           </div>
                         )}

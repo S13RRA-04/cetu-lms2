@@ -11,8 +11,8 @@ export const logout = () =>
 export const getMyEnrollment = () =>
   client.get(`/courses/${COURSE_ID}/enrollment/me`).then((r) => r.data);
 
-export const submitOnboarding = (professionalRole) =>
-  client.post('/users/me/onboarding', { professional_role: professionalRole }).then((r) => r.data);
+export const submitOnboarding = (professionalRole, certifications = []) =>
+  client.post('/users/me/onboarding', { professional_role: professionalRole, certifications }).then((r) => r.data);
 
 /* ── Users (Command console) ── */
 export const getUsers = (params = {}) =>
@@ -127,6 +127,12 @@ export const getScenarios = (manage = false) =>
 
 export const getScenarioDownloadUrl = (packageId) =>
   client.get(`/courses/${COURSE_ID}/scenarios/${packageId}/download`).then((r) => r.data);
+
+// Streamed zip — needs responseType 'blob' since it isn't JSON, and goes
+// through the same axios instance so the Bearer auth header still attaches
+// (a plain <a href> to this route would 401, unlike presigned R2 file links).
+export const downloadScenarioZip = (packageId) =>
+  client.get(`/courses/${COURSE_ID}/scenarios/${packageId}/download-all`, { responseType: 'blob' }).then((r) => r.data);
 
 export const createScenario = (data) =>
   client.post(`/courses/${COURSE_ID}/scenarios`, data).then((r) => r.data);

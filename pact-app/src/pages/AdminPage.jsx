@@ -43,7 +43,9 @@ import {
   updateUser,
 } from '../api/pact.js';
 import { VICTIMS } from '../constants/victims.js';
+import { activeLearnerCount, defaultReleaseCohortId } from '../lib/releaseCohorts.js';
 import { PROFESSIONAL_ROLES } from '../constants/professionalRoles.js';
+import { CERTIFICATIONS } from '../constants/certifications.js';
 import TransmissionInterceptor from './TransmissionInterceptor.jsx';
 import VaultKeypad from './VaultKeypad.jsx';
 import { guessContentType } from '../lib/contentType.js';
@@ -843,6 +845,24 @@ function UsersPanel() {
     }
   };
 
+  const handleCertificationsChange = async (user, certValue, checked) => {
+    const next = checked
+      ? [...(user.certifications ?? []), certValue]
+      : (user.certifications ?? []).filter((c) => c !== certValue);
+    setSaving((s) => ({ ...s, [user.id]: true }));
+    try {
+      const updated = await updateUser(user.id, { certifications: next });
+      setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, ...updated } : u));
+      setFlash((f) => ({ ...f, [user.id]: 'saved' }));
+      setTimeout(() => setFlash((f) => ({ ...f, [user.id]: null })), 1800);
+    } catch {
+      setFlash((f) => ({ ...f, [user.id]: 'error' }));
+      setTimeout(() => setFlash((f) => ({ ...f, [user.id]: null })), 2500);
+    } finally {
+      setSaving((s) => ({ ...s, [user.id]: false }));
+    }
+  };
+
   const handleToggleActive = async (user) => {
     setSaving((s) => ({ ...s, [user.id]: true }));
     try {
@@ -958,7 +978,7 @@ function UsersPanel() {
             <div
               key={u.id}
               style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', position: 'relative',
                 border: `1px solid ${u.is_active ? 'var(--border)' : '#ef444455'}`, borderRadius: 6,
                 background: u.is_active ? 'var(--surface)' : 'rgba(239,68,68,0.05)',
               }}
@@ -1007,6 +1027,34 @@ function UsersPanel() {
                 <span style={{ width: 220, fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--mono)', textAlign: 'center' }}>
                   — n/a —
                 </span>
+              )}
+              {u.role === 'student' && (
+                <details style={{ width: 170 }}>
+                  <summary style={{
+                    cursor: 'pointer', fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--muted)',
+                    padding: '5px 8px', border: '1.5px solid var(--border)', borderRadius: 4,
+                    background: 'var(--surface-2, var(--bg))', listStyle: 'none',
+                  }}>
+                    Certs ({(u.certifications ?? []).length})
+                  </summary>
+                  <div style={{
+                    position: 'absolute', zIndex: 10, marginTop: 4, padding: 8, borderRadius: 6,
+                    border: '1px solid var(--border)', background: 'var(--surface)',
+                    display: 'flex', flexDirection: 'column', gap: 4, minWidth: 220,
+                  }}>
+                    {CERTIFICATIONS.map((c) => (
+                      <label key={c.value} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text)' }}>
+                        <input
+                          type="checkbox"
+                          checked={(u.certifications ?? []).includes(c.value)}
+                          disabled={!!saving[u.id]}
+                          onChange={(e) => handleCertificationsChange(u, c.value, e.target.checked)}
+                        />
+                        {c.label}
+                      </label>
+                    ))}
+                  </div>
+                </details>
               )}
               <button
                 className={u.is_active ? 'btn-secondary' : 'btn-primary'}
@@ -2628,7 +2676,7 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
     const dn  = inferDropNum();
     return sc && dn ? `${sc} — Drop ${dn}` : folder.name.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   })();
-  const [cohortId,     setCohortId]     = useState(() => cohorts[0]?.id ?? '');
+  const [cohortId,     setCohortId]     = useState(() => defaultReleaseCohortId(cohorts));
   const [victimCode,   setVictimCode]   = useState('');
   const [title,        setTitle]        = useState(defaultTitle);
   const [description,  setDescription]  = useState('');
@@ -2646,8 +2694,13 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
 
   const selectedCohort = cohorts.find((c) => c.id === cohortId);
 
+  useEffect(() => {
+    if (!cohortId && cohorts.length > 0) setCohortId(defaultReleaseCohortId(cohorts));
+  }, [cohortId, cohorts]);
+
   const handleDrop = async () => {
     if (!cohortId) { setErr('Select a cohort.'); return; }
+    if (activeLearnerCount(selectedCohort) === 0) { setErr('Select a cohort with active learners before releasing.'); return; }
     if (!title.trim()) { setErr('Title is required.'); return; }
     if (!releaseNum) { setErr('Drop number is required to notify students.'); return; }
     if (cipher === 'vault' && (!vaultHint.trim() || !vaultPin.trim())) {
@@ -2772,7 +2825,10 @@ function FolderReleaseForm({ folder, cohorts = [], currentPrefix = '', onRelease
           <select value={cohortId} onChange={(e) => setCohortId(e.target.value)}
             style={{ padding: '5px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, width: '100%' }}>
             <option value="">— select —</option>
-            {cohorts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {cohorts.map((c) => {
+              const learnerCount = activeLearnerCount(c);
+              return <option key={c.id} value={c.id}>{c.name} ({learnerCount} active learner{learnerCount === 1 ? '' : 's'})</option>;
+            })}
           </select>
         </div>
 
@@ -4001,7 +4057,7 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
   const [drops,     setDrops]    = useState([]);
   const [scenarios, setScenarios] = useState([]);
   const [loading,   setLoading]  = useState(true);
-  const [cohortId,  setCohortId] = useState(() => cohorts[0]?.id ?? '');
+  const [cohortId,  setCohortId] = useState(() => defaultReleaseCohortId(cohorts));
   const [delDrop,   setDelDrop]  = useState(null);
   const [lockTarget, setLockTarget] = useState(null);
   const [releasePreview, setReleasePreview] = useState(null);
@@ -4018,6 +4074,10 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
   const [caseFileSyncing, setCaseFileSyncing] = useState(false);
   const [caseFileSyncResult, setCaseFileSyncResult] = useState(null);
   const selectedCohort = cohorts.find((cohort) => cohort.id === cohortId) ?? null;
+
+  useEffect(() => {
+    if (!cohortId && cohorts.length > 0) setCohortId(defaultReleaseCohortId(cohorts));
+  }, [cohortId, cohorts]);
 
   const openNewDrop = () => { setManageDrop({ isNew: true }); setManageTab('basics'); };
   const openManage  = (drop) => { setManageDrop(drop); setManageTab('pair'); setPairSubTab('squad'); };
@@ -4245,7 +4305,10 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
             style={{ flex: 1, padding: '5px 8px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13, background: 'white' }}
           >
             <option value="">— pick cohort —</option>
-            {cohorts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {cohorts.map((c) => {
+              const learnerCount = activeLearnerCount(c);
+              return <option key={c.id} value={c.id}>{c.name} ({learnerCount} active learner{learnerCount === 1 ? '' : 's'})</option>;
+            })}
           </select>
         )}
         <button
@@ -4375,8 +4438,13 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
           <div style={{ background: '#fff', borderRadius: 10, padding: 24, maxWidth: 720, width: '94%', boxShadow: '0 8px 32px rgba(0,0,0,.2)' }}>
             <div style={{ fontWeight: 700, marginBottom: 4 }}>Release Drop {releasePreview.drop.number}?</div>
             <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
-              {releasePreview.drop.title} → {releasePreview.cohort.name}
+              {releasePreview.drop.title} → {releasePreview.cohort.name} ({releasePreview.cohort.active_learner_count} active learners)
             </div>
+            {releasePreview.cohort.active_learner_count === 0 && (
+              <div role="alert" style={{ marginBottom: 14, padding: '10px 12px', borderRadius: 7, border: '1px solid rgba(220,38,38,.55)', background: 'rgba(220,38,38,.08)', color: '#b91c1c', fontSize: 12, fontWeight: 700 }}>
+                RELEASE BLOCKED — This cohort has no active learners. Select the active cohort before releasing.
+              </div>
+            )}
             {(() => {
               const gates = transmissionGateNames(releasePreview.drop);
               return (
@@ -4506,8 +4574,8 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
                 className="btn-submit"
                 style={{ width: 'auto' }}
                 onClick={() => handleRelease(releasePreview.drop)}
-                disabled={!!working || transmissionGateNames(releasePreview.drop).length === 0}
-                title={transmissionGateNames(releasePreview.drop).length === 0 ? 'Enable at least one transmission gate before releasing.' : undefined}
+                disabled={!!working || transmissionGateNames(releasePreview.drop).length === 0 || releasePreview.cohort.active_learner_count === 0}
+                title={releasePreview.cohort.active_learner_count === 0 ? 'Select a cohort with active learners.' : transmissionGateNames(releasePreview.drop).length === 0 ? 'Enable at least one transmission gate before releasing.' : undefined}
               >
                 {working ? 'Releasing…' : 'Confirm Release'}
               </button>

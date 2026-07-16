@@ -3,6 +3,12 @@ const { Cohort, Course, Enrollment, User } = require('../models');
 const { NotFoundError, ConflictError }     = require('../utils/errors');
 const { normalizeScenarioName } = require('./scenario.service');
 
+function activeMemberCount(cohort) {
+  return (cohort.members ?? []).filter((member) => (
+    member.Enrollment?.status === 'active' && member.Enrollment?.role === 'student'
+  )).length;
+}
+
 // scenario_name must be the same slug form assignments/course-content/
 // campaign drops/scenario packages use (e.g. "packet-heist") — the
 // student Evidence Repository filters packages against this field by
@@ -17,10 +23,14 @@ async function listByCourse(courseId) {
   const course = await Course.findByPk(courseId);
   if (!course) throw new NotFoundError('Course');
 
-  return Cohort.findAll({
+  const cohorts = await Cohort.findAll({
     where:   { course_id: courseId },
-    include: [{ model: User, as: 'members', attributes: ['id', 'first_name', 'last_name', 'email', 'username'], through: { attributes: ['status', 'enrolled_at'] } }],
+    include: [{ model: User, as: 'members', attributes: ['id', 'first_name', 'last_name', 'email', 'username'], through: { attributes: ['status', 'role', 'enrolled_at'] } }],
     order:   [['start_date', 'ASC'], ['name', 'ASC']],
+  });
+  return cohorts.map((cohort) => {
+    const json = cohort.toJSON();
+    return { ...json, active_learner_count: activeMemberCount(json) };
   });
 }
 
@@ -98,4 +108,4 @@ async function removeMember(cohortId, userId) {
   await enrollment.destroy();
 }
 
-module.exports = { listByCourse, getById, create, update, remove, addMember, addMembers, removeMember, normalizeCohortData };
+module.exports = { listByCourse, getById, create, update, remove, addMember, addMembers, removeMember, normalizeCohortData, activeMemberCount };

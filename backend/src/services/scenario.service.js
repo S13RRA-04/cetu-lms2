@@ -1,4 +1,5 @@
 'use strict';
+const { ZipArchive } = require('archiver');
 const { ListObjectsV2Command, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { r2Client, R2_BUCKET, R2_DECKS_PREFIX } = require('../config/r2');
@@ -192,21 +193,49 @@ async function listForAdmin(courseId, { includeUnpublished = false } = {}) {
   });
 }
 
+/* Shared by getDownloadUrl and zipPackage — throws unless the student's
+   cohort has this package unlocked. */
+async function assertStudentUnlocked(pkg, userId) {
+  const enrollment = await Enrollment.findOne({ where: { user_id: userId, course_id: pkg.course_id } });
+  if (!enrollment?.cohort_id) throw new ForbiddenError('No cohort enrollment');
+
+  const unlock = await ScenarioPackageUnlock.findOne({
+    where: { package_id: pkg.id, cohort_id: enrollment.cohort_id },
+  });
+  if (!unlock) throw new ForbiddenError('This package has not been released for your cohort');
+}
+
 /* Returns the file list for a package the student is unlocked for */
 async function getDownloadUrl(packageId, userId) {
   const pkg = await ScenarioPackage.findByPk(packageId);
   if (!pkg) throw new NotFoundError('ScenarioPackage');
 
-  const enrollment = await Enrollment.findOne({ where: { user_id: userId, course_id: pkg.course_id } });
-  if (!enrollment?.cohort_id) throw new ForbiddenError('No cohort enrollment');
-
-  const unlock = await ScenarioPackageUnlock.findOne({
-    where: { package_id: packageId, cohort_id: enrollment.cohort_id },
-  });
-  if (!unlock) throw new ForbiddenError('This package has not been released for your cohort');
+  await assertStudentUnlocked(pkg, userId);
 
   const files = await getFilesForPackage(pkg, true); // presigned URLs for students
   return { files };
+}
+
+/* Streams every file in a package into a single zip written to `res`.
+   Same unlock rule as getDownloadUrl for students; admins bypass it. */
+async function zipPackage(packageId, userId, isAdmin, res) {
+  const pkg = await ScenarioPackage.findByPk(packageId);
+  if (!pkg) throw new NotFoundError('ScenarioPackage');
+  if (!isAdmin) await assertStudentUnlocked(pkg, userId);
+
+  const files = await getFilesForPackage(pkg, false); // keys only — we stream objects ourselves
+  const archive = new ZipArchive({ zlib: { level: 6 } });
+
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', `attachment; filename="${pkg.title.replace(/[^\w.-]+/g, '_')}.zip"`);
+  archive.on('error', (err) => res.destroy(err));
+  archive.pipe(res);
+
+  for (const file of files) {
+    const obj = await r2Client.send(new GetObjectCommand({ Bucket: R2_BUCKET, Key: file.key }));
+    archive.append(obj.Body, { name: file.name });
+  }
+  await archive.finalize();
 }
 
 /* Admin: list files for any package regardless of unlock status */
@@ -344,7 +373,7 @@ async function quickRelease(courseId, cohortId, { r2_key, title, scenario_name, 
 }
 
 module.exports = {
-  listForStudent, listForAdmin, getDownloadUrl, getFilesAdmin,
+  listForStudent, listForAdmin, getDownloadUrl, getFilesAdmin, zipPackage,
   create, update, remove, unlockForCohort, lockForCohort,
   browseR2, getPresignedUploadUrl, deleteR2Object, quickRelease,
   normalizeScenarioName, invalidatePackageLists,

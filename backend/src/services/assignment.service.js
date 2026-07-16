@@ -86,16 +86,21 @@ async function _queryListForStudent(courseId, userId) {
       where: { course_id: courseId, is_published: true },
       order: [['order_index', 'ASC'], ['created_at', 'ASC']],
     }),
-    User.findByPk(userId, { attributes: ['professional_role'] }),
+    User.findByPk(userId, { attributes: ['professional_role', 'certifications'] }),
   ]);
   if (!enrollment) throw new AppError('Not enrolled in this course', 403, 'FORBIDDEN');
 
-  // role_filters empty/null = visible to everyone; otherwise only visible to
-  // students whose professional_role is in the list
+  // role_filters empty/null = visible to everyone; otherwise visible to
+  // students whose professional_role is in the list, OR who hold a
+  // certification in the list (e.g. a role-tasking row gated on
+  // ['forensic_accountant', 'crypto_forensics'] reaches Forensic Accountants
+  // and anyone else who holds the crypto_forensics certification).
   const professionalRole = student?.professional_role ?? null;
+  const studentCertifications = student?.certifications ?? [];
   const visibleAssignments = assignments.filter((a) => {
     const filters = a.role_filters;
-    return !filters || filters.length === 0 || filters.includes(professionalRole);
+    if (!filters || filters.length === 0) return true;
+    return filters.includes(professionalRole) || studentCertifications.some((c) => filters.includes(c));
   });
 
   const squadId   = enrollment.squad?.id ?? null;

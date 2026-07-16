@@ -3,7 +3,7 @@ const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { CampaignDrop, CampaignDropUnlock, Assignment, AssignmentUnlock,
         CourseContentItem, CourseContentUnlock, ScenarioPackage, ScenarioPackageUnlock,
-        Squad, Course, Cohort } = require('../models');
+        Squad, Course, Cohort, Enrollment } = require('../models');
 const { NotFoundError, AppError } = require('../utils/errors');
 const { codeToName } = require('../constants/victims');
 const { partitionDropMaterials, unpublishedIds, buildReleasePreview } = require('../utils/campaignRelease');
@@ -84,6 +84,16 @@ function hasEnabledTransmissionGate(drop, puzzles) {
     || puzzles.some((puzzle) => puzzle.enabled === true);
 }
 
+function assertCohortHasActiveLearners(cohort, activeLearnerCount) {
+  if (activeLearnerCount === 0) {
+    throw new AppError(
+      `Cannot release to ${cohort.name}: this cohort has no active learners`,
+      409,
+      'EMPTY_COHORT',
+    );
+  }
+}
+
 async function createDrop(courseId, data) {
   const course = await Course.findByPk(courseId);
   if (!course) throw new NotFoundError('Course');
@@ -125,7 +135,7 @@ async function previewRelease(dropId, cohortId) {
   if (!cohort) throw new NotFoundError('Cohort');
 
   const materialWhere = pairedMaterialWhere(drop);
-  const [squads, assignments, contentItems, scenarioPackages, puzzlesByDrop] = await Promise.all([
+  const [squads, assignments, contentItems, scenarioPackages, puzzlesByDrop, activeLearnerCount] = await Promise.all([
     Squad.findAll({ where: { cohort_id: cohortId }, attributes: ['id', 'number', 'victim_code'] }),
     Assignment.findAll({ where: materialWhere }),
     CourseContentItem.findAll({ where: materialWhere }),
@@ -134,6 +144,7 @@ async function previewRelease(dropId, cohortId) {
     ScenarioPackage.findAll({ where: materialWhere }),
     // Answers are deliberately excluded from release-preview responses.
     listPuzzlesForDrops([drop.id], { includeAnswers: false }),
+    Enrollment.count({ where: { cohort_id: cohortId, course_id: drop.course_id, status: 'active', role: 'student' } }),
   ]);
 
   const enabledPuzzles = enabledPuzzlePreview(puzzlesByDrop.get(drop.id) ?? []);
@@ -147,7 +158,7 @@ async function previewRelease(dropId, cohortId) {
       vault_enabled: drop.vault_enabled,
       enabled_puzzles: enabledPuzzles,
     },
-    cohort: { id: cohort.id, name: cohort.name },
+    cohort: { id: cohort.id, name: cohort.name, active_learner_count: activeLearnerCount },
     ...buildReleasePreview(squads, { assignments, contentItems, scenarioPackages, codeToName }),
   };
 }
@@ -163,6 +174,11 @@ async function releaseDrop(dropId, cohortId, unlockerId) {
 
   const cohort = await Cohort.findByPk(cohortId);
   if (!cohort) throw new NotFoundError('Cohort');
+
+  const activeLearnerCount = await Enrollment.count({
+    where: { cohort_id: cohortId, course_id: drop.course_id, status: 'active', role: 'student' },
+  });
+  assertCohortHasActiveLearners(cohort, activeLearnerCount);
 
   const puzzlesByDrop = await listPuzzlesForDrops([drop.id], { includeAnswers: false });
   if (!hasEnabledTransmissionGate(drop, puzzlesByDrop.get(drop.id) ?? [])) {
@@ -381,4 +397,4 @@ async function lockDrop(dropId, cohortId, { revokeRelated = false } = {}) {
   });
 }
 
-module.exports = { listDrops, createDrop, updateDrop, deleteDrop, previewRelease, releaseDrop, lockDrop, verifyVaultPin, normalizeDropData, pairedMaterialWhere, enabledPuzzlePreview, hasEnabledTransmissionGate };
+module.exports = { listDrops, createDrop, updateDrop, deleteDrop, previewRelease, releaseDrop, lockDrop, verifyVaultPin, normalizeDropData, pairedMaterialWhere, enabledPuzzlePreview, hasEnabledTransmissionGate, assertCohortHasActiveLearners };

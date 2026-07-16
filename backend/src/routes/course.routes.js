@@ -135,6 +135,7 @@ router.post('/:id/scenarios/quick-release',        requireAuth, requireInstructo
 router.put('/:id/scenarios/:sid',                  requireAuth, requireInstructor, scenarioCtrl.update);
 router.delete('/:id/scenarios/:sid',               requireAuth, requireInstructor, scenarioCtrl.remove);
 router.get('/:id/scenarios/:sid/download',         requireAuth,                    scenarioCtrl.getDownloadUrl);
+router.get('/:id/scenarios/:sid/download-all',      requireAuth,                    scenarioCtrl.downloadAllZip);
 router.post('/:id/scenarios/:sid/unlock',          requireAuth, requireInstructor, scenarioCtrl.unlockForCohort);
 router.post('/:id/scenarios/:sid/lock',            requireAuth, requireInstructor, scenarioCtrl.lockForCohort);
 
