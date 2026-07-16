@@ -78,6 +78,7 @@ router.get('/:id/assignments/:aid',         requireAuth,                    assi
 router.put('/:id/assignments/:aid',         requireAuth, requireInstructor, validate(updateAssignmentSchema), auditLog('update', 'assignment'), assignCtrl.update);
 router.delete('/:id/assignments/:aid',      requireAuth, requireInstructor, auditLog('delete', 'assignment'), assignCtrl.remove);
 router.get('/:id/assignments/:aid/grades',  requireAuth, requireInstructor, assignCtrl.getGrades);
+router.get('/:id/assignments/:aid/survey-results', requireAuth, requireInstructor, assignCtrl.getSurveyResults);
 router.put('/:id/assignments/:aid/grades/:uid', requireAuth, requireInstructor, validate(gradeSchema), assignCtrl.upsertGrade);
 
 // Submissions (nested under assignment)

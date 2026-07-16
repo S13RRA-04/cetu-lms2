@@ -3,6 +3,15 @@ const assignmentService  = require('../services/assignment.service');
 const gradeService       = require('../services/grade.service');
 const submissionService  = require('../services/submission.service');
 const analyticsService   = require('../services/analytics.service');
+const surveyResultsService = require('../services/surveyResults.service');
+
+async function getSurveyResults(req, res, next) {
+  try {
+    res.set({ 'Cache-Control': 'private, no-store', Pragma: 'no-cache', Expires: '0', Vary: 'Authorization' });
+    return res.json(await surveyResultsService.getSurveyResults(req.params.aid));
+  }
+  catch (err) { return next(err); }
+}
 
 async function getMyGrades(req, res, next) {
   try { return res.json(await gradeService.getGradesForUser(req.user.id)); }
@@ -118,4 +127,4 @@ async function gradeSquad(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { listByCourse, getOne, create, update, remove, getGrades, upsertGrade, unlockForCohort, lockForCohort, getProgress, getLiveOverview, gradeSquad, getMyGrades, getScoreboard, getSquadScoreboard, getCourseGrades, getCourseAnalytics, getCourseEffectiveness };
+module.exports = { listByCourse, getOne, create, update, remove, getGrades, upsertGrade, unlockForCohort, lockForCohort, getProgress, getLiveOverview, gradeSquad, getMyGrades, getScoreboard, getSquadScoreboard, getCourseGrades, getCourseAnalytics, getCourseEffectiveness, getSurveyResults };

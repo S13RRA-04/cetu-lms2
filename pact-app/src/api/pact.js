@@ -62,6 +62,9 @@ export const getSubmissions = (assignmentId) =>
 export const getGradesForAssignment = (assignmentId) =>
   client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/grades`).then((r) => r.data);
 
+export const getSurveyResults = (assignmentId) =>
+  client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/survey-results`).then((r) => r.data);
+
 export const submitGrade = (assignmentId, userId, data) =>
   client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/grades/${userId}`, data).then((r) => r.data);
 

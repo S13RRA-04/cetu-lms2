@@ -47,7 +47,7 @@ export function FormattedText({ value, emptyText = 'No response recorded' }) {
   return <div className="formatted-text">{nodes}</div>;
 }
 
-export function FormattedTextEditor({ value, onChange, placeholder, rows = 6, required = false, className = '', onFocus, onBlur }) {
+export function FormattedTextEditor({ value, onChange, placeholder, rows = 6, required = false, className = '', onFocus, onBlur, readOnly = false }) {
   const ref = useRef(null);
   const insert = (before, after = before, fallback = 'text') => {
     const el = ref.current;
@@ -66,13 +66,13 @@ export function FormattedTextEditor({ value, onChange, placeholder, rows = 6, re
   };
   return <div className={`formatted-editor ${className}`}>
     <div className="formatted-toolbar" aria-label="Formatting tools">
-      <button type="button" onClick={() => insert('**', '**')} aria-label="Bold"><strong>B</strong></button>
-      <button type="button" onClick={() => insert('*', '*')} aria-label="Italic"><em>I</em></button>
-      <button type="button" onClick={() => template('\n| Column 1 | Column 2 |\n| --- | --- |\n| Value | Value |\n')} aria-label="Insert table">TABLE</button>
-      <button type="button" onClick={() => template('\n:::columns\n:::column\nLeft column\n:::column\nRight column\n:::\n')} aria-label="Insert columns">COLUMNS</button>
+      <button type="button" disabled={readOnly} onClick={() => insert('**', '**')} aria-label="Bold"><strong>B</strong></button>
+      <button type="button" disabled={readOnly} onClick={() => insert('*', '*')} aria-label="Italic"><em>I</em></button>
+      <button type="button" disabled={readOnly} onClick={() => template('\n| Column 1 | Column 2 |\n| --- | --- |\n| Value | Value |\n')} aria-label="Insert table">TABLE</button>
+      <button type="button" disabled={readOnly} onClick={() => template('\n:::columns\n:::column\nLeft column\n:::column\nRight column\n:::\n')} aria-label="Insert columns">COLUMNS</button>
       <span>Markdown formatting</span>
     </div>
-    <textarea ref={ref} value={value} onChange={(e) => onChange(e.target.value)} onFocus={onFocus} onBlur={onBlur} placeholder={placeholder} rows={rows} required={required} />
+    <textarea ref={ref} value={value} onChange={(e) => onChange(e.target.value)} onFocus={onFocus} onBlur={onBlur} placeholder={placeholder} rows={rows} required={required} readOnly={readOnly} />
     <details className="formatted-preview"><summary>Preview formatting</summary><FormattedText value={value} /></details>
   </div>;
 }

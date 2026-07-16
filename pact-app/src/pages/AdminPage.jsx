@@ -3,6 +3,7 @@ import {
   getAdminAssignments,
   getSubmissions,
   getGradesForAssignment,
+  getSurveyResults,
   submitGrade,
   submitSquadGrade,
   getCohorts,
@@ -1999,6 +2000,36 @@ function ModulesGating({ assignments, cohorts, contentItems = [], onUnlocksChang
   );
 }
 
+function SurveyResultsPanel({ assignmentId }) {
+  const [results, setResults] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    setLoading(true); setError('');
+    getSurveyResults(assignmentId).then(setResults).catch((e) => setError(e.response?.data?.error?.message ?? 'Unable to load survey results')).finally(() => setLoading(false));
+  }, [assignmentId]);
+  if (loading) return <div style={{ padding: 18 }}><div className="spinner" /></div>;
+  if (error) return <div className="err-msg" style={{ margin: 16 }}>{error}</div>;
+  if (!results) return null;
+  return <div className="survey-results-admin">
+    <div className="survey-results-summary"><strong>{results.response_count}</strong><span>submitted responses</span><strong>{results.recommendation_count}</strong><span>written format recommendations</span></div>
+    {results.response_count === 0 ? <p className="survey-results-empty">No submitted survey responses yet.</p> : <>
+      <h3>Course-format ratings</h3>
+      <div className="survey-results-distributions">{results.distributions.map((question) => <section key={question.id}>
+        <p>{question.prompt}</p>
+        {question.options.map((option) => <div className="survey-result-row" key={option.value}>
+          <span>{option.label}</span><div><i style={{ width: `${option.percent}%` }} /></div><b>{option.count} <small>({option.percent}%)</small></b>
+        </div>)}
+      </section>)}</div>
+      <h3>Open recommendations by theme</h3>
+      {results.recommendation_groups.length === 0 ? <p className="survey-results-empty">No written format recommendations submitted.</p> : <div className="survey-recommendation-groups">{results.recommendation_groups.map((group) => <details key={group.key} open>
+        <summary>{group.label} <span>{group.count}</span></summary>
+        {group.comments.map((comment, index) => <blockquote key={`${group.key}:${index}`}>{comment}</blockquote>)}
+      </details>)}</div>}
+    </>}
+  </div>;
+}
+
 function scenarioLabel(name) {
   if (!name) return 'Unassigned';
   return name.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -2347,6 +2378,7 @@ function AssessmentSurveyGating({ assignments, cohorts, onUnlocksChange }) {
                 <div className="admin-right-sub">{selected.type}</div>
               </div>
             </div>
+            {selected.type === 'survey' && <SurveyResultsPanel assignmentId={selected.id} />}
             <GatingPanel
               key={selected.id}
               unlocks={selected.unlocks ?? []}

@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { loadDraftSync, clearDraftSync } from '../hooks/useDraft.js';
-import { updateProgress, getSquadChallengeState, saveSquadChallengeState } from '../api/pact.js';
+import { updateProgress, getSquadChallengeState, saveSquadChallengeState, COURSE_ID } from '../api/pact.js';
+import useSquadFieldSync from '../hooks/useSquadFieldSync.js';
+import useAuthStore from '../store/authStore.js';
 import SubmitSequence from './SubmitSequence.jsx';
 import { FormattedText, FormattedTextEditor } from './FormattedText.jsx';
 
@@ -103,6 +105,27 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
   const [fieldMeta, setFieldMeta] = useState({});
   const sharedChallenge = assignment.grading_mode === 'squad' || (assignment.role_filters?.length ?? 0) > 0;
   const sharedTimers = useRef({});
+  // Guards against the poll loop below clobbering in-progress local edits:
+  // a field the user currently has focused, or one with a debounced/in-flight
+  // save that hasn't resolved yet, must not be overwritten by a poll response
+  // that can easily reflect a pre-edit snapshot of that same field.
+  const focusedFieldRef = useRef(null);
+  const pendingFieldsRef = useRef(new Set());
+  const currentUser = useAuthStore((s) => s.user);
+
+  // Live view + take-control locking. This is layered on top of the REST
+  // save/poll below, not a replacement for it — if the socket is down,
+  // fields simply behave as before (editable by anyone, poll-synced).
+  const {
+    fieldLocks: liveLocks, liveValues, connected: liveConnected, takeoverNotice,
+    claimField, releaseField: releaseLiveField, sendInput,
+  } = useSquadFieldSync({ courseId: COURSE_ID, assignmentId: assignment.id, enabled: sharedChallenge && !submitted });
+
+  const lockFor = (field) => liveLocks[field];
+  const isFieldMine = (field) => {
+    const lock = lockFor(field);
+    return !lock || lock.user_id === currentUser?.id;
+  };
 
   useEffect(() => {
     if (submitted) return;
@@ -138,34 +161,69 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
     const apply = (remote) => {
       const manual = remote?.manual;
       if (!manual || cancelled) return;
-      setAnswers(manual.answers ?? {});
-      setFreetext(manual.answers?.__report__ ?? '');
+      const incoming = manual.answers ?? {};
+      const isProtected = (field) => focusedFieldRef.current === field || pendingFieldsRef.current.has(field);
+
+      // Merge rather than replace: keep the local value for any field the
+      // user is actively editing (focused or with an unsent/in-flight save),
+      // so a poll response can't overwrite mid-keystroke. Everything else
+      // (including fields a squadmate just changed) takes the remote value.
+      setAnswers((prev) => {
+        const merged = { ...incoming };
+        for (const key of Object.keys(prev)) {
+          if (isProtected(key)) merged[key] = prev[key];
+        }
+        return merged;
+      });
+      if (!isProtected('__report__')) setFreetext(incoming.__report__ ?? '');
+
       setTyping(manual.typing ?? {});
       setFieldMeta(manual.field_meta ?? {});
     };
+    // This poll is now just a durability/reconnect safety net — live sync
+    // during active editing happens over the WebSocket (useSquadFieldSync)
+    // above. Widened from the original 1200ms since it no longer needs to
+    // feel real-time on its own.
     getSquadChallengeState(assignment.id).then(apply).catch(() => {});
-    const timer = setInterval(() => getSquadChallengeState(assignment.id).then(apply).catch(() => {}), 1200);
+    const timer = setInterval(() => getSquadChallengeState(assignment.id).then(apply).catch(() => {}), 6000);
     return () => { cancelled = true; clearInterval(timer); };
   }, [assignment.id, sharedChallenge, submitted]);
 
   const syncField = (field, value, isTyping = true) => {
     clearTimeout(sharedTimers.current[field]);
+    pendingFieldsRef.current.add(field);
     sharedTimers.current[field] = setTimeout(() => {
       saveSquadChallengeState(assignment.id, { manual: { answers: { [field]: value }, typing: { [field]: isTyping } } })
         .then((remote) => {
+          pendingFieldsRef.current.delete(field);
           const manual = remote?.manual;
           if (!manual) return;
           setTyping(manual.typing ?? {});
           setFieldMeta(manual.field_meta ?? {});
         })
-        .catch(() => setSaveError(true));
+        .catch(() => {
+          pendingFieldsRef.current.delete(field);
+          setSaveError(true);
+        });
     }, isTyping ? 350 : 0);
   };
 
   const updateSharedAnswer = (field, value) => {
     if (deliverables) setAnswers((previous) => ({ ...previous, [field]: value }));
     else setFreetext(value);
-    if (sharedChallenge) syncField(field, value, true);
+    if (sharedChallenge) {
+      syncField(field, value, true);
+      sendInput(field, value);
+    }
+  };
+
+  const focusField = (field) => {
+    focusedFieldRef.current = field;
+    if (sharedChallenge) claimField(field);
+  };
+  const blurField = (field) => {
+    if (focusedFieldRef.current === field) focusedFieldRef.current = null;
+    if (sharedChallenge) releaseLiveField(field);
   };
 
   const stopTyping = (field, value) => {
@@ -185,6 +243,24 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
     const meta = fieldMeta[field];
     if (!meta?.updated_at) return null;
     return `Last edited by ${meta.name} · ${new Date(meta.updated_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+  };
+
+  const lockBanner = (field) => {
+    if (!sharedChallenge) return null;
+    const lock = lockFor(field);
+    if (!lock || isFieldMine(field)) return null;
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, fontSize: 11, color: '#f59e0b' }}>
+        <span>{lock.name} is editing — locked for you{liveConnected ? '' : ' (reconnecting…)'}</span>
+        <button
+          type="button"
+          onClick={() => claimField(field)}
+          style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: '1px solid #f59e0b', background: 'transparent', color: '#f59e0b', cursor: 'pointer' }}
+        >
+          TAKE CONTROL
+        </button>
+      </div>
+    );
   };
 
   const canSubmit = deliverables
@@ -244,6 +320,11 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
           Progress isn't syncing to the server right now — your answers are safe on this device and will sync automatically once the connection recovers.
         </div>
       )}
+      {takeoverNotice && (
+        <div className="qz-save-warning" style={{ borderColor: '#f59e0b', color: '#f59e0b' }}>
+          {takeoverNotice.by?.name ?? 'A teammate'} took control of a field you were editing — it's now read-only for you until they finish.
+        </div>
+      )}
 
       <form onSubmit={handleSubmit}>
         {deliverables ? (
@@ -265,14 +346,16 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
                   {prompt}
                 </label>
                 <FormattedTextEditor
-                  value={answers[i] ?? ''}
+                  value={isFieldMine(String(i)) ? (answers[i] ?? '') : (liveValues[String(i)] ?? answers[i] ?? '')}
                   onChange={(value) => updateSharedAnswer(String(i), value)}
-                  onFocus={() => sharedChallenge && syncField(String(i), answers[i] ?? '', true)}
-                  onBlur={() => stopTyping(String(i), answers[i] ?? '')}
+                  onFocus={() => { focusField(String(i)); sharedChallenge && syncField(String(i), answers[i] ?? '', true); }}
+                  onBlur={() => { blurField(String(i)); stopTyping(String(i), answers[i] ?? ''); }}
                   placeholder={`Squad response for: ${prompt}…`}
                   rows={5}
                   required
+                  readOnly={sharedChallenge && !isFieldMine(String(i))}
                 />
+                {lockBanner(String(i))}
                 {sharedChallenge && typingLabel(String(i)) && <div style={{ marginTop: 5, fontSize: 11, color: 'var(--primary)' }}>{typingLabel(String(i))}</div>}
                 {sharedChallenge && editLabel(String(i)) && <div style={{ marginTop: 4, fontSize: 10, color: 'var(--muted)' }}>{editLabel(String(i))}</div>}
               </motion.div>
@@ -282,14 +365,16 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
           <div className="challenge-freeform">
             <div className="section-label" style={{ marginBottom: 10 }}>SQUAD FIELD REPORT</div>
             <FormattedTextEditor
-              value={freetext}
+              value={isFieldMine('__report__') ? freetext : (liveValues.__report__ ?? freetext)}
               onChange={(value) => updateSharedAnswer('__report__', value)}
-              onFocus={() => sharedChallenge && syncField('__report__', freetext, true)}
-              onBlur={() => stopTyping('__report__', freetext)}
+              onFocus={() => { focusField('__report__'); sharedChallenge && syncField('__report__', freetext, true); }}
+              onBlur={() => { blurField('__report__'); stopTyping('__report__', freetext); }}
               placeholder="Enter your squad's field report…"
               rows={8}
               required
+              readOnly={sharedChallenge && !isFieldMine('__report__')}
             />
+            {lockBanner('__report__')}
             {sharedChallenge && typingLabel('__report__') && <div style={{ marginTop: 5, fontSize: 11, color: 'var(--primary)' }}>{typingLabel('__report__')}</div>}
             {sharedChallenge && editLabel('__report__') && <div style={{ marginTop: 4, fontSize: 10, color: 'var(--muted)' }}>{editLabel('__report__')}</div>}
           </div>

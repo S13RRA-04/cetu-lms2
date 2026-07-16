@@ -23,6 +23,7 @@ const ltiRoutes         = require('./routes/lti.routes');
 const kcrRoutes         = require('./routes/kcr.routes');
 const wopiRoutes        = require('./routes/wopi.routes');
 const ltiService        = require('./services/lti.service');
+const { attachSquadChallengeSocket } = require('./realtime/squadChallengeSocket');
 
 const PORT = parseInt(process.env.PORT, 10) || 3001;
 
@@ -163,9 +164,10 @@ async function bootstrap() {
     app.use(lti.app);
     logger.info('LTI provider deployed');
 
-    app.listen(PORT, () => {
+    const httpServer = app.listen(PORT, () => {
       logger.info(`CETU LMS backend running on port ${PORT} [${process.env.NODE_ENV}]`);
     });
+    attachSquadChallengeSocket(httpServer);
   } catch (err) {
     logger.error('Failed to start server', { error: err.message, stack: err.stack });
     process.exit(1);
