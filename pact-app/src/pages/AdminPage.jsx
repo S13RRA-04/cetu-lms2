@@ -2457,6 +2457,8 @@ function LiveProgressPanel() {
   const [selected,      setSelected]      = useState(null);
   const [roster,        setRoster]        = useState([]);
   const [rosterLoading, setRosterLoading] = useState(false);
+  const [collapsedAssignmentGroups, setCollapsedAssignmentGroups] = useState({});
+  const [collapsedRosterGroups, setCollapsedRosterGroups] = useState({});
 
   const loadOverview = useCallback(() => {
     return getLiveOverview()
@@ -2490,8 +2492,36 @@ function LiveProgressPanel() {
 
   if (loading) return <div className="loading-screen"><div className="spinner" /></div>;
 
-  const inProgressRoster = roster.filter((s) => s.status === 'in_progress');
-  const completedRoster  = roster.filter((s) => s.status !== 'in_progress');
+  const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+  const assignmentGroups = Array.from(
+    overview.reduce((groups, assignment) => {
+      const type = assignment.type || 'other';
+      const entries = groups.get(type) ?? [];
+      entries.push(assignment);
+      groups.set(type, entries);
+      return groups;
+    }, new Map()),
+    ([type, entries]) => ({
+      type,
+      label: `${type.replaceAll('_', ' ')}s`,
+      entries: entries.sort((a, b) => collator.compare(a.title ?? '', b.title ?? '')),
+    }),
+  ).sort((a, b) => collator.compare(a.label, b.label));
+
+  const byStudentName = (a, b) => {
+    const aName = a.student ? `${a.student.first_name ?? ''} ${a.student.last_name ?? ''}`.trim() : 'Unknown';
+    const bName = b.student ? `${b.student.first_name ?? ''} ${b.student.last_name ?? ''}`.trim() : 'Unknown';
+    return collator.compare(aName, bName);
+  };
+  const inProgressRoster = roster.filter((s) => s.status === 'in_progress').sort(byStudentName);
+  const completedRoster  = roster.filter((s) => s.status !== 'in_progress').sort(byStudentName);
+
+  const toggleAssignmentGroup = (type) => {
+    setCollapsedAssignmentGroups((current) => ({ ...current, [type]: !current[type] }));
+  };
+  const toggleRosterGroup = (group) => {
+    setCollapsedRosterGroups((current) => ({ ...current, [group]: !current[group] }));
+  };
 
   return (
     <div className="admin-layout">
@@ -2501,25 +2531,36 @@ function LiveProgressPanel() {
             No published modules or challenges yet.
           </p>
         )}
-        {overview.map((a) => {
-          const color = TYPE_COLOR[a.type] ?? TYPE_COLOR.module;
-          return (
+        {assignmentGroups.map((group) => (
+          <section key={group.type}>
             <button
-              key={a.id}
-              className={`admin-assign-btn${selected?.id === a.id ? ' active' : ''}`}
-              onClick={() => setSelected(a)}
+              type="button"
+              className="admin-group-header"
+              onClick={() => toggleAssignmentGroup(group.type)}
+              aria-expanded={!collapsedAssignmentGroups[group.type]}
             >
-              <span className="admin-assign-type" style={{ color }}>{a.type.toUpperCase()}</span>
-              <span className="admin-assign-title">{a.title}</span>
-              {a.inProgressCount > 0 && (
-                <span className="live-badge">
-                  <span className="live-dot" />
-                  {a.inProgressCount}
-                </span>
-              )}
+              <span className="admin-group-chevron" aria-hidden="true">▾</span>
+              <span className="admin-group-label">{group.label}</span>
+              <span className="admin-group-badge">{group.entries.length}</span>
             </button>
-          );
-        })}
+            {!collapsedAssignmentGroups[group.type] && group.entries.map((a) => {
+              const color = TYPE_COLOR[a.type] ?? TYPE_COLOR.module;
+              return (
+                <button
+                  key={a.id}
+                  className={`admin-assign-btn admin-assign-btn--nested${selected?.id === a.id ? ' active' : ''}`}
+                  onClick={() => setSelected(a)}
+                >
+                  <span className="admin-assign-type" style={{ color }}>{a.type.toUpperCase()}</span>
+                  <span className="admin-assign-title">{a.title}</span>
+                  {a.inProgressCount > 0 && (
+                    <span className="live-badge"><span className="live-dot" />{a.inProgressCount}</span>
+                  )}
+                </button>
+              );
+            })}
+          </section>
+        ))}
       </div>
       <div className="admin-right">
         {!selected ? (
@@ -2543,23 +2584,25 @@ function LiveProgressPanel() {
               <div style={{ padding: '4px 20px 20px' }}>
                 {inProgressRoster.length > 0 && (
                   <>
-                    <div className="live-section-label">
+                    <button type="button" className="live-section-label" onClick={() => toggleRosterGroup('active')} aria-expanded={!collapsedRosterGroups.active}>
+                      <span className="live-section-chevron" aria-hidden="true">▾</span>
                       <span className="live-dot" style={{ background: '#2563eb' }} />
                       ACTIVELY WORKING ({inProgressRoster.length})
-                    </div>
-                    <div className="live-roster">
+                    </button>
+                    {!collapsedRosterGroups.active && <div className="live-roster">
                       {inProgressRoster.map((s) => <LiveRosterRow key={s.id} sub={s} />)}
-                    </div>
+                    </div>}
                   </>
                 )}
                 {completedRoster.length > 0 && (
                   <>
-                    <div className="live-section-label" style={{ marginTop: inProgressRoster.length > 0 ? 18 : 0 }}>
+                    <button type="button" className="live-section-label" style={{ marginTop: inProgressRoster.length > 0 ? 18 : 0 }} onClick={() => toggleRosterGroup('completed')} aria-expanded={!collapsedRosterGroups.completed}>
+                      <span className="live-section-chevron" aria-hidden="true">▾</span>
                       COMPLETED ({completedRoster.length})
-                    </div>
-                    <div className="live-roster">
+                    </button>
+                    {!collapsedRosterGroups.completed && <div className="live-roster">
                       {completedRoster.map((s) => <LiveRosterRow key={s.id} sub={s} />)}
-                    </div>
+                    </div>}
                   </>
                 )}
               </div>

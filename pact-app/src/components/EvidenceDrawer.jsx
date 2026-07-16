@@ -21,6 +21,7 @@ export default function EvidenceDrawer() {
   const [loading, setLoading] = useState(false);
   const [packages, setPackages] = useState([]);
   const [intelItems, setIntelItems] = useState([]);
+  const [collapsedSections, setCollapsedSections] = useState({});
   const navigate = useNavigate();
 
   // Re-fetch every time the drawer is opened, not just the first time — this
@@ -62,9 +63,17 @@ export default function EvidenceDrawer() {
     navigate('/scenarios');
   };
 
-  const sortedPackages = [...packages].sort((a, b) => (a.release_number ?? 0) - (b.release_number ?? 0));
-  const sortedIntel = [...intelItems].sort((a, b) => (a.drop_number ?? 999) - (b.drop_number ?? 999));
+  const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+  const sortedPackages = [...packages].sort((a, b) => collator.compare(
+    a.title ?? a.scenario_name ?? '',
+    b.title ?? b.scenario_name ?? '',
+  ));
+  const sortedIntel = [...intelItems].sort((a, b) => collator.compare(a.title ?? '', b.title ?? ''));
   const total = sortedPackages.length + sortedIntel.length;
+
+  const toggleSection = (section) => {
+    setCollapsedSections((current) => ({ ...current, [section]: !current[section] }));
+  };
 
   return (
     <>
@@ -111,10 +120,34 @@ export default function EvidenceDrawer() {
                   <div className="evd-empty">No evidence authorized for your cohort yet.</div>
                 )}
 
+                {!loading && sortedPackages.length > 0 && (
+                  <div className="evd-section">
+                    <button type="button" className="evd-section-label" onClick={() => toggleSection('case-file-releases')} aria-expanded={!collapsedSections['case-file-releases']}>
+                      <span className="evd-section-chevron" aria-hidden="true">▾</span>
+                      <span>CASE FILE RELEASES</span>
+                      <span className="evd-section-count">{sortedPackages.length}</span>
+                    </button>
+                    {!collapsedSections['case-file-releases'] && sortedPackages.map((pkg) => (
+                      <button key={pkg.id} className="evd-row" onClick={goToCaseFile}>
+                        <span className="evd-row-drop">
+                          RELEASE {String(pkg.release_number ?? '').padStart(2, '0')}
+                        </span>
+                        <span className="evd-row-title">{pkg.title ?? pkg.scenario_name}</span>
+                        <span className="evd-row-arrow">↗</span>
+                      </button>
+                    ))}
+                    {!collapsedSections['case-file-releases'] && <p className="evd-hint">Opens the full Case File for file extraction.</p>}
+                  </div>
+                )}
+
                 {!loading && sortedIntel.length > 0 && (
                   <div className="evd-section">
-                    <div className="evd-section-label">SCENARIO DROP FILES — CASE FILE</div>
-                    {sortedIntel.map((item) => {
+                    <button type="button" className="evd-section-label" onClick={() => toggleSection('scenario-drop-files')} aria-expanded={!collapsedSections['scenario-drop-files']}>
+                      <span className="evd-section-chevron" aria-hidden="true">▾</span>
+                      <span>SCENARIO DROP FILES — CASE FILE</span>
+                      <span className="evd-section-count">{sortedIntel.length}</span>
+                    </button>
+                    {!collapsedSections['scenario-drop-files'] && sortedIntel.map((item) => {
                       const meta = CAMPAIGN_META[item.content_type] ?? CAMPAIGN_META.evidence;
                       const canOpen = !!(item.download_url ?? item.url);
                       return (
@@ -140,21 +173,6 @@ export default function EvidenceDrawer() {
                   </div>
                 )}
 
-                {!loading && sortedPackages.length > 0 && (
-                  <div className="evd-section">
-                    <div className="evd-section-label">CASE FILE RELEASES</div>
-                    {sortedPackages.map((pkg) => (
-                      <button key={pkg.id} className="evd-row" onClick={goToCaseFile}>
-                        <span className="evd-row-drop">
-                          RELEASE {String(pkg.release_number ?? '').padStart(2, '0')}
-                        </span>
-                        <span className="evd-row-title">{pkg.title ?? pkg.scenario_name}</span>
-                        <span className="evd-row-arrow">↗</span>
-                      </button>
-                    ))}
-                    <p className="evd-hint">Opens the full Case File for file extraction.</p>
-                  </div>
-                )}
               </div>
             </motion.div>
           </>
