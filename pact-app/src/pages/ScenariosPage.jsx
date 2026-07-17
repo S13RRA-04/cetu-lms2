@@ -27,6 +27,14 @@ function scenarioLabel(name) {
   return name.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/* "restonit_office" → "Restonit Office" — location_code is a slug too, same
+   deal as scenarioLabel. Items with no location_code (most content, for any
+   drop that doesn't split by search scene) fall into a general bucket. */
+function locationLabel(code) {
+  if (!code) return 'GENERAL — NOT LOCATION-SPECIFIC';
+  return code.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function FileIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -166,22 +174,53 @@ export default function ScenariosPage() {
   // admins preview locked-but-published content, which is intentional.
   const visible = packages;
 
-  // Group by scenario_name
+  // Group by scenario_name, then by search location, then by drop number.
+  // Packages and loose case files both carry location_code + drop_number now
+  // (see Drop 6's office/residence split), so they fold into the same
+  // Location → Drop nesting instead of two separate flat lists.
   const scenarioMap = new Map();
   const ensureScenario = (key) => {
-    if (!scenarioMap.has(key)) scenarioMap.set(key, { releases: [], files: [] });
+    if (!scenarioMap.has(key)) scenarioMap.set(key, { locations: new Map() });
     return scenarioMap.get(key);
   };
+  const ensureLocation = (scenario, locationCode) => {
+    if (!scenario.locations.has(locationCode)) scenario.locations.set(locationCode, new Map());
+    return scenario.locations.get(locationCode);
+  };
+  const ensureDrop = (location, dropNumber) => {
+    if (!location.has(dropNumber)) location.set(dropNumber, { packages: [], files: [] });
+    return location.get(dropNumber);
+  };
+
   for (const pkg of visible) {
-    const key = pkg.scenario_name || pkg.title;
-    ensureScenario(key).releases.push(pkg);
+    const scenario = ensureScenario(pkg.scenario_name || pkg.title);
+    const location = ensureLocation(scenario, pkg.location_code ?? null);
+    ensureDrop(location, pkg.drop_number ?? null).packages.push(pkg);
   }
   for (const item of dropFiles) {
-    ensureScenario(item.scenario_name || 'scenario-drops').files.push(item);
+    const scenario = ensureScenario(item.scenario_name || 'scenario-drops');
+    const location = ensureLocation(scenario, item.location_code ?? null);
+    ensureDrop(location, item.drop_number ?? item.source_drop_number ?? null).files.push(item);
   }
-  for (const group of scenarioMap.values()) {
-    group.releases.sort((a, b) => a.release_number - b.release_number);
-    group.files.sort((a, b) => (a.drop_number ?? a.source_drop_number ?? 0) - (b.drop_number ?? b.source_drop_number ?? 0));
+
+  // Named locations first (alphabetically), general/unassigned bucket last.
+  // Within a location, drops sort numerically with the driveless bucket last.
+  const sortLocationEntries = (a, b) => {
+    if (a[0] == null) return 1;
+    if (b[0] == null) return -1;
+    return a[0].localeCompare(b[0]);
+  };
+  const sortDropEntries = (a, b) => {
+    if (a[0] == null) return 1;
+    if (b[0] == null) return -1;
+    return a[0] - b[0];
+  };
+  for (const scenario of scenarioMap.values()) {
+    for (const location of scenario.locations.values()) {
+      for (const drop of location.values()) {
+        drop.packages.sort((a, b) => a.release_number - b.release_number);
+      }
+    }
   }
   const scenarios = [...scenarioMap.entries()].sort(([a], [b]) => a.localeCompare(b));
 
@@ -205,15 +244,13 @@ export default function ScenariosPage() {
         </div>
       ) : (
         <div className="ep-scenario-list">
-          {scenarios.map(([scenarioName, group], si) => {
-            const { releases, files: scenarioFiles } = group;
-            const authorizedCount = releases.filter((r) => isAdmin || r.is_unlocked).length;
-            const dropGroups = [...new Set(scenarioFiles.map((item) => item.drop_number ?? item.source_drop_number))]
-              .sort((a, b) => a - b)
-              .map((dropNumber) => ({
-                dropNumber,
-                files: scenarioFiles.filter((item) => (item.drop_number ?? item.source_drop_number) === dropNumber),
-              }));
+          {scenarios.map(([scenarioName, scenarioGroup], si) => {
+            const locationEntries = [...scenarioGroup.locations.entries()].sort(sortLocationEntries);
+            const totalPackages = locationEntries.reduce((sum, [, drops]) =>
+              sum + [...drops.values()].reduce((s, d) => s + d.packages.filter((p) => isAdmin || p.is_unlocked).length, 0), 0);
+            const totalFiles = locationEntries.reduce((sum, [, drops]) =>
+              sum + [...drops.values()].reduce((s, d) => s + d.files.length, 0), 0);
+
             return (
               <motion.div
                 key={scenarioName}
@@ -229,69 +266,97 @@ export default function ScenariosPage() {
                     <div className="ep-folder-stamp">CASE FILE</div>
                     <div className="ep-folder-name">{scenarioLabel(scenarioName)}</div>
                     <div className="ep-folder-meta">
-                      {authorizedCount} package{authorizedCount !== 1 ? 's' : ''} and {scenarioFiles.length} drop file{scenarioFiles.length !== 1 ? 's' : ''} authorized
+                      {totalPackages} package{totalPackages !== 1 ? 's' : ''} and {totalFiles} drop file{totalFiles !== 1 ? 's' : ''} authorized
                     </div>
                   </div>
-                  <div className="ep-folder-count">{releases.length + scenarioFiles.length}</div>
+                  <div className="ep-folder-count">{totalPackages + totalFiles}</div>
                 </div>
 
-                {dropGroups.map(({ dropNumber, files }) => {
-                  const dropKey = `${scenarioName}:${dropNumber}`;
-                  const expanded = Boolean(openDrops[dropKey]);
+                {locationEntries.map(([locationCode, dropsMap]) => {
+                  const dropEntries = [...dropsMap.entries()].sort(sortDropEntries);
+                  const locationPackageCount = dropEntries.reduce((s, [, d]) => s + d.packages.filter((p) => isAdmin || p.is_unlocked).length, 0);
+                  const locationFileCount = dropEntries.reduce((s, [, d]) => s + d.files.length, 0);
+
                   return (
-                  <div className="ep-releases" key={`drop-${dropNumber}`} style={{ marginBottom: 14 }}>
-                    <div className="ep-release">
-                      <button
-                        type="button"
-                        className="ep-release-bar"
-                        onClick={() => setOpenDrops((current) => ({ ...current, [dropKey]: !current[dropKey] }))}
-                        aria-expanded={expanded}
-                        style={{ width: '100%', border: 0, cursor: 'pointer', textAlign: 'left' }}
-                      >
-                        <div className="ep-release-bar-left">
-                          <span className="ep-release-id">DROP {String(dropNumber).padStart(2, '0')} FILES</span>
-                          <span className="ep-auth-badge">AUTHORIZED</span>
-                        </div>
-                        <span className="ep-file-count">{files.length} FILE{files.length !== 1 ? 'S' : ''} {expanded ? '▴' : '▾'}</span>
-                      </button>
-                      <AnimatePresence initial={false}>
-                      {expanded && <motion.div
-                        className="ep-release-body"
-                        initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.2 }} style={{ overflow: 'hidden' }}
-                      >
-                        <div className="ep-file-list" style={{ opacity: 1 }}>
-                          {files.map((item) => {
-                            const href = item.download_url ?? item.url;
-                            const name = item.file_name || item.title;
+                    <div key={`loc-${locationCode ?? 'none'}`} className="ep-location-group" style={{ marginBottom: 20 }}>
+                      <div className="ep-location-header" style={{
+                        fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '.1em',
+                        color: locationCode ? 'var(--primary)' : 'var(--muted)',
+                        borderBottom: '1px solid var(--border)', paddingBottom: 6, marginBottom: 12,
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+                      }}>
+                        <span>◈ {locationLabel(locationCode)}</span>
+                        <span style={{ color: 'var(--muted)', fontSize: 10 }}>
+                          {locationPackageCount} package{locationPackageCount !== 1 ? 's' : ''} · {locationFileCount} file{locationFileCount !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+
+                      {dropEntries.map(([dropNumber, { packages: dropPackages, files: dropFilesForDrop }]) => (
+                        <div key={`drop-${locationCode ?? 'none'}-${dropNumber ?? 'none'}`} style={{ marginBottom: 16, marginLeft: 4 }}>
+                          <div className="ep-drop-subheader" style={{
+                            fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.08em',
+                            color: 'var(--muted)', marginBottom: 8,
+                          }}>
+                            {dropNumber != null ? `DROP ${String(dropNumber).padStart(2, '0')}` : 'UNASSIGNED TO A DROP'}
+                          </div>
+
+                          {dropFilesForDrop.length > 0 && (() => {
+                            const dropKey = `${scenarioName}:${locationCode ?? 'none'}:${dropNumber ?? 'none'}`;
+                            const expanded = Boolean(openDrops[dropKey]);
                             return (
-                              <a
-                                key={item.id}
-                                href={href || undefined}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="ep-file-row"
-                                download
-                                aria-disabled={!href}
-                              >
-                                <span className="ep-file-type">{fileType(name)}</span>
-                                <span className="ep-file-name">{name.toUpperCase()}</span>
-                                {item.file_size != null && <span className="ep-file-size">{formatSize(Number(item.file_size))}</span>}
-                                {href && <span className="ep-file-dl"><DownloadIcon /></span>}
-                              </a>
+                              <div className="ep-releases" style={{ marginBottom: 14 }}>
+                                <div className="ep-release">
+                                  <button
+                                    type="button"
+                                    className="ep-release-bar"
+                                    onClick={() => setOpenDrops((current) => ({ ...current, [dropKey]: !current[dropKey] }))}
+                                    aria-expanded={expanded}
+                                    style={{ width: '100%', border: 0, cursor: 'pointer', textAlign: 'left' }}
+                                  >
+                                    <div className="ep-release-bar-left">
+                                      <span className="ep-release-id">CASE FILES</span>
+                                      <span className="ep-auth-badge">AUTHORIZED</span>
+                                    </div>
+                                    <span className="ep-file-count">{dropFilesForDrop.length} FILE{dropFilesForDrop.length !== 1 ? 'S' : ''} {expanded ? '▴' : '▾'}</span>
+                                  </button>
+                                  <AnimatePresence initial={false}>
+                                  {expanded && <motion.div
+                                    className="ep-release-body"
+                                    initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                                    transition={{ duration: 0.2 }} style={{ overflow: 'hidden' }}
+                                  >
+                                    <div className="ep-file-list" style={{ opacity: 1 }}>
+                                      {dropFilesForDrop.map((item) => {
+                                        const href = item.download_url ?? item.url;
+                                        const name = item.file_name || item.title;
+                                        return (
+                                          <a
+                                            key={item.id}
+                                            href={href || undefined}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="ep-file-row"
+                                            download
+                                            aria-disabled={!href}
+                                          >
+                                            <span className="ep-file-type">{fileType(name)}</span>
+                                            <span className="ep-file-name">{name.toUpperCase()}</span>
+                                            {item.file_size != null && <span className="ep-file-size">{formatSize(Number(item.file_size))}</span>}
+                                            {href && <span className="ep-file-dl"><DownloadIcon /></span>}
+                                          </a>
+                                        );
+                                      })}
+                                    </div>
+                                  </motion.div>}
+                                  </AnimatePresence>
+                                </div>
+                              </div>
                             );
-                          })}
-                        </div>
-                      </motion.div>}
-                      </AnimatePresence>
-                    </div>
-                  </div>
-                );
-                })}
+                          })()}
 
                 {/* Release cards */}
                 <div className="ep-releases">
-                  {releases.map((pkg, releaseIdx) => {
+                  {dropPackages.map((pkg) => {
                     const unlocked    = isAdmin || pkg.is_unlocked;
                     const files       = fileMap[pkg.id];
                     const expanded    = files !== undefined;
@@ -305,7 +370,7 @@ export default function ScenariosPage() {
                         <div className="ep-release-bar">
                           <div className="ep-release-bar-left">
                             <span className="ep-release-id">
-                              RELEASE {String(releaseIdx + 1).padStart(2, '0')}
+                              RELEASE {String(pkg.release_number ?? 0).padStart(2, '0')}
                             </span>
                             {unlocked ? (
                               <span className="ep-auth-badge">
@@ -451,6 +516,11 @@ export default function ScenariosPage() {
                     );
                   })}
                 </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
               </motion.div>
             );
           })}
