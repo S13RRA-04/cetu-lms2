@@ -233,7 +233,9 @@ async function _queryLiveOverview(courseId) {
             MAX(s.updated_at) FILTER (WHERE s.status = 'in_progress')              AS "lastActivityAt"
      FROM assignments a
      LEFT JOIN submissions s ON s.assignment_id = a.id
-     WHERE a.course_id = :courseId AND a.type IN ('module', 'challenge') AND a.is_published = true
+     WHERE a.course_id = :courseId
+       AND a.type IN ('module', 'challenge', 'assessment', 'survey')
+       AND a.is_published = true
      GROUP BY a.id
      ORDER BY a.order_index ASC, a.created_at ASC`,
     { replacements: { courseId } }

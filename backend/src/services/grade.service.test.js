@@ -26,6 +26,8 @@ test('operator scoreboard ranks by the displayed total including puzzle points',
 
   assert.match(sql, /ORDER BY \(COALESCE\(SUM\(g\.score\), 0\) \+ COALESCE\(puzzle_points\.points, 0\)\) DESC/);
   assert.match(sql, /u\.last_name ASC,\s+u\.first_name ASC,\s+u\.id ASC/);
+  assert.equal(result[0].assignmentPoints, 390);
+  assert.equal(result[0].puzzlePoints, 13);
   assert.equal(result[0].totalScore, 403);
 });
 
@@ -57,6 +59,8 @@ test('squad scoreboard denominator includes all assignments currently unlocked f
     squadId: 'squad-3',
     squadNumber: 3,
     squadName: null,
+    assignmentPoints: 714,
+    puzzlePoints: 0,
     totalScore: 714,
     maxScore: 840,
     graded: 7,

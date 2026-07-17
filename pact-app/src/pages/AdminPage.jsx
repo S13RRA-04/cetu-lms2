@@ -2916,7 +2916,7 @@ function LiveProgressPanel() {
       <div className="admin-left">
         {overview.length === 0 && (
           <p style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 16px' }}>
-            No published modules or challenges yet.
+            No published modules, challenges, assessments, or surveys yet.
           </p>
         )}
         {assignmentGroups.map((group) => (
@@ -2953,7 +2953,7 @@ function LiveProgressPanel() {
       <div className="admin-right">
         {!selected ? (
           <div className="admin-empty">
-            <p>Select a module or challenge to see who's actively working on it right now.</p>
+            <p>Select an activity to see who's actively working on it right now.</p>
           </div>
         ) : (
           <>

@@ -31,6 +31,75 @@ function RankBadge({ rank }) {
   return <span className="ops-rank-badge" style={{ color }}>#{rank + 1}</span>;
 }
 
+function StandingsEntry({ entry, rank, tab, isMe, leaderScore, delay = 0 }) {
+  const [showBreakdown, setShowBreakdown] = useState(false);
+  const normalizedScore = leaderScore > 0
+    ? Math.round((Number(entry.totalScore ?? 0) / leaderScore) * 100)
+    : 0;
+  const barColor = RANK_COLORS[rank] ?? 'var(--primary)';
+  const label = tab === 'individual'
+    ? `${entry.firstName} ${entry.lastName}`
+    : `Squad ${entry.squadNumber}${entry.squadName ? ` · ${entry.squadName}` : ''}`;
+
+  return (
+    <motion.div
+      className={`ops-board-card${isMe ? ' ops-board-me' : ''}`}
+      initial={{ opacity: 0, x: -16 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.24, delay }}
+    >
+      <div className="ops-board-entry">
+        <RankBadge rank={rank} />
+        <span className="ops-board-name">
+          {label}
+          {isMe && <span className="ops-board-you">YOU</span>}
+        </span>
+        <div className="ops-board-bar-wrap">
+          <motion.div
+            className="ops-board-bar-fill"
+            style={{ background: barColor }}
+            initial={{ width: '0%' }}
+            animate={{ width: `${normalizedScore}%` }}
+            transition={{ duration: 0.9, ease: 'easeOut', delay: 0.2 + delay }}
+          />
+        </div>
+        <span className="ops-board-normalized" style={{ color: barColor }}>{normalizedScore}%</span>
+        <button
+          type="button"
+          className="ops-board-breakdown-toggle"
+          onClick={() => setShowBreakdown((open) => !open)}
+          aria-expanded={showBreakdown}
+        >
+          Breakdown <span aria-hidden="true">▾</span>
+        </button>
+      </div>
+      {showBreakdown && (
+        <div className="ops-board-breakdown">
+          <div>
+            <span>{tab === 'individual' ? 'Evaluated work' : 'Squad evaluations'}</span>
+            <strong>{entry.assignmentPoints ?? entry.totalScore ?? 0} pts</strong>
+          </div>
+          {tab === 'individual' && (
+            <div>
+              <span>Puzzle bonus</span>
+              <strong>{entry.puzzlePoints ?? 0} pts</strong>
+            </div>
+          )}
+          <div>
+            <span>Raw ranking total</span>
+            <strong>{entry.totalScore ?? 0} pts</strong>
+          </div>
+          <div>
+            <span>Evaluated items</span>
+            <strong>{entry.graded ?? 0}</strong>
+          </div>
+          <p>Displayed standing: {normalizedScore}% of the current leader’s {leaderScore} raw points.</p>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
 export default function ScoreboardPage() {
   const { user } = useAuthStore();
   const [tab,          setTab]          = useState('individual');
@@ -60,7 +129,7 @@ export default function ScoreboardPage() {
   );
 
   const board    = tab === 'individual' ? individuals : squads;
-  const maxTotal = board.reduce((m, e) => Math.max(m, e.maxScore ?? 0), 1);
+  const leaderScore = board.reduce((highest, entry) => Math.max(highest, Number(entry.totalScore ?? 0)), 0);
   const isEmpty  = board.length === 0;
 
   const isMine = tab === 'individual'
@@ -106,87 +175,29 @@ export default function ScoreboardPage() {
         </div>
       ) : (
         <div className="ops-board">
-          {top.map(({ entry, rank }, i) => {
-            const isMe     = isMine(entry);
-            const pct      = Math.round((entry.totalScore / (entry.maxScore || 1)) * 100);
-            const barColor = RANK_COLORS[rank] ?? 'var(--primary)';
-            const barWidth = `${(entry.totalScore / maxTotal) * 100}%`;
-            const label    = tab === 'individual'
-              ? `${entry.firstName} ${entry.lastName}`
-              : `Squad ${entry.squadNumber}${entry.squadName ? ` · ${entry.squadName}` : ''}`;
-
-            return (
-              <motion.div
-                key={tab === 'individual' ? entry.userId : entry.squadId}
-                className={`ops-board-entry${isMe ? ' ops-board-me' : ''}`}
-                initial={{ opacity: 0, x: -16 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.24, delay: i * 0.06 }}
-              >
-                <RankBadge rank={rank} />
-                <span className="ops-board-name">
-                  {label}
-                  {isMe && <span className="ops-board-you">YOU</span>}
-                </span>
-                <div className="ops-board-bar-wrap">
-                  <motion.div
-                    className="ops-board-bar-fill"
-                    style={{ background: barColor }}
-                    initial={{ width: '0%' }}
-                    animate={{ width: barWidth }}
-                    transition={{ duration: 0.9, ease: 'easeOut', delay: 0.2 + i * 0.06 }}
-                  />
-                </div>
-                <span className="ops-board-score" style={{ color: barColor }}>{entry.totalScore}</span>
-                <span className="ops-board-pct">
-                  <span>{pct}%</span>
-                  {tab === 'squad' && <small>{entry.graded}/{entry.available ?? entry.graded} graded</small>}
-                </span>
-              </motion.div>
-            );
-          })}
+          {top.map(({ entry, rank }, i) => (
+            <StandingsEntry
+              key={tab === 'individual' ? entry.userId : entry.squadId}
+              entry={entry}
+              rank={rank}
+              tab={tab}
+              isMe={isMine(entry)}
+              leaderScore={leaderScore}
+              delay={i * 0.06}
+            />
+          ))}
 
           {mine && (
             <>
               <div className="ops-board-divider">⋯</div>
-              {(() => {
-                const { entry, rank } = mine;
-                const pct      = Math.round((entry.totalScore / (entry.maxScore || 1)) * 100);
-                const barWidth = `${(entry.totalScore / maxTotal) * 100}%`;
-                const label    = tab === 'individual'
-                  ? `${entry.firstName} ${entry.lastName}`
-                  : `Squad ${entry.squadNumber}${entry.squadName ? ` · ${entry.squadName}` : ''}`;
-
-                return (
-                  <motion.div
-                    key={tab === 'individual' ? entry.userId : entry.squadId}
-                    className="ops-board-entry ops-board-me"
-                    initial={{ opacity: 0, x: -16 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.24 }}
-                  >
-                    <RankBadge rank={rank} />
-                    <span className="ops-board-name">
-                      {label}
-                      <span className="ops-board-you">YOU</span>
-                    </span>
-                    <div className="ops-board-bar-wrap">
-                      <motion.div
-                        className="ops-board-bar-fill"
-                        style={{ background: 'var(--primary)' }}
-                        initial={{ width: '0%' }}
-                        animate={{ width: barWidth }}
-                        transition={{ duration: 0.9, ease: 'easeOut' }}
-                      />
-                    </div>
-                    <span className="ops-board-score" style={{ color: 'var(--primary)' }}>{entry.totalScore}</span>
-                    <span className="ops-board-pct">
-                      <span>{pct}%</span>
-                      {tab === 'squad' && <small>{entry.graded}/{entry.available ?? entry.graded} graded</small>}
-                    </span>
-                  </motion.div>
-                );
-              })()}
+              <StandingsEntry
+                key={tab === 'individual' ? mine.entry.userId : mine.entry.squadId}
+                entry={mine.entry}
+                rank={mine.rank}
+                tab={tab}
+                isMe
+                leaderScore={leaderScore}
+              />
             </>
           )}
         </div>

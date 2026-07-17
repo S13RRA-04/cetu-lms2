@@ -331,6 +331,7 @@ export default function AssignmentPage() {
               {error && <div className="err-msg" style={{ marginBottom: 16 }}>{error}</div>}
               <SurveyFlow
                 questions={assignment.questions}
+                assignmentId={id}
                 color={color}
                 onComplete={handleQuizComplete}
               />
@@ -515,7 +516,7 @@ function ModuleIntro({ assignment, color, onBegin }) {
   );
 }
 
-function SurveyFlow({ questions, color, onComplete }) {
+function SurveyFlow({ questions, assignmentId, color, onComplete }) {
   const [answers, setAnswers] = useState({});
   const [saving,  setSaving]  = useState(false);
 
@@ -525,6 +526,17 @@ function SurveyFlow({ questions, color, onComplete }) {
 
   const requiredIds  = questions.filter((q) => q.type !== 'text').map((q) => q.id);
   const allAnswered  = requiredIds.every((id) => answers[id] !== undefined && answers[id] !== '');
+
+  // Command tracks survey participation without receiving draft response
+  // content. Only the completion percentage is persisted until final submit.
+  useEffect(() => {
+    const answeredCount = questions.filter((q) => answers[q.id] !== undefined && answers[q.id] !== '').length;
+    const pct = questions.length > 0 ? Math.round((answeredCount / questions.length) * 100) : 0;
+    const timer = setTimeout(() => {
+      updateProgress(assignmentId, pct).catch(() => {});
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [answers, assignmentId, questions]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
