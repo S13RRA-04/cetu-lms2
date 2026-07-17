@@ -221,9 +221,15 @@ async function _queryScoreboard(courseId) {
               MAX(g.score) FILTER (
                 WHERE a.lti_resource_link_id = 'assessment-pretest'
               ) AS pretest_score,
+              MAX(g.max_score) FILTER (
+                WHERE a.lti_resource_link_id = 'assessment-pretest'
+              ) AS pretest_max,
               MAX(g.score) FILTER (
                 WHERE a.lti_resource_link_id = 'assessment-posttest'
-              ) AS posttest_score
+              ) AS posttest_score,
+              MAX(g.max_score) FILTER (
+                WHERE a.lti_resource_link_id = 'assessment-posttest'
+              ) AS posttest_max
        FROM grades g
        JOIN assignments a ON a.id = g.assignment_id
        WHERE a.course_id = :courseId
@@ -232,8 +238,15 @@ async function _queryScoreboard(courseId) {
      ), assessment_improvement AS (
        SELECT user_id,
               CASE
-                WHEN pretest_score IS NOT NULL AND posttest_score IS NOT NULL
-                  THEN GREATEST(posttest_score - pretest_score, 0)
+                WHEN pretest_score IS NOT NULL
+                  AND posttest_score IS NOT NULL
+                  AND pretest_max > 0
+                  AND posttest_max > 0
+                  THEN GREATEST(
+                    (posttest_score / posttest_max * 100)
+                    - (pretest_score / pretest_max * 100),
+                    0
+                  )
                 ELSE 0
               END AS points
        FROM assessment_scores
@@ -243,6 +256,12 @@ async function _queryScoreboard(courseId) {
             COALESCE(SUM(g.max_score), 0) AS "maxScore",
             COALESCE(puzzle_points.points, 0) AS "puzzlePoints",
             COALESCE(assessment_improvement.points, 0) AS "assessmentImprovementPoints",
+            (
+              assessment_scores.pretest_score IS NOT NULL
+              AND assessment_scores.posttest_score IS NOT NULL
+              AND assessment_scores.pretest_max > 0
+              AND assessment_scores.posttest_max > 0
+            ) AS "hasAssessmentComparison",
             COUNT(g.id)                   AS "graded"
      FROM enrollments e
      JOIN users u ON u.id = e.user_id
@@ -254,12 +273,14 @@ async function _queryScoreboard(courseId) {
        WHERE course_id = :courseId
        GROUP BY first_solver_id
      ) puzzle_points ON puzzle_points.first_solver_id = u.id
+     LEFT JOIN assessment_scores ON assessment_scores.user_id = u.id
      LEFT JOIN assessment_improvement ON assessment_improvement.user_id = u.id
      WHERE e.course_id = :courseId AND u.role = 'student'
-     GROUP BY u.id, u.first_name, u.last_name, puzzle_points.points, assessment_improvement.points
-     ORDER BY (COALESCE(SUM(g.score), 0)
-               + COALESCE(puzzle_points.points, 0)
-               + COALESCE(assessment_improvement.points, 0)) DESC,
+     GROUP BY u.id, u.first_name, u.last_name, puzzle_points.points,
+              assessment_improvement.points, assessment_scores.pretest_score,
+              assessment_scores.posttest_score, assessment_scores.pretest_max,
+              assessment_scores.posttest_max
+     ORDER BY (COALESCE(SUM(g.score), 0) + COALESCE(puzzle_points.points, 0)) DESC,
               u.last_name ASC,
               u.first_name ASC,
               u.id ASC`,
@@ -272,11 +293,8 @@ async function _queryScoreboard(courseId) {
     assignmentPoints: Math.round(parseFloat(r.totalScore)),
     puzzlePoints: Math.round(parseFloat(r.puzzlePoints ?? 0)),
     assessmentImprovementPoints: Math.round(parseFloat(r.assessmentImprovementPoints ?? 0)),
-    totalScore: Math.round(
-      parseFloat(r.totalScore)
-      + parseFloat(r.puzzlePoints ?? 0)
-      + parseFloat(r.assessmentImprovementPoints ?? 0)
-    ),
+    hasAssessmentComparison: r.hasAssessmentComparison === true,
+    totalScore: Math.round(parseFloat(r.totalScore) + parseFloat(r.puzzlePoints ?? 0)),
     maxScore:   Math.round(parseFloat(r.maxScore)),
     graded:     parseInt(r.graded, 10),
   }));

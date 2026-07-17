@@ -33,13 +33,16 @@ function RankBadge({ rank }) {
 
 function StandingsEntry({ entry, rank, tab, isMe, leaderScore, delay = 0 }) {
   const [showBreakdown, setShowBreakdown] = useState(false);
+  const rankingScore = tab === 'most_improved'
+    ? Number(entry.assessmentImprovementPoints ?? 0)
+    : Number(entry.totalScore ?? 0);
   const normalizedScore = leaderScore > 0
-    ? Math.round((Number(entry.totalScore ?? 0) / leaderScore) * 100)
+    ? Math.round((rankingScore / leaderScore) * 100)
     : 0;
   const barColor = RANK_COLORS[rank] ?? 'var(--primary)';
-  const label = tab === 'individual'
-    ? `${entry.firstName} ${entry.lastName}`
-    : `Squad ${entry.squadNumber}${entry.squadName ? ` · ${entry.squadName}` : ''}`;
+  const label = tab === 'squad'
+    ? `Squad ${entry.squadNumber}${entry.squadName ? ` · ${entry.squadName}` : ''}`
+    : `${entry.firstName} ${entry.lastName}`;
 
   return (
     <motion.div
@@ -75,31 +78,35 @@ function StandingsEntry({ entry, rank, tab, isMe, leaderScore, delay = 0 }) {
       </div>
       {showBreakdown && (
         <div className="ops-board-breakdown">
-          <div>
-            <span>{tab === 'individual' ? 'Evaluated work' : 'Squad evaluations'}</span>
-            <strong>{entry.assignmentPoints ?? entry.totalScore ?? 0} pts</strong>
-          </div>
-          {tab === 'individual' && (
+          {tab === 'most_improved' ? (
+            <div>
+              <span>Normalized improvement</span>
+              <strong>+{entry.assessmentImprovementPoints ?? 0} percentage points</strong>
+            </div>
+          ) : (
             <>
               <div>
-                <span>Assessment improvement</span>
-                <strong>+{entry.assessmentImprovementPoints ?? 0} pts</strong>
+                <span>{tab === 'individual' ? 'Evaluated work' : 'Squad evaluations'}</span>
+                <strong>{entry.assignmentPoints ?? entry.totalScore ?? 0} pts</strong>
               </div>
-              <div>
+              {tab === 'individual' && <div>
                 <span>Puzzle bonus</span>
                 <strong>{entry.puzzlePoints ?? 0} pts</strong>
+              </div>}
+              <div>
+                <span>Raw ranking total</span>
+                <strong>{entry.totalScore ?? 0} pts</strong>
               </div>
             </>
           )}
-          <div>
-            <span>Raw ranking total</span>
-            <strong>{entry.totalScore ?? 0} pts</strong>
-          </div>
-          <div>
+          {tab !== 'most_improved' && <div>
             <span>Evaluated items</span>
             <strong>{entry.graded ?? 0}</strong>
-          </div>
-          <p>Displayed standing: {normalizedScore}% of the current leader’s {leaderScore} raw points.</p>
+          </div>}
+          <p>
+            Displayed standing: {normalizedScore}% of the current leader’s {leaderScore}
+            {tab === 'most_improved' ? ' percentage-point improvement.' : ' raw points.'}
+          </p>
         </div>
       )}
     </motion.div>
@@ -134,13 +141,27 @@ export default function ScoreboardPage() {
     </div>
   );
 
-  const board    = tab === 'individual' ? individuals : squads;
-  const leaderScore = board.reduce((highest, entry) => Math.max(highest, Number(entry.totalScore ?? 0)), 0);
+  const mostImproved = individuals
+    .filter((entry) =>
+      entry.hasAssessmentComparison && Number(entry.assessmentImprovementPoints ?? 0) > 0
+    )
+    .sort((a, b) =>
+      Number(b.assessmentImprovementPoints ?? 0) - Number(a.assessmentImprovementPoints ?? 0)
+      || `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`)
+    );
+  const board = tab === 'squad' ? squads : tab === 'most_improved' ? mostImproved : individuals;
+  const leaderScore = board.reduce(
+    (highest, entry) => Math.max(
+      highest,
+      Number(tab === 'most_improved' ? entry.assessmentImprovementPoints : entry.totalScore) || 0,
+    ),
+    0,
+  );
   const isEmpty  = board.length === 0;
 
-  const isMine = tab === 'individual'
-    ? (entry) => entry.userId === user?.id
-    : (entry) => !!mySquadId && entry.squadId === mySquadId;
+  const isMine = tab === 'squad'
+    ? (entry) => !!mySquadId && entry.squadId === mySquadId
+    : (entry) => entry.userId === user?.id;
   const { top, mine } = visibleSlice(board, isMine);
 
   return (
@@ -150,7 +171,7 @@ export default function ScoreboardPage() {
 
       {/* Tab toggle */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-        {['individual', 'squad'].map((t) => (
+        {['individual', 'squad', 'most_improved'].map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -162,7 +183,7 @@ export default function ScoreboardPage() {
               color: tab === t ? 'var(--primary)' : 'var(--muted)',
             }}
           >
-            {t === 'individual' ? 'Operators' : 'Squads'}
+            {t === 'individual' ? 'Operators' : t === 'squad' ? 'Squads' : 'Most Improved'}
           </button>
         ))}
       </div>
@@ -176,14 +197,20 @@ export default function ScoreboardPage() {
               <rect x="16" y="11" width="4" height="10" rx="1"/>
             </svg>
           </div>
-          <div className="ops-empty-label">NO SCORES ON RECORD</div>
-          <div className="ops-empty-sub">Standings will appear once evaluations are submitted.</div>
+          <div className="ops-empty-label">
+            {tab === 'most_improved' ? 'NO POSITIVE IMPROVEMENT YET' : 'NO SCORES ON RECORD'}
+          </div>
+          <div className="ops-empty-sub">
+            {tab === 'most_improved'
+              ? 'Standings will appear after learners complete both assessments with a positive normalized gain.'
+              : 'Standings will appear once evaluations are submitted.'}
+          </div>
         </div>
       ) : (
         <div className="ops-board">
           {top.map(({ entry, rank }, i) => (
             <StandingsEntry
-              key={tab === 'individual' ? entry.userId : entry.squadId}
+              key={tab === 'squad' ? entry.squadId : entry.userId}
               entry={entry}
               rank={rank}
               tab={tab}
@@ -197,7 +224,7 @@ export default function ScoreboardPage() {
             <>
               <div className="ops-board-divider">⋯</div>
               <StandingsEntry
-                key={tab === 'individual' ? mine.entry.userId : mine.entry.squadId}
+                key={tab === 'squad' ? mine.entry.squadId : mine.entry.userId}
                 entry={mine.entry}
                 rank={mine.rank}
                 tab={tab}
