@@ -1,6 +1,9 @@
 import { useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 
-const SPIN_DURATION_MS = 4200;
+const SPIN_DURATION_MS  = 7200;
+const REVEAL_PAUSE_MS   = 450; // beat of silence between the wheel stopping and the winner banner appearing
+const SPIN_EASE         = 'cubic-bezier(0.1, 0.82, 0.04, 1)'; // fast wind-up, long dramatic deceleration
 const SIZE   = 320;
 const CENTER = SIZE / 2;
 const RADIUS = SIZE / 2 - 6;
@@ -47,10 +50,12 @@ const btnBase = {
 export default function WheelOfNames({ names = [], onWinner, disabled = false }) {
   const [rotation, setRotation] = useState(0);
   const [spinning, setSpinning] = useState(false);
+  const [settling, setSettling] = useState(false); // wheel has stopped, winner not yet revealed (dramatic pause)
   const [winner,   setWinner]   = useState(null);
-  const timeoutRef = useRef(null);
+  const spinTimeoutRef   = useRef(null);
+  const revealTimeoutRef = useRef(null);
 
-  const canSpin  = !disabled && !spinning && names.length >= 2;
+  const canSpin  = !disabled && !spinning && !settling && names.length >= 2;
   const segAngle = names.length > 0 ? 360 / names.length : 0;
   const fontSize = segmentFontSize(names.length);
 
@@ -64,30 +69,64 @@ export default function WheelOfNames({ names = [], onWinner, disabled = false })
     const targetMod      = ((360 - winnerMidAngle) % 360 + 360) % 360;
     let delta             = targetMod - currentMod;
     if (delta < 0) delta += 360;
-    const extraSpins  = 360 * (6 + Math.floor(Math.random() * 3));
+    const extraSpins  = 360 * (10 + Math.floor(Math.random() * 4));
     const newRotation = rotation + delta + extraSpins;
 
     setSpinning(true);
     setRotation(newRotation);
 
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => {
+    if (spinTimeoutRef.current) clearTimeout(spinTimeoutRef.current);
+    if (revealTimeoutRef.current) clearTimeout(revealTimeoutRef.current);
+
+    spinTimeoutRef.current = setTimeout(() => {
       setSpinning(false);
-      setWinner(names[winnerIdx]);
-      onWinner?.(names[winnerIdx]);
+      setSettling(true);
+      revealTimeoutRef.current = setTimeout(() => {
+        setSettling(false);
+        setWinner(names[winnerIdx]);
+        onWinner?.(names[winnerIdx]);
+      }, REVEAL_PAUSE_MS);
     }, SPIN_DURATION_MS);
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}>
-      <div style={{ position: 'relative', width: SIZE, height: SIZE + 14 }}>
-        {/* pointer */}
-        <svg
+      <motion.div
+        style={{ position: 'relative', width: SIZE, height: SIZE + 14 }}
+        animate={spinning ? { scale: [1, 1.015, 1] } : { scale: 1 }}
+        transition={spinning ? { duration: 0.5, repeat: Infinity, ease: 'easeInOut' } : { duration: 0.3 }}
+      >
+        {/* pointer — trembles while the wheel is in motion */}
+        <motion.svg
           width={28} height={30}
-          style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', zIndex: 2, filter: 'drop-shadow(0 2px 3px rgba(0,0,0,.5))' }}
+          style={{ position: 'absolute', top: 0, left: '50%', zIndex: 2, filter: 'drop-shadow(0 2px 3px rgba(0,0,0,.5))' }}
+          initial={{ x: '-50%' }}
+          animate={spinning ? { x: '-50%', rotate: [-7, 7, -7] } : { x: '-50%', rotate: 0 }}
+          transition={spinning ? { duration: 0.14, repeat: Infinity, ease: 'linear' } : { duration: 0.2 }}
         >
           <path d="M 14 26 L 2 6 Q 0 0 8 0 L 20 0 Q 28 0 26 6 Z" fill="var(--primary)" stroke="var(--bg)" strokeWidth={1.5} />
-        </svg>
+        </motion.svg>
+
+        {/* glow ring — builds tension while spinning, flares on settle */}
+        <motion.div
+          style={{
+            position: 'absolute', top: 14, left: 0, width: SIZE, height: SIZE,
+            borderRadius: '50%', pointerEvents: 'none', zIndex: 1,
+            boxShadow: '0 0 0 0 var(--primary)',
+          }}
+          animate={
+            settling
+              ? { boxShadow: ['0 0 0 0 var(--primary)', '0 0 34px 6px var(--primary)', '0 0 0 0 var(--primary)'] }
+              : spinning
+                ? { boxShadow: ['0 0 6px 0px var(--primary)', '0 0 16px 3px var(--primary)', '0 0 6px 0px var(--primary)'] }
+                : { boxShadow: '0 0 0 0 var(--primary)' }
+          }
+          transition={
+            settling
+              ? { duration: REVEAL_PAUSE_MS / 1000, ease: 'easeOut' }
+              : { duration: 0.7, repeat: spinning ? Infinity : 0, ease: 'easeInOut' }
+          }
+        />
 
         <div style={{ position: 'absolute', top: 14, left: 0 }}>
           {names.length === 0 ? (
@@ -110,7 +149,7 @@ export default function WheelOfNames({ names = [], onWinner, disabled = false })
                 borderRadius: '50%',
                 display: 'block',
                 transform: `rotate(${rotation}deg)`,
-                transition: spinning ? `transform ${SPIN_DURATION_MS}ms cubic-bezier(0.17, 0.67, 0.12, 0.99)` : 'none',
+                transition: spinning ? `transform ${SPIN_DURATION_MS}ms ${SPIN_EASE}` : 'none',
                 filter: 'drop-shadow(0 6px 18px rgba(0,0,0,.55))',
               }}
             >
@@ -152,7 +191,7 @@ export default function WheelOfNames({ names = [], onWinner, disabled = false })
             </svg>
           )}
         </div>
-      </div>
+      </motion.div>
 
       <button
         onClick={spin}
@@ -168,25 +207,32 @@ export default function WheelOfNames({ names = [], onWinner, disabled = false })
           cursor: canSpin ? 'pointer' : 'not-allowed',
         }}
       >
-        {spinning ? 'SPINNING…' : '◉ SPIN'}
+        {settling ? '● ● ●' : spinning ? 'SPINNING…' : '◉ SPIN'}
       </button>
 
-      {names.length === 1 && !spinning && (
+      {names.length === 1 && !spinning && !settling && (
         <span style={{ color: 'var(--muted)', fontSize: 11, fontFamily: 'var(--mono)' }}>Add at least one more name to spin.</span>
       )}
 
-      {winner && !spinning && (
-        <div
-          style={{
-            fontFamily: 'var(--mono)', fontSize: 13, letterSpacing: '.06em',
-            color: 'var(--primary)', border: '1px solid var(--primary)',
-            background: 'color-mix(in srgb, var(--primary) 10%, transparent)',
-            borderRadius: 6, padding: '8px 18px', textAlign: 'center',
-          }}
-        >
-          ◉ WINNER: {winner}
-        </div>
-      )}
+      <AnimatePresence>
+        {winner && !spinning && !settling && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.7, y: -6 }}
+            animate={{ opacity: 1, scale: [0.7, 1.12, 1], y: 0 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+            style={{
+              fontFamily: 'var(--mono)', fontSize: 15, letterSpacing: '.06em', fontWeight: 700,
+              color: 'var(--primary)', border: '1px solid var(--primary)',
+              background: 'color-mix(in srgb, var(--primary) 12%, transparent)',
+              boxShadow: '0 0 24px color-mix(in srgb, var(--primary) 45%, transparent)',
+              borderRadius: 6, padding: '10px 22px', textAlign: 'center',
+            }}
+          >
+            ◉ WINNER: {winner}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
