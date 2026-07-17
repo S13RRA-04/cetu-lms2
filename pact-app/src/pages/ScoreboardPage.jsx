@@ -130,15 +130,28 @@ export default function ScoreboardPage() {
   const [loading,      setLoading]      = useState(true);
 
   useEffect(() => {
-    Promise.all([
+    let active = true;
+    const load = () => Promise.all([
       getScoreboard().catch(() => []),
       getSquadScoreboard().catch(() => []),
       getMyEnrollment().catch(() => null),
     ]).then(([ind, sq, enrollment]) => {
+      if (!active) return;
       setIndividuals(Array.isArray(ind) ? ind : []);
       setSquads(Array.isArray(sq) ? sq : []);
       setMySquadId(enrollment?.squad?.id ?? null);
-    }).finally(() => setLoading(false));
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+
+    load();
+    const interval = setInterval(load, 15_000);
+    window.addEventListener('focus', load);
+    return () => {
+      active = false;
+      clearInterval(interval);
+      window.removeEventListener('focus', load);
+    };
   }, []);
 
   if (loading) return (
