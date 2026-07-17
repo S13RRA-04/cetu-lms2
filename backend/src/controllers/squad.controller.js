@@ -31,4 +31,11 @@ async function removeMember(req, res, next) {
   catch (err) { next(err); }
 }
 
-module.exports = { listByCohort, create, update, remove, assignMember, removeMember };
+async function announceWheelWinner(req, res, next) {
+  try {
+    await squadService.announceWheelWinner(req.params.sid, { userId: req.body.user_id, name: req.body.name });
+    res.status(204).end();
+  } catch (err) { next(err); }
+}
+
+module.exports = { listByCohort, create, update, remove, assignMember, removeMember, announceWheelWinner };

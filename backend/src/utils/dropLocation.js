@@ -1,42 +1,30 @@
 'use strict';
 const { DropLocationSelection, CampaignDrop } = require('../models');
 
-// Assignments/course-content-items/scenario-packages don't carry drop_id —
-// they're paired to a drop by (course_id, drop_number, scenario_name), same
-// as campaignRelease.js's pairedMaterialWhere. DropLocationSelection is
-// keyed by drop_id (FK), so we join through CampaignDrop to translate.
-function dropKey(dropNumber, scenarioName) {
-  return `${dropNumber}:${scenarioName ?? ''}`;
-}
-
-/* Map of "drop_number:scenario_name" -> location_code the student picked,
-   scoped to one course. */
-async function getStudentLocationMap(courseId, userId) {
+/* Every location_code a student has ever self-reported anywhere in a course
+   (across any drop's DropLocationSelection rows). Location is treated as a
+   durable per-student trait for the rest of the campaign — e.g. a student
+   who searched the RestonIT office in Drop 6 is still "the one who searched
+   the office" for Day 5 testimony prep, which isn't tied to any drop at all. */
+async function getStudentLocationCodes(courseId, userId) {
   const rows = await DropLocationSelection.findAll({
     where: { user_id: userId },
-    include: [{ model: CampaignDrop, attributes: ['course_id', 'number', 'scenario_name'], required: true }],
+    include: [{ model: CampaignDrop, attributes: ['course_id'], required: true }],
   });
-  const map = new Map();
-  for (const row of rows) {
-    const drop = row.CampaignDrop;
-    if (drop.course_id !== courseId) continue;
-    map.set(dropKey(drop.number, drop.scenario_name), row.location_code);
-  }
-  return map;
+  return new Set(rows.filter((row) => row.CampaignDrop.course_id === courseId).map((row) => row.location_code));
 }
 
 // An item with no location_code is unrestricted. An item tagged with one is
-// hidden only once the student has self-reported a *different* location for
-// that item's drop — no selection recorded yet means unrestricted, same as
-// this codebase's puzzle gates (the frontend forces the prompt first; the
-// backend doesn't hard-block a student/cohort that never went through it,
-// e.g. drops released before this mechanism existed for that cohort).
-function locationMatches(item, locationMap) {
+// hidden only once the student has self-reported a *different* location
+// somewhere in this course — never having made any selection at all means
+// unrestricted, same as this codebase's puzzle gates (the frontend forces
+// the prompt first; the backend doesn't hard-block a student/cohort that
+// never went through it, e.g. drops released before this mechanism existed
+// for that cohort).
+function locationMatches(item, locationCodes) {
   if (!item.location_code) return true;
-  if (item.drop_number == null) return true;
-  const key = dropKey(item.drop_number, item.scenario_name);
-  if (!locationMap.has(key)) return true;
-  return locationMap.get(key) === item.location_code;
+  if (locationCodes.size === 0) return true;
+  return locationCodes.has(item.location_code);
 }
 
-module.exports = { getStudentLocationMap, locationMatches };
+module.exports = { getStudentLocationCodes, locationMatches };

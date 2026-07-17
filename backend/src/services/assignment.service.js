@@ -1,11 +1,12 @@
 'use strict';
 const { Op }             = require('sequelize');
 const { sequelize }      = require('../config/database');
-const { Assignment, AssignmentUnlock, Course, Cohort, Enrollment, User, Submission, CourseContentItem, CourseContentUnlock } = require('../models');
+const { Assignment, AssignmentUnlock, Course, Cohort, Enrollment, User, Submission, CourseContentItem, CourseContentUnlock, Squad } = require('../models');
 const { NotFoundError, AppError } = require('../utils/errors');
 const { paginate, paginatedResponse } = require('../utils/pagination');
 const TtlCache = require('../utils/ttlCache');
-const { getStudentLocationMap, locationMatches } = require('../utils/dropLocation');
+const { getStudentLocationCodes, locationMatches } = require('../utils/dropLocation');
+const { codeToName } = require('../constants/victims');
 
 // Admin assignment list is the same for every instructor request.
 // 15-second TTL absorbs thundering-herd without hiding new submissions long.
@@ -101,9 +102,9 @@ async function _queryListForStudent(courseId, userId) {
   // Location-tagged assignments (e.g. a Drop 6 "which scene did you search"
   // split) stay invisible until the student has self-reported a matching
   // DropLocationSelection for that drop — see utils/dropLocation.js.
-  const locationMap = await getStudentLocationMap(courseId, userId);
+  const locationCodes = await getStudentLocationCodes(courseId, userId);
   const visibleAssignments = assignments.filter((a) => {
-    if (!locationMatches(a, locationMap)) return false;
+    if (!locationMatches(a, locationCodes)) return false;
     const filters = a.role_filters;
     if (!filters || filters.length === 0) return true;
     return filters.includes(professionalRole) || studentCertifications.some((c) => filters.includes(c));
@@ -155,6 +156,43 @@ async function unlockForCohort(assignmentId, cohortId, unlockerId, squadId = nul
   }
 
   return unlock;
+}
+
+/* Squad-scoped release for assignments tagged with victim_name but not tied
+   to any CampaignDrop (e.g. Day 5 testimony prep) — campaignRelease.js's
+   victim fan-out only runs inside releaseDrop(), which needs a drop. This
+   is the same "does this squad's victim match?" pairing, standalone: each
+   assignment gets unlocked only for squads whose victim_code maps to its
+   victim_name. Squads with no victim assigned are skipped and reported back,
+   same as releaseDrop's skippedSquads. */
+async function releaseVictimScopedAssignments(assignmentIds, cohortId, unlockerId) {
+  const [assignments, squads] = await Promise.all([
+    Assignment.findAll({ where: { id: assignmentIds } }),
+    Squad.findAll({ where: { cohort_id: cohortId }, attributes: ['id', 'number', 'victim_code'] }),
+  ]);
+
+  const unpublished = assignments.filter((a) => a.is_published !== true).map((a) => a.id);
+  if (unpublished.length > 0) {
+    await Assignment.update({ is_published: true }, { where: { id: unpublished } });
+    invalidateAssignmentLists();
+  }
+
+  let released = 0;
+  const skippedSquads = [];
+  for (const squad of squads) {
+    if (!squad.victim_code) { skippedSquads.push(squad.number); continue; }
+    const victimName = codeToName(squad.victim_code);
+    for (const a of assignments) {
+      if (a.victim_name !== victimName) continue;
+      const [, created] = await AssignmentUnlock.findOrCreate({
+        where:    { assignment_id: a.id, cohort_id: cohortId, squad_id: squad.id },
+        defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
+      });
+      if (created) released++;
+    }
+  }
+  invalidateAssignmentLists();
+  return { released_assignments: released, skipped_squads: skippedSquads };
 }
 
 async function lockForCohort(assignmentId, cohortId, squadId = null) {
@@ -255,4 +293,4 @@ async function remove(id) {
   await assignment.destroy();
 }
 
-module.exports = { listByCourse, listForStudent, getById, create, update, remove, unlockForCohort, lockForCohort, getUnlockStatus, getLiveOverview, invalidateStudentCache, invalidateAssignmentLists };
+module.exports = { listByCourse, listForStudent, getById, create, update, remove, unlockForCohort, lockForCohort, releaseVictimScopedAssignments, getUnlockStatus, getLiveOverview, invalidateStudentCache, invalidateAssignmentLists };

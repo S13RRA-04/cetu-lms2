@@ -15,7 +15,9 @@ import SessionTimeoutWarning from '../components/SessionTimeoutWarning.jsx';
 import DropAlert          from '../components/DropAlert.jsx';
 import EvidenceDrawer     from '../components/EvidenceDrawer.jsx';
 import ChatDrawer         from '../components/ChatDrawer.jsx';
+import GrandJuryWinnerReveal from '../components/GrandJuryWinnerReveal.jsx';
 import useSessionTimeout  from '../hooks/useSessionTimeout.js';
+import useGrandJuryWheelListener from '../hooks/useGrandJuryWheelListener.js';
 import useAuthStore       from '../store/authStore.js';
 
 function inductionKey(userId) {
@@ -280,6 +282,11 @@ export default function AppShell() {
     onTimeout: handleTimeout,
   });
 
+  const { winner: wheelWinner, clearWinner: clearWheelWinner } = useGrandJuryWheelListener({
+    squadId: enrollment?.squad?.id,
+    enabled: isStudent && !!enrollment?.squad?.id,
+  });
+
   const handleStayLoggedIn = () => resetActivity();
   const handleLogoutNow    = () => { doLogout(); navigate('/logged-out', { replace: true }); };
 
@@ -322,6 +329,16 @@ export default function AppShell() {
           if (user?.id) localStorage.setItem(targetSeenKey(user.id), '1');
           setTargetSeen(true);
         }}
+      />
+    );
+  }
+
+  // Grand jury wheel — instructor spun the wheel and it landed on this student
+  if (isStudent && wheelWinner?.userId === user?.id) {
+    return (
+      <GrandJuryWinnerReveal
+        name={wheelWinner.name}
+        onAcknowledge={clearWheelWinner}
       />
     );
   }

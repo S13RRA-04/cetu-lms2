@@ -26,6 +26,7 @@ const kcrRoutes         = require('./routes/kcr.routes');
 const wopiRoutes        = require('./routes/wopi.routes');
 const ltiService        = require('./services/lti.service');
 const { attachSquadChallengeSocket } = require('./realtime/squadChallengeSocket');
+const { attachGrandJuryWheelSocket } = require('./realtime/grandJuryWheelSocket');
 
 const PORT = parseInt(process.env.PORT, 10) || 3001;
 
@@ -179,6 +180,7 @@ async function bootstrap() {
 
     const httpServer = http.createServer(app);
     await attachSquadChallengeSocket(httpServer);
+    await attachGrandJuryWheelSocket(httpServer);
     httpServer.listen(PORT, () => {
       logger.info(`CETU LMS backend running on port ${PORT} [${process.env.NODE_ENV}]`);
     });

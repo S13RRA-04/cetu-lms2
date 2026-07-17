@@ -1,6 +1,7 @@
 'use strict';
 const { Squad, Cohort, Enrollment, User } = require('../models');
 const { NotFoundError, AppError }         = require('../utils/errors');
+const { announceWheelWinner: broadcastWheelWinner } = require('../realtime/grandJuryWheelSocket');
 
 async function listByCohort(cohortId) {
   const cohort = await Cohort.findByPk(cohortId);
@@ -67,4 +68,16 @@ async function removeMember(squadId, userId) {
   await enrollment.update({ squad_id: null });
 }
 
-module.exports = { listByCohort, create, update, remove, assignMember, removeMember };
+async function announceWheelWinner(squadId, { userId, name }) {
+  if (!userId || !name) throw new AppError('userId and name are required', 400, 'VALIDATION');
+
+  const squad = await Squad.findByPk(squadId);
+  if (!squad) throw new NotFoundError('Squad');
+
+  const enrollment = await Enrollment.findOne({ where: { user_id: userId, squad_id: squadId } });
+  if (!enrollment) throw new AppError('User is not a member of this squad', 400, 'NOT_SQUAD_MEMBER');
+
+  broadcastWheelWinner(squadId, { userId, name });
+}
+
+module.exports = { listByCohort, create, update, remove, assignMember, removeMember, announceWheelWinner };

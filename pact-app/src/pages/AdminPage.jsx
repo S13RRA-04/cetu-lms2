@@ -34,6 +34,7 @@ import {
   lockPreRangeBriefing,
   getSquadsByCohort,
   updateSquad,
+  announceWheelWinner,
   quickReleaseScenario,
   updateScenario,
   deleteScenario,
@@ -58,6 +59,7 @@ import DropPuzzleGate from './DropPuzzleGate.jsx';
 import { getNextStage } from '../lib/dropPuzzles.js';
 import PreRangeBriefing from '../components/PreRangeBriefing.jsx';
 import WheelOfNames from '../components/WheelOfNames.jsx';
+import { getGrandJuryQuestions } from '../constants/grandJuryQuestions.js';
 
 const TYPE_COLOR = {
   module:     '#2563eb',
@@ -1373,6 +1375,40 @@ function squadRosterNames(squad) {
   return (squad.students ?? []).map((s) => `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim()).filter(Boolean);
 }
 
+// The wheel operates on free-text names (admins can type in a name that
+// isn't on the roster), so the winner may not resolve to an actual student —
+// match on "First Last" against the squad's roster and degrade gracefully
+// when it doesn't.
+function resolveWinnerStudent(squad, winnerName) {
+  return (squad?.students ?? []).find((s) => `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim() === winnerName) ?? null;
+}
+
+// Plain-text prep sheet — printable, no new dependencies, matches the
+// download-as-blob pattern used elsewhere in this app (see ScenariosPage's
+// zip download).
+function downloadQuestionSet(winnerName, roleQuestions, squad) {
+  const lines = [
+    'GRAND JURY TESTIMONY PREP',
+    `Witness: ${winnerName}`,
+    `Role: ${roleQuestions.label}`,
+    squad ? `Squad: ${squad.number}${squad.victim_code ? ` · Victim: ${squad.victim_code}` : ''}` : null,
+    `Generated: ${new Date().toLocaleString()}`,
+    '',
+    'QUESTIONS',
+    ...roleQuestions.questions.map((q, i) => `${i + 1}. ${q}`),
+  ].filter((line) => line !== null);
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `grand-jury-prep_${winnerName.replace(/[^\w.-]+/g, '_')}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 function GrandJuryWheelPanel({ cohorts }) {
   const [expandedCohortId, setExpandedCohortId] = useState(null);
   const [squadsByCohort,   setSquadsByCohort]   = useState({}); // cohortId -> squad[]
@@ -1380,11 +1416,14 @@ function GrandJuryWheelPanel({ cohorts }) {
   const [selectedSquadId,  setSelectedSquadId]  = useState(null);
   const [saving,           setSaving]           = useState(false);
   const [nameInput,        setNameInput]        = useState('');
+  const [winnerName,       setWinnerName]       = useState(null);
+  const [testMode,         setTestMode]         = useState(true); // dry-run by default — flip off for the live draw
 
   const toggleCohort = (cohortId) => {
     if (expandedCohortId === cohortId) { setExpandedCohortId(null); return; }
     setExpandedCohortId(cohortId);
     setSelectedSquadId(null);
+    setWinnerName(null);
     if (!squadsByCohort[cohortId]) {
       setLoadingSquads(true);
       getSquadsByCohort(cohortId)
@@ -1397,6 +1436,27 @@ function GrandJuryWheelPanel({ cohorts }) {
   const squads = squadsByCohort[expandedCohortId] ?? [];
   const selectedSquad = squads.find((sq) => sq.id === selectedSquadId) ?? null;
   const wheelNames = selectedSquad?.wheel_names ?? [];
+  const winnerStudent = winnerName ? resolveWinnerStudent(selectedSquad, winnerName) : null;
+  const winnerQuestions = winnerStudent?.professional_role ? getGrandJuryQuestions(winnerStudent.professional_role) : null;
+
+  const selectSquad = (squadId) => {
+    setSelectedSquadId(squadId);
+    setWinnerName(null);
+  };
+
+  const handleWheelWinner = (name) => {
+    setWinnerName(name);
+    const student = resolveWinnerStudent(selectedSquad, name);
+    // Best-effort live "you're up" ping to the squad — a name typed onto the
+    // wheel that doesn't match a roster member (or isn't the current squad's
+    // member) has no user_id to announce with, so it's silently skipped;
+    // the admin-facing question panel below still works either way.
+    // Test mode spins the wheel and shows the prep questions normally but
+    // never fires the student-facing notification.
+    if (!testMode && student && selectedSquad) {
+      announceWheelWinner(expandedCohortId, selectedSquad.id, { user_id: student.id, name }).catch(() => {});
+    }
+  };
 
   const persistWheelNames = async (nextNames) => {
     if (!selectedSquad) return;
@@ -1454,9 +1514,14 @@ function GrandJuryWheelPanel({ cohorts }) {
             return (
               <div key={cohort.id} style={{ border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)' }}>
                 <button
-                  className="btn-secondary"
-                  style={{ width: '100%', textAlign: 'left', fontSize: 12, padding: '8px 12px' }}
                   onClick={() => toggleCohort(cohort.id)}
+                  style={{
+                    width: '100%', textAlign: 'left', fontSize: 12, padding: '8px 12px',
+                    fontFamily: 'var(--mono)', letterSpacing: '.04em',
+                    background: 'transparent', border: 'none', borderRadius: 6,
+                    color: isExpanded ? 'var(--primary)' : 'var(--bright, var(--text))',
+                    cursor: 'pointer',
+                  }}
                 >
                   {cohort.name}
                 </button>
@@ -1473,7 +1538,7 @@ function GrandJuryWheelPanel({ cohorts }) {
                             key={sq.id}
                             className={`admin-mode-tab${selectedSquadId === sq.id ? ' active' : ''}`}
                             style={{ textAlign: 'left', fontSize: 11 }}
-                            onClick={() => setSelectedSquadId(sq.id)}
+                            onClick={() => selectSquad(sq.id)}
                           >
                             SQUAD {sq.number}{sq.name ? ` · ${sq.name}` : ''}
                           </button>
@@ -1504,14 +1569,31 @@ function GrandJuryWheelPanel({ cohorts }) {
                 onKeyDown={(e) => { if (e.key === 'Enter') addName(); }}
                 placeholder="Add a name…"
                 style={{
-                  flex: 1, padding: '6px 10px', borderRadius: 4, border: '1px solid var(--border)',
-                  background: 'var(--surface)', color: 'var(--text)', fontSize: 12,
+                  flex: 1, padding: '8px 12px', borderRadius: 5, border: '1px solid var(--border)',
+                  background: 'var(--surface-2, var(--surface))', color: 'var(--bright, var(--text))',
+                  fontSize: 12, fontFamily: 'var(--mono)', outline: 'none',
                 }}
               />
-              <button className="btn-primary" style={{ fontSize: 11, padding: '6px 12px' }} onClick={addName} disabled={saving}>
-                Add
+              <button
+                onClick={addName}
+                disabled={saving}
+                style={{
+                  fontSize: 11, padding: '8px 16px', fontFamily: 'var(--mono)', letterSpacing: '.06em',
+                  border: 'none', borderRadius: 5, background: 'var(--primary)', color: 'var(--bg)',
+                  fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1,
+                }}
+              >
+                ADD
               </button>
-              <button className="btn-secondary" style={{ fontSize: 11, padding: '6px 12px' }} onClick={resetToRoster} disabled={saving}>
+              <button
+                onClick={resetToRoster}
+                disabled={saving}
+                style={{
+                  fontSize: 11, padding: '8px 14px', fontFamily: 'var(--mono)', letterSpacing: '.04em',
+                  border: '1px solid var(--border)', borderRadius: 5, background: 'transparent',
+                  color: 'var(--text)', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1,
+                }}
+              >
                 Reset to roster
               </button>
               {saving && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)' }}>SAVING…</span>}
@@ -1523,8 +1605,9 @@ function GrandJuryWheelPanel({ cohorts }) {
                   key={`${name}-${i}`}
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6,
-                    border: '1px solid var(--border)', borderRadius: 12, padding: '3px 4px 3px 10px',
-                    fontSize: 11, background: 'var(--surface)',
+                    border: '1px solid var(--border)', borderRadius: 12, padding: '4px 6px 4px 12px',
+                    fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--bright, var(--text))',
+                    background: 'var(--surface-2, var(--surface))',
                   }}
                 >
                   {name}
@@ -1533,7 +1616,7 @@ function GrandJuryWheelPanel({ cohorts }) {
                     disabled={saving}
                     style={{
                       border: 'none', background: 'transparent', color: 'var(--muted)',
-                      cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: '0 4px',
+                      cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '2px 5px',
                     }}
                     title="Remove from wheel"
                   >
@@ -1543,7 +1626,66 @@ function GrandJuryWheelPanel({ cohorts }) {
               ))}
             </div>
 
-            <WheelOfNames names={wheelNames} disabled={saving} />
+            <label
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 16,
+                fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '.04em', cursor: 'pointer',
+                color: testMode ? 'var(--muted)' : '#ef4444',
+              }}
+              title="While on, spins never notify the selected student — flip off for the live draw"
+            >
+              <input
+                type="checkbox"
+                checked={testMode}
+                onChange={(e) => setTestMode(e.target.checked)}
+                style={{ cursor: 'pointer' }}
+              />
+              {testMode ? 'TEST MODE — spins will not notify the student' : '● LIVE — spin will notify the selected student'}
+            </label>
+
+            <WheelOfNames names={wheelNames} disabled={saving} onWinner={handleWheelWinner} />
+
+            {winnerName && (
+              <div style={{ marginTop: 24, borderTop: '1px solid var(--border)', paddingTop: 20 }}>
+                {winnerStudent ? (
+                  <>
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)', marginBottom: 4 }}>
+                      TESTIMONY PREP — {winnerName.toUpperCase()}
+                    </div>
+                    {winnerQuestions ? (
+                      <>
+                        <p style={{ color: 'var(--muted)', fontSize: 12, margin: '0 0 12px' }}>
+                          Role: {winnerQuestions.label}{selectedSquad?.victim_code ? ` · Squad ${selectedSquad.number} victim: ${selectedSquad.victim_code}` : ''}
+                        </p>
+                        <ol style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {winnerQuestions.questions.map((q, i) => (
+                            <li key={i} style={{ color: 'var(--bright, var(--text))', fontSize: 13, lineHeight: 1.5 }}>{q}</li>
+                          ))}
+                        </ol>
+                        <button
+                          onClick={() => downloadQuestionSet(winnerName, winnerQuestions, selectedSquad)}
+                          style={{
+                            marginTop: 16, fontSize: 11, padding: '8px 16px', fontFamily: 'var(--mono)', letterSpacing: '.06em',
+                            border: '1px solid var(--border)', borderRadius: 5, background: 'transparent',
+                            color: 'var(--bright, var(--text))', cursor: 'pointer',
+                          }}
+                        >
+                          ↓ DOWNLOAD QUESTION SET
+                        </button>
+                      </>
+                    ) : (
+                      <p style={{ color: 'var(--muted)', fontSize: 12, margin: 0 }}>
+                        {winnerStudent.first_name} has no professional role on record — no role-specific questions to show.
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p style={{ color: 'var(--muted)', fontSize: 12, margin: 0 }}>
+                    "{winnerName}" doesn’t match a roster member for this squad — no role data available.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

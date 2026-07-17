@@ -108,6 +108,7 @@ router.put('/:id/cohorts/:cid/squads/:sid',                requireAuth, requireI
 router.delete('/:id/cohorts/:cid/squads/:sid',             requireAuth, requireInstructor, squadCtrl.remove);
 router.post('/:id/cohorts/:cid/squads/:sid/members',       requireAuth, requireInstructor, squadCtrl.assignMember);
 router.delete('/:id/cohorts/:cid/squads/:sid/members/:uid', requireAuth, requireInstructor, squadCtrl.removeMember);
+router.post('/:id/cohorts/:cid/squads/:sid/wheel/announce', requireAuth, requireInstructor, squadCtrl.announceWheelWinner);
 
 // Cohorts (nested under course)
 router.get('/:id/cohorts',                    requireAuth, requireInstructor, cohortCtrl.listByCourse);

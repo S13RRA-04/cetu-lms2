@@ -7,7 +7,7 @@ const { ScenarioPackage, ScenarioPackageUnlock, Course, Cohort, Enrollment, Squa
 const { NotFoundError, ForbiddenError } = require('../utils/errors');
 const TtlCache = require('../utils/ttlCache');
 const { scenarioSlugFromName } = require('../utils/r2CaseFile');
-const { getStudentLocationMap, locationMatches } = require('../utils/dropLocation');
+const { getStudentLocationCodes, locationMatches } = require('../utils/dropLocation');
 
 // scenario_name must be the same slug form assignments/course-content/campaign
 // drops use (e.g. "packet-heist") — the student Evidence Repository groups
@@ -163,7 +163,7 @@ async function listForStudent(courseId, userId) {
     })
   );
 
-  const locationMap = await getStudentLocationMap(courseId, userId);
+  const locationCodes = await getStudentLocationCodes(courseId, userId);
 
   // Show packages that are unlocked for the cohort, assigned to the student's
   // victim (falling back to the legacy squad_number check for packages
@@ -177,7 +177,7 @@ async function listForStudent(courseId, userId) {
         ? (p.squad_number == null || p.squad_number === studentSquadNumber)
         : p.victim_code === studentVictimCode) &&
       (cohortScenario == null || normalizeScenarioName(p.scenario_name) === cohortScenario) &&
-      locationMatches(p, locationMap)
+      locationMatches(p, locationCodes)
   );
 
   return unlocked.map((p) => ({ ...p.toJSON(), is_unlocked: true }));
@@ -209,8 +209,8 @@ async function assertStudentUnlocked(pkg, userId) {
   });
   if (!unlock) throw new ForbiddenError('This package has not been released for your cohort');
 
-  const locationMap = await getStudentLocationMap(pkg.course_id, userId);
-  if (!locationMatches(pkg, locationMap)) {
+  const locationCodes = await getStudentLocationCodes(pkg.course_id, userId);
+  if (!locationMatches(pkg, locationCodes)) {
     throw new ForbiddenError('This package is assigned to a different search location');
   }
 }
