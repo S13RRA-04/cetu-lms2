@@ -14,7 +14,7 @@
  *    DropLocationSelection / location_code mechanism — now drop-agnostic,
  *    see utils/dropLocation.js, so it works fine for a no-drop assignment)
  *
- * Seeds 7 assignments, all individual grading_mode, is_published: false:
+ * Seeds 7 assignments, all squad grading_mode, is_published: false:
  *  - 1 shared "conspiracy as a whole" set (cohort-wide, no targeting)
  *  - 4 victim-specific sets (Redstone/Dogwood/CyberDyne/Pixel Play) — release
  *    with assignmentService.releaseVictimScopedAssignments(ids, cohortId, ...)
@@ -62,7 +62,7 @@ const sharedAssignment = {
   max_score: 100,
   is_published: false,
   type: 'challenge',
-  grading_mode: 'individual',
+  grading_mode: 'squad',
   order_index: ORDER_INDEX,
   drop_number: null,
   scenario_name: null,
@@ -160,7 +160,7 @@ function victimAssignment({ victimName, title, questions }) {
     max_score: 100,
     is_published: false,
     type: 'challenge',
-    grading_mode: 'individual',
+    grading_mode: 'squad',
     order_index: ORDER_INDEX,
     drop_number: null,
     scenario_name: null,
@@ -395,7 +395,7 @@ function locationAssignment({ locationCode, locationLabel, title, questions }) {
     max_score: 100,
     is_published: false,
     type: 'challenge',
-    grading_mode: 'individual',
+    grading_mode: 'squad',
     order_index: ORDER_INDEX,
     drop_number: null,
     scenario_name: null,

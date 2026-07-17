@@ -4,6 +4,7 @@ const { NotFoundError, AppError } = require('../utils/errors');
 const logger      = require('../utils/logger');
 const gradeService = require('./grade.service');
 const { invalidateStudentCache } = require('./assignment.service');
+const { gradeQuizAnswers, isFullyAutoGradable } = require('../utils/quizGrading');
 
 async function listByAssignment(assignmentId) {
   const assignment = await Assignment.findByPk(assignmentId);
@@ -178,15 +179,25 @@ async function submit(assignmentId, userId, content) {
 
   invalidateStudentCache(assignment.course_id, userId);
 
-  // Auto-grade quiz submissions: QuizFlow embeds totalScore + maxScore in the
-  // content JSON. Routed through grade.service.js's autoGradeQuiz — the one
-  // place responsible for fanning a squad-graded assignment's score out to
-  // every squad member (not just whoever happened to click submit), the same
-  // way the instructor-driven gradeSquad() already does.
+  // Auto-grade quiz submissions. QuizFlow submits { answers: [{questionId,
+  // raw, ...}], totalScore, maxScore } — totalScore/maxScore (and each
+  // answer's isCorrect/points) are the client's own self-reported grade and
+  // MUST NOT be trusted: the request body is fully client-controlled, so
+  // trusting them let any student hand themselves (and their whole squad,
+  // for squad-graded assignments) an arbitrary score, including forging
+  // what gets passed back to an external gradebook via LTI. The score is
+  // recomputed here from the assignment's own answer key (server-side,
+  // never sent verbatim to the client as a "trust me" value) plus only the
+  // raw per-question answers the student gave. Routed through
+  // grade.service.js's autoGradeQuiz — the one place responsible for
+  // fanning a squad-graded assignment's score out to every squad member
+  // (not just whoever happened to click submit), the same way the
+  // instructor-driven gradeSquad() already does.
   try {
     const parsed = typeof content === 'string' ? JSON.parse(content) : null;
-    if (parsed?.totalScore !== undefined && parsed?.maxScore !== undefined) {
-      await gradeService.autoGradeQuiz(assignment, userId, squadId, parsed.totalScore, parsed.maxScore);
+    if (Array.isArray(parsed?.answers) && isFullyAutoGradable(assignment.questions)) {
+      const { totalScore, maxScore } = gradeQuizAnswers(assignment.questions, parsed.answers);
+      await gradeService.autoGradeQuiz(assignment, userId, squadId, totalScore, maxScore);
       // Every question in a quiz-routed submission is auto-gradable (see
       // AssignmentPage.jsx's hasQuiz routing — mixing in a manually-graded
       // prompt question routes the whole assignment to ChallengeFlow
