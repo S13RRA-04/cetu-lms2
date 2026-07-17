@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 
-const SPIN_DURATION_MS  = 7200;
-const REVEAL_PAUSE_MS   = 450; // beat of silence between the wheel stopping and the winner banner appearing
-const SPIN_EASE         = 'cubic-bezier(0.1, 0.82, 0.04, 1)'; // fast wind-up, long dramatic deceleration
+const SPIN_DURATION_MS  = 9000;
+const REVEAL_PAUSE_MS   = 1100; // beat of silence between the wheel stopping and the winner banner appearing
+const SPIN_EASE         = 'cubic-bezier(0.07, 0.88, 0.02, 1)'; // fast wind-up, very slow, grinding final crawl
 const SIZE   = 320;
 const CENTER = SIZE / 2;
 const RADIUS = SIZE / 2 - 6;
@@ -116,14 +116,14 @@ export default function WheelOfNames({ names = [], onWinner, disabled = false })
           }}
           animate={
             settling
-              ? { boxShadow: ['0 0 0 0 var(--primary)', '0 0 34px 6px var(--primary)', '0 0 0 0 var(--primary)'] }
+              ? { boxShadow: ['0 0 0 0 var(--primary)', '0 0 90px 26px var(--primary)', '0 0 55px 14px var(--primary)'] }
               : spinning
                 ? { boxShadow: ['0 0 6px 0px var(--primary)', '0 0 16px 3px var(--primary)', '0 0 6px 0px var(--primary)'] }
                 : { boxShadow: '0 0 0 0 var(--primary)' }
           }
           transition={
             settling
-              ? { duration: REVEAL_PAUSE_MS / 1000, ease: 'easeOut' }
+              ? { duration: REVEAL_PAUSE_MS / 1000, times: [0, 0.45, 1], ease: 'easeOut' }
               : { duration: 0.7, repeat: spinning ? Infinity : 0, ease: 'easeInOut' }
           }
         />
