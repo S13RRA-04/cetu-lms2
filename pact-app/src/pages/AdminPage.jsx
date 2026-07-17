@@ -497,7 +497,14 @@ export default function AdminPage() {
 
   const filtered = pendingOnly
     ? assignments.filter((a) => a.type !== 'survey' && (a.pending_count ?? 0) > 0)
-    : assignments.filter((a) => a.type !== 'survey' && a.grading_mode === modeFilter && (a.graded_count ?? 0) > 0);
+    : assignments.filter((a) =>
+      a.type !== 'survey'
+      && a.grading_mode === modeFilter
+      && ((a.pending_count ?? 0) > 0 || (a.graded_count ?? 0) > 0)
+    );
+  const pendingAssignmentCount = assignments.filter(
+    (a) => a.type !== 'survey' && (a.pending_count ?? 0) > 0
+  ).length;
 
   /* group squad assignments by squad */
   function groupBySquad(subs) {
@@ -590,14 +597,14 @@ export default function AdminPage() {
         <div className="admin-left">
           <div className="admin-mode-tabs">
             <button
-              className={`admin-mode-tab${modeFilter === 'individual' ? ' active' : ''}`}
-              onClick={() => { setModeFilter('individual'); setSelectedAssignment(null); }}
+              className={`admin-mode-tab${!pendingOnly && modeFilter === 'individual' ? ' active' : ''}`}
+              onClick={() => { setModeFilter('individual'); setPendingOnly(false); setSelectedAssignment(null); }}
             >
               Individual
             </button>
             <button
-              className={`admin-mode-tab${modeFilter === 'squad' ? ' active' : ''}`}
-              onClick={() => { setModeFilter('squad'); setSelectedAssignment(null); }}
+              className={`admin-mode-tab${!pendingOnly && modeFilter === 'squad' ? ' active' : ''}`}
+              onClick={() => { setModeFilter('squad'); setPendingOnly(false); setSelectedAssignment(null); }}
             >
               Squad
             </button>
@@ -608,13 +615,13 @@ export default function AdminPage() {
               title="Show only assignments with ungraded submissions"
             >
               Pending
-              {assignments.filter((a) => (a.pending_count ?? 0) > 0).length > 0 && (
+              {pendingAssignmentCount > 0 && (
                 <span style={{
                   marginLeft: 5, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                   minWidth: 16, height: 16, borderRadius: 8, fontSize: 9, fontFamily: 'var(--mono)',
                   background: '#f59e0b', color: '#000', fontWeight: 700, padding: '0 3px',
                 }}>
-                  {assignments.filter((a) => (a.pending_count ?? 0) > 0).length}
+                  {pendingAssignmentCount}
                 </span>
               )}
             </button>
