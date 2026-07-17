@@ -11,6 +11,7 @@ module.exports = (sequelize) => {
       name:      { type: DataTypes.STRING(100), allowNull: true },
       case_name: { type: DataTypes.STRING(255), allowNull: true },
       victim_code: { type: DataTypes.STRING(20), allowNull: true },
+      wheel_names: { type: DataTypes.JSONB,      allowNull: false, defaultValue: [] },
     },
     { tableName: 'squads' }
   );

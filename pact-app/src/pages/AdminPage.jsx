@@ -57,6 +57,7 @@ import DropPuzzleManager from '../components/DropPuzzleManager.jsx';
 import DropPuzzleGate from './DropPuzzleGate.jsx';
 import { getNextStage } from '../lib/dropPuzzles.js';
 import PreRangeBriefing from '../components/PreRangeBriefing.jsx';
+import WheelOfNames from '../components/WheelOfNames.jsx';
 
 const TYPE_COLOR = {
   module:     '#2563eb',
@@ -544,6 +545,12 @@ export default function AdminPage() {
         >
           Users
         </button>
+        <button
+          className={`admin-panel-tab${adminPanel === 'grand-jury' ? ' active' : ''}`}
+          onClick={() => setAdminPanel('grand-jury')}
+        >
+          Grand Jury
+        </button>
       </div>
 
       {adminPanel === 'live' ? (
@@ -563,6 +570,8 @@ export default function AdminPage() {
           cohorts={cohorts}
           onCohortsChange={setCohorts}
         />
+      ) : adminPanel === 'grand-jury' ? (
+        <GrandJuryWheelPanel cohorts={cohorts} />
       ) : adminPanel === 'content' ? (
         <CourseContentPanel
           items={contentItems}
@@ -1352,6 +1361,191 @@ function CohortScenarioPanel({ cohorts, onCohortsChange }) {
         <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 }}>
           When a scenario is assigned, students in that cohort will only see unlocked intel packages tagged with that scenario. Unassigned cohorts see all unlocked packages regardless of scenario.
         </p>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GRAND JURY WHEEL PANEL
+═══════════════════════════════════════════════════════════ */
+function squadRosterNames(squad) {
+  return (squad.students ?? []).map((s) => `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim()).filter(Boolean);
+}
+
+function GrandJuryWheelPanel({ cohorts }) {
+  const [expandedCohortId, setExpandedCohortId] = useState(null);
+  const [squadsByCohort,   setSquadsByCohort]   = useState({}); // cohortId -> squad[]
+  const [loadingSquads,    setLoadingSquads]    = useState(false);
+  const [selectedSquadId,  setSelectedSquadId]  = useState(null);
+  const [saving,           setSaving]           = useState(false);
+  const [nameInput,        setNameInput]        = useState('');
+
+  const toggleCohort = (cohortId) => {
+    if (expandedCohortId === cohortId) { setExpandedCohortId(null); return; }
+    setExpandedCohortId(cohortId);
+    setSelectedSquadId(null);
+    if (!squadsByCohort[cohortId]) {
+      setLoadingSquads(true);
+      getSquadsByCohort(cohortId)
+        .then((data) => setSquadsByCohort((p) => ({ ...p, [cohortId]: Array.isArray(data) ? data : [] })))
+        .catch(() => setSquadsByCohort((p) => ({ ...p, [cohortId]: [] })))
+        .finally(() => setLoadingSquads(false));
+    }
+  };
+
+  const squads = squadsByCohort[expandedCohortId] ?? [];
+  const selectedSquad = squads.find((sq) => sq.id === selectedSquadId) ?? null;
+  const wheelNames = selectedSquad?.wheel_names ?? [];
+
+  const persistWheelNames = async (nextNames) => {
+    if (!selectedSquad) return;
+    setSaving(true);
+    try {
+      await updateSquad(expandedCohortId, selectedSquad.id, { wheel_names: nextNames });
+      setSquadsByCohort((p) => ({
+        ...p,
+        [expandedCohortId]: (p[expandedCohortId] ?? []).map((sq) =>
+          sq.id === selectedSquad.id ? { ...sq, wheel_names: nextNames } : sq
+        ),
+      }));
+    } catch {}
+    finally { setSaving(false); }
+  };
+
+  const addName = () => {
+    const trimmed = nameInput.trim();
+    if (!trimmed) return;
+    persistWheelNames([...wheelNames, trimmed]);
+    setNameInput('');
+  };
+
+  const removeName = (name, index) => {
+    persistWheelNames(wheelNames.filter((n, i) => !(n === name && i === index)));
+  };
+
+  const resetToRoster = () => {
+    if (!selectedSquad) return;
+    persistWheelNames(squadRosterNames(selectedSquad));
+  };
+
+  if (cohorts.length === 0) {
+    return (
+      <div style={{ padding: 32 }}>
+        <div className="ops-empty-label">NO COHORTS</div>
+        <div className="ops-empty-sub">Create cohorts via the enrollment panel first.</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: '20px 24px', display: 'flex', gap: 24, maxWidth: 900 }}>
+      <div style={{ flex: '0 0 280px' }}>
+        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)', marginBottom: 4 }}>
+          GRAND JURY WHEEL
+        </div>
+        <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 16px', lineHeight: 1.6 }}>
+          Pick a squad, then spin the wheel to randomly select who presents to the grand jury.
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {cohorts.map((cohort) => {
+            const isExpanded = expandedCohortId === cohort.id;
+            return (
+              <div key={cohort.id} style={{ border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)' }}>
+                <button
+                  className="btn-secondary"
+                  style={{ width: '100%', textAlign: 'left', fontSize: 12, padding: '8px 12px' }}
+                  onClick={() => toggleCohort(cohort.id)}
+                >
+                  {cohort.name}
+                </button>
+                {isExpanded && (
+                  <div style={{ borderTop: '1px solid var(--border)', padding: 8 }}>
+                    {loadingSquads && !squadsByCohort[cohort.id] ? (
+                      <div className="spinner" style={{ width: 16, height: 16 }} />
+                    ) : squads.length === 0 ? (
+                      <p style={{ color: 'var(--muted)', fontSize: 12, margin: 0 }}>No squads found for this cohort.</p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {[...squads].sort((a, b) => a.number - b.number).map((sq) => (
+                          <button
+                            key={sq.id}
+                            className={`admin-mode-tab${selectedSquadId === sq.id ? ' active' : ''}`}
+                            style={{ textAlign: 'left', fontSize: 11 }}
+                            onClick={() => setSelectedSquadId(sq.id)}
+                          >
+                            SQUAD {sq.number}{sq.name ? ` · ${sq.name}` : ''}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {!selectedSquad ? (
+          <div style={{ padding: 32, textAlign: 'center' }}>
+            <div className="ops-empty-label">NO SQUAD SELECTED</div>
+            <div className="ops-empty-sub">Expand a cohort and pick a squad to load its wheel.</div>
+          </div>
+        ) : (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <input
+                type="text"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') addName(); }}
+                placeholder="Add a name…"
+                style={{
+                  flex: 1, padding: '6px 10px', borderRadius: 4, border: '1px solid var(--border)',
+                  background: 'var(--surface)', color: 'var(--text)', fontSize: 12,
+                }}
+              />
+              <button className="btn-primary" style={{ fontSize: 11, padding: '6px 12px' }} onClick={addName} disabled={saving}>
+                Add
+              </button>
+              <button className="btn-secondary" style={{ fontSize: 11, padding: '6px 12px' }} onClick={resetToRoster} disabled={saving}>
+                Reset to roster
+              </button>
+              {saving && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--muted)' }}>SAVING…</span>}
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20 }}>
+              {wheelNames.map((name, i) => (
+                <span
+                  key={`${name}-${i}`}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    border: '1px solid var(--border)', borderRadius: 12, padding: '3px 4px 3px 10px',
+                    fontSize: 11, background: 'var(--surface)',
+                  }}
+                >
+                  {name}
+                  <button
+                    onClick={() => removeName(name, i)}
+                    disabled={saving}
+                    style={{
+                      border: 'none', background: 'transparent', color: 'var(--muted)',
+                      cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: '0 4px',
+                    }}
+                    title="Remove from wheel"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+
+            <WheelOfNames names={wheelNames} disabled={saving} />
+          </div>
+        )}
       </div>
     </div>
   );
