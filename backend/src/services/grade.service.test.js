@@ -23,6 +23,9 @@ test('operator scoreboard ranks by the displayed total including assessments and
       puzzlePoints: '13.00',
       assessmentImprovementPoints: '8.00',
       hasAssessmentComparison: true,
+      performancePercent: '95.12',
+      rankingEligible: true,
+      maxGradedInCourse: '8',
       graded: '4',
     }]];
   };
@@ -40,6 +43,9 @@ test('operator scoreboard ranks by the displayed total including assessments and
   assert.match(sql, /COALESCE\(assessment_scores\.pretest_score, 0\)/);
   assert.match(sql, /COALESCE\(assessment_scores\.posttest_score, 0\)/);
   assert.match(sql, /COALESCE\(puzzle_points\.points, 0\)/);
+  assert.match(sql, /drop_number IS NULL OR drop_number != 7/);
+  assert.match(sql, /COUNT\(g\.id\) >= CEIL\(MAX\(COUNT\(g\.id\)\) OVER \(\) \* 0\.5\)/);
+  assert.match(sql, /ORDER BY "rankingEligible" DESC,\s+"performancePercent" DESC/);
   assert.match(sql, /u\.last_name ASC,\s+u\.first_name ASC,\s+u\.id ASC/);
   assert.equal(result[0].assignmentPoints, 350);
   assert.equal(result[0].pretestPoints, 16);
@@ -47,6 +53,9 @@ test('operator scoreboard ranks by the displayed total including assessments and
   assert.equal(result[0].puzzlePoints, 13);
   assert.equal(result[0].assessmentImprovementPoints, 8);
   assert.equal(result[0].hasAssessmentComparison, true);
+  assert.equal(result[0].performancePercent, 95.12);
+  assert.equal(result[0].rankingEligible, true);
+  assert.equal(result[0].maxGradedInCourse, 8);
   assert.equal(result[0].totalScore, 403);
   assert.equal(result[0].maxScore, 410);
 });

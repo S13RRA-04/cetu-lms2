@@ -272,11 +272,38 @@ async function _queryScoreboard(courseId) {
               AND assessment_scores.pretest_max > 0
               AND assessment_scores.posttest_max > 0
             ) AS "hasAssessmentComparison",
-            COUNT(g.id)                   AS "graded"
+            COUNT(g.id)                   AS "graded",
+            MAX(COUNT(g.id)) OVER ()      AS "maxGradedInCourse",
+            COUNT(g.id) >= CEIL(MAX(COUNT(g.id)) OVER () * 0.5) AS "rankingEligible",
+            ROUND(
+              (
+                COALESCE(SUM(g.score) FILTER (
+                  WHERE a.lti_resource_link_id NOT IN ('assessment-pretest', 'assessment-posttest')
+                     OR a.lti_resource_link_id IS NULL
+                ), 0)
+                + COALESCE(assessment_scores.pretest_score, 0)
+                + COALESCE(assessment_scores.posttest_score, 0)
+              )
+              / NULLIF(
+                COALESCE(SUM(g.max_score) FILTER (
+                  WHERE a.lti_resource_link_id NOT IN ('assessment-pretest', 'assessment-posttest')
+                     OR a.lti_resource_link_id IS NULL
+                ), 0)
+                + COALESCE(assessment_scores.pretest_max, 0)
+                + COALESCE(assessment_scores.posttest_max, 0),
+                0
+              ) * 100,
+              2
+            ) AS "performancePercent"
      FROM enrollments e
      JOIN users u ON u.id = e.user_id
      LEFT JOIN grades g ON g.user_id = e.user_id
-       AND g.assignment_id IN (SELECT id FROM assignments WHERE course_id = :courseId AND grading_mode != 'squad')
+       AND g.assignment_id IN (
+         SELECT id FROM assignments
+         WHERE course_id = :courseId
+           AND grading_mode != 'squad'
+           AND (drop_number IS NULL OR drop_number != 7)
+       )
      LEFT JOIN assignments a ON a.id = g.assignment_id
      LEFT JOIN (
        SELECT first_solver_id, SUM(points_awarded) AS points
@@ -291,15 +318,9 @@ async function _queryScoreboard(courseId) {
               assessment_improvement.points, assessment_scores.pretest_score,
               assessment_scores.posttest_score, assessment_scores.pretest_max,
               assessment_scores.posttest_max
-     ORDER BY (
-                COALESCE(SUM(g.score) FILTER (
-                  WHERE a.lti_resource_link_id NOT IN ('assessment-pretest', 'assessment-posttest')
-                     OR a.lti_resource_link_id IS NULL
-                ), 0)
-                + COALESCE(assessment_scores.pretest_score, 0)
-                + COALESCE(assessment_scores.posttest_score, 0)
-                + COALESCE(puzzle_points.points, 0)
-              ) DESC,
+     ORDER BY "rankingEligible" DESC,
+              "performancePercent" DESC,
+              COALESCE(puzzle_points.points, 0) DESC,
               u.last_name ASC,
               u.first_name ASC,
               u.id ASC`,
@@ -315,6 +336,9 @@ async function _queryScoreboard(courseId) {
     puzzlePoints: Math.round(parseFloat(r.puzzlePoints ?? 0)),
     assessmentImprovementPoints: Math.round(parseFloat(r.assessmentImprovementPoints ?? 0)),
     hasAssessmentComparison: r.hasAssessmentComparison === true,
+    performancePercent: parseFloat(r.performancePercent ?? 0),
+    rankingEligible: r.rankingEligible === true,
+    maxGradedInCourse: parseInt(r.maxGradedInCourse, 10),
     totalScore: Math.round(
       parseFloat(r.assignmentPoints)
       + parseFloat(r.pretestPoints ?? 0)

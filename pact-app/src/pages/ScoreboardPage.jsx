@@ -35,10 +35,18 @@ function StandingsEntry({ entry, rank, tab, isMe, leaderScore, delay = 0 }) {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const rankingScore = tab === 'most_improved'
     ? Number(entry.assessmentImprovementPoints ?? 0)
-    : Number(entry.totalScore ?? 0);
+    : tab === 'individual'
+      ? Number(entry.performancePercent ?? 0)
+      : Number(entry.totalScore ?? 0);
   const normalizedScore = leaderScore > 0
     ? Math.round((rankingScore / leaderScore) * 100)
     : 0;
+  const barPercent = tab === 'individual' ? rankingScore : normalizedScore;
+  const displayedScore = tab === 'individual'
+    ? `${rankingScore.toFixed(1)}%`
+    : tab === 'most_improved'
+      ? `+${rankingScore.toFixed(1)} pp`
+      : `${normalizedScore}%`;
   const barColor = RANK_COLORS[rank] ?? 'var(--primary)';
   const label = tab === 'squad'
     ? `Squad ${entry.squadNumber}${entry.squadName ? ` · ${entry.squadName}` : ''}`
@@ -62,11 +70,11 @@ function StandingsEntry({ entry, rank, tab, isMe, leaderScore, delay = 0 }) {
             className="ops-board-bar-fill"
             style={{ background: barColor }}
             initial={{ width: '0%' }}
-            animate={{ width: `${normalizedScore}%` }}
+            animate={{ width: `${barPercent}%` }}
             transition={{ duration: 0.9, ease: 'easeOut', delay: 0.2 + delay }}
           />
         </div>
-        <span className="ops-board-normalized" style={{ color: barColor }}>{normalizedScore}%</span>
+        <span className="ops-board-normalized" style={{ color: barColor }}>{displayedScore}</span>
         <button
           type="button"
           className="ops-board-breakdown-toggle"
@@ -90,6 +98,10 @@ function StandingsEntry({ entry, rank, tab, isMe, leaderScore, delay = 0 }) {
                 <strong>{entry.assignmentPoints ?? entry.totalScore ?? 0} pts</strong>
               </div>
               {tab === 'individual' && <div>
+                <span>Performance rate</span>
+                <strong>{Number(entry.performancePercent ?? 0).toFixed(1)}%</strong>
+              </div>}
+              {tab === 'individual' && <div>
                 <span>Pre-test</span>
                 <strong>{entry.pretestPoints ?? 0} pts</strong>
               </div>}
@@ -112,8 +124,9 @@ function StandingsEntry({ entry, rank, tab, isMe, leaderScore, delay = 0 }) {
             <strong>{entry.graded ?? 0}</strong>
           </div>}
           <p>
-            Displayed standing: {normalizedScore}% of the current leader’s {leaderScore}
-            {tab === 'most_improved' ? ' percentage-point improvement.' : ' raw points.'}
+            {tab === 'individual'
+              ? `Ranked by normalized performance after completing at least half of the current evaluation count (${Math.ceil((entry.maxGradedInCourse ?? 0) / 2)} required).`
+              : `Displayed standing: ${normalizedScore}% of the current leader's ${leaderScore}${tab === 'most_improved' ? ' percentage-point improvement.' : ' raw points.'}`}
           </p>
         </div>
       )}
@@ -174,7 +187,13 @@ export default function ScoreboardPage() {
   const leaderScore = board.reduce(
     (highest, entry) => Math.max(
       highest,
-      Number(tab === 'most_improved' ? entry.assessmentImprovementPoints : entry.totalScore) || 0,
+      Number(
+        tab === 'most_improved'
+          ? entry.assessmentImprovementPoints
+          : tab === 'individual'
+            ? entry.performancePercent
+            : entry.totalScore
+      ) || 0,
     ),
     0,
   );
