@@ -3,6 +3,10 @@ const { Op } = require('sequelize');
 const { Assignment, Submission } = require('../models');
 const { NotFoundError, AppError } = require('../utils/errors');
 const FORMAT_SECTION = 'Evidence Drop & Investigation Format';
+const MIN_ANONYMOUS_RESPONSES = 3;
+function shouldSuppressAnonymousResults(responseCount) {
+  return responseCount < MIN_ANONYMOUS_RESPONSES;
+}
 const THEMES = [
   { key: 'pacing_volume', label: 'Evidence pacing and volume', terms: ['pace', 'pacing', 'faster', 'slower', 'smaller', 'larger', 'frequent', 'amount', 'overwhelm'] },
   { key: 'investigation_time', label: 'Independent investigation time', terms: ['investigat', 'independent', 'more time', 'less time', 'analyz', 'analyse'] },
@@ -38,6 +42,17 @@ async function getSurveyResults(assignmentId) {
   if (assignment.type !== 'survey') throw new AppError('Results aggregation is available only for surveys', 400, 'NOT_A_SURVEY');
   const rows = await Submission.findAll({ where: { assignment_id: assignmentId, status: { [Op.in]: ['submitted', 'graded', 'returned'] } }, attributes: ['content'] });
   const responses = rows.map((row) => parseResponses(row.content)).filter(Boolean);
+  if (shouldSuppressAnonymousResults(responses.length)) {
+    return {
+      assignment: { id: assignment.id, title: assignment.title },
+      response_count: responses.length,
+      minimum_responses: MIN_ANONYMOUS_RESPONSES,
+      results_suppressed: true,
+      distributions: [],
+      recommendation_count: 0,
+      recommendation_groups: [],
+    };
+  }
   return { assignment: { id: assignment.id, title: assignment.title }, ...aggregateSurveyResults(assignment.questions ?? [], responses) };
 }
-module.exports = { parseResponses, groupRecommendations, aggregateSurveyResults, getSurveyResults };
+module.exports = { MIN_ANONYMOUS_RESPONSES, shouldSuppressAnonymousResults, parseResponses, groupRecommendations, aggregateSurveyResults, getSurveyResults };

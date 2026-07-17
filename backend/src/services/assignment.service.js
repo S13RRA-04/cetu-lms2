@@ -258,6 +258,7 @@ async function _queryLiveOverview(courseId, { cohortId, squadId, type }) {
       )
      WHERE a.course_id = :courseId
        AND a.type IN ('module', 'challenge', 'assessment', 'survey')
+       AND (a.type != 'survey' OR (:cohortId IS NULL AND :squadId IS NULL))
        AND (:type IS NULL OR a.type = :type)
        AND a.is_published = true
      GROUP BY a.id

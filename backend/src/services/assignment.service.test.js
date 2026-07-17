@@ -41,6 +41,7 @@ test('live overview includes assessments and surveys', async (t) => {
   assert.match(sql, /e\.cohort_id = :cohortId/);
   assert.match(sql, /s\.squad_id = :squadId/);
   assert.match(sql, /a\.type = :type/);
+  assert.match(sql, /a\.type != 'survey' OR \(:cohortId IS NULL AND :squadId IS NULL\)/);
   assert.deepEqual(queryOptions.replacements, {
     courseId: 'live-assessment-survey-test-course',
     cohortId: null,

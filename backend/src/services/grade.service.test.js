@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { sequelize } = require('../config/database');
 const gradeService = require('./grade.service');
 
-test('operator scoreboard ranks by the displayed total including puzzle points', async (t) => {
+test('operator scoreboard ranks by the displayed total including assessments and puzzle points', async (t) => {
   const originalQuery = sequelize.query;
   let sql;
   sequelize.query = async (query) => {
@@ -14,8 +14,12 @@ test('operator scoreboard ranks by the displayed total including puzzle points',
       userId: 'operator-1',
       firstName: 'Josh',
       lastName: 'Lively',
-      totalScore: '390.00',
-      maxScore: '403.00',
+      assignmentPoints: '350.00',
+      assignmentMaxScore: '360.00',
+      pretestPoints: '16.00',
+      pretestMaxScore: '20.00',
+      posttestPoints: '24.00',
+      posttestMaxScore: '30.00',
       puzzlePoints: '13.00',
       assessmentImprovementPoints: '8.00',
       hasAssessmentComparison: true,
@@ -32,13 +36,19 @@ test('operator scoreboard ranks by the displayed total including puzzle points',
   assert.match(sql, /posttest_max > 0/);
   assert.match(sql, /a\.lti_resource_link_id = 'assessment-pretest'/);
   assert.match(sql, /a\.lti_resource_link_id = 'assessment-posttest'/);
-  assert.match(sql, /ORDER BY \(COALESCE\(SUM\(g\.score\), 0\) \+ COALESCE\(puzzle_points\.points, 0\)\) DESC/);
+  assert.match(sql, /SUM\(g\.score\) FILTER/);
+  assert.match(sql, /COALESCE\(assessment_scores\.pretest_score, 0\)/);
+  assert.match(sql, /COALESCE\(assessment_scores\.posttest_score, 0\)/);
+  assert.match(sql, /COALESCE\(puzzle_points\.points, 0\)/);
   assert.match(sql, /u\.last_name ASC,\s+u\.first_name ASC,\s+u\.id ASC/);
-  assert.equal(result[0].assignmentPoints, 390);
+  assert.equal(result[0].assignmentPoints, 350);
+  assert.equal(result[0].pretestPoints, 16);
+  assert.equal(result[0].posttestPoints, 24);
   assert.equal(result[0].puzzlePoints, 13);
   assert.equal(result[0].assessmentImprovementPoints, 8);
   assert.equal(result[0].hasAssessmentComparison, true);
   assert.equal(result[0].totalScore, 403);
+  assert.equal(result[0].maxScore, 410);
 });
 
 test('squad scoreboard denominator includes all assignments currently unlocked for that squad', async (t) => {

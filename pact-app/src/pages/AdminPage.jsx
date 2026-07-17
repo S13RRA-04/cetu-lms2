@@ -461,6 +461,8 @@ export default function AdminPage() {
   const openAssignment = useCallback(async (a) => {
     setSelectedAssignment(a);
     setSelectedSub(null);
+    setSubmissions([]);
+    setGrades({});
     setLoadingSubs(true);
     try {
       const [subs, gradeList] = await Promise.all([
@@ -494,8 +496,8 @@ export default function AdminPage() {
   if (loading) return <div className="loading-screen"><div className="spinner" /></div>;
 
   const filtered = pendingOnly
-    ? assignments.filter((a) => (a.pending_count ?? 0) > 0)
-    : assignments.filter((a) => a.grading_mode === modeFilter && (a.graded_count ?? 0) > 0);
+    ? assignments.filter((a) => a.type !== 'survey' && (a.pending_count ?? 0) > 0)
+    : assignments.filter((a) => a.type !== 'survey' && a.grading_mode === modeFilter && (a.graded_count ?? 0) > 0);
 
   /* group squad assignments by squad */
   function groupBySquad(subs) {
@@ -2401,7 +2403,11 @@ function SurveyResultsPanel({ assignmentId }) {
   if (!results) return null;
   return <div className="survey-results-admin">
     <div className="survey-results-summary"><strong>{results.response_count}</strong><span>submitted responses</span><strong>{results.recommendation_count}</strong><span>written format recommendations</span></div>
-    {results.response_count === 0 ? <p className="survey-results-empty">No submitted survey responses yet.</p> : <>
+    {results.results_suppressed ? (
+      <p className="survey-results-empty">
+        Anonymous results are withheld until at least {results.minimum_responses} responses are submitted.
+      </p>
+    ) : results.response_count === 0 ? <p className="survey-results-empty">No submitted survey responses yet.</p> : <>
       <h3>Course-format ratings</h3>
       <div className="survey-results-distributions">{results.distributions.map((question) => <section key={question.id}>
         <p>{question.prompt}</p>
@@ -2871,7 +2877,11 @@ function LiveProgressPanel({ cohorts }) {
 
   const loadOverview = useCallback(() => {
     return getLiveOverview(filterParams)
-      .then((data) => setOverview(Array.isArray(data) ? data : []))
+      .then((data) => {
+        const next = Array.isArray(data) ? data : [];
+        setOverview(next);
+        setSelected((current) => current ? (next.find((item) => item.id === current.id) ?? null) : null);
+      })
       .catch(() => {});
   }, [filterParams]);
 
@@ -2896,7 +2906,10 @@ function LiveProgressPanel({ cohorts }) {
   // Poll the open roster faster than the overview — this is the "watch them
   // work" view, so it should feel closer to real-time.
   useEffect(() => {
-    if (!selected) return;
+    if (!selected || selected.type === 'survey') {
+      setRoster([]);
+      return;
+    }
     setRosterLoading(true);
     loadRoster(selected.id).finally(() => setRosterLoading(false));
     const t = setInterval(() => loadRoster(selected.id), LIVE_POLL_MS / 2);
@@ -3020,7 +3033,14 @@ function LiveProgressPanel({ cohorts }) {
               </div>
             </div>
 
-            {rosterLoading && roster.length === 0 ? (
+            {selected.type === 'survey' ? (
+              <div className="admin-empty">
+                <p>
+                  Survey participation is anonymous. Aggregate status: {selected.inProgressCount} working,
+                  {' '}{selected.completedCount} completed.
+                </p>
+              </div>
+            ) : rosterLoading && roster.length === 0 ? (
               <p style={{ padding: 16, color: 'var(--muted)' }}>Loading…</p>
             ) : roster.length === 0 ? (
               <div className="admin-empty"><p>No students have started this yet.</p></div>

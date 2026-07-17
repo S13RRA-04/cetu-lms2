@@ -86,9 +86,17 @@ function StandingsEntry({ entry, rank, tab, isMe, leaderScore, delay = 0 }) {
           ) : (
             <>
               <div>
-                <span>{tab === 'individual' ? 'Evaluated work' : 'Squad evaluations'}</span>
+                <span>{tab === 'individual' ? 'Assignment points' : 'Squad evaluations'}</span>
                 <strong>{entry.assignmentPoints ?? entry.totalScore ?? 0} pts</strong>
               </div>
+              {tab === 'individual' && <div>
+                <span>Pre-test</span>
+                <strong>{entry.pretestPoints ?? 0} pts</strong>
+              </div>}
+              {tab === 'individual' && <div>
+                <span>Post-test</span>
+                <strong>{entry.posttestPoints ?? 0} pts</strong>
+              </div>}
               {tab === 'individual' && <div>
                 <span>Puzzle bonus</span>
                 <strong>{entry.puzzlePoints ?? 0} pts</strong>

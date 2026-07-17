@@ -1,6 +1,6 @@
 'use strict';
 const { Submission, Assignment, AssignmentUnlock, Enrollment, Squad, User } = require('../models');
-const { NotFoundError, AppError } = require('../utils/errors');
+const { NotFoundError, AppError, ForbiddenError } = require('../utils/errors');
 const logger      = require('../utils/logger');
 const gradeService = require('./grade.service');
 const { invalidateStudentCache } = require('./assignment.service');
@@ -9,6 +9,9 @@ const { gradeQuizAnswers, isFullyAutoGradable } = require('../utils/quizGrading'
 async function listByAssignment(assignmentId) {
   const assignment = await Assignment.findByPk(assignmentId);
   if (!assignment) throw new NotFoundError('Assignment');
+  if (assignment.type === 'survey') {
+    throw new ForbiddenError('Individual survey submissions are anonymous; use aggregate survey results');
+  }
 
   return Submission.findAll({
     where:   { assignment_id: assignmentId },
@@ -66,8 +69,11 @@ function computePerformance(quizState, questions) {
 }
 
 async function getProgressForAssignment(assignmentId, filters = {}) {
-  const assignment = await Assignment.findByPk(assignmentId, { attributes: ['id', 'course_id', 'questions', 'max_score'] });
+  const assignment = await Assignment.findByPk(assignmentId, { attributes: ['id', 'course_id', 'type', 'questions', 'max_score'] });
   if (!assignment) throw new NotFoundError('Assignment');
+  if (assignment.type === 'survey') {
+    throw new ForbiddenError('Individual survey progress is anonymous; use aggregate live progress');
+  }
   const questions = Array.isArray(assignment.questions) ? assignment.questions : [];
   const enrollmentWhere = {
     course_id: assignment.course_id,
