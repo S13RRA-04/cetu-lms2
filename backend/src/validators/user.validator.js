@@ -37,6 +37,20 @@ const updateUserSchema = Joi.object({
   certifications:    Joi.array().items(Joi.string().valid(...CERTIFICATIONS)),
 }).min(1);
 
+// Self-service (PUT /users/me and the self-editing branch of PUT /users/:id)
+// — deliberately excludes role and is_active. Those two fields must only be
+// settable by an admin/superadmin (see restrictPrivilegedUserFields in
+// middleware/auth.js) — without this split, any authenticated user could
+// PUT their own record with { role: "admin" } and grant themselves full
+// admin access, since Joi's stripUnknown only strips fields NOT in the
+// schema, not fields that are present but shouldn't be settable by the caller.
+const updateSelfSchema = Joi.object({
+  first_name:        Joi.string().max(100),
+  last_name:         Joi.string().max(100),
+  professional_role: Joi.string().valid(...PROFESSIONAL_ROLES).allow(null),
+  certifications:    Joi.array().items(Joi.string().valid(...CERTIFICATIONS)),
+}).min(1);
+
 const changePasswordSchema = Joi.object({
   current_password: Joi.string().required(),
   new_password:     Joi.string().min(8).required(),
@@ -47,4 +61,4 @@ const resetPasswordSchema = Joi.object({
   new_password: Joi.string().min(8).required(),
 });
 
-module.exports = { createUserSchema, updateUserSchema, changePasswordSchema, resetPasswordSchema, PROFESSIONAL_ROLES, CERTIFICATIONS };
+module.exports = { createUserSchema, updateUserSchema, updateSelfSchema, changePasswordSchema, resetPasswordSchema, PROFESSIONAL_ROLES, CERTIFICATIONS };

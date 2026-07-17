@@ -451,7 +451,7 @@ const officeLocationAssignment = locationAssignment({
       { correct: 'This is the presence-versus-conduct distinction — badge access corroborates opportunity, not what actually happened during those windows.',
         incorrect: 'Badge access is presence/opportunity evidence, not conduct evidence — do not overstate what it proves.' },
       'RestonIT Office — property manager correspondence'),
-    fb('office-tp-5', 'Fill in the blank: the sender alias on the phishing email that delivered the STEM-LAP-014 intrusion, also used as a fallback cover story in the office-side draft ops rules, is __________.',
+    fb('office-tp-5', 'The same sender alias shows up in two places on the office side of the case: the phishing email that delivered the intrusion to host STEM-LAP-014, and the fallback cover story written into the draft ops rules. Fill in the blank: what is that alias? __________',
       ['M. Vale', 'M Vale', 'MVale'],
       { correct: 'Correct — "M. Vale" appears in both the phishing email and the ops-rules cover-story language.',
         incorrect: 'The alias is "M. Vale," appearing in both the phishing email and the office ops-rules document.' },

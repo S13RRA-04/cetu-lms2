@@ -32,4 +32,22 @@ const requireSelfOrAdmin = (paramName = 'id') => (req, res, next) => {
   return next();
 };
 
-module.exports = { requireAuth, requireRole, requireAdmin, requireInstructor, requireSelfOrAdmin };
+/* Guards role/is_active changes on the user-update routes specifically.
+   requireSelfOrAdmin() lets a user edit their OWN record (for name/
+   professional_role/certifications) and lets an instructor edit ANYONE's
+   record — neither of those should extend to granting roles or reactivating/
+   deactivating accounts. Only admin/superadmin may touch these two fields,
+   on any target including their own. Must run after body-parsing but before
+   the Joi validate() call still strips these two fields for self-service
+   (see updateSelfSchema) — this is the guard for the shared PUT /:id route,
+   where the schema alone can't distinguish "editing self" from "editing
+   someone else" the way the route's two schemas do. */
+const restrictPrivilegedUserFields = (...fields) => (req, res, next) => {
+  const attemptsPrivilegedChange = fields.some((f) => Object.hasOwn(req.body ?? {}, f));
+  if (attemptsPrivilegedChange && ![ROLES.ADMIN, ROLES.SUPERADMIN].includes(req.user?.role)) {
+    return next(new ForbiddenError(`Only admins can change: ${fields.join(', ')}`));
+  }
+  return next();
+};
+
+module.exports = { requireAuth, requireRole, requireAdmin, requireInstructor, requireSelfOrAdmin, restrictPrivilegedUserFields };

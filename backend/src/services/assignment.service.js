@@ -82,7 +82,7 @@ async function _queryListForStudent(courseId, userId) {
   const [enrollment, assignments, student] = await Promise.all([
     Enrollment.findOne({
       where:   { user_id: userId, course_id: courseId },
-      include: [{ association: 'squad', attributes: ['id'] }],
+      include: [{ association: 'squad', attributes: ['id', 'victim_code'] }],
     }),
     Assignment.findAll({
       where: { course_id: courseId, is_published: true },
@@ -103,7 +103,13 @@ async function _queryListForStudent(courseId, userId) {
   // split) stay invisible until the student has self-reported a matching
   // DropLocationSelection for that drop — see utils/dropLocation.js.
   const locationCodes = await getStudentLocationCodes(courseId, userId);
+  // Victim-tagged assignments (e.g. Day 5 testimony prep's per-victim sets)
+  // stay invisible to squads tasked with a different victim — same "hide it
+  // outright" treatment as location, rather than courseContent.service.js's
+  // show-but-locked approach, so a squad's list only shows what applies to them.
+  const squadVictimName = enrollment.squad?.victim_code ? codeToName(enrollment.squad.victim_code) : null;
   const visibleAssignments = assignments.filter((a) => {
+    if (a.victim_name && a.victim_name !== squadVictimName) return false;
     if (!locationMatches(a, locationCodes)) return false;
     const filters = a.role_filters;
     if (!filters || filters.length === 0) return true;

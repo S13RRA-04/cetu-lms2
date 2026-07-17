@@ -4,6 +4,7 @@ const http   = require('http');
 const { Router } = require('express');
 const { CourseContentItem } = require('../models');
 const logger = require('../utils/logger');
+const { requireAuth } = require('../middleware/auth');
 
 const R2_PUBLIC_BASE_URL = (process.env.R2_PUBLIC_BASE_URL ?? '').replace(/\/$/, '');
 
@@ -44,8 +45,16 @@ function getR2Stream(url) {
   });
 }
 
+// Not currently called by pact-app (DeckViewer embeds the public R2 CDN URL
+// directly instead — see CourseContentPage.jsx), but left registered and
+// previously had zero auth, serving any published file's content to anyone
+// on the internet who knew/guessed a content_item id, no enrollment or
+// login required. requireAuth is a cheap floor while it's unused; it does
+// NOT close the bigger question of published files sitting on a public CDN
+// URL by design (R2_PUBLIC_BASE_URL) — that's a separate, larger call.
+
 // CheckFileInfo
-router.get('/files/:id', async (req, res, next) => {
+router.get('/files/:id', requireAuth, async (req, res, next) => {
   try {
     const item = await findItem(req.params.id);
     if (!item?.r2_key) return res.status(404).end();
@@ -70,7 +79,7 @@ router.get('/files/:id', async (req, res, next) => {
 });
 
 // GetFile
-router.get('/files/:id/contents', async (req, res, next) => {
+router.get('/files/:id/contents', requireAuth, async (req, res, next) => {
   try {
     const item = await findItem(req.params.id);
     if (!item?.r2_key) return res.status(404).end();
