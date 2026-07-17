@@ -2415,18 +2415,21 @@ function SurveyResultsPanel({ assignmentId }) {
         Anonymous results are withheld until at least {results.minimum_responses} responses are submitted.
       </p>
     ) : results.response_count === 0 ? <p className="survey-results-empty">No submitted survey responses yet.</p> : <>
-      <h3>Course-format ratings</h3>
-      <div className="survey-results-distributions">{results.distributions.map((question) => <section key={question.id}>
-        <p>{question.prompt}</p>
-        {question.options.map((option) => <div className="survey-result-row" key={option.value}>
-          <span>{option.label}</span><div><i style={{ width: `${option.percent}%` }} /></div><b>{option.count} <small>({option.percent}%)</small></b>
-        </div>)}
-      </section>)}</div>
-      <h3>Open recommendations by theme</h3>
-      {results.recommendation_groups.length === 0 ? <p className="survey-results-empty">No written format recommendations submitted.</p> : <div className="survey-recommendation-groups">{results.recommendation_groups.map((group) => <details key={group.key} open>
-        <summary>{group.label} <span>{group.count}</span></summary>
-        {group.comments.map((comment, index) => <blockquote key={`${group.key}:${index}`}>{comment}</blockquote>)}
-      </details>)}</div>}
+      {(results.sections ?? []).map((section) => <div key={section.title} className="survey-results-category">
+        <h3>{section.title}</h3>
+        {section.distributions.length > 0 && <div className="survey-results-distributions">{section.distributions.map((question) => <section key={question.id}>
+          <p>{question.prompt}</p>
+          {question.options.map((option) => <div className="survey-result-row" key={option.value}>
+            <span>{option.label}</span><div><i style={{ width: `${option.percent}%` }} /></div><b>{option.count} <small>({option.percent}%)</small></b>
+          </div>)}
+        </section>)}</div>}
+        {section.text_responses.map((question) => <details key={question.id} className="survey-open-response-group">
+          <summary>{question.prompt} <span>{question.count}</span></summary>
+          {question.responses.length === 0
+            ? <p className="survey-results-empty">No written responses.</p>
+            : question.responses.map((response, index) => <blockquote key={`${question.id}:${index}`}>{response}</blockquote>)}
+        </details>)}
+      </div>)}
     </>}
   </div>;
 }

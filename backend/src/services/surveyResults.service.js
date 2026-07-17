@@ -2,7 +2,6 @@
 const { Op } = require('sequelize');
 const { Assignment, Submission } = require('../models');
 const { NotFoundError, AppError } = require('../utils/errors');
-const FORMAT_SECTION = 'Evidence Drop & Investigation Format';
 const MIN_ANONYMOUS_RESPONSES = 3;
 function shouldSuppressAnonymousResults(responseCount) {
   return responseCount < MIN_ANONYMOUS_RESPONSES;
@@ -26,15 +25,24 @@ function groupRecommendations(comments) {
   return [...groups.values()].filter((group) => group.comments.length).map((group) => ({ ...group, count: group.comments.length }));
 }
 function aggregateSurveyResults(questions, responseSets) {
-  const formatQuestions = questions.filter((question) => question.section === FORMAT_SECTION);
-  const distributions = formatQuestions.filter((question) => question.type !== 'text').map((question) => {
+  const distributions = questions.filter((question) => question.type !== 'text').map((question) => {
     const counts = Object.fromEntries((question.options ?? []).map((option) => [option.value, 0]));
     for (const responses of responseSets) if (Object.hasOwn(counts, responses[question.id])) counts[responses[question.id]]++;
     const answered = Object.values(counts).reduce((sum, count) => sum + count, 0);
-    return { id: question.id, prompt: question.prompt, answered, options: (question.options ?? []).map((option) => ({ value: option.value, label: option.label, count: counts[option.value], percent: answered ? Math.round(counts[option.value] / answered * 100) : 0 })) };
+    return { id: question.id, section: question.section ?? 'Other', prompt: question.prompt, answered, options: (question.options ?? []).map((option) => ({ value: option.value, label: option.label, count: counts[option.value], percent: answered ? Math.round(counts[option.value] / answered * 100) : 0 })) };
   });
+  const textResponses = questions.filter((question) => question.type === 'text').map((question) => {
+    const responses = responseSets.map((response) => String(response[question.id] ?? '').trim()).filter(Boolean);
+    return { id: question.id, section: question.section ?? 'Other', prompt: question.prompt, count: responses.length, responses };
+  });
+  const sectionNames = [...new Set(questions.map((question) => question.section ?? 'Other'))];
+  const sections = sectionNames.map((title) => ({
+    title,
+    distributions: distributions.filter((question) => question.section === title),
+    text_responses: textResponses.filter((question) => question.section === title),
+  }));
   const comments = responseSets.map((responses) => String(responses.q35 ?? '').trim()).filter(Boolean);
-  return { response_count: responseSets.length, distributions, recommendation_count: comments.length, recommendation_groups: groupRecommendations(comments) };
+  return { response_count: responseSets.length, sections, distributions, text_responses: textResponses, recommendation_count: comments.length, recommendation_groups: groupRecommendations(comments) };
 }
 async function getSurveyResults(assignmentId) {
   const assignment = await Assignment.findByPk(assignmentId, { attributes: ['id', 'title', 'type', 'questions'] });
@@ -48,7 +56,9 @@ async function getSurveyResults(assignmentId) {
       response_count: responses.length,
       minimum_responses: MIN_ANONYMOUS_RESPONSES,
       results_suppressed: true,
+      sections: [],
       distributions: [],
+      text_responses: [],
       recommendation_count: 0,
       recommendation_groups: [],
     };
