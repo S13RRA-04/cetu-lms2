@@ -2210,6 +2210,47 @@ body {
 .admin-assign-btn:hover  { background: var(--card-hi); }
 
 /* ── Live Progress ── */
+.live-filter-bar {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+.live-filter-bar label {
+  display: flex;
+  flex: 1 1 180px;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.live-filter-bar label > span {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.live-filter-bar select {
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--bright);
+  font-size: 12px;
+}
+.live-filter-bar select:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+@media (max-width: 760px) {
+  .live-filter-bar { align-items: stretch; flex-direction: column; }
+  .live-filter-bar label { flex-basis: auto; }
+}
 .live-dot {
   display: inline-block;
   width: 6px;

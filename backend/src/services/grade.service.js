@@ -216,10 +216,33 @@ async function _queryScoreboard(courseId) {
   // filter, a squad's shared score would double-count into every member's
   // individual total on top of counting once for their squad.
   const [rows] = await sequelize.query(
-    `SELECT u.id AS "userId", u.first_name AS "firstName", u.last_name AS "lastName",
+    `WITH assessment_scores AS (
+       SELECT g.user_id,
+              MAX(g.score) FILTER (
+                WHERE a.lti_resource_link_id = 'assessment-pretest'
+              ) AS pretest_score,
+              MAX(g.score) FILTER (
+                WHERE a.lti_resource_link_id = 'assessment-posttest'
+              ) AS posttest_score
+       FROM grades g
+       JOIN assignments a ON a.id = g.assignment_id
+       WHERE a.course_id = :courseId
+         AND a.lti_resource_link_id IN ('assessment-pretest', 'assessment-posttest')
+       GROUP BY g.user_id
+     ), assessment_improvement AS (
+       SELECT user_id,
+              CASE
+                WHEN pretest_score IS NOT NULL AND posttest_score IS NOT NULL
+                  THEN GREATEST(posttest_score - pretest_score, 0)
+                ELSE 0
+              END AS points
+       FROM assessment_scores
+     )
+     SELECT u.id AS "userId", u.first_name AS "firstName", u.last_name AS "lastName",
             COALESCE(SUM(g.score), 0)     AS "totalScore",
             COALESCE(SUM(g.max_score), 0) AS "maxScore",
             COALESCE(puzzle_points.points, 0) AS "puzzlePoints",
+            COALESCE(assessment_improvement.points, 0) AS "assessmentImprovementPoints",
             COUNT(g.id)                   AS "graded"
      FROM enrollments e
      JOIN users u ON u.id = e.user_id
@@ -231,9 +254,12 @@ async function _queryScoreboard(courseId) {
        WHERE course_id = :courseId
        GROUP BY first_solver_id
      ) puzzle_points ON puzzle_points.first_solver_id = u.id
+     LEFT JOIN assessment_improvement ON assessment_improvement.user_id = u.id
      WHERE e.course_id = :courseId AND u.role = 'student'
-     GROUP BY u.id, u.first_name, u.last_name, puzzle_points.points
-     ORDER BY (COALESCE(SUM(g.score), 0) + COALESCE(puzzle_points.points, 0)) DESC,
+     GROUP BY u.id, u.first_name, u.last_name, puzzle_points.points, assessment_improvement.points
+     ORDER BY (COALESCE(SUM(g.score), 0)
+               + COALESCE(puzzle_points.points, 0)
+               + COALESCE(assessment_improvement.points, 0)) DESC,
               u.last_name ASC,
               u.first_name ASC,
               u.id ASC`,
@@ -245,7 +271,12 @@ async function _queryScoreboard(courseId) {
     lastName:   r.lastName,
     assignmentPoints: Math.round(parseFloat(r.totalScore)),
     puzzlePoints: Math.round(parseFloat(r.puzzlePoints ?? 0)),
-    totalScore: Math.round(parseFloat(r.totalScore) + parseFloat(r.puzzlePoints ?? 0)),
+    assessmentImprovementPoints: Math.round(parseFloat(r.assessmentImprovementPoints ?? 0)),
+    totalScore: Math.round(
+      parseFloat(r.totalScore)
+      + parseFloat(r.puzzlePoints ?? 0)
+      + parseFloat(r.assessmentImprovementPoints ?? 0)
+    ),
     maxScore:   Math.round(parseFloat(r.maxScore)),
     graded:     parseInt(r.graded, 10),
   }));

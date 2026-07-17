@@ -221,24 +221,48 @@ async function lockForCohort(assignmentId, cohortId, squadId = null) {
 // in the course with live in-progress vs. completed counts, so an instructor
 // can see at a glance which taskings students are actively working right now
 // before drilling into a specific one via getProgressForAssignment.
-async function getLiveOverview(courseId) {
-  return liveOverviewCache.get(`liveOverview:${courseId}`, () => _queryLiveOverview(courseId));
+const LIVE_ASSIGNMENT_TYPES = ['module', 'challenge', 'assessment', 'survey'];
+
+function normalizeLiveFilters(filters = {}) {
+  return {
+    cohortId: filters.cohort_id || null,
+    squadId: filters.squad_id || null,
+    type: LIVE_ASSIGNMENT_TYPES.includes(filters.type) ? filters.type : null,
+  };
 }
 
-async function _queryLiveOverview(courseId) {
+async function getLiveOverview(courseId, filters = {}) {
+  const normalized = normalizeLiveFilters(filters);
+  const cacheKey = `liveOverview:${courseId}:${normalized.cohortId ?? 'all'}:${normalized.squadId ?? 'all'}:${normalized.type ?? 'all'}`;
+  return liveOverviewCache.get(cacheKey, () => _queryLiveOverview(courseId, normalized));
+}
+
+async function _queryLiveOverview(courseId, { cohortId, squadId, type }) {
   const [rows] = await sequelize.query(
     `SELECT a.id, a.title, a.type, a.drop_number,
             COUNT(*) FILTER (WHERE s.status = 'in_progress')                       AS "inProgressCount",
             COUNT(*) FILTER (WHERE s.status IN ('submitted', 'graded', 'returned')) AS "completedCount",
             MAX(s.updated_at) FILTER (WHERE s.status = 'in_progress')              AS "lastActivityAt"
      FROM assignments a
-     LEFT JOIN submissions s ON s.assignment_id = a.id
+     LEFT JOIN submissions s
+       ON s.assignment_id = a.id
+      AND (:squadId IS NULL OR s.squad_id = :squadId)
+      AND (
+        :cohortId IS NULL
+        OR EXISTS (
+          SELECT 1 FROM enrollments e
+          WHERE e.user_id = s.user_id
+            AND e.course_id = a.course_id
+            AND e.cohort_id = :cohortId
+        )
+      )
      WHERE a.course_id = :courseId
        AND a.type IN ('module', 'challenge', 'assessment', 'survey')
+       AND (:type IS NULL OR a.type = :type)
        AND a.is_published = true
      GROUP BY a.id
      ORDER BY a.order_index ASC, a.created_at ASC`,
-    { replacements: { courseId } }
+    { replacements: { courseId, cohortId, squadId, type } }
   );
   return rows.map((r) => ({
     id:               r.id,

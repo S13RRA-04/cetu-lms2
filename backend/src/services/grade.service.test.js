@@ -17,6 +17,7 @@ test('operator scoreboard ranks by the displayed total including puzzle points',
       totalScore: '390.00',
       maxScore: '403.00',
       puzzlePoints: '13.00',
+      assessmentImprovementPoints: '8.00',
       graded: '4',
     }]];
   };
@@ -24,11 +25,15 @@ test('operator scoreboard ranks by the displayed total including puzzle points',
 
   const result = await gradeService.getScoreboard('operator-ranking-puzzle-points-test-course');
 
-  assert.match(sql, /ORDER BY \(COALESCE\(SUM\(g\.score\), 0\) \+ COALESCE\(puzzle_points\.points, 0\)\) DESC/);
+  assert.match(sql, /THEN GREATEST\(posttest_score - pretest_score, 0\)/);
+  assert.match(sql, /a\.lti_resource_link_id = 'assessment-pretest'/);
+  assert.match(sql, /a\.lti_resource_link_id = 'assessment-posttest'/);
+  assert.match(sql, /COALESCE\(assessment_improvement\.points, 0\)\) DESC/);
   assert.match(sql, /u\.last_name ASC,\s+u\.first_name ASC,\s+u\.id ASC/);
   assert.equal(result[0].assignmentPoints, 390);
   assert.equal(result[0].puzzlePoints, 13);
-  assert.equal(result[0].totalScore, 403);
+  assert.equal(result[0].assessmentImprovementPoints, 8);
+  assert.equal(result[0].totalScore, 411);
 });
 
 test('squad scoreboard denominator includes all assignments currently unlocked for that squad', async (t) => {

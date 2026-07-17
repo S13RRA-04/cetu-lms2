@@ -80,10 +80,16 @@ function StandingsEntry({ entry, rank, tab, isMe, leaderScore, delay = 0 }) {
             <strong>{entry.assignmentPoints ?? entry.totalScore ?? 0} pts</strong>
           </div>
           {tab === 'individual' && (
-            <div>
-              <span>Puzzle bonus</span>
-              <strong>{entry.puzzlePoints ?? 0} pts</strong>
-            </div>
+            <>
+              <div>
+                <span>Assessment improvement</span>
+                <strong>+{entry.assessmentImprovementPoints ?? 0} pts</strong>
+              </div>
+              <div>
+                <span>Puzzle bonus</span>
+                <strong>{entry.puzzlePoints ?? 0} pts</strong>
+              </div>
+            </>
           )}
           <div>
             <span>Raw ranking total</span>

@@ -65,13 +65,24 @@ function computePerformance(quizState, questions) {
   };
 }
 
-async function getProgressForAssignment(assignmentId) {
-  const assignment = await Assignment.findByPk(assignmentId, { attributes: ['id', 'questions', 'max_score'] });
+async function getProgressForAssignment(assignmentId, filters = {}) {
+  const assignment = await Assignment.findByPk(assignmentId, { attributes: ['id', 'course_id', 'questions', 'max_score'] });
   if (!assignment) throw new NotFoundError('Assignment');
   const questions = Array.isArray(assignment.questions) ? assignment.questions : [];
+  const enrollmentWhere = {
+    course_id: assignment.course_id,
+    ...(filters.cohort_id ? { cohort_id: filters.cohort_id } : {}),
+    ...(filters.squad_id ? { squad_id: filters.squad_id } : {}),
+  };
+  const scopedEnrollments = await Enrollment.findAll({
+    where: enrollmentWhere,
+    attributes: ['user_id'],
+  });
+  const scopedUserIds = scopedEnrollments.map((enrollment) => enrollment.user_id);
+  if (scopedUserIds.length === 0) return [];
 
   const subs = await Submission.findAll({
-    where:   { assignment_id: assignmentId },
+    where:   { assignment_id: assignmentId, user_id: scopedUserIds },
     include: [
       { model: User,  as: 'student', attributes: ['id', 'first_name', 'last_name', 'email'] },
       { model: Squad, as: 'squad',   attributes: ['id', 'number', 'name'] },

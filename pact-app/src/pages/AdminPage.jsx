@@ -556,7 +556,7 @@ export default function AdminPage() {
       </div>
 
       {adminPanel === 'live' ? (
-        <LiveProgressPanel />
+        <LiveProgressPanel cohorts={cohorts} />
       ) : adminPanel === 'users' ? (
         <UsersPanel />
       ) : adminPanel === 'library' ? (
@@ -2839,7 +2839,7 @@ function LiveRosterRow({ sub }) {
 
 const LIVE_POLL_MS = 10_000;
 
-function LiveProgressPanel() {
+function LiveProgressPanel({ cohorts }) {
   const [overview,      setOverview]      = useState([]);
   const [loading,       setLoading]       = useState(true);
   const [selected,      setSelected]      = useState(null);
@@ -2847,18 +2847,43 @@ function LiveProgressPanel() {
   const [rosterLoading, setRosterLoading] = useState(false);
   const [collapsedAssignmentGroups, setCollapsedAssignmentGroups] = useState({});
   const [collapsedRosterGroups, setCollapsedRosterGroups] = useState({});
+  const [cohortId,      setCohortId]      = useState('');
+  const [squadId,       setSquadId]       = useState('');
+  const [assignmentType, setAssignmentType] = useState('');
+  const [squads,        setSquads]        = useState([]);
+
+  useEffect(() => {
+    setSquadId('');
+    if (!cohortId) {
+      setSquads([]);
+      return;
+    }
+    getSquadsByCohort(cohortId)
+      .then((data) => setSquads(Array.isArray(data) ? data : []))
+      .catch(() => setSquads([]));
+  }, [cohortId]);
+
+  const filterParams = useMemo(() => ({
+    ...(cohortId ? { cohort_id: cohortId } : {}),
+    ...(squadId ? { squad_id: squadId } : {}),
+    ...(assignmentType ? { type: assignmentType } : {}),
+  }), [cohortId, squadId, assignmentType]);
 
   const loadOverview = useCallback(() => {
-    return getLiveOverview()
+    return getLiveOverview(filterParams)
       .then((data) => setOverview(Array.isArray(data) ? data : []))
       .catch(() => {});
-  }, []);
+  }, [filterParams]);
 
   const loadRoster = useCallback((assignmentId) => {
-    return getAssignmentProgress(assignmentId)
+    return getAssignmentProgress(assignmentId, filterParams)
       .then((data) => setRoster(Array.isArray(data) ? data : []))
       .catch(() => setRoster([]));
-  }, []);
+  }, [filterParams]);
+
+  useEffect(() => {
+    if (selected && assignmentType && selected.type !== assignmentType) setSelected(null);
+  }, [assignmentType, selected]);
 
   // Poll the overview list continuously so in-progress counts and the "who's
   // active right now" badges stay current even before an assignment is opened.
@@ -2912,7 +2937,38 @@ function LiveProgressPanel() {
   };
 
   return (
-    <div className="admin-layout">
+    <>
+      <div className="live-filter-bar">
+        <label>
+          <span>Cohort</span>
+          <select value={cohortId} onChange={(e) => setCohortId(e.target.value)}>
+            <option value="">All cohorts</option>
+            {cohorts.map((cohort) => <option key={cohort.id} value={cohort.id}>{cohort.name}</option>)}
+          </select>
+        </label>
+        <label>
+          <span>Squad</span>
+          <select value={squadId} onChange={(e) => setSquadId(e.target.value)} disabled={!cohortId}>
+            <option value="">{cohortId ? 'All squads' : 'Select a cohort first'}</option>
+            {squads.map((squad) => (
+              <option key={squad.id} value={squad.id}>
+                Squad {squad.number}{squad.name ? ` · ${squad.name}` : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Assignment type</span>
+          <select value={assignmentType} onChange={(e) => setAssignmentType(e.target.value)}>
+            <option value="">All types</option>
+            <option value="module">Modules</option>
+            <option value="challenge">Challenges</option>
+            <option value="assessment">Assessments</option>
+            <option value="survey">Surveys</option>
+          </select>
+        </label>
+      </div>
+      <div className="admin-layout">
       <div className="admin-left">
         {overview.length === 0 && (
           <p style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 16px' }}>
@@ -2998,7 +3054,8 @@ function LiveProgressPanel() {
           </>
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 

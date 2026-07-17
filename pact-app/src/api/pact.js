@@ -79,11 +79,11 @@ export const saveSquadChallengeState = (assignmentId, state) =>
   client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/squad-state`, state).then((r) => r.data);
 
 /* ── Live progress ── */
-export const getLiveOverview = () =>
-  client.get(`/courses/${COURSE_ID}/live-progress`).then((r) => r.data);
+export const getLiveOverview = (params = {}) =>
+  client.get(`/courses/${COURSE_ID}/live-progress`, { params }).then((r) => r.data);
 
-export const getAssignmentProgress = (assignmentId) =>
-  client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/progress`).then((r) => r.data);
+export const getAssignmentProgress = (assignmentId, params = {}) =>
+  client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/progress`, { params }).then((r) => r.data);
 
 /* ── Cohorts ── */
 export const getCohorts = () =>

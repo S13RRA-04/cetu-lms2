@@ -111,12 +111,12 @@ async function lockForCohort(req, res, next) {
 }
 
 async function getProgress(req, res, next) {
-  try { return res.json(await submissionService.getProgressForAssignment(req.params.aid)); }
+  try { return res.json(await submissionService.getProgressForAssignment(req.params.aid, req.query)); }
   catch (err) { return next(err); }
 }
 
 async function getLiveOverview(req, res, next) {
-  try { return res.json(await assignmentService.getLiveOverview(req.params.id)); }
+  try { return res.json(await assignmentService.getLiveOverview(req.params.id, req.query)); }
   catch (err) { return next(err); }
 }
 
