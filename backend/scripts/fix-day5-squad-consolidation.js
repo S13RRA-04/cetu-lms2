@@ -23,7 +23,7 @@
  */
 require('dotenv').config();
 const { Op } = require('sequelize');
-const { Assignment, Submission, Grade, Enrollment, sequelize } = require('../src/models');
+const { Assignment, Submission, Grade, Enrollment, User, sequelize } = require('../src/models');
 const { ALL_ASSIGNMENTS } = require('./seed-day5-testimony-prep');
 
 const STATUS_RANK = { in_progress: 0, submitted: 1, graded: 2, returned: 3 };
@@ -52,8 +52,13 @@ async function consolidateAssignment(assignment) {
   const submissions = await Submission.findAll({ where: { assignment_id: assignment.id } });
   const grades      = await Grade.findAll({ where: { assignment_id: assignment.id } });
 
+  // Staff accounts (admin/instructor) sometimes sit inside a student squad
+  // for preview/testing — exclude them from squad membership so their own
+  // activity never becomes the squad's "furthest progress"/"best grade" and
+  // never receives the fan-out either.
   const enrollments = await Enrollment.findAll({
     where: { course_id: assignment.course_id, squad_id: { [Op.ne]: null } },
+    include: [{ model: User, where: { role: 'student' }, attributes: [] }],
   });
   const squadByUser = new Map(enrollments.map((e) => [e.user_id, e.squad_id]));
 

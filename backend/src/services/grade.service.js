@@ -112,7 +112,13 @@ async function gradeSquad(assignmentId, squadId, data, graderId) {
   const squad = await Squad.findByPk(squadId);
   if (!squad) throw new NotFoundError('Squad');
 
-  const enrollments = await Enrollment.findAll({ where: { squad_id: squadId, course_id: assignment.course_id } });
+  // Staff accounts (admin/instructor) sometimes sit inside a student squad
+  // for preview/testing — their own activity must never become part of the
+  // squad's shared grade, and they should never receive one either.
+  const enrollments = await Enrollment.findAll({
+    where: { squad_id: squadId, course_id: assignment.course_id },
+    include: [{ model: User, where: { role: 'student' }, attributes: [] }],
+  });
   if (enrollments.length === 0) throw new AppError('No members found in squad for this course', 400, 'BAD_REQUEST');
 
   const grades = await sequelize.transaction(async (t) => {
@@ -156,7 +162,14 @@ async function gradeSquad(assignmentId, squadId, data, graderId) {
    above. Individually-graded assignments still land on just the one user. */
 async function autoGradeQuiz(assignment, userId, squadId, score, maxScore) {
   const targetUserIds = (assignment.grading_mode === 'squad' && squadId)
-    ? (await Enrollment.findAll({ where: { squad_id: squadId, course_id: assignment.course_id }, attributes: ['user_id'] })).map((e) => e.user_id)
+    // Staff accounts (admin/instructor) sometimes sit inside a student squad
+    // for preview/testing — exclude them from the fan-out so their own
+    // activity never becomes part of, or receives, the squad's shared grade.
+    ? (await Enrollment.findAll({
+        where: { squad_id: squadId, course_id: assignment.course_id },
+        include: [{ model: User, where: { role: 'student' }, attributes: [] }],
+        attributes: ['user_id'],
+      })).map((e) => e.user_id)
     : [userId];
 
   const grades = await sequelize.transaction(async (t) => {
@@ -246,10 +259,14 @@ async function _querySquadScoreboard(courseId) {
   // every squad assignment unlocked for that squad at this point in the game:
   // cohort-wide unlocks plus that squad's scoped unlocks. The DISTINCT eligible
   // CTE prevents a redundant cohort + squad unlock from double-counting points.
+  // Only student enrollments are eligible as the representative — staff
+  // accounts (admin/instructor) sometimes sit inside a student squad for
+  // preview/testing, and their own grades must never stand in for the squad's.
   const [rows] = await sequelize.query(
     `WITH rep AS (
        SELECT DISTINCT ON (e.squad_id) e.squad_id, e.user_id
        FROM enrollments e
+       JOIN users u ON u.id = e.user_id AND u.role = 'student'
        WHERE e.course_id = :courseId AND e.squad_id IS NOT NULL
        ORDER BY e.squad_id, e.user_id
      ), eligible AS (

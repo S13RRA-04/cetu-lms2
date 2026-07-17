@@ -59,7 +59,7 @@ const sharedAssignment = {
   course_id: COURSE_ID,
   title: 'Day 5: Grand Jury Testimony Prep — The Conspiracy as a Whole',
   description: 'Before this afternoon’s capstone, confirm you can testify accurately about the case pattern that connects all four victims — without overstating what the evidence actually establishes.',
-  max_score: 100,
+  max_score: 120, // 8 questions × 15 pts — must match the sum of this assignment's own question points (see quizGrading.js's gradeQuizAnswers, which computes Grade.max_score the same way)
   is_published: false,
   type: 'challenge',
   grading_mode: 'squad',
@@ -157,7 +157,7 @@ function victimAssignment({ victimName, title, questions }) {
     course_id: COURSE_ID,
     title,
     description: `Before this afternoon’s capstone, confirm you can testify accurately and only about ${victimName} — the victim your squad actually investigated.`,
-    max_score: 100,
+    max_score: 90, // 6 questions × 15 pts — must match the sum of this set's own question points
     is_published: false,
     type: 'challenge',
     grading_mode: 'squad',
@@ -392,7 +392,7 @@ function locationAssignment({ locationCode, locationLabel, title, questions }) {
     course_id: COURSE_ID,
     title,
     description: `Before this afternoon’s capstone, confirm you can testify accurately and only about the ${locationLabel} search — the location you personally worked during Drop 6.`,
-    max_score: 100,
+    max_score: 75, // 5 questions × 15 pts — must match the sum of this set's own question points
     is_published: false,
     type: 'challenge',
     grading_mode: 'squad',
