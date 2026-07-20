@@ -608,14 +608,21 @@ function SubmissionDetail({ sub, assignment, existingGrade, onGradeSaved }) {
    COURSE CONTENT PANEL
 ═══════════════════════════════════════════════════════════ */
 
-const CONTENT_TYPES = ['slides', 'handout', 'agenda', 'form', 'resource'];
-const CONTENT_TYPE_LABELS = { slides: 'Slides', handout: 'Handout', agenda: 'Agenda', form: 'Form', resource: 'Resource' };
+const CONTENT_TYPES = ['agenda', 'slides', 'handout', 'resource', 'form'];
+const CONTENT_TYPE_LABELS = { slides: 'Slides', handout: 'Handouts', agenda: 'Agenda', form: 'Forms', resource: 'Resources' };
 
 function CourseContentPanel({ items, cohorts, loaded, onItemsChange }) {
-  const [selected, setSelected] = useState(null);
-  const [showForm, setShowForm] = useState(false);
+  const [selected,  setSelected]  = useState(null);
+  const [showForm,  setShowForm]  = useState(false);
+  const [collapsed, setCollapsed] = useState({});
 
   if (!loaded) return <div className="loading-screen"><div className="spinner" /></div>;
+
+  const toggleGroup = (type) => setCollapsed((c) => ({ ...c, [type]: !c[type] }));
+
+  const groups = CONTENT_TYPES
+    .map((type) => ({ type, items: items.filter((i) => i.content_type === type) }))
+    .filter((g) => g.items.length > 0);
 
   return (
     <div className="admin-layout">
@@ -624,23 +631,38 @@ function CourseContentPanel({ items, cohorts, loaded, onItemsChange }) {
           <span className="section-label">Content Items</span>
           <button className="btn-sm-primary" onClick={() => { setShowForm(true); setSelected(null); }}>+ Add</button>
         </div>
-        <div className="admin-assignment-list">
+        <div className="admin-content-groups">
           {items.length === 0 && <div className="empty-state" style={{ padding: '24px 16px' }}>No content yet.</div>}
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className={`admin-assignment-row${selected?.id === item.id ? ' selected' : ''}`}
-              onClick={() => { setSelected(item); setShowForm(false); }}
-            >
-              <div className="admin-a-title">{item.title}</div>
-              <div className="admin-a-meta">
-                <span className="type-badge" style={{ fontSize: 9, padding: '2px 6px' }}>{CONTENT_TYPE_LABELS[item.content_type]}</span>
-                {item.is_published
-                  ? <span style={{ fontSize: 10, color: '#10b981' }}>Published</span>
-                  : <span style={{ fontSize: 10, color: '#94a3b8' }}>Draft</span>}
+          {groups.map(({ type, items: groupItems }) => {
+            const isOpen = !collapsed[type];
+            return (
+              <div key={type} className="admin-content-group">
+                <button className="admin-content-group-header" onClick={() => toggleGroup(type)}>
+                  <span className="admin-content-group-name">{CONTENT_TYPE_LABELS[type]}</span>
+                  <span className="sidebar-group-count">{groupItems.length}</span>
+                  <span className={`course-day-chevron${isOpen ? ' open' : ''}`}>›</span>
+                </button>
+                {isOpen && (
+                  <div className="admin-assignment-list">
+                    {groupItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className={`admin-assignment-row${selected?.id === item.id ? ' selected' : ''}`}
+                        onClick={() => { setSelected(item); setShowForm(false); }}
+                      >
+                        <div className="admin-a-title">{item.title}</div>
+                        <div className="admin-a-meta">
+                          {item.is_published
+                            ? <span style={{ fontSize: 10, color: '#4ade80' }}>Published</span>
+                            : <span style={{ fontSize: 10, color: '#94a3b8' }}>Draft</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
