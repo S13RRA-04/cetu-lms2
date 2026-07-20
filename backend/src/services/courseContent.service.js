@@ -178,9 +178,16 @@ async function getDownloadUrl(contentId, userId, userRole = 'student') {
 async function update(id, data) {
   const item = await CourseContentItem.findByPk(id);
   if (!item) throw new NotFoundError('CourseContentItem');
-  const updated = await item.update(data);
+  await item.update(data);
   invalidateCourseContentLists(item.course_id);
-  return updated;
+  // Re-fetch with unlocks included — the admin UI merges this response
+  // directly into its local item state, so an incomplete response here
+  // silently drops the item's cohort-release info from that state (the
+  // underlying CourseContentUnlock rows are untouched, just not reflected).
+  const withUnlocks = await CourseContentItem.findByPk(id, {
+    include: [{ model: CourseContentUnlock, as: 'unlocks', include: [{ model: Cohort, attributes: ['id', 'name'] }] }],
+  });
+  return withUnlocks;
 }
 
 async function remove(id) {

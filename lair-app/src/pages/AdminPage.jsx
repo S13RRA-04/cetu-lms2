@@ -769,6 +769,17 @@ function ContentItemDetail({ item, cohorts, onUpdated, onDeleted }) {
     try { await deleteContentItem(item.id); onDeleted(item.id); } catch { setErr('Delete failed'); }
   };
 
+  const [publishing, setPublishing] = useState(false);
+  const handleTogglePublish = async () => {
+    setPublishing(true);
+    try {
+      const updated = await updateContentItem(item.id, { is_published: !item.is_published });
+      onUpdated(updated);
+      setIsPublished(updated.is_published);
+    } catch { setErr('Publish toggle failed'); }
+    finally { setPublishing(false); }
+  };
+
   const unlockedIds = new Set((item.unlocks ?? []).map((u) => u.cohort_id));
 
   const handleToggle = async (cohortId) => {
@@ -809,8 +820,21 @@ function ContentItemDetail({ item, cohorts, onUpdated, onDeleted }) {
               <div className="section-label" style={{ marginBottom: 4 }}>{CONTENT_TYPE_LABELS[item.content_type]}</div>
               <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--bright)' }}>{item.title}</div>
               {item.description && <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{item.description}</div>}
+              <div style={{ fontSize: 12, marginTop: 6 }}>
+                {item.is_published
+                  ? <span style={{ color: '#4ade80' }}>Published</span>
+                  : <span style={{ color: 'var(--muted)' }}>Draft — not visible to students yet, even if released to a cohort below</span>}
+              </div>
             </div>
             <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              <button
+                className="admin-back-btn"
+                style={item.is_published ? { color: 'var(--danger)', borderColor: 'var(--danger)' } : { color: '#4ade80', borderColor: '#4ade80' }}
+                onClick={handleTogglePublish}
+                disabled={publishing}
+              >
+                {publishing ? '…' : item.is_published ? 'Unpublish' : 'Publish'}
+              </button>
               <button className="btn-sm-primary" onClick={() => setEditing(true)}>Edit</button>
               <button className="btn-sm-danger" onClick={handleDelete}>Delete</button>
             </div>
