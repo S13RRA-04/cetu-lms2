@@ -30,13 +30,9 @@ export const updateProgress = (assignmentId, progress) =>
 export const getMyGrades = () =>
   client.get(`/courses/${COURSE_ID}/grades/me`).then((r) => r.data);
 
-/* ── Scoreboard ── */
-export const getScoreboard = () =>
-  client.get(`/courses/${COURSE_ID}/scoreboard`).then((r) => r.data);
-
 /* ── Admin / instructor ── */
 export const getAdminAssignments = () =>
-  client.get(`/courses/${COURSE_ID}/assignments?limit=200`).then((r) => {
+  client.get(`/courses/${COURSE_ID}/assignments?limit=200&manage=1`).then((r) => {
     const raw = r.data;
     return Array.isArray(raw) ? raw : (raw.data ?? []);
   });
@@ -50,37 +46,12 @@ export const getGradesForAssignment = (assignmentId) =>
 export const submitGrade = (assignmentId, userId, data) =>
   client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/grades/${userId}`, data).then((r) => r.data);
 
-export const submitSquadGrade = (assignmentId, squadId, data) =>
-  client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/grades/squad/${squadId}`, data).then((r) => r.data);
-
 /* ── Cohorts ── */
 export const getCohorts = () =>
   client.get(`/courses/${COURSE_ID}/cohorts`).then((r) => {
     const raw = r.data;
     return Array.isArray(raw) ? raw : (raw.data ?? []);
   });
-
-/* ── Scenarios ── */
-export const getScenarios = () =>
-  client.get(`/courses/${COURSE_ID}/scenarios`).then((r) => r.data);
-
-export const getScenarioDownloadUrl = (packageId) =>
-  client.get(`/courses/${COURSE_ID}/scenarios/${packageId}/download`).then((r) => r.data);
-
-export const createScenario = (data) =>
-  client.post(`/courses/${COURSE_ID}/scenarios`, data).then((r) => r.data);
-
-export const updateScenario = (packageId, data) =>
-  client.put(`/courses/${COURSE_ID}/scenarios/${packageId}`, data).then((r) => r.data);
-
-export const deleteScenario = (packageId) =>
-  client.delete(`/courses/${COURSE_ID}/scenarios/${packageId}`);
-
-export const unlockScenario = (packageId, cohortId) =>
-  client.post(`/courses/${COURSE_ID}/scenarios/${packageId}/unlock`, { cohort_id: cohortId }).then((r) => r.data);
-
-export const lockScenario = (packageId, cohortId) =>
-  client.post(`/courses/${COURSE_ID}/scenarios/${packageId}/lock`, { cohort_id: cohortId });
 
 /* ── Assignment gating ── */
 export const unlockAssignment = (assignmentId, cohortId) =>
@@ -92,6 +63,9 @@ export const lockAssignment = (assignmentId, cohortId) =>
 /* ── Course Content ── */
 export const getCourseContent = () =>
   client.get(`/courses/${COURSE_ID}/course-content`).then((r) => r.data);
+
+export const getAdminCourseContent = () =>
+  client.get(`/courses/${COURSE_ID}/course-content?manage=1`).then((r) => r.data);
 
 export const createContentLink = (data) =>
   client.post(`/courses/${COURSE_ID}/course-content`, data).then((r) => r.data);

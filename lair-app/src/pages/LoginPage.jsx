@@ -49,7 +49,7 @@ export default function LoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="operator@cetu.mil"
+              placeholder="you@cetu.mil"
               required
               autoFocus
               autoComplete="email"

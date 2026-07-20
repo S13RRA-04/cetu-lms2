@@ -1,17 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getAssignment, getMySubmission, submitAssignment, updateProgress } from '../api/lair.js';
-import QuizFlow       from '../components/QuizFlow.jsx';
-import ChallengeFlow  from '../components/ChallengeFlow.jsx';
-
+import QuizFlow from '../components/QuizFlow.jsx';
 
 const TYPE_COLOR = {
-  module:     '#2563eb',
-  game:       '#059669',
-  assessment: '#d97706',
-  survey:     '#7c3aed',
-  challenge:  '#dc2626',
-  capstone:   '#b45309',
+  module:     '#f0a428',
+  assessment: '#e8b339',
+  survey:     '#a78bfa',
 };
 
 const PCT_STEPS = [0, 25, 50, 75, 100];
@@ -117,24 +112,20 @@ export default function AssignmentPage() {
   }
 
   const color      = TYPE_COLOR[assignment.type] ?? TYPE_COLOR.module;
-  const isSquad    = assignment.grading_mode === 'squad';
   const isLocked   = assignment.is_unlocked === false;
   const isSurvey   = assignment.type === 'survey';
-  /* hasQuiz: any type with questions uses QuizFlow (modules, assessments, capstones with quiz banks) */
+  /* hasQuiz: any type with questions uses QuizFlow (modules and assessments with a question bank) */
   const hasQuiz    = !isLocked && !isSurvey && Array.isArray(assignment.questions) && assignment.questions.length > 0;
-  /* isWorkshop: challenge/capstone with no questions → ChallengeFlow */
-  const isWorkshop = !isLocked && !hasQuiz && (assignment.type === 'challenge' || assignment.type === 'capstone');
 
   return (
     <div className="assignment-page">
       <div className="assignment-body">
-        <Link to="/" className="back-link">← Back to Dashboard</Link>
+        <Link to="/course" className="back-link">← Back to Course</Link>
 
         <div className="assignment-meta">
           <span className="type-badge" style={{ color, borderColor: color }}>
             {(assignment.type ?? 'module').toUpperCase()}
           </span>
-          {isSquad && <span className="squad-badge">Squad</span>}
         </div>
 
         <h1 className="assignment-title">{assignment.title}</h1>
@@ -145,7 +136,7 @@ export default function AssignmentPage() {
 
         {assignment.due_date && (
           <p className="mission-due">
-            Deadline: {new Date(assignment.due_date).toLocaleString()}
+            Due: {new Date(assignment.due_date).toLocaleString()}
           </p>
         )}
 
@@ -154,7 +145,7 @@ export default function AssignmentPage() {
         {/* ── Locked state ── */}
         {isLocked ? (
           <div className="locked-msg" style={{ padding: '32px 0', fontSize: 14, color: 'var(--muted)' }}>
-            🔒 This assignment has not been unlocked for your cohort yet. Check back later or contact your instructor.
+            🔒 This section has not been unlocked for your cohort yet. Check back later or contact your instructor.
           </div>
         ) : /* ── Survey flow ── */
         isSurvey ? (
@@ -162,8 +153,8 @@ export default function AssignmentPage() {
             <div className="success-banner" style={{ marginTop: 24 }}>
               ✓ Survey submitted — thank you for your feedback.
               <br />
-              <Link to="/" className="btn-submit" style={{ display: 'inline-block', marginTop: 16, textDecoration: 'none', textAlign: 'center', background: color }}>
-                ← Back to Dashboard
+              <Link to="/course" className="btn-submit" style={{ display: 'inline-block', marginTop: 16, textDecoration: 'none', textAlign: 'center', background: color }}>
+                ← Back to Course
               </Link>
             </div>
           ) : (
@@ -176,21 +167,7 @@ export default function AssignmentPage() {
               />
             </>
           )
-        ) : /* ── Workshop (challenge/capstone without quiz questions) ── */
-        isWorkshop ? (
-          <ChallengeFlow
-            assignment={assignment}
-            color={color}
-            submitted={submitted}
-            existingContent={content}
-            onComplete={async (payload) => {
-              setContent(payload);
-              setProgress(100);
-              await submitAssignment(id, payload);
-              setSubmitted(true);
-            }}
-          />
-        ) : /* ── Quiz flow (modules, assessments, capstones with question banks) ── */
+        ) : /* ── Quiz flow (modules and assessments with a question bank) ── */
         hasQuiz ? (
           submitted ? (
             <QuizSummary result={quizResult} assignment={assignment} color={color} />
@@ -212,7 +189,7 @@ export default function AssignmentPage() {
           /* ── Freeform submission for non-quiz assignments ── */
           <>
             <div style={{ marginBottom: 28 }}>
-              <div className="section-label">Mission Progress</div>
+              <div className="section-label">Progress</div>
               <div className="progress-track">
                 <div className="progress-fill" style={{ width: `${progress}%`, background: color }} />
               </div>
@@ -234,26 +211,13 @@ export default function AssignmentPage() {
             <hr className="divider" />
 
             {submitted ? (
-              <div className="success-banner">
-                ✓ Mission submitted successfully
-                {submission?.squad && (
-                  <div style={{ marginTop: 6, fontSize: 11, opacity: .7 }}>
-                    Squad {submission.squad.number}
-                    {submission.squad.name ? ` (${submission.squad.name})` : ''}
-                  </div>
-                )}
-              </div>
+              <div className="success-banner">✓ Response submitted</div>
             ) : (
               <div>
-                <div className="section-label">Mission Response</div>
-                {isSquad && (
-                  <div className="squad-notice">
-                    Squad assignment — your submission will be graded for your entire squad
-                  </div>
-                )}
+                <div className="section-label">Your Response</div>
                 {submission && (
                   <div className="prev-submission">
-                    ✓ Previous submission on record — resubmitting will replace it
+                    ✓ Previous response on record — resubmitting will replace it
                   </div>
                 )}
                 {error && <div className="err-msg">{error}</div>}
@@ -262,14 +226,14 @@ export default function AssignmentPage() {
                     className="response-textarea"
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
-                    placeholder="Enter your mission response…"
+                    placeholder="Enter your response…"
                     required
                   />
                   <div className="action-row">
                     <button type="submit" className="btn-submit" disabled={saving}>
-                      {saving ? 'Transmitting…' : submission ? 'Resubmit Mission' : 'Submit Mission'}
+                      {saving ? 'Submitting…' : submission ? 'Resubmit' : 'Submit'}
                     </button>
-                    <Link to="/" className="btn-cancel">Cancel</Link>
+                    <Link to="/course" className="btn-cancel">Cancel</Link>
                   </div>
                 </form>
               </div>
@@ -285,7 +249,7 @@ function ModuleIntro({ assignment, color, onBegin }) {
   const questions  = assignment.questions ?? [];
   const totalPts   = questions.reduce((s, q) => s + (q.scoring?.points ?? 0), 0);
   const mustPass   = questions.filter((q) => q.scoring?.mustPass).length;
-  const typeLabel  = assignment.type === 'capstone' ? 'Capstone Assessment' : 'Module Assessment';
+  const typeLabel  = 'Assessment';
 
   return (
     <div className="module-intro">
@@ -311,7 +275,7 @@ function ModuleIntro({ assignment, color, onBegin }) {
       {mustPass > 0 && (
         <div className="module-mustpass-warn">
           ⚠ {mustPass} question{mustPass !== 1 ? 's are' : ' is'} flagged Must-Pass.
-          Wrong answers on these items reflect critical operational knowledge — review carefully before submitting.
+          Wrong answers on these items reflect a critical DFIR concept — review carefully before submitting.
         </div>
       )}
 
@@ -439,7 +403,7 @@ function QuizSummary({ result, assignment, color }) {
     <div className="qz-summary">
       <div className="qz-summary-header">
         <div className="qz-summary-icon" style={{ color }}>✓</div>
-        <h2>Mission Complete</h2>
+        <h2>Assessment Complete</h2>
         <p>Submission recorded</p>
       </div>
 
@@ -478,8 +442,8 @@ function QuizSummary({ result, assignment, color }) {
         </>
       )}
 
-      <Link to="/" className="btn-submit" style={{ display: 'inline-block', marginTop: 24, background: color, textDecoration: 'none', textAlign: 'center' }}>
-        ← Back to Dashboard
+      <Link to="/course" className="btn-submit" style={{ display: 'inline-block', marginTop: 24, background: color, textDecoration: 'none', textAlign: 'center' }}>
+        ← Back to Course
       </Link>
     </div>
   );

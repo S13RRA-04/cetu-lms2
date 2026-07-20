@@ -70,7 +70,7 @@ export default function RegisterPage() {
                   type="email"
                   value={form.email}
                   onChange={set('email')}
-                  placeholder="operator@cetu.mil"
+                  placeholder="you@cetu.mil"
                   required
                   autoComplete="email"
                 />

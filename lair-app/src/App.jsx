@@ -4,12 +4,10 @@ import useAuthStore from './store/authStore.js';
 import LoginPage      from './pages/LoginPage.jsx';
 import RegisterPage   from './pages/RegisterPage.jsx';
 import DashboardHome  from './pages/DashboardHome.jsx';
+import CoursePage     from './pages/CoursePage.jsx';
 import AssignmentPage from './pages/AssignmentPage.jsx';
 import GradesPage     from './pages/GradesPage.jsx';
-import ScoreboardPage from './pages/ScoreboardPage.jsx';
 import AdminPage      from './pages/AdminPage.jsx';
-import ScenariosPage     from './pages/ScenariosPage.jsx';
-import CourseContentPage from './pages/CourseContentPage.jsx';
 import AppShell       from './layouts/AppShell.jsx';
 
 function Guard({ children }) {
@@ -31,11 +29,9 @@ const router = createBrowserRouter([
     element: <Guard><AppShell /></Guard>,
     children: [
       { path: '/',                 element: <DashboardHome /> },
+      { path: '/course',           element: <CoursePage /> },
       { path: '/assignment/:id',   element: <AssignmentPage /> },
       { path: '/grades',           element: <GradesPage /> },
-      { path: '/scoreboard',       element: <ScoreboardPage /> },
-      { path: '/scenarios',        element: <ScenariosPage /> },
-      { path: '/course-content',   element: <CourseContentPage /> },
       { path: '/admin',            element: <AdminGuard><AdminPage /></AdminGuard> },
     ],
   },

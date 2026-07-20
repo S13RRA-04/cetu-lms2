@@ -3,16 +3,9 @@ import { NavLink, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import useAuthStore from '../store/authStore.js';
 import { logout } from '../api/lair.js';
 
-const TYPE_COLOR = {
-  module:     '#60a5fa',
-  game:       '#34d399',
-  assessment: '#fbbf24',
-  survey:     '#a78bfa',
-  challenge:  '#f87171',
-  capstone:   '#fb923c',
-};
-
-const TYPE_ORDER = ['module', 'challenge', 'capstone', 'assessment', 'survey', 'game'];
+function dayOf(assignment) {
+  return Math.floor((assignment.order_index ?? 0) / 100);
+}
 
 export default function AppLayout({ assignments = [], enrollment = null }) {
   const { user, setUser } = useAuthStore();
@@ -31,9 +24,9 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
 
   const toggleGroup = (key) => setCollapsed((c) => ({ ...c, [key]: !c[key] }));
 
-  const groups = TYPE_ORDER.reduce((acc, type) => {
-    const items = assignments.filter((a) => a.type === type && a.is_unlocked !== false);
-    if (items.length) acc.push({ type, items });
+  const groups = [1, 2, 3].reduce((acc, day) => {
+    const items = assignments.filter((a) => dayOf(a) === day && a.is_unlocked !== false);
+    if (items.length) acc.push({ day, items });
     return acc;
   }, []);
 
@@ -53,45 +46,39 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
           <NavLink to="/" end className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
             <span className="sidebar-icon">⬡</span> Dashboard
           </NavLink>
+          <NavLink to="/course" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
+            <span className="sidebar-icon">◈</span> Course
+          </NavLink>
           <NavLink to="/grades" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
-            <span className="sidebar-icon">◈</span> Grades
-          </NavLink>
-          <NavLink to="/scoreboard" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
-            <span className="sidebar-icon">◇</span> Scoreboard
-          </NavLink>
-          <NavLink to="/scenarios" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
-            <span className="sidebar-icon">⬡</span> Scenarios
-          </NavLink>
-          <NavLink to="/course-content" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
-            <span className="sidebar-icon">◈</span> Course Content
+            <span className="sidebar-icon">◇</span> Grades
           </NavLink>
 
-          <div className="sidebar-section-label">Course Sections</div>
-          {groups.map(({ type, items }) => (
-            <div key={type}>
+          <div className="sidebar-section-label">Sections</div>
+          {groups.map(({ day, items }) => (
+            <div key={day}>
               <button
-                className={`sidebar-group-btn${collapsed[type] ? ' collapsed' : ''}`}
-                onClick={() => toggleGroup(type)}
+                className={`sidebar-group-btn${collapsed[day] ? ' collapsed' : ''}`}
+                onClick={() => toggleGroup(day)}
               >
-                <span className="sidebar-group-dot" style={{ background: TYPE_COLOR[type], boxShadow: `0 0 6px ${TYPE_COLOR[type]}` }} />
-                <span className="sidebar-group-name">{type.toUpperCase()}</span>
+                <span className="sidebar-group-dot" style={{ background: 'var(--primary)', boxShadow: '0 0 6px var(--primary)' }} />
+                <span className="sidebar-group-name">Day {day}</span>
                 <span className="sidebar-group-count">{items.length}</span>
                 <span className="sidebar-chevron">›</span>
               </button>
-              <div className={`sidebar-group-items${collapsed[type] ? '' : ' expanded'}`}>
+              <div className={`sidebar-group-items${collapsed[day] ? '' : ' expanded'}`}>
                 <div className="sidebar-group-items-inner">
                   {items.map((a) => (
                     <NavLink
                       key={a.id}
-                      to={`/assignment/${a.id}`}
+                      to={`/course#${a.id}`}
                       className={({ isActive }) => `sidebar-assignment${isActive ? ' active' : ''}`}
                       onClick={() => setSidebarOpen(false)}
                     >
-                      <span className="sidebar-a-title">{a.title}</span>
+                      <span className="sidebar-a-title">{a.title.replace(/^Day \d+ [–-]\s*/, '')}</span>
                       {(a.progress ?? 0) > 0 && (
                         <span
                           className="sidebar-a-progress"
-                          style={{ width: `${a.progress}%`, background: TYPE_COLOR[a.type] }}
+                          style={{ width: `${a.progress}%`, background: 'var(--primary)' }}
                         />
                       )}
                     </NavLink>
@@ -103,7 +90,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
 
           {isAdmin && (
             <>
-              <div className="sidebar-section-label">ADMIN</div>
+              <div className="sidebar-section-label">Admin</div>
               <NavLink to="/admin" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
                 <span className="sidebar-icon">◉</span> Admin Dashboard
               </NavLink>
