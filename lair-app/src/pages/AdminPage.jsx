@@ -4,6 +4,7 @@ import {
   getSubmissions,
   getGradesForAssignment,
   submitGrade,
+  updateAssignment,
   getSurveyResults,
   getCohorts,
   unlockAssignment,
@@ -182,6 +183,18 @@ export default function AdminPage() {
     setSavedGrades((s) => ({ ...s, [sub.id]: result }));
   }, []);
 
+  const [publishing, setPublishing] = useState(false);
+  const handleTogglePublish = useCallback(async () => {
+    if (!selectedAssignment) return;
+    setPublishing(true);
+    try {
+      const updated = await updateAssignment(selectedAssignment.id, { is_published: !selectedAssignment.is_published });
+      setAssignments((prev) => prev.map((a) => a.id === updated.id ? { ...a, is_published: updated.is_published } : a));
+      setSelectedAssignment((prev) => prev && { ...prev, is_published: updated.is_published });
+    } catch {}
+    setPublishing(false);
+  }, [selectedAssignment]);
+
   if (loading) return <div className="loading-screen"><div className="spinner" /></div>;
 
   return (
@@ -227,7 +240,10 @@ export default function AdminPage() {
                   className={`admin-assign-btn${isActive ? ' active' : ''}`}
                   onClick={() => openAssignment(a)}
                 >
-                  <span className="admin-assign-type" style={{ color }}>{a.type.toUpperCase()}</span>
+                  <span className="admin-assign-type" style={{ color }}>
+                    {a.type.toUpperCase()}
+                    {!a.is_published && <span style={{ color: 'var(--muted)', marginLeft: 6 }}>draft</span>}
+                  </span>
                   <span className="admin-assign-title">{a.title}</span>
                 </button>
               );
@@ -249,14 +265,27 @@ export default function AdminPage() {
                 <div>
                   <div className="admin-right-title">{selectedAssignment.title}</div>
                   <div className="admin-right-sub">
-                    {submissions.length} submission{submissions.length !== 1 ? 's' : ''}
+                    {selectedAssignment.is_published
+                      ? <span style={{ color: '#4ade80' }}>Published</span>
+                      : <span style={{ color: 'var(--muted)' }}>Draft — not visible to students yet</span>}
+                    {' · '}{submissions.length} submission{submissions.length !== 1 ? 's' : ''}
                   </div>
                 </div>
-                {selectedSub && rightTab === 'submissions' && (
-                  <button className="admin-back-btn" onClick={() => setSelectedSub(null)}>
-                    ← All Submissions
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                  <button
+                    className="admin-back-btn"
+                    style={selectedAssignment.is_published ? { color: 'var(--danger)', borderColor: 'var(--danger)' } : { color: '#4ade80', borderColor: '#4ade80' }}
+                    onClick={handleTogglePublish}
+                    disabled={publishing}
+                  >
+                    {publishing ? '…' : selectedAssignment.is_published ? 'Unpublish' : 'Publish'}
                   </button>
-                )}
+                  {selectedSub && rightTab === 'submissions' && (
+                    <button className="admin-back-btn" onClick={() => setSelectedSub(null)}>
+                      ← All Submissions
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="admin-right-tabs">

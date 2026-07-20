@@ -17,6 +17,9 @@ export const getAssignments = () =>
 export const getAssignment = (id) =>
   client.get(`/courses/${COURSE_ID}/assignments/${id}`).then((r) => r.data);
 
+export const updateAssignment = (id, data) =>
+  client.put(`/courses/${COURSE_ID}/assignments/${id}`, data).then((r) => r.data);
+
 export const getMySubmission = (assignmentId) =>
   client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/submissions/mine`).then((r) => r.data);
 
