@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { partitionDropMaterials, unpublishedIds, contentMatchesSquadVictim, buildReleasePreview } = require('./campaignRelease');
+const { partitionDropMaterials, unpublishedIds, contentMatchesSquadVictim, matchesRoleFilters, buildReleasePreview } = require('./campaignRelease');
 
 test('squad-agnostic drop material does not require victim-scoped release', () => {
   const result = partitionDropMaterials(
@@ -63,6 +63,35 @@ test('release preview reports shared and victim-specific files per squad', () =>
   assert.equal(preview.squads[0].case_files, 3);
   assert.deepEqual(preview.squads[0].details.case_files.map((item) => item.id), ['shared', 'r1', 'r2']);
   assert.deepEqual(preview.squads[0].details.packages.map((item) => item.id), ['rp']);
+});
+
+test('matchesRoleFilters treats empty/null filters as visible to everyone', () => {
+  assert.equal(matchesRoleFilters(null, 'special_agent', []), true);
+  assert.equal(matchesRoleFilters([], 'special_agent', []), true);
+});
+
+test('matchesRoleFilters matches by professional_role or by certification', () => {
+  assert.equal(matchesRoleFilters(['forensic_accountant'], 'forensic_accountant', []), true);
+  assert.equal(matchesRoleFilters(['forensic_accountant'], 'special_agent', []), false);
+  assert.equal(matchesRoleFilters(['forensic_accountant'], 'special_agent', ['forensic_accountant']), true);
+});
+
+test('release preview flags role-scoped Case Files with no matching squad member', () => {
+  const preview = buildReleasePreview(
+    [
+      { id: 's1', number: 1, victim_code: null, students: [{ professional_role: 'special_agent', certifications: [] }] },
+      { id: 's2', number: 2, victim_code: null, students: [{ professional_role: 'cyber_analyst', certifications: [] }] },
+    ],
+    {
+      assignments: [],
+      contentItems: [{ id: 'c1', title: 'DNS logs', victim_code: null, role_filters: ['cyber_analyst'] }],
+      scenarioPackages: [],
+      codeToName: (code) => code,
+    },
+  );
+
+  assert.deepEqual(preview.squads[0].role_filters_unstaffed.map((i) => i.id), ['c1']);
+  assert.deepEqual(preview.squads[1].role_filters_unstaffed, []);
 });
 
 test('release preview preserves role routing metadata for persona simulation', () => {

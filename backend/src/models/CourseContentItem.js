@@ -25,6 +25,7 @@ module.exports = (sequelize) => sequelize.define('CourseContentItem', {
   // matches. See utils/dropLocation.js.
   location_code:        { type: DataTypes.STRING(64), allowNull: true, defaultValue: null },
   linked_assignment_id: { type: DataTypes.UUID,     allowNull: true, defaultValue: null },
+  role_filters:         { type: DataTypes.ARRAY(DataTypes.TEXT), allowNull: false, defaultValue: [] },
   order_index:          { type: DataTypes.INTEGER,  defaultValue: 0 },
   is_published: { type: DataTypes.BOOLEAN, defaultValue: false },
 }, { tableName: 'course_content_items', underscored: true });

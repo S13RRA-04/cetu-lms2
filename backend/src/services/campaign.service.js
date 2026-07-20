@@ -174,7 +174,11 @@ async function previewRelease(dropId, cohortId) {
 
   const materialWhere = pairedMaterialWhere(drop);
   const [squads, assignments, contentItems, scenarioPackages, puzzlesByDrop, activeLearnerCount] = await Promise.all([
-    Squad.findAll({ where: { cohort_id: cohortId }, attributes: ['id', 'number', 'victim_code'] }),
+    Squad.findAll({
+      where: { cohort_id: cohortId },
+      attributes: ['id', 'number', 'victim_code'],
+      include: [{ association: 'students', attributes: ['professional_role', 'certifications'] }],
+    }),
     Assignment.findAll({ where: materialWhere }),
     CourseContentItem.findAll({ where: materialWhere }),
     // Not is_published-filtered: release publishes any draft still paired to

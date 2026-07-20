@@ -2,12 +2,12 @@
 const { Op } = require('sequelize');
 const { ListObjectsV2Command, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { r2Client, R2_BUCKET, R2_DECKS_PREFIX, R2_SLIDES_PREFIX } = require('../config/r2');
-const { CourseContentItem, CourseContentUnlock, Course, Cohort, Enrollment } = require('../models');
+const { CourseContentItem, CourseContentUnlock, Course, Cohort, Enrollment, User } = require('../models');
 const { NotFoundError, ForbiddenError } = require('../utils/errors');
 const { v4: uuidv4 } = require('uuid');
 const TtlCache = require('../utils/ttlCache');
 const { parseDropCaseFile, scenarioSlugFromName } = require('../utils/r2CaseFile');
-const { contentMatchesSquadVictim } = require('../utils/campaignRelease');
+const { contentMatchesSquadVictim, matchesRoleFilters } = require('../utils/campaignRelease');
 const { getStudentLocationCodes, locationMatches } = require('../utils/dropLocation');
 
 const contentCache = new TtlCache(15_000);
@@ -38,10 +38,13 @@ async function uploadToR2(buffer, fileName, mimeType) {
 }
 
 async function listForStudent(courseId, userId) {
-  const enrollment = await Enrollment.findOne({
-    where:   { user_id: userId, course_id: courseId },
-    include: [{ association: 'squad', attributes: ['id', 'victim_code'] }],
-  });
+  const [enrollment, student] = await Promise.all([
+    Enrollment.findOne({
+      where:   { user_id: userId, course_id: courseId },
+      include: [{ association: 'squad', attributes: ['id', 'victim_code'] }],
+    }),
+    User.findByPk(userId, { attributes: ['professional_role', 'certifications'] }),
+  ]);
   if (!enrollment) throw new ForbiddenError('Not enrolled');
 
   // A content item is visible if unlocked cohort-wide (squad_id IS NULL) OR
@@ -63,11 +66,14 @@ async function listForStudent(courseId, userId) {
   ]);
 
   const locationCodes = await getStudentLocationCodes(courseId, userId);
+  const professionalRole = student?.professional_role ?? null;
+  const studentCertifications = student?.certifications ?? [];
   const unlockedSet = new Set(unlocks.map((u) => u.content_id));
   return items.map((item) => {
     const unlocked = unlockedSet.has(item.id)
       && contentMatchesSquadVictim(item.victim_code, enrollment.squad?.victim_code ?? null)
-      && locationMatches(item, locationCodes);
+      && locationMatches(item, locationCodes)
+      && matchesRoleFilters(item.role_filters, professionalRole, studentCertifications);
     return {
       ...item.toJSON(),
       is_unlocked:  unlocked,
@@ -133,10 +139,13 @@ async function getDownloadUrl(contentId, userId, userRole = 'student') {
 
   if (userRole === 'student') {
     const { Enrollment: EnrollmentModel } = require('../models');
-    const enrollment = await EnrollmentModel.findOne({
-      where:   { user_id: userId, course_id: item.course_id },
-      include: [{ association: 'squad', attributes: ['id', 'victim_code'] }],
-    });
+    const [enrollment, student] = await Promise.all([
+      EnrollmentModel.findOne({
+        where:   { user_id: userId, course_id: item.course_id },
+        include: [{ association: 'squad', attributes: ['id', 'victim_code'] }],
+      }),
+      User.findByPk(userId, { attributes: ['professional_role', 'certifications'] }),
+    ]);
     if (!enrollment) throw new ForbiddenError('Not enrolled');
 
     if (!contentMatchesSquadVictim(item.victim_code, enrollment.squad?.victim_code ?? null)) {
@@ -145,6 +154,9 @@ async function getDownloadUrl(contentId, userId, userRole = 'student') {
     const locationCodes = await getStudentLocationCodes(item.course_id, userId);
     if (!locationMatches(item, locationCodes)) {
       throw new ForbiddenError('Content is assigned to a different search location');
+    }
+    if (!matchesRoleFilters(item.role_filters, student?.professional_role ?? null, student?.certifications ?? [])) {
+      throw new ForbiddenError('Content is assigned to a different role');
     }
 
     if (enrollment.cohort_id) {

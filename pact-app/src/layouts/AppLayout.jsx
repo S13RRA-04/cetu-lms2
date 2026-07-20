@@ -11,8 +11,8 @@ const Globe = lazy(() => import('../components/Globe.jsx'));
 const SQUAD_THEME = {
   1: { primary: '#ef4444', lt: '#fff0f0', md: 'rgba(239,68,68,0.14)'  },
   2: { primary: '#f59e0b', lt: '#fffde6', md: 'rgba(245,158,11,0.14)' },
-  3: { primary: '#3b82f6', lt: '#eff6ff', md: 'rgba(59,130,246,0.14)' },
-  4: { primary: '#8b5cf6', lt: '#f5f3ff', md: 'rgba(139,92,246,0.14)' },
+  3: { primary: '#22c55e', lt: '#f0fdf4', md: 'rgba(34,197,94,0.14)'  },
+  4: { primary: '#3b82f6', lt: '#eff6ff', md: 'rgba(59,130,246,0.14)' },
 };
 
 /* ── Live clock ────────────────────────────────────────────────────────────── */
