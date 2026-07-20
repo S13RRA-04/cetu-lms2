@@ -25,7 +25,7 @@ const TYPE_ORDER = [...CAMPAIGN_TYPES, ...MATERIAL_TYPES];
 
 export default function CourseContentPage() {
   const { user }     = useAuthStore();
-  const isAdmin      = user?.role === 'admin' || user?.role === 'instructor';
+  const isAdmin      = user?.role === 'admin' || user?.role === 'instructor' || user?.role === 'superadmin';
   const [items,      setItems]      = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [filter,     setFilter]     = useState('all');

@@ -1,16 +1,7 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState } from 'react';
 import { NavLink, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import useAuthStore from '../store/authStore.js';
 import { logout } from '../api/lair.js';
-
-const SQUAD_THEME = {
-  1: { primary: '#ff073a', binary: '#27f5ff', lt: '#fff0f3', md: 'rgba(255,7,58,0.14)'   },
-  2: { primary: '#ffe600', binary: '#7c3cff', lt: '#fffde6', md: 'rgba(255,230,0,0.14)'  },
-  3: { primary: '#39ff14', binary: '#ff4fd8', lt: '#f0fff0', md: 'rgba(57,255,20,0.14)'  },
-  4: { primary: '#00b0ff', binary: '#ffb020', lt: '#e6f7ff', md: 'rgba(0,176,255,0.14)'  },
-};
-
-const Globe = lazy(() => import('../components/Globe.jsx'));
 
 const TYPE_COLOR = {
   module:     '#60a5fa',
@@ -30,28 +21,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
   const [collapsed, setCollapsed]       = useState({});
   const [sidebarOpen, setSidebarOpen]   = useState(false);
 
-  const isAdmin   = user?.role === 'admin' || user?.role === 'instructor';
-  const squadNum  = enrollment?.squad?.number ? Number(enrollment.squad.number) : null;
-  const squadTheme = SQUAD_THEME[squadNum];
-
-  useEffect(() => {
-    const root  = document.documentElement;
-    const theme = squadTheme;
-    if (theme) {
-      root.style.setProperty('--primary',    theme.primary);
-      root.style.setProperty('--primary-lt', theme.lt);
-      root.style.setProperty('--primary-md', theme.md);
-    } else {
-      root.style.removeProperty('--primary');
-      root.style.removeProperty('--primary-lt');
-      root.style.removeProperty('--primary-md');
-    }
-    return () => {
-      root.style.removeProperty('--primary');
-      root.style.removeProperty('--primary-lt');
-      root.style.removeProperty('--primary-md');
-    };
-  }, [squadTheme]);
+  const isAdmin   = user?.role === 'admin' || user?.role === 'instructor' || user?.role === 'superadmin';
 
   const handleLogout = async () => {
     try { await logout(); } catch {}
@@ -69,16 +39,6 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
 
   return (
     <div className="app-shell">
-      <div className="globe-bg" aria-hidden="true">
-        <Suspense fallback={null}>
-          <Globe
-            className="globe-bg-canvas"
-            primaryColor={squadTheme?.primary ?? '#00b0ff'}
-            binaryAccentColor={squadTheme?.binary ?? '#ffb020'}
-          />
-        </Suspense>
-      </div>
-
       {sidebarOpen && (
         <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
       )}
@@ -106,7 +66,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
             <span className="sidebar-icon">◈</span> Course Content
           </NavLink>
 
-          <div className="sidebar-section-label">MISSIONS</div>
+          <div className="sidebar-section-label">Course Sections</div>
           {groups.map(({ type, items }) => (
             <div key={type}>
               <button
@@ -153,7 +113,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
 
         <div className="sidebar-footer">
           <div className="sidebar-user">
-            <div className="sidebar-avatar" style={squadTheme ? { borderColor: squadTheme.primary, boxShadow: `0 0 10px ${squadTheme.primary}55` } : {}}>
+            <div className="sidebar-avatar">
               {user?.first_name?.[0]}{user?.last_name?.[0]}
             </div>
             <div className="sidebar-user-info">

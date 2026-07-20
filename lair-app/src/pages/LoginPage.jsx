@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { login } from '../api/lair.js';
 import useAuthStore from '../store/authStore.js';
 
@@ -70,6 +70,10 @@ export default function LoginPage() {
             {loading ? 'Authenticating…' : 'Authenticate'}
           </button>
         </form>
+
+        <div className="cold-start-notice" style={{ marginTop: 20 }}>
+          No credentials? <Link to="/register">Request access</Link>
+        </div>
       </div>
     </div>
   );

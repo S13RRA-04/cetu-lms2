@@ -165,7 +165,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
   const squadTheme = squadNum ? SQUAD_THEME[squadNum] : null;
   const accent     = theme === 'terminal' ? '#00ff41' : (squadTheme?.primary ?? '#00b0ff');
   const squad      = enrollment?.squad ?? null;
-  const isAdmin    = user?.role === 'admin' || user?.role === 'instructor';
+  const isAdmin    = user?.role === 'admin' || user?.role === 'instructor' || user?.role === 'superadmin';
 
   /* Apply squad theme CSS vars — terminal mode forces phosphor green */
   useEffect(() => {
@@ -295,7 +295,7 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
             <div className="ops-op-info">
               <div className="ops-op-name">{user?.first_name} {user?.last_name}</div>
               <div className="ops-op-role">
-                {user?.role === 'admin' ? 'ADMINISTRATOR' : user?.role === 'instructor' ? 'INSTRUCTOR' : 'OPERATOR'}
+                {user?.role === 'superadmin' ? 'SUPERADMIN' : user?.role === 'admin' ? 'ADMINISTRATOR' : user?.role === 'instructor' ? 'INSTRUCTOR' : 'OPERATOR'}
               </div>
             </div>
           )}

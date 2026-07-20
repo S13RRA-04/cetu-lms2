@@ -23,7 +23,7 @@ function Guard({ children }) {
 function AdminGuard({ children }) {
   const { user } = useAuthStore();
   if (!user) return <Navigate to="/login" replace />;
-  if (user.role !== 'admin' && user.role !== 'instructor') return <Navigate to="/" replace />;
+  if (user.role !== 'admin' && user.role !== 'instructor' && user.role !== 'superadmin') return <Navigate to="/" replace />;
   return children;
 }
 

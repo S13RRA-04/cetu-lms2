@@ -92,7 +92,7 @@ function DecryptBar() {
 
 export default function ScenariosPage() {
   const { user }     = useAuthStore();
-  const isAdmin      = user?.role === 'admin' || user?.role === 'instructor';
+  const isAdmin      = user?.role === 'admin' || user?.role === 'instructor' || user?.role === 'superadmin';
   const [packages,   setPackages]   = useState([]);
   const [dropFiles,  setDropFiles]  = useState([]);
   const [loading,    setLoading]    = useState(true);

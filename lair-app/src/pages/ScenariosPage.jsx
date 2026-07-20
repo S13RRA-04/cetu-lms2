@@ -4,7 +4,7 @@ import useAuthStore from '../store/authStore.js';
 
 export default function ScenariosPage() {
   const { user }      = useAuthStore();
-  const isAdmin       = user?.role === 'admin' || user?.role === 'instructor';
+  const isAdmin       = user?.role === 'admin' || user?.role === 'instructor' || user?.role === 'superadmin';
   const [packages,    setPackages]    = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [fileMap,     setFileMap]     = useState({});
