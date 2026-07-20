@@ -1,15 +1,13 @@
 'use strict';
 
+// No-op, mirroring 20240101000032-rename-squads-to-cells.js: that rename was
+// reverted out-of-band on the existing production DB (never actually renamed
+// squads -> cells there), so this counterpart has nothing to undo. On a
+// fresh database the table has always been named `squads` with `squad_id`
+// columns (see 20240101000014-create-squads.js /
+// 20240101000017-alter-enrollments-add-squad.js) — a real renameTable('cells',
+// 'squads') here fails since `cells` never exists.
 module.exports = {
-  async up(queryInterface) {
-    await queryInterface.renameTable('cells', 'squads');
-    await queryInterface.renameColumn('enrollments', 'cell_id',   'squad_id');
-    await queryInterface.renameColumn('submissions', 'cell_id',   'squad_id');
-  },
-
-  async down(queryInterface) {
-    await queryInterface.renameColumn('submissions', 'squad_id',  'cell_id');
-    await queryInterface.renameColumn('enrollments', 'squad_id',  'cell_id');
-    await queryInterface.renameTable('squads', 'cells');
-  },
+  async up()   {},
+  async down() {},
 };
