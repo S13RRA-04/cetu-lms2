@@ -638,6 +638,7 @@ function CourseContentPanel({ items, cohorts, loaded, onItemsChange }) {
             return (
               <div key={type} className="admin-content-group">
                 <button className="admin-content-group-header" onClick={() => toggleGroup(type)}>
+                  <span className="admin-content-group-dot" />
                   <span className="admin-content-group-name">{CONTENT_TYPE_LABELS[type]}</span>
                   <span className="sidebar-group-count">{groupItems.length}</span>
                   <span className={`course-day-chevron${isOpen ? ' open' : ''}`}>›</span>
