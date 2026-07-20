@@ -1899,7 +1899,84 @@ body::before {
 }
 .course-resource-chip:hover { background: var(--primary-lt); color: var(--primary); }
 
+/* ── Content-by-type collapsible groups ──────────────────────────────────── */
+.content-by-type { display: flex; flex-direction: column; gap: 12px; }
+.content-type-group { padding: 0; overflow: hidden; }
+.content-type-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+.content-type-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--bright);
+  flex: 1;
+}
+.content-type-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  background: rgba(255,255,255,.06);
+  border-radius: 10px;
+  padding: 1px 9px;
+}
+.content-type-items {
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+.content-type-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 20px;
+  border-bottom: 1px solid var(--border);
+  text-decoration: none;
+  transition: background .12s;
+}
+.content-type-row:last-child { border-bottom: none; }
+.content-type-row:hover { background: var(--card-hi); }
+.content-type-row-title { font-size: 13px; color: var(--bright); font-weight: 500; }
+.content-type-row-desc { font-size: 12px; color: var(--muted); flex: 1; }
+.content-type-row-action { font-size: 14px; color: var(--primary); opacity: .7; flex-shrink: 0; margin-left: auto; }
+
 .course-days { display: flex; flex-direction: column; gap: 14px; }
+
+.course-bookend { padding: 20px 22px; border-left: 3px solid var(--purple); }
+.course-bookend-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--purple);
+  margin-bottom: 8px;
+}
+.course-bookend-body {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.course-bookend-title {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--bright);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
 .course-day { padding: 0; overflow: hidden; }
 

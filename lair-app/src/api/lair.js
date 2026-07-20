@@ -46,6 +46,9 @@ export const getGradesForAssignment = (assignmentId) =>
 export const submitGrade = (assignmentId, userId, data) =>
   client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/grades/${userId}`, data).then((r) => r.data);
 
+export const getSurveyResults = (assignmentId) =>
+  client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/survey-results`).then((r) => r.data);
+
 /* ── Cohorts ── */
 export const getCohorts = () =>
   client.get(`/courses/${COURSE_ID}/cohorts`).then((r) => {

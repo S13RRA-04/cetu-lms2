@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getAssignments } from '../api/lair.js';
+import { getAssignments, getCourseContent } from '../api/lair.js';
 import useAuthStore from '../store/authStore.js';
+import ContentByType from '../components/ContentByType.jsx';
 
 const DAY_META = {
   1: 'Linux Foundations & Evidence Collection',
@@ -16,12 +17,15 @@ function dayOf(assignment) {
 export default function DashboardHome() {
   const { user }      = useAuthStore();
   const [assignments, setAssignments] = useState([]);
+  const [content,     setContent]     = useState([]);
   const [loading,     setLoading]     = useState(true);
 
   useEffect(() => {
-    getAssignments()
-      .then((raw) => setAssignments(Array.isArray(raw) ? raw : (raw.data ?? [])))
-      .catch(() => {})
+    Promise.all([getAssignments().catch(() => []), getCourseContent().catch(() => [])])
+      .then(([rawA, rawC]) => {
+        setAssignments(Array.isArray(rawA) ? rawA : (rawA.data ?? []));
+        setContent(Array.isArray(rawC) ? rawC : []);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -47,6 +51,8 @@ export default function DashboardHome() {
   const next = unlocked
     .filter((a) => (a.progress ?? 0) < 100)
     .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))[0];
+
+  const publishedContent = content.filter((c) => c.is_unlocked !== false);
 
   return (
     <div className="dash-home">
@@ -118,6 +124,13 @@ export default function DashboardHome() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {publishedContent.length > 0 && (
+        <div>
+          <div className="section-label" style={{ marginBottom: 14 }}>Course Materials</div>
+          <ContentByType items={publishedContent} />
         </div>
       )}
     </div>

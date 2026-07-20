@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getAssignments, getCourseContent, updateProgress } from '../api/lair.js';
+import ContentByType from '../components/ContentByType.jsx';
 
 const DAY_META = {
   1: { label: 'Day 1', title: 'Linux Foundations & Evidence Collection' },
@@ -67,6 +68,10 @@ export default function CoursePage() {
       .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)),
   })).filter((d) => d.sections.length > 0);
 
+  const preAssessment  = assignments.find((a) => dayOf(a) === 0);
+  const postAssessment = assignments.find((a) => dayOf(a) === 4);
+  const courseSurvey   = assignments.find((a) => dayOf(a) === 5);
+
   const resources = content.filter((c) => !c.linked_assignment_id && c.is_unlocked !== false);
 
   return (
@@ -76,18 +81,10 @@ export default function CoursePage() {
         <p className="page-subtitle">Slides, guides, and labs for each section — organized by day.</p>
       </div>
 
-      {resources.length > 0 && (
-        <div className="course-resources">
-          {resources.map((item) => {
-            const meta = CONTENT_META[item.content_type] ?? CONTENT_META.resource;
-            const url  = item.download_url ?? item.url;
-            return (
-              <a key={item.id} className="course-resource-chip" href={url} target="_blank" rel="noopener noreferrer">
-                <span>{meta.icon}</span> {item.title}
-              </a>
-            );
-          })}
-        </div>
+      {resources.length > 0 && <ContentByType items={resources} />}
+
+      {preAssessment && (
+        <BookendCard label="Before Day 1" assignment={preAssessment} />
       )}
 
       <div className="course-days">
@@ -129,6 +126,39 @@ export default function CoursePage() {
           );
         })}
       </div>
+
+      {postAssessment && (
+        <BookendCard label="After Day 3" assignment={postAssessment} />
+      )}
+
+      {courseSurvey && (
+        <BookendCard label="Course Feedback" assignment={courseSurvey} />
+      )}
+    </div>
+  );
+}
+
+function BookendCard({ label, assignment }) {
+  const isLocked = assignment.is_unlocked === false;
+  const pct      = assignment.progress ?? 0;
+  return (
+    <div className="glass-card course-bookend">
+      <div className="course-bookend-label">{label}</div>
+      <div className="course-bookend-body">
+        <div>
+          <div className="course-bookend-title">
+            {isLocked && <span className="lock-icon">🔒</span>}
+            {assignment.title}
+          </div>
+          {assignment.description && <p className="section-row-desc">{assignment.description}</p>}
+        </div>
+        {!isLocked && (
+          <Link to={`/assignment/${assignment.id}`} className="btn-sm-primary section-quiz-link">
+            {pct >= 100 ? 'Review' : pct > 0 ? 'Continue' : 'Start'}
+          </Link>
+        )}
+      </div>
+      {isLocked && <p className="locked-msg">Not yet unlocked for your cohort.</p>}
     </div>
   );
 }

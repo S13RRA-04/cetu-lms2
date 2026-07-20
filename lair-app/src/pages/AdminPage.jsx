@@ -4,6 +4,7 @@ import {
   getSubmissions,
   getGradesForAssignment,
   submitGrade,
+  getSurveyResults,
   getCohorts,
   unlockAssignment,
   lockAssignment,
@@ -271,9 +272,19 @@ export default function AdminPage() {
                 >
                   Access Gating
                 </button>
+                {selectedAssignment.type === 'survey' && (
+                  <button
+                    className={`admin-right-tab${rightTab === 'results' ? ' active' : ''}`}
+                    onClick={() => { setRightTab('results'); setSelectedSub(null); }}
+                  >
+                    Results
+                  </button>
+                )}
               </div>
 
-              {rightTab === 'gating' ? (
+              {rightTab === 'results' ? (
+                <SurveyResultsPanel key={selectedAssignment.id} assignmentId={selectedAssignment.id} />
+              ) : rightTab === 'gating' ? (
                 <GatingPanel
                   key={selectedAssignment.id}
                   assignment={selectedAssignment}
@@ -351,6 +362,96 @@ function SubmissionsList({ submissions, grades, savedGrades, onSelect }) {
   );
 }
 
+
+function SurveyResultsPanel({ assignmentId }) {
+  const [results, setResults] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState('');
+
+  useEffect(() => {
+    setLoading(true);
+    setError('');
+    getSurveyResults(assignmentId)
+      .then(setResults)
+      .catch((e) => setError(e.response?.data?.error?.message ?? 'Failed to load results'))
+      .finally(() => setLoading(false));
+  }, [assignmentId]);
+
+  if (loading) return <div style={{ padding: 32, textAlign: 'center' }}><div className="spinner" /></div>;
+  if (error) return <div className="admin-empty"><p className="err-msg">{error}</p></div>;
+  if (!results) return null;
+
+  if (results.results_suppressed) {
+    return (
+      <div className="admin-empty">
+        <p>
+          Only {results.response_count} response{results.response_count !== 1 ? 's' : ''} so far — results stay
+          hidden until at least {results.minimum_responses} students have responded, to protect anonymity.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="admin-gating" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <p className="admin-gating-desc" style={{ marginBottom: 0 }}>
+        {results.response_count} response{results.response_count !== 1 ? 's' : ''} aggregated.
+      </p>
+
+      {results.sections.map((section) => (
+        <div key={section.title}>
+          <div className="section-label" style={{ marginBottom: 12 }}>{section.title}</div>
+
+          {section.distributions.map((q) => (
+            <div key={q.id} style={{ marginBottom: 18 }}>
+              <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 8 }}>{q.prompt}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {q.options.map((opt) => (
+                  <div key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 11, color: 'var(--muted)', width: 140, flexShrink: 0 }}>{opt.label}</span>
+                    <div className="scoreboard-bar-wrap" style={{ flex: 1 }}>
+                      <div className="scoreboard-bar-fill" style={{ width: `${opt.percent}%`, background: 'var(--primary)' }} />
+                    </div>
+                    <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--muted)', width: 70, textAlign: 'right', flexShrink: 0 }}>
+                      {opt.count} ({opt.percent}%)
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {section.text_responses.map((q) => (
+            <div key={q.id} style={{ marginBottom: 18 }}>
+              <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 8 }}>{q.prompt}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {q.responses.map((r, i) => (
+                  <div key={i} className="feedback-row" style={{ borderBottom: 'none', padding: '8px 12px', background: 'var(--card-hi)', borderRadius: 'var(--radius-sm)' }}>
+                    <div className="feedback-text">{r}</div>
+                  </div>
+                ))}
+                {q.responses.length === 0 && <div className="empty-state" style={{ padding: '8px 0' }}>No responses yet.</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+
+      {results.recommendation_groups.length > 0 && (
+        <div>
+          <div className="section-label" style={{ marginBottom: 12 }}>Recommendation Themes</div>
+          {results.recommendation_groups.map((group) => (
+            <div key={group.key} style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--bright)', marginBottom: 4 }}>
+                {group.label} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>({group.count})</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function GatingPanel({ assignment, cohorts, onUnlocksChange }) {
   const [unlockedIds, setUnlockedIds] = useState(
