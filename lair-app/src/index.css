@@ -2804,3 +2804,75 @@ body::after {
 .qz-sumrow-num { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--muted); flex-shrink: 0; width: 28px; }
 .qz-sumrow-stem { flex: 1; color: var(--text); }
 .qz-sumrow-pts { font-family: var(--mono); font-size: 12px; font-weight: 600; flex-shrink: 0; }
+
+/* ══════════════════════════════════════════════════
+   TERMINAL GAME
+══════════════════════════════════════════════════ */
+.term-wrap {
+  --term-accent: var(--primary);
+  border: 1px solid var(--border-hi);
+  background: #000200;
+  box-shadow: 0 0 0 1px rgba(var(--primary-rgb), 0.08), 0 0 24px rgba(var(--primary-rgb), 0.08);
+}
+
+.term-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: var(--card-hi);
+  border-bottom: 1px solid var(--border);
+}
+.term-dots { display: flex; gap: 6px; }
+.term-dots span {
+  width: 8px;
+  height: 8px;
+  background: var(--border-hi);
+  display: inline-block;
+}
+.term-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.term-progress-track { height: 3px; background: var(--border); overflow: hidden; }
+.term-progress-fill {
+  height: 100%;
+  background: var(--term-accent);
+  box-shadow: 0 0 8px var(--term-accent);
+  transition: width .4s ease;
+}
+
+.term-screen {
+  height: 440px;
+  overflow-y: auto;
+  padding: 16px 18px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.6;
+  cursor: text;
+}
+
+.term-line { white-space: pre-wrap; word-break: break-word; margin-bottom: 2px; }
+.term-line-cmd  { color: var(--bright); }
+.term-line-out  { color: var(--text); }
+.term-line-err  { color: var(--danger); }
+.term-line-ok   { color: var(--term-accent); font-weight: 600; text-shadow: 0 0 6px rgba(var(--primary-rgb), 0.4); margin-top: 6px; margin-bottom: 6px; }
+.term-line-sys  { color: var(--muted); font-style: italic; }
+
+.term-input-row { display: flex; align-items: center; gap: 8px; }
+.term-prompt { color: var(--term-accent); flex-shrink: 0; white-space: nowrap; }
+.term-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--bright);
+  font-family: var(--mono);
+  font-size: 13px;
+  caret-color: var(--term-accent);
+}
+.term-input-row .term-cursor { width: .55em; }

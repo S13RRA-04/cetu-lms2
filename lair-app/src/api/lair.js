@@ -26,8 +26,11 @@ export const getMySubmission = (assignmentId) =>
 export const submitAssignment = (assignmentId, content) =>
   client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/submit`, { content }).then((r) => r.data);
 
-export const updateProgress = (assignmentId, progress) =>
-  client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/progress`, { progress }).then((r) => r.data);
+export const updateProgress = (assignmentId, progress, quizState) =>
+  client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/progress`, {
+    progress,
+    ...(quizState ? { quiz_state: quizState } : {}),
+  }).then((r) => r.data);
 
 /* ── Grades ── */
 export const getMyGrades = () =>

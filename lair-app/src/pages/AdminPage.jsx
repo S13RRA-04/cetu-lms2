@@ -22,6 +22,7 @@ const TYPE_COLOR = {
   module:     '#f0a428',
   assessment: '#e8b339',
   survey:     '#a78bfa',
+  game:       '#33ff5e',
 };
 
 /* ── helpers ── */

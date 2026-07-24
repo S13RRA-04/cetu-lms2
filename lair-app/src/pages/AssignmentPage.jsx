@@ -2,11 +2,13 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getAssignment, getMySubmission, submitAssignment, updateProgress } from '../api/lair.js';
 import QuizFlow from '../components/QuizFlow.jsx';
+import TerminalGame from '../components/TerminalGame.jsx';
 
 const TYPE_COLOR = {
   module:     '#f0a428',
   assessment: '#e8b339',
   survey:     '#a78bfa',
+  game:       '#33ff5e',
 };
 
 const PCT_STEPS = [0, 25, 50, 75, 100];
@@ -24,6 +26,7 @@ export default function AssignmentPage() {
   const [error,       setError]       = useState('');
   const [quizResult,  setQuizResult]  = useState(null);
   const [quizStarted, setQuizStarted] = useState(false);
+  const [gameResult,  setGameResult]  = useState(null);
 
   useEffect(() => {
     setAssignment(null);
@@ -35,6 +38,7 @@ export default function AssignmentPage() {
     setError('');
     setQuizResult(null);
     setQuizStarted(false);
+    setGameResult(null);
 
     Promise.all([
       getAssignment(id),
@@ -50,6 +54,7 @@ export default function AssignmentPage() {
           try {
             const parsed = JSON.parse(sub.content ?? 'null');
             if (parsed?.totalScore !== undefined) setQuizResult(parsed);
+            else if (parsed?.levelsCompleted !== undefined) setGameResult(parsed);
           } catch {}
         }
       }
@@ -97,6 +102,20 @@ export default function AssignmentPage() {
     }
   }, [id]);
 
+  const handleGameComplete = useCallback(async (result) => {
+    setGameResult(result);
+    const json = JSON.stringify(result);
+    setContent(json);
+    setProgress(100);
+    try {
+      await submitAssignment(id, json);
+      setSubmitted(true);
+    } catch (err) {
+      const msg = err.response?.data?.error?.message ?? '';
+      setError(msg || 'Submission failed. Please try again.');
+    }
+  }, [id]);
+
   if (loading) {
     return <div className="loading-screen"><div className="spinner" /></div>;
   }
@@ -114,8 +133,9 @@ export default function AssignmentPage() {
   const color      = TYPE_COLOR[assignment.type] ?? TYPE_COLOR.module;
   const isLocked   = assignment.is_unlocked === false;
   const isSurvey   = assignment.type === 'survey';
+  const isGame     = !isLocked && assignment.type === 'game';
   /* hasQuiz: any type with questions uses QuizFlow (modules and assessments with a question bank) */
-  const hasQuiz    = !isLocked && !isSurvey && Array.isArray(assignment.questions) && assignment.questions.length > 0;
+  const hasQuiz    = !isLocked && !isSurvey && !isGame && Array.isArray(assignment.questions) && assignment.questions.length > 0;
 
   return (
     <div className="assignment-page">
@@ -164,6 +184,22 @@ export default function AssignmentPage() {
                 questions={assignment.questions}
                 color={color}
                 onComplete={handleQuizComplete}
+              />
+            </>
+          )
+        ) : /* ── Terminal game ── */
+        isGame ? (
+          submitted ? (
+            <GameSummary result={gameResult} color={color} />
+          ) : (
+            <>
+              {error && <div className="err-msg" style={{ marginBottom: 16 }}>{error}</div>}
+              <TerminalGame
+                key={id}
+                assignmentId={id}
+                color={color}
+                initialState={submission?.quiz_state}
+                onComplete={handleGameComplete}
               />
             </>
           )
@@ -386,6 +422,29 @@ function SurveyFlow({ questions, color, onComplete }) {
         )}
       </div>
     </form>
+  );
+}
+
+function GameSummary({ result, color }) {
+  return (
+    <div className="qz-summary">
+      <div className="qz-summary-header">
+        <div className="qz-summary-icon" style={{ color }}>✓</div>
+        <h2>Case Closed</h2>
+        <p>Terminal drill complete</p>
+      </div>
+
+      {result && (
+        <div className="qz-summary-score" style={{ color }}>
+          {result.levelsCompleted} / {result.totalLevels}
+          <span className="qz-summary-pct"> levels</span>
+        </div>
+      )}
+
+      <Link to="/course" className="btn-submit" style={{ display: 'inline-block', marginTop: 24, background: color, textDecoration: 'none', textAlign: 'center' }}>
+        ← Back to Course
+      </Link>
+    </div>
   );
 }
 
