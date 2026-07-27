@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LEVELS, HOSTNAME, USER, dir } from '../data/terminalGameLevels.js';
 import { updateProgress } from '../api/lair.js';
-import { tokenize, escapeRegex } from '../utils/shellLex.js';
+import { tokenize, escapeRegex, caseSuggestion, withCaseHint } from '../utils/shellLex.js';
 
 const HOME_SEGS = ['home', 'analyst'];
+
+const COMMANDS = ['pwd', 'ls', 'cd', 'cat', 'less', 'more', 'head', 'tail', 'file', 'grep', 'find', 'whoami', 'hint', 'clear', 'help'];
 
 const HELP_TEXT =
   'Available commands:\n' +
@@ -58,6 +60,29 @@ function lookup(fsRoot, segs) {
     node = node.children[seg];
   }
   return node;
+}
+
+/** Tab-completion: matches child names of the resolved directory portion of `partial` against its leaf prefix. */
+function completeToken(fsRoot, cwdSegs, partial) {
+  const lastSlash = partial.lastIndexOf('/');
+  const dirPart  = lastSlash === -1 ? '' : partial.slice(0, lastSlash);
+  const leafPart = lastSlash === -1 ? partial : partial.slice(lastSlash + 1);
+  const dirSegs  = dirPart ? resolvePath(cwdSegs, dirPart) : cwdSegs;
+  const dirNode  = lookup(fsRoot, dirSegs);
+  if (!dirNode || dirNode.type !== 'dir') return null;
+  const names = Object.keys(dirNode.children || {})
+    .filter((n) => (leafPart.startsWith('.') || !n.startsWith('.')) && n.startsWith(leafPart));
+  if (!names.length) return null;
+  let lcp = names[0];
+  for (const n of names.slice(1)) {
+    let i = 0;
+    while (i < lcp.length && i < n.length && lcp[i] === n[i]) i++;
+    lcp = lcp.slice(0, i);
+  }
+  const single = names.length === 1;
+  const suffix = single ? (dirNode.children[names[0]].type === 'dir' ? '/' : ' ') : '';
+  const prefix = dirPart ? `${dirPart}/` : '';
+  return { replacement: prefix + (single ? names[0] : lcp) + suffix, matches: names };
 }
 
 function readable(node) {
@@ -150,12 +175,18 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
     updateProgress(assignmentId, pct, { levelIndex: next }).catch(() => {});
   }, [appendLine, assignmentId, onComplete]);
 
+  function suggest(cwdSegs, name) {
+    const segs = resolvePath(cwdSegs, name);
+    const parent = lookup(fs, segs.slice(0, -1));
+    return caseSuggestion(parent, segs[segs.length - 1]);
+  }
+
   function cmdLs(argsStr, cwdSegs) {
     const flags = parseFlags(argsStr);
     const pathArg = flags.rest[0];
     const targetSegs = pathArg ? resolvePath(cwdSegs, pathArg) : cwdSegs;
     const node = lookup(fs, targetSegs);
-    if (!node) return { err: `ls: cannot access '${pathArg}': No such file or directory` };
+    if (!node) return { err: withCaseHint(`ls: cannot access '${pathArg}': No such file or directory`, suggest(cwdSegs, pathArg)) };
     if (node.type !== 'dir') return { out: pathArg || '.' };
     const entries = Object.entries(node.children || {})
       .filter(([, n]) => flags.all || !n.hidden)
@@ -175,7 +206,7 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
     const arg = argsStr.trim();
     const targetSegs = resolvePath(cwdSegs, arg || '~');
     const node = lookup(fs, targetSegs);
-    if (!node) return { err: `bash: cd: ${arg}: No such file or directory` };
+    if (!node) return { err: withCaseHint(`bash: cd: ${arg}: No such file or directory`, suggest(cwdSegs, arg)) };
     if (node.type !== 'dir') return { err: `bash: cd: ${arg}: Not a directory` };
     setCwd(targetSegs);
     return { out: '' };
@@ -187,7 +218,7 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
     const outs = [];
     for (const name of names) {
       const node = lookup(fs, resolvePath(cwdSegs, name));
-      if (!node) { outs.push(`cat: ${name}: No such file or directory`); continue; }
+      if (!node) { outs.push(withCaseHint(`cat: ${name}: No such file or directory`, suggest(cwdSegs, name))); continue; }
       if (node.type === 'dir') { outs.push(`cat: ${name}: Is a directory`); continue; }
       if (!readable(node)) { outs.push(`cat: ${name}: Permission denied`); continue; }
       outs.push(node.content.replace(/\n$/, ''));
@@ -200,7 +231,7 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
     const name = flags.rest[0];
     if (!name) return { err: `usage: ${mode} [-n N] <file>` };
     const node = lookup(fs, resolvePath(cwdSegs, name));
-    if (!node) return { err: `${mode}: cannot open '${name}' (No such file or directory)` };
+    if (!node) return { err: withCaseHint(`${mode}: cannot open '${name}' (No such file or directory)`, suggest(cwdSegs, name)) };
     if (node.type === 'dir') return { err: `${mode}: error reading '${name}': Is a directory` };
     if (!readable(node)) return { err: `${mode}: cannot open '${name}' (Permission denied)` };
     const n = Number.isInteger(flags.nFlag) ? flags.nFlag : 10;
@@ -213,7 +244,7 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
     const name = argsStr.trim();
     if (!name) return { err: 'usage: file <path>' };
     const node = lookup(fs, resolvePath(cwdSegs, name));
-    if (!node) return { err: `${name}: cannot open (No such file or directory)` };
+    if (!node) return { err: withCaseHint(`${name}: cannot open (No such file or directory)`, suggest(cwdSegs, name)) };
     return { out: node.type === 'dir' ? `${name}: directory` : `${name}: ASCII text` };
   }
 
@@ -222,7 +253,7 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
     const [pattern, name] = flags.rest;
     if (!pattern || !name) return { err: 'usage: grep [-i] "<pattern>" <file>' };
     const node = lookup(fs, resolvePath(cwdSegs, name));
-    if (!node) return { err: `grep: ${name}: No such file or directory` };
+    if (!node) return { err: withCaseHint(`grep: ${name}: No such file or directory`, suggest(cwdSegs, name)) };
     if (node.type === 'dir') return { err: `grep: ${name}: Is a directory` };
     if (!readable(node)) return { err: `grep: ${name}: Permission denied` };
     const re = new RegExp(escapeRegex(pattern), flags.ignoreCase ? 'i' : '');
@@ -239,7 +270,7 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
     }
     if (!pattern) return { err: 'usage: find <path> -name "<pattern>"' };
     const startNode = lookup(fs, resolvePath(cwdSegs, path));
-    if (!startNode) return { err: `find: '${path}': No such file or directory` };
+    if (!startNode) return { err: withCaseHint(`find: '${path}': No such file or directory`, suggest(cwdSegs, path)) };
     const regex = new RegExp('^' + pattern.split('*').map(escapeRegex).join('.*') + '$');
     const results = [];
     const rootDisplay = path === '' ? '.' : path.replace(/\/$/, '');
@@ -312,6 +343,22 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
       const pos = historyPosRef.current + 1;
       if (pos >= history.length) { historyPosRef.current = -1; setInput(''); }
       else { historyPosRef.current = pos; setInput(history[pos]); }
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      const hasSpace = input.includes(' ');
+      if (!hasSpace) {
+        const matches = COMMANDS.filter((c) => c.startsWith(input));
+        if (matches.length === 1) setInput(`${matches[0]} `);
+        else if (matches.length > 1) appendLine({ type: 'sys', text: matches.join('  ') });
+        return;
+      }
+      const lastSpace = input.lastIndexOf(' ');
+      const head = input.slice(0, lastSpace + 1);
+      const partial = input.slice(lastSpace + 1);
+      const result = completeToken(fs, cwd, partial);
+      if (!result) return;
+      setInput(head + result.replacement);
+      if (result.matches.length > 1) appendLine({ type: 'sys', text: result.matches.join('  ') });
     }
   };
 

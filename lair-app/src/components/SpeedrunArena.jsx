@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { TASKS } from '../data/speedrunTasks.js';
 import { updateProgress } from '../api/lair.js';
-import { tokenize, globToRegex } from '../utils/shellLex.js';
+import { tokenize, globToRegex, caseSuggestion, withCaseHint } from '../utils/shellLex.js';
 
 const HOST = 'sift-scratch';
 const USER = 'analyst';
+
+const COMMANDS = ['pwd', 'ls', 'cd', 'cat', 'touch', 'mkdir', 'rm', 'cp', 'mv', 'chmod', 'echo', 'whoami', 'hint', 'skip', 'clear', 'help'];
 
 const HELP_TEXT =
   'Available commands:\n' +
@@ -48,6 +50,29 @@ function lookup(root, segs) {
     node = node.children[seg];
   }
   return node;
+}
+
+/** Tab-completion: matches child names of the resolved directory portion of `partial` against its leaf prefix. */
+function completeToken(fsRoot, cwdSegs, partial) {
+  const lastSlash = partial.lastIndexOf('/');
+  const dirPart  = lastSlash === -1 ? '' : partial.slice(0, lastSlash);
+  const leafPart = lastSlash === -1 ? partial : partial.slice(lastSlash + 1);
+  const dirSegs  = dirPart ? resolvePath(cwdSegs, dirPart) : cwdSegs;
+  const dirNode  = lookup(fsRoot, dirSegs);
+  if (!dirNode || dirNode.type !== 'dir') return null;
+  const names = Object.keys(dirNode.children || {})
+    .filter((n) => (leafPart.startsWith('.') || !n.startsWith('.')) && n.startsWith(leafPart));
+  if (!names.length) return null;
+  let lcp = names[0];
+  for (const n of names.slice(1)) {
+    let i = 0;
+    while (i < lcp.length && i < n.length && lcp[i] === n[i]) i++;
+    lcp = lcp.slice(0, i);
+  }
+  const single = names.length === 1;
+  const suffix = single ? (dirNode.children[names[0]].type === 'dir' ? '/' : ' ') : '';
+  const prefix = dirPart ? `${dirPart}/` : '';
+  return { replacement: prefix + (single ? names[0] : lcp) + suffix, matches: names };
 }
 
 function octalToPerms(mode, isDir) {
@@ -175,6 +200,12 @@ export default function SpeedrunArena({ assignmentId, color, initialState, onCom
     updateProgress(assignmentId, pct, { taskIndex: index, solvedCount: newSolved, skippedCount: newSkipped }).catch(() => {});
   }, [appendLine, assignmentId, elapsed, onComplete, solvedCount, skippedCount]);
 
+  function suggest(cwdSegs, name) {
+    const segs = resolvePath(cwdSegs, name);
+    const parent = lookup(fsRootRef.current, segs.slice(0, -1));
+    return caseSuggestion(parent, segs[segs.length - 1]);
+  }
+
   function cmdPwd(cwdSegs) { return { out: '/' + cwdSegs.join('/') }; }
 
   function cmdLs(argsStr, cwdSegs) {
@@ -185,7 +216,7 @@ export default function SpeedrunArena({ assignmentId, color, initialState, onCom
     const long = flagTokens.some((t) => t.includes('l'));
     const targetSegs = pathArg ? resolvePath(cwdSegs, pathArg) : cwdSegs;
     const node = lookup(fsRootRef.current, targetSegs);
-    if (!node) return { err: `ls: cannot access '${pathArg}': No such file or directory` };
+    if (!node) return { err: withCaseHint(`ls: cannot access '${pathArg}': No such file or directory`, suggest(cwdSegs, pathArg)) };
     if (node.type !== 'dir') return { out: pathArg || '.' };
     const entries = Object.entries(node.children || {})
       .filter(([name]) => all || !name.startsWith('.'))
@@ -201,7 +232,7 @@ export default function SpeedrunArena({ assignmentId, color, initialState, onCom
     const arg = argsStr.trim();
     const targetSegs = arg ? resolvePath(cwdSegs, arg) : [];
     const node = lookup(fsRootRef.current, targetSegs);
-    if (!node) return { err: `bash: cd: ${arg}: No such file or directory` };
+    if (!node) return { err: withCaseHint(`bash: cd: ${arg}: No such file or directory`, suggest(cwdSegs, arg)) };
     if (node.type !== 'dir') return { err: `bash: cd: ${arg}: Not a directory` };
     setCwd(targetSegs);
     return { out: '' };
@@ -213,7 +244,7 @@ export default function SpeedrunArena({ assignmentId, color, initialState, onCom
     const outs = [];
     for (const name of names) {
       const node = lookup(fsRootRef.current, resolvePath(cwdSegs, name));
-      if (!node) { outs.push(`cat: ${name}: No such file or directory`); continue; }
+      if (!node) { outs.push(withCaseHint(`cat: ${name}: No such file or directory`, suggest(cwdSegs, name))); continue; }
       if (node.type === 'dir') { outs.push(`cat: ${name}: Is a directory`); continue; }
       outs.push(node.content.replace(/\n$/, ''));
     }
@@ -277,7 +308,7 @@ export default function SpeedrunArena({ assignmentId, color, initialState, onCom
         }
       } else {
         const node = parent.children[leafPattern];
-        if (!node) { errs.push(`rm: cannot remove '${target}': No such file or directory`); continue; }
+        if (!node) { errs.push(withCaseHint(`rm: cannot remove '${target}': No such file or directory`, suggest(cwdSegs, target))); continue; }
         if (node.type === 'dir' && !recursive) { errs.push(`rm: cannot remove '${target}': Is a directory`); continue; }
         delete parent.children[leafPattern];
       }
@@ -289,7 +320,7 @@ export default function SpeedrunArena({ assignmentId, color, initialState, onCom
     const [src, dstArg] = tokenize(argsStr);
     if (!src || !dstArg) return { err: 'usage: cp <src> <dst>' };
     const srcNode = lookup(fsRootRef.current, resolvePath(cwdSegs, src));
-    if (!srcNode) return { err: `cp: cannot stat '${src}': No such file or directory` };
+    if (!srcNode) return { err: withCaseHint(`cp: cannot stat '${src}': No such file or directory`, suggest(cwdSegs, src)) };
     if (srcNode.type === 'dir') return { err: `cp: -r not specified; omitting directory '${src}'` };
     let dstSegs = resolvePath(cwdSegs, dstArg);
     const dstExisting = lookup(fsRootRef.current, dstSegs);
@@ -308,7 +339,7 @@ export default function SpeedrunArena({ assignmentId, color, initialState, onCom
     const srcParent = lookup(fsRootRef.current, srcSegs.slice(0, -1));
     const srcLeaf = srcSegs[srcSegs.length - 1];
     const srcNode = srcParent && srcParent.children[srcLeaf];
-    if (!srcNode) return { err: `mv: cannot stat '${src}': No such file or directory` };
+    if (!srcNode) return { err: withCaseHint(`mv: cannot stat '${src}': No such file or directory`, suggest(cwdSegs, src)) };
     let dstSegs = resolvePath(cwdSegs, dstArg);
     const dstExisting = lookup(fsRootRef.current, dstSegs);
     if (dstExisting && dstExisting.type === 'dir') dstSegs = [...dstSegs, srcLeaf];
@@ -324,7 +355,7 @@ export default function SpeedrunArena({ assignmentId, color, initialState, onCom
     const [mode, target] = tokenize(argsStr);
     if (!mode || !target || !/^[0-7]{3}$/.test(mode)) return { err: 'usage: chmod <octal-mode> <path>' };
     const node = lookup(fsRootRef.current, resolvePath(cwdSegs, target));
-    if (!node) return { err: `chmod: cannot access '${target}': No such file or directory` };
+    if (!node) return { err: withCaseHint(`chmod: cannot access '${target}': No such file or directory`, suggest(cwdSegs, target)) };
     node.perms = octalToPerms(mode, node.type === 'dir');
     return { out: '' };
   }
@@ -408,6 +439,22 @@ export default function SpeedrunArena({ assignmentId, color, initialState, onCom
       const pos = historyPosRef.current + 1;
       if (pos >= history.length) { historyPosRef.current = -1; setInput(''); }
       else { historyPosRef.current = pos; setInput(history[pos]); }
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      const hasSpace = input.includes(' ');
+      if (!hasSpace) {
+        const matches = COMMANDS.filter((c) => c.startsWith(input));
+        if (matches.length === 1) setInput(`${matches[0]} `);
+        else if (matches.length > 1) appendLine({ type: 'sys', text: matches.join('  ') });
+        return;
+      }
+      const lastSpace = input.lastIndexOf(' ');
+      const head = input.slice(0, lastSpace + 1);
+      const partial = input.slice(lastSpace + 1);
+      const result = completeToken(fsRootRef.current, cwd, partial);
+      if (!result) return;
+      setInput(head + result.replacement);
+      if (result.matches.length > 1) appendLine({ type: 'sys', text: result.matches.join('  ') });
     }
   };
 

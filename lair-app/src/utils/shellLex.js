@@ -16,3 +16,23 @@ export function escapeRegex(s) {
 export function globToRegex(pattern) {
   return new RegExp('^' + pattern.split('*').map(escapeRegex).join('.*') + '$');
 }
+
+/**
+ * Games keep real, case-sensitive filename semantics (that's the point —
+ * transferable knowledge), but a bare "No such file or directory" is a
+ * needless beginner trap when the only issue is wrong case. Given the
+ * parent directory node actually looked up and the leaf name that failed,
+ * returns a same-directory sibling name that matches case-insensitively
+ * (or null), for callers to append as a "did you mean...?" hint.
+ */
+export function caseSuggestion(parentNode, leaf) {
+  if (!parentNode || parentNode.type !== 'dir' || !leaf) return null;
+  const match = Object.keys(parentNode.children || {}).find(
+    (n) => n !== leaf && n.toLowerCase() === leaf.toLowerCase()
+  );
+  return match || null;
+}
+
+export function withCaseHint(message, suggestion) {
+  return suggestion ? `${message} (did you mean '${suggestion}'? filenames are case-sensitive)` : message;
+}
