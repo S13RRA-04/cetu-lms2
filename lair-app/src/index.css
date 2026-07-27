@@ -2876,3 +2876,24 @@ body::after {
   caret-color: var(--term-accent);
 }
 .term-input-row .term-cursor { width: .55em; }
+
+.speedrun-timer {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--term-accent);
+  letter-spacing: .05em;
+}
+
+.speedrun-scoreboard {
+  display: flex;
+  gap: 16px;
+  padding: 6px 14px;
+  background: var(--card-hi);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .04em;
+}
+.speedrun-solved  { color: var(--green); }
+.speedrun-skipped { color: var(--muted); }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LEVELS, HOSTNAME, USER, dir } from '../data/terminalGameLevels.js';
 import { updateProgress } from '../api/lair.js';
+import { tokenize, escapeRegex } from '../utils/shellLex.js';
 
 const HOME_SEGS = ['home', 'analyst'];
 
@@ -18,18 +19,6 @@ const HELP_TEXT =
   '  whoami              print current user\n' +
   '  hint                reveal a hint for the current objective\n' +
   '  clear               clear the screen';
-
-function escapeRegex(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function tokenize(str) {
-  const re = /"([^"]*)"|'([^']*)'|(\S+)/g;
-  const tokens = [];
-  let m;
-  while ((m = re.exec(str))) tokens.push(m[1] ?? m[2] ?? m[3]);
-  return tokens;
-}
 
 function parseFlags(argsStr) {
   const tokens = tokenize(argsStr);

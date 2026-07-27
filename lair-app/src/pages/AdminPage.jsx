@@ -23,6 +23,7 @@ const TYPE_COLOR = {
   assessment: '#e8b339',
   survey:     '#a78bfa',
   game:       '#33ff5e',
+  challenge:  '#39d6ff',
 };
 
 /* ── helpers ── */

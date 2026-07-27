@@ -3,12 +3,14 @@ import { useParams, Link } from 'react-router-dom';
 import { getAssignment, getMySubmission, submitAssignment, updateProgress } from '../api/lair.js';
 import QuizFlow from '../components/QuizFlow.jsx';
 import TerminalGame from '../components/TerminalGame.jsx';
+import SpeedrunArena from '../components/SpeedrunArena.jsx';
 
 const TYPE_COLOR = {
   module:     '#f0a428',
   assessment: '#e8b339',
   survey:     '#a78bfa',
   game:       '#33ff5e',
+  challenge:  '#39d6ff',
 };
 
 const PCT_STEPS = [0, 25, 50, 75, 100];
@@ -27,6 +29,7 @@ export default function AssignmentPage() {
   const [quizResult,  setQuizResult]  = useState(null);
   const [quizStarted, setQuizStarted] = useState(false);
   const [gameResult,  setGameResult]  = useState(null);
+  const [speedrunResult, setSpeedrunResult] = useState(null);
 
   useEffect(() => {
     setAssignment(null);
@@ -39,6 +42,7 @@ export default function AssignmentPage() {
     setQuizResult(null);
     setQuizStarted(false);
     setGameResult(null);
+    setSpeedrunResult(null);
 
     Promise.all([
       getAssignment(id),
@@ -55,6 +59,7 @@ export default function AssignmentPage() {
             const parsed = JSON.parse(sub.content ?? 'null');
             if (parsed?.totalScore !== undefined) setQuizResult(parsed);
             else if (parsed?.levelsCompleted !== undefined) setGameResult(parsed);
+            else if (parsed?.tasksSolved !== undefined) setSpeedrunResult(parsed);
           } catch {}
         }
       }
@@ -116,6 +121,20 @@ export default function AssignmentPage() {
     }
   }, [id]);
 
+  const handleSpeedrunComplete = useCallback(async (result) => {
+    setSpeedrunResult(result);
+    const json = JSON.stringify(result);
+    setContent(json);
+    setProgress(100);
+    try {
+      await submitAssignment(id, json);
+      setSubmitted(true);
+    } catch (err) {
+      const msg = err.response?.data?.error?.message ?? '';
+      setError(msg || 'Submission failed. Please try again.');
+    }
+  }, [id]);
+
   if (loading) {
     return <div className="loading-screen"><div className="spinner" /></div>;
   }
@@ -134,8 +153,9 @@ export default function AssignmentPage() {
   const isLocked   = assignment.is_unlocked === false;
   const isSurvey   = assignment.type === 'survey';
   const isGame     = !isLocked && assignment.type === 'game';
+  const isSpeedrun = !isLocked && assignment.type === 'challenge';
   /* hasQuiz: any type with questions uses QuizFlow (modules and assessments with a question bank) */
-  const hasQuiz    = !isLocked && !isSurvey && !isGame && Array.isArray(assignment.questions) && assignment.questions.length > 0;
+  const hasQuiz    = !isLocked && !isSurvey && !isGame && !isSpeedrun && Array.isArray(assignment.questions) && assignment.questions.length > 0;
 
   return (
     <div className="assignment-page">
@@ -200,6 +220,22 @@ export default function AssignmentPage() {
                 color={color}
                 initialState={submission?.quiz_state}
                 onComplete={handleGameComplete}
+              />
+            </>
+          )
+        ) : /* ── Speed drills ── */
+        isSpeedrun ? (
+          submitted ? (
+            <SpeedrunSummary result={speedrunResult} color={color} />
+          ) : (
+            <>
+              {error && <div className="err-msg" style={{ marginBottom: 16 }}>{error}</div>}
+              <SpeedrunArena
+                key={id}
+                assignmentId={id}
+                color={color}
+                initialState={submission?.quiz_state}
+                onComplete={handleSpeedrunComplete}
               />
             </>
           )
@@ -438,6 +474,31 @@ function GameSummary({ result, color }) {
         <div className="qz-summary-score" style={{ color }}>
           {result.levelsCompleted} / {result.totalLevels}
           <span className="qz-summary-pct"> levels</span>
+        </div>
+      )}
+
+      <Link to="/course" className="btn-submit" style={{ display: 'inline-block', marginTop: 24, background: color, textDecoration: 'none', textAlign: 'center' }}>
+        ← Back to Course
+      </Link>
+    </div>
+  );
+}
+
+function SpeedrunSummary({ result, color }) {
+  const mm = result ? String(Math.floor(result.elapsedSeconds / 60)).padStart(2, '0') : '00';
+  const ss = result ? String(result.elapsedSeconds % 60).padStart(2, '0') : '00';
+  return (
+    <div className="qz-summary">
+      <div className="qz-summary-header">
+        <div className="qz-summary-icon" style={{ color }}>✓</div>
+        <h2>Drill Complete</h2>
+        <p>Speed drills submitted</p>
+      </div>
+
+      {result && (
+        <div className="qz-summary-score" style={{ color }}>
+          {result.tasksSolved} / {result.totalTasks}
+          <span className="qz-summary-pct"> solved · {mm}:{ss}</span>
         </div>
       )}
 

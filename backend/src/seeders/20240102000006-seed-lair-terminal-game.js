@@ -7,10 +7,14 @@
  * assignment type in this app has a generic admin-authored content editor,
  * so curated content is checked into the frontend like everything else.
  * order_index 105 lands it right after the Day 1 Linux Commands lecture
- * (100) and before OS File Structures (110).
+ * (100) and before OS File Structures (110) — CoursePage.jsx groups
+ * assignments into Day 1/2/3 purely by floor(order_index/100); there is no
+ * real `module_id` column on `assignments` (the restructure seeder carries
+ * a module_id field in its own JS data array for reference, but never
+ * actually inserts it — confirmed by a live-DB "column does not exist"
+ * error when this seeder first tried to do the same).
  */
 const COURSE_ID = 'b3e1f7a2-4c8d-4e9f-a012-3d5678901234'; // LAIR course
-const DAY1_ID   = 'c1000001-0000-0000-0000-000000000001';
 const GAME_ID   = 'e1a10005-0000-0000-0000-000000000013';
 
 module.exports = {
@@ -21,7 +25,6 @@ module.exports = {
       [{
         id:           GAME_ID,
         course_id:    COURSE_ID,
-        module_id:    DAY1_ID,
         title:        'Day 1 – Terminal Drill: corvid-web01',
         description:
           'You have shell access to corvid-web01, a webserver flagged for suspicious outbound traffic. ' +
