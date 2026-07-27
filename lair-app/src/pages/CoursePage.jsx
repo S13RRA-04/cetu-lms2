@@ -163,10 +163,17 @@ function BookendCard({ label, assignment }) {
   );
 }
 
+const PLAY_LABELS = {
+  game:      { start: 'Play',       review: 'Review Drill' },
+  challenge: { start: 'Start Drill', review: 'Review Drill' },
+};
+
 function SectionRow({ section, files, pendingPct, onProgress }) {
-  const isLocked = section.is_unlocked === false;
-  const hasQuiz  = Array.isArray(section.questions) && section.questions.length > 0;
-  const pct      = pendingPct ?? section.progress ?? 0;
+  const isLocked   = section.is_unlocked === false;
+  const hasQuiz    = Array.isArray(section.questions) && section.questions.length > 0;
+  const playLabels = PLAY_LABELS[section.type];
+  const isPlayable = hasQuiz || !!playLabels;
+  const pct        = pendingPct ?? section.progress ?? 0;
 
   return (
     <div id={section.id} className={`section-row${isLocked ? ' section-row-locked' : ''}`}>
@@ -175,9 +182,11 @@ function SectionRow({ section, files, pendingPct, onProgress }) {
           {isLocked && <span className="lock-icon">🔒</span>}
           {section.title.replace(/^Day \d+ [–-]\s*/, '')}
         </div>
-        {hasQuiz && !isLocked && (
+        {isPlayable && !isLocked && (
           <Link to={`/assignment/${section.id}`} className="btn-sm-primary section-quiz-link">
-            {pct >= 100 ? 'Review Assessment' : 'Start Assessment'}
+            {playLabels
+              ? (pct >= 100 ? playLabels.review : (pct > 0 ? 'Continue' : playLabels.start))
+              : (pct >= 100 ? 'Review Assessment' : 'Start Assessment')}
           </Link>
         )}
       </div>
@@ -198,7 +207,7 @@ function SectionRow({ section, files, pendingPct, onProgress }) {
         </div>
       )}
 
-      {!isLocked && !hasQuiz && (
+      {!isLocked && !isPlayable && (
         <div className="section-progress-row">
           <div className="progress-track section-progress-track">
             <div className="progress-fill" style={{ width: `${pct}%` }} />
