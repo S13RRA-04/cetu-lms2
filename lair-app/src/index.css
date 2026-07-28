@@ -2903,7 +2903,7 @@ body::after {
   .capstone-panels { grid-template-columns: 1fr 1fr; align-items: start; }
 }
 .capstone-panel { display: flex; flex-direction: column; gap: 8px; }
-.capstone-panel-full { margin-top: 28px; }
+.capstone-panels-secondary { margin-top: 28px; }
 
 .capstone-chat {
   display: flex; flex-direction: column; gap: 10px;

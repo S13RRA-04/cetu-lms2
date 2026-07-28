@@ -70,6 +70,12 @@ export const sendTacticalMessage = (assignmentId, { history, message }) =>
     history, message,
   }).then((r) => r.data);
 
+/* ── Capstone Training Agent (context-aware hint consult) ── */
+export const sendTrainingMessage = (assignmentId, { history, message }) =>
+  client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/training-chat`, {
+    history, message,
+  }).then((r) => r.data);
+
 /* ── Cohorts ── */
 export const getCohorts = () =>
   client.get(`/courses/${COURSE_ID}/cohorts`).then((r) => {

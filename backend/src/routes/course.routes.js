@@ -17,6 +17,7 @@ const squadStateCtrl   = require('../controllers/squadChallengeState.controller'
 const preRangeBriefingCtrl = require('../controllers/preRangeBriefing.controller');
 const legalRequestCtrl = require('../controllers/legalRequest.controller');
 const tacticalSpecialistCtrl = require('../controllers/tacticalSpecialist.controller');
+const trainingAgentCtrl = require('../controllers/trainingAgent.controller');
 const { requireAuth, requireInstructor, requireAdmin } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
 const { auditLog } = require('../middleware/audit');
@@ -98,6 +99,9 @@ router.post('/:id/assignments/:aid/legal-requests', requireAuth, legalRequestCtr
 
 // Capstone Tactical Specialist (purely advisory OSINT-style consult, no gating)
 router.post('/:id/assignments/:aid/tactical-chat', requireAuth, tacticalSpecialistCtrl.chat);
+
+// Capstone Training Agent (context-aware hint persona, no gating)
+router.post('/:id/assignments/:aid/training-chat', requireAuth, trainingAgentCtrl.chat);
 
 // Squad-shared challenge state (question progress/answers/hints shared across a squad)
 router.get('/:id/assignments/:aid/squad-state', requireAuth, squadStateCtrl.getState);
