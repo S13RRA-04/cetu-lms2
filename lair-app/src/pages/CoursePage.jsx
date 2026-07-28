@@ -166,6 +166,7 @@ function BookendCard({ label, assignment }) {
 const PLAY_LABELS = {
   game:      { start: 'Play',       review: 'Review Drill' },
   challenge: { start: 'Start Drill', review: 'Review Drill' },
+  capstone:  { start: 'Enter Case', review: 'Review Case' },
 };
 
 function SectionRow({ section, files, pendingPct, onProgress }) {
