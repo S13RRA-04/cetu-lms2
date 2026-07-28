@@ -1,0 +1,26 @@
+<svg width="680" height="680" viewBox="0 0 680 680" xmlns="http://www.w3.org/2000/svg" role="img"><title>Chain of custody documentation illustration</title><desc>A caricature of a clipboard with a checklist and signature beside a sealed evidence bag.</desc>
+<rect x="120" y="440" width="440" height="20" rx="4" fill="#94a3b8"/>
+
+<g transform="translate(180,260)">
+<ellipse cx="0" cy="230" rx="90" ry="40" fill="#64748b"/>
+<rect x="-55" y="120" width="110" height="120" rx="30" fill="#64748b"/>
+<circle cx="0" cy="80" r="58" fill="#64748b"/>
+<ellipse cx="-24" cy="72" rx="15" ry="18" fill="#ffffff"/>
+<ellipse cx="24" cy="72" rx="15" ry="18" fill="#ffffff"/>
+<circle cx="-24" cy="76" r="7" fill="#1e293b"/>
+<circle cx="24" cy="76" r="7" fill="#1e293b"/>
+<path d="M-20 108 Q0 118 20 108" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+</g>
+
+<rect x="340" y="280" width="120" height="150" rx="8" fill="#f1f5f9" stroke="#2563eb" stroke-width="4"/>
+<rect x="370" y="270" width="60" height="20" rx="4" fill="#2563eb"/>
+<line x1="360" y1="320" x2="440" y2="320" stroke="#94a3b8" stroke-width="4"/>
+<line x1="360" y1="340" x2="440" y2="340" stroke="#94a3b8" stroke-width="4"/>
+<line x1="360" y1="360" x2="410" y2="360" stroke="#94a3b8" stroke-width="4"/>
+<path d="M365 400 Q385 385 405 400" fill="none" stroke="#2563eb" stroke-width="3"/>
+<g transform="translate(490,340)">
+<path d="M0 0 L60 0 L60 80 Q30 95 0 80 Z" fill="#f1f5f9" stroke="#94a3b8" stroke-width="3"/>
+<rect x="0" y="20" width="60" height="10" fill="#dc2626"/>
+</g>
+
+</svg>

@@ -8,6 +8,7 @@ import CoursePage     from './pages/CoursePage.jsx';
 import AssignmentPage from './pages/AssignmentPage.jsx';
 import GradesPage     from './pages/GradesPage.jsx';
 import AdminPage      from './pages/AdminPage.jsx';
+import TTXFacilitator from './components/TTXFacilitator.jsx';
 import AppShell       from './layouts/AppShell.jsx';
 
 function Guard({ children }) {
@@ -33,6 +34,7 @@ const router = createBrowserRouter([
       { path: '/assignment/:id',   element: <AssignmentPage /> },
       { path: '/grades',           element: <GradesPage /> },
       { path: '/admin',            element: <AdminGuard><AdminPage /></AdminGuard> },
+      { path: '/admin/ttx',        element: <AdminGuard><TTXFacilitator /></AdminGuard> },
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },

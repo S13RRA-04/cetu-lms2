@@ -1,0 +1,19 @@
+<svg width="680" height="680" viewBox="0 0 680 680" xmlns="http://www.w3.org/2000/svg" role="img"><title>Backup restore fails validation inject illustration</title><desc>A caricature of a cloud backup icon with a large warning X indicating the restore failed integrity validation.</desc>
+<rect x="120" y="440" width="440" height="20" rx="4" fill="#94a3b8"/>
+
+<g transform="translate(180,300)">
+<ellipse cx="0" cy="230" rx="90" ry="40" fill="#64748b"/>
+<rect x="-55" y="120" width="110" height="120" rx="30" fill="#64748b"/>
+<circle cx="0" cy="80" r="58" fill="#64748b"/>
+<ellipse cx="-24" cy="72" rx="15" ry="18" fill="#ffffff"/>
+<ellipse cx="24" cy="72" rx="15" ry="18" fill="#ffffff"/>
+<circle cx="-24" cy="76" r="7" fill="#1e293b"/>
+<circle cx="24" cy="76" r="7" fill="#1e293b"/>
+<path d="M-20 108 Q0 118 20 108" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+</g>
+
+<path d="M340 380 Q340 340 380 340 Q390 310 430 320 Q470 310 480 350 Q520 350 520 385 Q520 415 480 415 L380 415 Q340 415 340 380 Z" fill="#f1f5f9" stroke="#d97706" stroke-width="4"/>
+<line x1="400" y1="365" x2="440" y2="400" stroke="#d97706" stroke-width="6" stroke-linecap="round"/>
+<line x1="440" y1="365" x2="400" y2="400" stroke="#d97706" stroke-width="6" stroke-linecap="round"/>
+
+</svg>

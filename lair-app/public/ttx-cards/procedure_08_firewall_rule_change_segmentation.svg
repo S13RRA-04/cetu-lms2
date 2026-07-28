@@ -1,0 +1,17 @@
+<svg width="680" height="680" viewBox="0 0 680 680" xmlns="http://www.w3.org/2000/svg" role="img"><title>Firewall rule change and network segmentation illustration</title><desc>A caricature of a shield icon dividing two groups of connected network nodes.</desc>
+<rect x="120" y="440" width="440" height="20" rx="4" fill="#94a3b8"/>
+<g transform="translate(310,300)">
+<path d="M30 0 L60 12 L60 60 Q60 100 30 120 Q0 100 0 60 L0 12 Z" fill="#2563eb"/>
+</g>
+<circle cx="220" cy="330" r="14" fill="#94a3b8"/>
+<circle cx="220" cy="390" r="14" fill="#94a3b8"/>
+<circle cx="180" cy="360" r="14" fill="#94a3b8"/>
+<circle cx="470" cy="330" r="14" fill="#94a3b8"/>
+<circle cx="470" cy="390" r="14" fill="#94a3b8"/>
+<circle cx="510" cy="360" r="14" fill="#94a3b8"/>
+<line x1="220" y1="330" x2="180" y2="360" stroke="#94a3b8" stroke-width="2"/>
+<line x1="220" y1="390" x2="180" y2="360" stroke="#94a3b8" stroke-width="2"/>
+<line x1="470" y1="330" x2="510" y2="360" stroke="#94a3b8" stroke-width="2"/>
+<line x1="470" y1="390" x2="510" y2="360" stroke="#94a3b8" stroke-width="2"/>
+
+</svg>

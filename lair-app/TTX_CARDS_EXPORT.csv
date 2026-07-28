@@ -1,0 +1,45 @@
+category,id_or_roll,title,text
+scenario,s01,Ransomware Encryption Event,"File shares across three departments are inaccessible. A ransom note references a 48-hour countdown before the price doubles."
+scenario,s02,Unauthorized Wire Transfer,"Finance reports a $340,000 wire sent to an unfamiliar account after an email that looked like it came from the CFO."
+scenario,s03,Suspicious Off-Hours Login,"A service account authenticates from an unrecognized IP address at 3:14 AM, then triggers a password reset on two other accounts."
+scenario,s04,Lost Company Laptop,"A sales director's laptop, containing unencrypted client contracts, was left in a taxi after a conference."
+scenario,s05,Public Web Server Defacement,"The company's marketing site now displays a message from an unknown group, and the changes bypass the usual deploy pipeline."
+scenario,s06,Insider Data Exfiltration,"A departing employee's account shows a large upload to a personal cloud storage account the night before their last day."
+scenario,s07,Third-Party Vendor Breach Notification,"A vendor with API access to your systems reports they were compromised last month and are only now disclosing it."
+scenario,s08,Active Phishing Campaign,"Multiple employees report a convincing email impersonating IT, asking them to ""verify"" credentials on a lookalike login page."
+scenario,s09,Unexplained Database Query Spike,"A production database shows a tenfold increase in queries against the customer table overnight, from an application service account."
+scenario,s10,Rogue Access Point Detected,"Facilities finds an unfamiliar wireless access point plugged into a conference room network jack, broadcasting a spoofed corporate SSID."
+scenario,s11,"Terminated Employee, Active Access","Two weeks after termination, badge logs show building access under a former employee's credentials — twice, overnight."
+scenario,s12,Public Cloud Storage Misconfiguration,"A security researcher emails to report a publicly readable cloud storage bucket containing internal financial documents."
+procedure,1,Network Traffic Analysis,
+procedure,2,Endpoint Detection & Response (EDR) Sweep,
+procedure,3,Memory Forensics / Live RAM Capture,
+procedure,4,Centralized Log Review (SIEM),
+procedure,5,Threat Intelligence Lookup,
+procedure,6,Malware Static & Dynamic Analysis,
+procedure,7,Disk Imaging & Forensic Acquisition,
+procedure,8,Firewall Rule Change / Network Segmentation,
+procedure,9,Account Lockdown & Credential Reset,
+procedure,10,Multi-Factor Authentication Enforcement,
+procedure,11,Backup Restoration & Integrity Validation,
+procedure,12,Legal & Regulatory Notification Review,
+procedure,13,Law Enforcement Coordination,
+procedure,14,Public Relations / Customer Communication Plan,
+procedure,15,Vendor & Third-Party Coordination,
+procedure,16,Chain-of-Custody Documentation,
+procedure,17,Vulnerability Scan of Affected Systems,
+procedure,18,Emergency Patch Deployment,
+procedure,19,Physical Security Review,
+procedure,20,Tabletop Debrief & Lessons Learned,
+inject,i01,,"The CEO wants a status update in the next 10 minutes. What do you tell them?"
+inject,i02,,"A key system administrator is on a flight and unreachable for the next 6 hours."
+inject,i03,,"A local news reporter has called asking to confirm rumors of a breach."
+inject,i04,,"The backup you planned to restore from fails integrity validation."
+inject,i05,,"Legal informs you a regulatory notification deadline is in 24 hours."
+inject,i06,,"A second, unrelated alert fires on a different system. Is it connected?"
+inject,i07,,"An employee posts about the incident on social media before it's public."
+inject,i08,,"The attacker posts a public countdown timer, threatening to leak data."
+inject,i09,,"Your primary incident response tool loses connectivity mid-investigation."
+inject,i10,,"A board member demands to be added to every communication thread."
+inject,i11,,"The vendor whose product is implicated denies any vulnerability exists."
+inject,i12,,"Cyber insurance requires you to use their approved forensics firm. Do you comply?"

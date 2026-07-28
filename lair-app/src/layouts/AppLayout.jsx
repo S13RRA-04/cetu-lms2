@@ -94,6 +94,9 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
               <NavLink to="/admin" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
                 <span className="sidebar-icon">◉</span> Admin Dashboard
               </NavLink>
+              <NavLink to="/admin/ttx" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
+                <span className="sidebar-icon">⚄</span> TTX Facilitator
+              </NavLink>
             </>
           )}
         </nav>

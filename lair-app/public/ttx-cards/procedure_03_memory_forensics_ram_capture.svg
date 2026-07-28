@@ -1,0 +1,25 @@
+<svg width="680" height="680" viewBox="0 0 680 680" xmlns="http://www.w3.org/2000/svg" role="img"><title>Memory forensics and live RAM capture illustration</title><desc>A caricature of an analyst pulling a memory stick icon out of a laptop into a labeled capture file.</desc>
+<rect x="120" y="440" width="440" height="20" rx="4" fill="#94a3b8"/>
+
+<g transform="translate(180,260)">
+<ellipse cx="0" cy="230" rx="90" ry="40" fill="#64748b"/>
+<rect x="-55" y="120" width="110" height="120" rx="30" fill="#64748b"/>
+<circle cx="0" cy="80" r="58" fill="#64748b"/>
+<ellipse cx="-24" cy="72" rx="15" ry="18" fill="#ffffff"/>
+<ellipse cx="24" cy="72" rx="15" ry="18" fill="#ffffff"/>
+<circle cx="-24" cy="76" r="7" fill="#1e293b"/>
+<circle cx="24" cy="76" r="7" fill="#1e293b"/>
+<path d="M-20 108 Q0 118 20 108" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+</g>
+
+<rect x="330" y="330" width="180" height="110" rx="8" fill="#f1f5f9" stroke="#94a3b8" stroke-width="4"/>
+<g transform="translate(370,250)">
+<rect x="0" y="0" width="100" height="40" rx="6" fill="#2563eb"/>
+<rect x="10" y="8" width="10" height="24" fill="#ffffff"/>
+<rect x="26" y="8" width="10" height="24" fill="#ffffff"/>
+<rect x="42" y="8" width="10" height="24" fill="#ffffff"/>
+</g>
+<line x1="420" y1="292" x2="420" y2="330" stroke="#2563eb" stroke-width="4" marker-end="url(#a1)"/>
+<defs><marker id="a1" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M2 2L8 5L2 8Z" fill="#2563eb"/></marker></defs>
+
+</svg>

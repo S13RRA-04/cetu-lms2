@@ -1,0 +1,22 @@
+<svg width="680" height="680" viewBox="0 0 680 680" xmlns="http://www.w3.org/2000/svg" role="img"><title>Emergency patch deployment illustration</title><desc>A caricature of a shield with a bandage patch and a download arrow beside a laptop.</desc>
+<rect x="120" y="440" width="440" height="20" rx="4" fill="#94a3b8"/>
+
+<g transform="translate(180,300)">
+<ellipse cx="0" cy="230" rx="90" ry="40" fill="#64748b"/>
+<rect x="-55" y="120" width="110" height="120" rx="30" fill="#64748b"/>
+<circle cx="0" cy="80" r="58" fill="#64748b"/>
+<ellipse cx="-24" cy="72" rx="15" ry="18" fill="#ffffff"/>
+<ellipse cx="24" cy="72" rx="15" ry="18" fill="#ffffff"/>
+<circle cx="-24" cy="76" r="7" fill="#1e293b"/>
+<circle cx="24" cy="76" r="7" fill="#1e293b"/>
+<path d="M-20 108 Q0 118 20 108" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+</g>
+
+<g transform="translate(380,300)">
+<path d="M40 0 L80 14 L80 60 Q80 105 40 125 Q0 105 0 60 L0 14 Z" fill="#2563eb"/>
+<rect x="20" y="55" width="40" height="16" rx="8" fill="#ffffff" transform="rotate(-20 40 63)"/>
+</g>
+<line x1="500" y1="300" x2="500" y2="340" stroke="#2563eb" stroke-width="4" marker-end="url(#a4)"/>
+<defs><marker id="a4" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M2 2L8 5L2 8Z" fill="#2563eb"/></marker></defs>
+
+</svg>

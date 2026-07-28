@@ -1,0 +1,21 @@
+<svg width="680" height="680" viewBox="0 0 680 680" xmlns="http://www.w3.org/2000/svg" role="img"><title>Public relations and customer communication plan illustration</title><desc>A caricature of a person holding a megaphone with a speech bubble reaching outward.</desc>
+<rect x="120" y="440" width="440" height="20" rx="4" fill="#94a3b8"/>
+
+<g transform="translate(220,260)">
+<ellipse cx="0" cy="230" rx="90" ry="40" fill="#64748b"/>
+<rect x="-55" y="120" width="110" height="120" rx="30" fill="#64748b"/>
+<circle cx="0" cy="80" r="58" fill="#64748b"/>
+<ellipse cx="-24" cy="72" rx="15" ry="18" fill="#ffffff"/>
+<ellipse cx="24" cy="72" rx="15" ry="18" fill="#ffffff"/>
+<circle cx="-24" cy="76" r="7" fill="#1e293b"/>
+<circle cx="24" cy="76" r="7" fill="#1e293b"/>
+<path d="M-20 108 Q0 118 20 108" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+</g>
+
+<g transform="translate(370,330)">
+<path d="M0 20 L50 0 L50 60 L0 40 Z" fill="#2563eb"/>
+<rect x="-14" y="20" width="14" height="20" rx="3" fill="#2563eb"/>
+</g>
+<path d="M440 320 Q440 290 470 290 L540 290 Q560 290 560 310 Q560 330 540 330 L480 330 L460 345 L468 330 L470 330 Q440 330 440 320 Z" fill="#f1f5f9" stroke="#94a3b8" stroke-width="3"/>
+
+</svg>

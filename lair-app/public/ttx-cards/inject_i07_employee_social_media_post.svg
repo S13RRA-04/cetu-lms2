@@ -1,0 +1,25 @@
+<svg width="680" height="680" viewBox="0 0 680 680" xmlns="http://www.w3.org/2000/svg" role="img"><title>Employee posts about incident on social media inject illustration</title><desc>A caricature of a person holding a phone showing a social post with a warning icon overlaid.</desc>
+<rect x="120" y="440" width="440" height="20" rx="4" fill="#94a3b8"/>
+
+<g transform="translate(230,260)">
+<ellipse cx="0" cy="230" rx="90" ry="40" fill="#64748b"/>
+<rect x="-55" y="120" width="110" height="120" rx="30" fill="#64748b"/>
+<circle cx="0" cy="80" r="58" fill="#64748b"/>
+<ellipse cx="-24" cy="72" rx="15" ry="18" fill="#ffffff"/>
+<ellipse cx="24" cy="72" rx="15" ry="18" fill="#ffffff"/>
+<circle cx="-24" cy="76" r="7" fill="#1e293b"/>
+<circle cx="24" cy="76" r="7" fill="#1e293b"/>
+<path d="M-20 108 Q0 118 20 108" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+</g>
+
+<g transform="translate(370,300)">
+<rect x="0" y="0" width="90" height="140" rx="10" fill="#f1f5f9" stroke="#94a3b8" stroke-width="4"/>
+<rect x="10" y="16" width="70" height="20" rx="4" fill="#d97706"/>
+<rect x="10" y="44" width="70" height="8" rx="2" fill="#94a3b8"/>
+<rect x="10" y="58" width="50" height="8" rx="2" fill="#94a3b8"/>
+</g>
+<path d="M470 320 L490 285 L510 320 Z" fill="none" stroke="#d97706" stroke-width="4" stroke-linejoin="round"/>
+<line x1="490" y1="298" x2="490" y2="308" stroke="#d97706" stroke-width="3"/>
+<circle cx="490" cy="314" r="2" fill="#d97706"/>
+
+</svg>

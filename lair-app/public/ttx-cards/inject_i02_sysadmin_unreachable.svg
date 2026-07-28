@@ -1,0 +1,24 @@
+<svg width="680" height="680" viewBox="0 0 680 680" xmlns="http://www.w3.org/2000/svg" role="img"><title>Key sysadmin unreachable inject illustration</title><desc>A caricature of a person holding a phone with a no-signal icon, with an airplane flying overhead.</desc>
+<rect x="120" y="440" width="440" height="20" rx="4" fill="#94a3b8"/>
+
+<g transform="translate(280,260)">
+<ellipse cx="0" cy="230" rx="90" ry="40" fill="#64748b"/>
+<rect x="-55" y="120" width="110" height="120" rx="30" fill="#64748b"/>
+<circle cx="0" cy="80" r="58" fill="#64748b"/>
+<ellipse cx="-24" cy="72" rx="15" ry="18" fill="#ffffff"/>
+<ellipse cx="24" cy="72" rx="15" ry="18" fill="#ffffff"/>
+<circle cx="-24" cy="76" r="7" fill="#1e293b"/>
+<circle cx="24" cy="76" r="7" fill="#1e293b"/>
+<path d="M-20 112 Q0 100 20 112" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+</g>
+
+<g transform="translate(400,270)">
+<path d="M0 20 L60 0 L100 10 L60 30 L50 60 L36 55 L30 35 L0 30 Z" fill="#d97706"/>
+</g>
+<g transform="translate(360,360)">
+<rect x="0" y="0" width="50" height="80" rx="10" fill="#f1f5f9" stroke="#d97706" stroke-width="4"/>
+<line x1="10" y1="30" x2="40" y2="55" stroke="#d97706" stroke-width="4"/>
+<line x1="40" y1="30" x2="10" y2="55" stroke="#d97706" stroke-width="4"/>
+</g>
+
+</svg>

@@ -1,0 +1,33 @@
+<svg width="680" height="680" viewBox="0 0 680 680" xmlns="http://www.w3.org/2000/svg" role="img"><title>Tabletop debrief and lessons learned illustration</title><desc>A caricature of three people seated around a round table with a checklist, discussing lessons learned.</desc>
+
+<ellipse cx="340" cy="420" rx="180" ry="40" fill="#f1f5f9" stroke="#94a3b8" stroke-width="4"/>
+<rect x="290" y="390" width="100" height="60" rx="4" fill="#2563eb"/>
+<line x1="304" y1="405" x2="376" y2="405" stroke="#ffffff" stroke-width="4"/>
+<line x1="304" y1="418" x2="376" y2="418" stroke="#ffffff" stroke-width="4"/>
+<line x1="304" y1="431" x2="350" y2="431" stroke="#ffffff" stroke-width="4"/>
+
+<g transform="translate(180,240)">
+<rect x="-45" y="90" width="90" height="90" rx="26" fill="#64748b"/>
+<circle cx="0" cy="60" r="46" fill="#64748b"/>
+<circle cx="-14" cy="56" r="6" fill="#1e293b"/>
+<circle cx="14" cy="56" r="6" fill="#1e293b"/>
+<path d="M-14 82 Q0 90 14 82" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+</g>
+
+<g transform="translate(340,220)">
+<rect x="-48" y="90" width="96" height="96" rx="28" fill="#64748b"/>
+<circle cx="0" cy="58" r="48" fill="#64748b"/>
+<circle cx="-15" cy="54" r="6" fill="#1e293b"/>
+<circle cx="15" cy="54" r="6" fill="#1e293b"/>
+<path d="M-15 80 Q0 90 15 80" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+</g>
+
+<g transform="translate(500,240)">
+<rect x="-45" y="90" width="90" height="90" rx="26" fill="#64748b"/>
+<circle cx="0" cy="60" r="46" fill="#64748b"/>
+<circle cx="-14" cy="56" r="6" fill="#1e293b"/>
+<circle cx="14" cy="56" r="6" fill="#1e293b"/>
+<path d="M-14 82 Q0 90 14 82" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+</g>
+
+</svg>

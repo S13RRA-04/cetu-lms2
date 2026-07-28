@@ -1,0 +1,29 @@
+<svg width="680" height="680" viewBox="0 0 680 680" xmlns="http://www.w3.org/2000/svg" role="img"><title>CEO wants a status update inject illustration</title><desc>A caricature of an executive tapping a wristwatch impatiently, with a speech bubble demanding a status update.</desc>
+
+<rect x="120" y="440" width="440" height="20" rx="4" fill="#94a3b8"/>
+
+<g transform="translate(300,240)">
+<ellipse cx="0" cy="230" rx="90" ry="40" fill="#64748b"/>
+<path d="M-70 130 L70 130 L60 240 L-60 240 Z" fill="#64748b"/>
+<circle cx="0" cy="80" r="58" fill="#64748b"/>
+<ellipse cx="-24" cy="72" rx="15" ry="20" fill="#ffffff"/>
+<ellipse cx="24" cy="72" rx="15" ry="20" fill="#ffffff"/>
+<circle cx="-24" cy="80" r="7" fill="#1e293b"/>
+<circle cx="24" cy="80" r="7" fill="#1e293b"/>
+<path d="M-20 106 Q0 96 20 106" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+</g>
+
+<g transform="translate(370,340)">
+<rect x="0" y="0" width="46" height="46" rx="8" fill="#ffffff" stroke="#d97706" stroke-width="6"/>
+<circle cx="23" cy="23" r="14" fill="none" stroke="#d97706" stroke-width="3"/>
+<line x1="23" y1="23" x2="23" y2="14" stroke="#d97706" stroke-width="3" stroke-linecap="round"/>
+<line x1="23" y1="23" x2="29" y2="27" stroke="#d97706" stroke-width="3" stroke-linecap="round"/>
+</g>
+
+<g transform="translate(340,140)">
+<path d="M0 0 Q0 -50 70 -50 L180 -50 Q220 -50 220 -10 Q220 30 180 30 L60 30 L20 55 L35 30 L20 30 Q0 30 0 0 Z" fill="#f1f5f9" stroke="#94a3b8" stroke-width="3"/>
+<text x="110" y="-8" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="500" fill="#d97706">status update</text>
+<text x="110" y="12" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="500" fill="#d97706">now?</text>
+</g>
+
+</svg>
