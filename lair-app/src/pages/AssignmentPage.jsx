@@ -3,20 +3,35 @@ import { useParams, Link } from 'react-router-dom';
 import { getAssignment, getMySubmission, submitAssignment, updateProgress } from '../api/lair.js';
 import QuizFlow from '../components/QuizFlow.jsx';
 import TerminalGame from '../components/TerminalGame.jsx';
+import InvestigationGame from '../components/InvestigationGame.jsx';
 import SpeedrunArena from '../components/SpeedrunArena.jsx';
 import { LEVELS as CORVID_LEVELS, HOSTNAME as CORVID_HOSTNAME, USER as CORVID_USER } from '../data/terminalGameLevels.js';
-import { LEVELS as LAB_LEVELS, HOSTNAME as LAB_HOSTNAME, USER as LAB_USER } from '../data/mysteryGameLevels.js';
+import {
+  TREE as LAB_TREE, HOSTNAME as LAB_HOSTNAME, USER as LAB_USER,
+  CULPRIT as LAB_CULPRIT, CULPRIT_ALIASES as LAB_CULPRIT_ALIASES,
+  KEY_EVIDENCE as LAB_KEY_EVIDENCE, HINTS as LAB_HINTS,
+} from '../data/investigationCase.js';
 
 /**
- * Every `type: 'game'` assignment renders the same TerminalGame engine with
- * a different level-pack — keyed by assignment id since content is static/
- * frontend-bundled, not DB-driven (see project memory: no assignment type
- * has a generic admin content editor). Add an entry here for any future
- * TerminalGame-based game.
+ * Every `type: 'game'` assignment renders an interactive game — keyed by
+ * assignment id since content is static/frontend-bundled, not DB-driven
+ * (see project memory: no assignment type has a generic admin content
+ * editor). `Component` picks which engine renders the pack (TerminalGame's
+ * linear level-chain vs. InvestigationGame's free-roam case file), and the
+ * rest of the object is spread onto it as props. Add an entry here for any
+ * future game.
  */
 const GAME_PACKS = {
-  'e1a10005-0000-0000-0000-000000000013': { levels: CORVID_LEVELS, hostname: CORVID_HOSTNAME, user: CORVID_USER },
-  'e1a10007-0000-0000-0000-000000000015': { levels: LAB_LEVELS, hostname: LAB_HOSTNAME, user: LAB_USER },
+  'e1a10005-0000-0000-0000-000000000013': {
+    Component: TerminalGame,
+    levels: CORVID_LEVELS, hostname: CORVID_HOSTNAME, user: CORVID_USER,
+  },
+  'e1a10007-0000-0000-0000-000000000015': {
+    Component: InvestigationGame,
+    tree: LAB_TREE, hostname: LAB_HOSTNAME, user: LAB_USER,
+    culprit: LAB_CULPRIT, culpritAliases: LAB_CULPRIT_ALIASES,
+    keyEvidence: LAB_KEY_EVIDENCE, hints: LAB_HINTS,
+  },
 };
 
 const TYPE_COLOR = {
@@ -167,7 +182,7 @@ export default function AssignmentPage() {
   const isLocked   = assignment.is_unlocked === false;
   const isSurvey   = assignment.type === 'survey';
   const isGame     = !isLocked && assignment.type === 'game';
-  const gamePack   = GAME_PACKS[id] ?? GAME_PACKS['e1a10005-0000-0000-0000-000000000013'];
+  const { Component: GameComponent, ...gamePack } = GAME_PACKS[id] ?? GAME_PACKS['e1a10005-0000-0000-0000-000000000013'];
   const isSpeedrun = !isLocked && assignment.type === 'challenge';
   /* hasQuiz: any type with questions uses QuizFlow (modules and assessments with a question bank) */
   const hasQuiz    = !isLocked && !isSurvey && !isGame && !isSpeedrun && Array.isArray(assignment.questions) && assignment.questions.length > 0;
@@ -229,15 +244,13 @@ export default function AssignmentPage() {
           ) : (
             <>
               {error && <div className="err-msg" style={{ marginBottom: 16 }}>{error}</div>}
-              <TerminalGame
+              <GameComponent
                 key={id}
                 assignmentId={id}
                 color={color}
                 initialState={submission?.quiz_state}
                 onComplete={handleGameComplete}
-                levels={gamePack.levels}
-                hostname={gamePack.hostname}
-                user={gamePack.user}
+                {...gamePack}
               />
             </>
           )
@@ -480,18 +493,36 @@ function SurveyFlow({ questions, color, onComplete }) {
 }
 
 function GameSummary({ result, color }) {
+  // Two completion shapes share this summary: TerminalGame's linear chain
+  // ({levelsCompleted, totalLevels}) and InvestigationGame's free-roam case
+  // ({accused, wrongAttempts, evidenceViewed, totalKeyEvidence}).
+  const isInvestigation = result && result.accused !== undefined;
   return (
     <div className="qz-summary">
       <div className="qz-summary-header">
         <div className="qz-summary-icon" style={{ color }}>✓</div>
         <h2>Case Closed</h2>
-        <p>Terminal drill complete</p>
+        <p>{isInvestigation ? 'Investigation complete' : 'Terminal drill complete'}</p>
       </div>
 
       {result && (
         <div className="qz-summary-score" style={{ color }}>
-          {result.levelsCompleted} / {result.totalLevels}
-          <span className="qz-summary-pct"> levels</span>
+          {isInvestigation ? (
+            <>
+              {result.evidenceViewed?.length ?? 0} / {result.totalKeyEvidence}
+              <span className="qz-summary-pct"> evidence found</span>
+              {result.wrongAttempts > 0 && (
+                <div className="qz-summary-pct" style={{ marginTop: 6 }}>
+                  {result.wrongAttempts} accusation{result.wrongAttempts === 1 ? '' : 's'} before the right one
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {result.levelsCompleted} / {result.totalLevels}
+              <span className="qz-summary-pct"> levels</span>
+            </>
+          )}
         </div>
       )}
 

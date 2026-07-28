@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { updateProgress } from '../api/lair.js';
 import { dir } from '../utils/shellLex.js';
-import { resolvePath, lookup, displayPath, completeToken, makeReadOnlyCommands } from '../utils/readOnlyShell.js';
+import { displayPath, completeToken, makeReadOnlyCommands } from '../utils/readOnlyShell.js';
 
-const COMMANDS = ['pwd', 'ls', 'cd', 'cat', 'less', 'more', 'head', 'tail', 'file', 'grep', 'find', 'whoami', 'hint', 'clear', 'help'];
+const COMMANDS = ['pwd', 'ls', 'cd', 'cat', 'less', 'more', 'head', 'tail', 'file', 'grep', 'find', 'whoami', 'hint', 'accuse', 'clear', 'help'];
 
 const HELP_TEXT =
   'Available commands:\n' +
@@ -17,57 +17,53 @@ const HELP_TEXT =
   '  grep [-i] [-r] "p" f   search a file (or, with -r, a whole directory tree) for lines matching pattern p\n' +
   '  find <path> -name "pattern"   search a tree for matching names\n' +
   '  whoami              print current user\n' +
-  '  hint                reveal a hint for the current objective\n' +
+  '  hint                reveal the next investigative hint\n' +
+  '  accuse <name>       name who you believe deleted the case file\n' +
   '  clear               clear the screen';
 
-function buildFs(levels, levelIndex, homeSegs) {
-  const caseChildren = {};
-  for (let i = 0; i <= levelIndex && i < levels.length; i++) {
-    caseChildren[levels[i].id] = levels[i].tree;
-  }
-  let root = dir(caseChildren);
-  for (let i = homeSegs.length - 1; i >= 0; i--) {
-    root = dir({ [homeSegs[i]]: root });
-  }
-  return root;
-}
+export default function InvestigationGame({
+  assignmentId, color, initialState, onComplete,
+  tree, hostname, user, culprit, culpritAliases, keyEvidence, hints,
+}) {
+  const homeSegs = useMemo(() => ['home', user], [user]);
+  const fs = useMemo(() => dir({ home: dir({ [user]: tree }) }), [tree, user]);
+  const shell = useMemo(() => makeReadOnlyCommands({ fs, homeSegs, user }), [fs, homeSegs, user]);
 
-export default function TerminalGame({ assignmentId, color, initialState, onComplete, levels, hostname, user }) {
-  const homeSegs = ['home', user];
-  const startLevel = Math.min(
-    Math.max(0, Number.isInteger(initialState?.levelIndex) ? initialState.levelIndex : 0),
-    levels.length - 1
-  );
-
-  const [levelIndex, setLevelIndex] = useState(startLevel);
-  const [cwd, setCwd] = useState([...homeSegs, levels[startLevel].id]);
+  const [cwd, setCwd] = useState(homeSegs);
   const [output, setOutput] = useState([]);
   const [input, setInput] = useState('');
   const [history, setHistory] = useState([]);
-  const [hintCounts, setHintCounts] = useState({});
+  const [hintIndex, setHintIndex] = useState(0);
+  const [evidenceViewed, setEvidenceViewed] = useState(() => new Set(initialState?.evidenceViewed ?? []));
+  const [wrongAttempts, setWrongAttempts] = useState(initialState?.wrongAttempts ?? 0);
   const [finished, setFinished] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
 
   const historyPosRef = useRef(-1);
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
   const initedRef = useRef(false);
+  const startRef = useRef(Date.now());
 
-  const fs = useMemo(() => buildFs(levels, levelIndex, homeSegs), [levels, levelIndex, homeSegs.join('/')]);
-  const shell = useMemo(() => makeReadOnlyCommands({ fs, homeSegs, user }), [fs, homeSegs.join('/'), user]);
-
-  const appendLine = useCallback((line) => {
-    setOutput((prev) => [...prev, line]);
+  useEffect(() => {
+    const iv = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)), 1000);
+    return () => clearInterval(iv);
   }, []);
+
+  const appendLine = useCallback((line) => setOutput((prev) => [...prev, line]), []);
 
   useEffect(() => {
     if (initedRef.current) return;
     initedRef.current = true;
-    const level = levels[startLevel];
-    if (startLevel > 0) {
-      appendLine({ type: 'sys', text: `Resuming at Level ${startLevel + 1}: ${level.title}` });
+    if (evidenceViewed.size > 0) {
+      appendLine({ type: 'sys', text: `Resuming — ${evidenceViewed.size} piece(s) of evidence already reviewed.` });
     }
     appendLine({ type: 'sys', text: `Connected to ${hostname} as ${user}.` });
-    appendLine({ type: 'out', text: level.briefing });
+    appendLine({ type: 'out', text:
+      'The Meridian Bank case file vanished from this workstation overnight. Everything relevant is ' +
+      'somewhere under your home directory — nothing is locked behind a fixed order. Start with ' +
+      'case-file/brief.txt. Type "help" for commands, "hint" if you get stuck, and "accuse <name>" once ' +
+      'you\'re confident.' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -75,37 +71,60 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [output]);
 
-  const nextHint = useCallback((level) => {
-    const used = hintCounts[level.id] ?? 0;
-    const idx = Math.min(used, level.hints.length - 1);
-    setHintCounts((h) => ({ ...h, [level.id]: used + 1 }));
-    return `Hint: ${level.hints[idx]}`;
-  }, [hintCounts]);
+  const nextHint = useCallback(() => {
+    const idx = Math.min(hintIndex, hints.length - 1);
+    setHintIndex((i) => i + 1);
+    return `Hint: ${hints[idx]}`;
+  }, [hintIndex, hints]);
 
-  const completeCurrentLevel = useCallback((currentLevel, currentIndex) => {
-    const next = currentIndex + 1;
-    if (next >= levels.length) {
-      appendLine({ type: 'ok', text: `\n✓ CASE CLOSED — all ${levels.length} pieces of evidence recovered on ${hostname}.` });
-      setFinished(true);
-      onComplete?.({
-        levelsCompleted: levels.length,
-        totalLevels: levels.length,
-        markersFound: levels.map((l) => l.marker),
-      });
-      return;
+  const recordEvidence = useCallback((paths) => {
+    if (!paths || !paths.length) return;
+    // cat/head/tail/non-recursive-grep report the full absolute path (home-
+    // prefixed, e.g. "home/intern/case-file/brief.txt"); recursive grep
+    // reports paths relative to whatever the student typed as the search
+    // root. KEY_EVIDENCE is always written home-relative ("case-file/
+    // brief.txt") — strip the home prefix here so both shapes match it.
+    const homePrefix = homeSegs.join('/') + '/';
+    setEvidenceViewed((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const raw of paths) {
+        const p = raw.startsWith(homePrefix) ? raw.slice(homePrefix.length) : raw;
+        if (keyEvidence.includes(p) && !next.has(p)) { next.add(p); changed = true; }
+      }
+      if (!changed) return prev;
+      const pct = Math.round((next.size / keyEvidence.length) * 100);
+      updateProgress(assignmentId, pct, { evidenceViewed: [...next], wrongAttempts }).catch(() => {});
+      return next;
+    });
+  }, [assignmentId, keyEvidence, wrongAttempts, homeSegs]);
+
+  const cmdAccuse = useCallback((argsStr) => {
+    const name = argsStr.trim().toLowerCase();
+    if (!name) return { err: 'usage: accuse <name>' };
+    const isCorrect = culpritAliases.some((a) => a.toLowerCase() === name) || name === culprit.toLowerCase();
+    if (!isCorrect) {
+      setWrongAttempts((n) => n + 1);
+      return { err: `That doesn't hold up against the evidence. Keep investigating — "hint" if you want a nudge.` };
     }
-    const nextLevel = levels[next];
-    appendLine({ type: 'ok', text: `✓ Evidence recovered: ${currentLevel.marker}. Advancing to Level ${next + 1}: ${nextLevel.title}.` });
-    appendLine({ type: 'out', text: nextLevel.briefing });
-    setLevelIndex(next);
-    setCwd([...homeSegs, nextLevel.id]);
-    const pct = Math.round((next / levels.length) * 100);
-    updateProgress(assignmentId, pct, { levelIndex: next }).catch(() => {});
-  }, [appendLine, assignmentId, onComplete, levels, hostname, homeSegs.join('/')]);
+    appendLine({
+      type: 'ok',
+      text: `\n✓ CASE CLOSED — ${evidenceViewed.size}/${keyEvidence.length} pieces of key evidence reviewed, ${wrongAttempts} earlier accusation(s) before this one.`,
+    });
+    setFinished(true);
+    onComplete?.({
+      accused: name,
+      wrongAttempts,
+      evidenceViewed: [...evidenceViewed],
+      totalKeyEvidence: keyEvidence.length,
+      elapsedSeconds: elapsed,
+    });
+    return { out: '' };
+  }, [culprit, culpritAliases, evidenceViewed, wrongAttempts, keyEvidence.length, onComplete, elapsed, appendLine]);
 
   const runCommand = useCallback((raw) => {
     const trimmed = raw.trim();
-    appendLine({ type: 'cmd', text: `analyst@${hostname}:${displayPath(cwd, homeSegs)}$ ${raw}` });
+    appendLine({ type: 'cmd', text: `${user}@${hostname}:${displayPath(cwd, homeSegs)}$ ${raw}` });
     if (!trimmed) return;
     setHistory((h) => [...h, raw]);
     historyPosRef.current = -1;
@@ -113,7 +132,6 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
     const spaceIdx = trimmed.indexOf(' ');
     const cmd = spaceIdx === -1 ? trimmed : trimmed.slice(0, spaceIdx);
     const argsStr = spaceIdx === -1 ? '' : trimmed.slice(spaceIdx + 1).trim();
-    const level = levels[levelIndex];
 
     let result;
     switch (cmd) {
@@ -133,22 +151,17 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
       case 'find':   result = shell.cmdFind(argsStr, cwd); break;
       case 'whoami': result = { out: user }; break;
       case 'help':   result = { out: HELP_TEXT }; break;
-      case 'hint':   result = { out: nextHint(level) }; break;
+      case 'hint':   result = { out: nextHint() }; break;
+      case 'accuse': result = cmdAccuse(argsStr); break;
       case 'clear':  setOutput([]); return;
       default:       result = { err: `bash: ${cmd}: command not found` };
     }
 
     if (result?.out) appendLine({ type: 'out', text: result.out });
     if (result?.err) appendLine({ type: 'err', text: result.err });
-
-    if (!finished) {
-      const combined = `${result?.out ?? ''}\n${result?.err ?? ''}`;
-      if (combined.includes(level.marker)) {
-        completeCurrentLevel(level, levelIndex);
-      }
-    }
+    if (result?.readPaths) recordEvidence(result.readPaths);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cwd, levelIndex, finished, appendLine, nextHint, completeCurrentLevel, shell]);
+  }, [cwd, homeSegs, hostname, user, appendLine, shell, nextHint, cmdAccuse, recordEvidence]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
@@ -185,14 +198,17 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
     }
   };
 
-  const level = levels[levelIndex];
-  const pct = Math.round((levelIndex / levels.length) * 100);
+  const pct = Math.round((evidenceViewed.size / keyEvidence.length) * 100);
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const ss = String(elapsed % 60).padStart(2, '0');
 
   return (
     <div className="term-wrap" style={{ '--term-accent': color }}>
       <div className="term-toolbar">
         <div className="term-dots"><span /><span /><span /></div>
-        <div className="term-title">analyst@{hostname} — Level {levelIndex + 1}/{levels.length}: {level.title}</div>
+        <div className="term-title">
+          {user}@{hostname} — Investigation: {Math.min(evidenceViewed.size, keyEvidence.length)}/{keyEvidence.length} evidence · {mm}:{ss}
+        </div>
       </div>
 
       <div className="term-progress-track">
@@ -205,7 +221,7 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
         ))}
         {!finished && (
           <div className="term-input-row">
-            <span className="term-prompt">analyst@{hostname}:{displayPath(cwd, homeSegs)}$</span>
+            <span className="term-prompt">{user}@{hostname}:{displayPath(cwd, homeSegs)}$</span>
             <input
               ref={inputRef}
               className="term-input"
