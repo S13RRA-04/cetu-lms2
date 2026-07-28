@@ -23,8 +23,11 @@ export default function TTXFacilitator() {
 
   const [elapsed, setElapsed] = useState(0);
   const [running, setRunning] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(true);
   const startRef = useRef(null);
   const rollTimerRef = useRef(null);
+  const procedureLogRef = useRef(null);
+  const injectLogRef = useRef(null);
 
   useEffect(() => {
     if (!running) return;
@@ -33,6 +36,12 @@ export default function TTXFacilitator() {
   }, [running]);
 
   useEffect(() => () => clearInterval(rollTimerRef.current), []);
+
+  // New entries are prepended (newest on top) — without this, browser scroll
+  // anchoring can keep the scroll position pinned to older content below,
+  // visually cropping the newest card at the top of the log.
+  useEffect(() => { if (procedureLogRef.current) procedureLogRef.current.scrollTop = 0; }, [procedureLog]);
+  useEffect(() => { if (injectLogRef.current) injectLogRef.current.scrollTop = 0; }, [injectsDrawn]);
 
   function newSession() {
     setScenario(null);
@@ -98,6 +107,21 @@ export default function TTXFacilitator() {
         </div>
       </div>
 
+      <div className="ttx-guide">
+        <button className="ttx-guide-toggle" onClick={() => setGuideOpen((o) => !o)}>
+          <span>How to run this exercise</span>
+          <span className={`course-day-chevron${guideOpen ? ' open' : ''}`}>›</span>
+        </button>
+        {guideOpen && (
+          <ol className="ttx-guide-steps">
+            <li><strong>Draw a scenario</strong> and read it aloud. Ask the group: what's your first move?</li>
+            <li>Once the team names a response, <strong>roll for a procedure</strong> — that's the technique in play. Ask them to describe what they'd actually do with it, and what it would reveal.</li>
+            <li><strong>Draw an inject</strong> whenever you want to raise the stakes or test adaptability — introduce it mid-discussion, not as a new question.</li>
+            <li>Repeat rolls and injects until the scenario feels resolved, then debrief: what worked, what stalled, what would the team do differently next time.</li>
+          </ol>
+        )}
+      </div>
+
       <div className="ttx-board">
         <section className="ttx-panel">
           <div className="ttx-panel-head">
@@ -106,6 +130,7 @@ export default function TTXFacilitator() {
               {scenario ? 'Redraw' : 'Draw Scenario'}
             </button>
           </div>
+          <p className="ttx-panel-hint">Read this aloud to open the exercise.</p>
           {scenario ? (
             <div className="ttx-card ttx-card-scenario">
               {scenario.illustration && (
@@ -126,13 +151,14 @@ export default function TTXFacilitator() {
               {rolling ? 'Rolling…' : 'Roll for Procedure'}
             </button>
           </div>
+          <p className="ttx-panel-hint">Roll once the team names what they'd try next.</p>
           {rollFace !== null && (
             <div className={`ttx-die${rolling ? ' ttx-die-rolling' : ''}`}>{rollFace}</div>
           )}
           {!rolling && procedureLog[0] && (
             <img className="ttx-card-art ttx-card-art-sm" src={procedureLog[0].illustration} alt="" />
           )}
-          <div className="ttx-log">
+          <div className="ttx-log" ref={procedureLogRef}>
             {procedureLog.length === 0 && !rolling && <div className="ttx-card-empty">No rolls yet.</div>}
             {procedureLog.map((entry, i) => (
               <div key={i} className="ttx-log-row">
@@ -148,7 +174,8 @@ export default function TTXFacilitator() {
             <span className="ttx-panel-label">Injects</span>
             <button className="btn-sm-primary" onClick={drawInject}>Draw Inject</button>
           </div>
-          <div className="ttx-log">
+          <p className="ttx-panel-hint">Drop one in mid-discussion to raise the stakes.</p>
+          <div className="ttx-log" ref={injectLogRef}>
             {injectsDrawn.length === 0 && <div className="ttx-card-empty">No injects drawn yet.</div>}
             {injectsDrawn.map((inj, i) => (
               <div key={i} className="ttx-card ttx-card-inject">
