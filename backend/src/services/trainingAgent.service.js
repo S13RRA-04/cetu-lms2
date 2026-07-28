@@ -32,7 +32,7 @@ const HINT_RULES = [
   { id: 'staged',           check: (ctx) => !ctx.evidence.has('evidence/staged_files_manifest.txt'),
     hint: 'evidence/staged_files_manifest.txt will tell you what was actually being staged for exfiltration, and where.' },
   { id: 'need_subpoena',    check: (ctx) => !ctx.approved.has('subpoena'),
-    hint: 'The external IP itself is outside this company\'s own records — you\'ll need to request legal process from the AUSA before you can learn anything more about it. Start with the lowest tier: an administrative subpoena.' },
+    hint: 'The external IP itself is outside this company\'s own records — you\'ll need to request legal process from the AUSA before you can learn anything more about it. Start with the lowest tier: a grand jury subpoena.' },
   { id: 'review_subpoena',  check: (ctx) => !ctx.evidence.has('subpoena-returns/isp_subscriber_info.txt'),
     hint: 'Now that the subpoena is back, review subpoena-returns/isp_subscriber_info.txt in the terminal before your next request.' },
   { id: 'need_2703d',       check: (ctx) => !ctx.approved.has('order_2703d'),

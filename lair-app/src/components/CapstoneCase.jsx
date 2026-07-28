@@ -18,7 +18,7 @@ import {
  * a round trip. If the backend order ever changes, update this too.
  */
 const PROCESS_TYPES = [
-  { id: 'subpoena',      label: 'Administrative Subpoena', threshold: 'relevance',                        tree: SUBPOENA_TREE },
+  { id: 'subpoena',      label: 'Grand Jury Subpoena',     threshold: 'relevance',                        tree: SUBPOENA_TREE },
   { id: 'order_2703d',   label: '§2703(d) Order',           threshold: 'specific and articulable facts',   tree: ORDER_2703D_TREE },
   { id: 'search_warrant', label: 'Search Warrant',          threshold: 'probable cause',                    tree: RESIDENCE_TREE },
 ];

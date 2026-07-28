@@ -26,7 +26,7 @@ const CASE_BRIEF =
   'the workstation\'s own logs during the relevant period) running commands that staged a copy of ' +
   'client financial records into a hidden directory shortly before each outbound connection. The ' +
   'external IP itself, and anything about who owns/controls it, is outside the company\'s own records — ' +
-  'that requires third-party legal process, escalating in authority: (1) an administrative subpoena for ' +
+  'that requires third-party legal process, escalating in authority: (1) a grand jury subpoena for ' +
   'basic subscriber/account information tied to that IP, (2) an 18 U.S.C. §2703(d) order for non-content ' +
   'communications metadata from that account, and (3) a search warrant for the residence of whoever the ' +
   'first two steps implicate, once probable cause is established.';
@@ -50,7 +50,7 @@ const CASE_BRIEF =
 const PROCESS_TYPES = [
   {
     id: 'subpoena',
-    label: 'Administrative Subpoena',
+    label: 'Grand Jury Subpoena',
     threshold: 'relevance',
     elements: [
       {

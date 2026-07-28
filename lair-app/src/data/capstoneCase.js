@@ -10,7 +10,7 @@
  * sync with the trees below):
  *   BASE_TREE           — always available: the workstation owner's own
  *                          consented log review, no process needed.
- *   SUBPOENA_TREE        — unlocked once the administrative subpoena
+ *   SUBPOENA_TREE        — unlocked once the grand jury subpoena
  *                          (relevance) is approved.
  *   ORDER_2703D_TREE     — unlocked once the §2703(d) order (specific and
  *                          articulable facts) is approved.
