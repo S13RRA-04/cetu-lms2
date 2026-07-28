@@ -11,6 +11,11 @@ import {
   CULPRIT as LAB_CULPRIT, CULPRIT_ALIASES as LAB_CULPRIT_ALIASES,
   KEY_EVIDENCE as LAB_KEY_EVIDENCE, HINTS as LAB_HINTS,
 } from '../data/investigationCase.js';
+import {
+  TREE as VK_TREE, HOSTNAME as VK_HOSTNAME, USER as VK_USER,
+  CULPRIT as VK_CULPRIT, CULPRIT_ALIASES as VK_CULPRIT_ALIASES,
+  KEY_EVIDENCE as VK_KEY_EVIDENCE, HINTS as VK_HINTS,
+} from '../data/advancedInvestigationCase.js';
 
 /**
  * Every `type: 'game'` assignment renders an interactive game — keyed by
@@ -31,6 +36,13 @@ const GAME_PACKS = {
     tree: LAB_TREE, hostname: LAB_HOSTNAME, user: LAB_USER,
     culprit: LAB_CULPRIT, culpritAliases: LAB_CULPRIT_ALIASES,
     keyEvidence: LAB_KEY_EVIDENCE, hints: LAB_HINTS,
+  },
+  'e1a10008-0000-0000-0000-000000000016': {
+    Component: InvestigationGame,
+    tree: VK_TREE, hostname: VK_HOSTNAME, user: VK_USER,
+    culprit: VK_CULPRIT, culpritAliases: VK_CULPRIT_ALIASES,
+    keyEvidence: VK_KEY_EVIDENCE, hints: VK_HINTS,
+    commandSet: 'advanced',
   },
 };
 

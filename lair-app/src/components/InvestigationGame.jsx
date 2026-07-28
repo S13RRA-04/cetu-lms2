@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { updateProgress } from '../api/lair.js';
 import { dir } from '../utils/shellLex.js';
-import { displayPath, completeToken, makeReadOnlyCommands } from '../utils/readOnlyShell.js';
+import { displayPath, completeToken, makeReadOnlyCommands, runPipeline } from '../utils/readOnlyShell.js';
 
-const COMMANDS = ['pwd', 'ls', 'cd', 'cat', 'less', 'more', 'head', 'tail', 'file', 'grep', 'find', 'whoami', 'hint', 'accuse', 'clear', 'help'];
+const BASIC_COMMANDS = ['pwd', 'ls', 'cd', 'cat', 'less', 'more', 'head', 'tail', 'file', 'grep', 'find', 'whoami', 'hint', 'accuse', 'clear', 'help'];
+const ADVANCED_COMMANDS = [...BASIC_COMMANDS, 'sort', 'uniq', 'wc', 'cut', 'diff', 'stat'];
 
-const HELP_TEXT =
+const BASIC_HELP =
   'Available commands:\n' +
   '  pwd                 print working directory\n' +
   '  ls [-a] [-l]        list directory contents\n' +
@@ -21,10 +22,24 @@ const HELP_TEXT =
   '  accuse <name>       name who you believe deleted the case file\n' +
   '  clear               clear the screen';
 
+const ADVANCED_HELP =
+  BASIC_HELP +
+  '\n\nCommands can be chained with a pipe, e.g. grep "x" file | sort | uniq -c\n' +
+  '  sort [-n] [-r]        sort piped lines (numerically / reversed)\n' +
+  '  uniq [-c]              collapse adjacent duplicate lines (count with -c) — usually after sort\n' +
+  '  wc [-l] [-w] [-c]      count lines/words/characters of piped text\n' +
+  '  cut -d <delim> -f <N>  extract field N from piped delimited lines\n' +
+  '  diff <fileA> <fileB>   show lines that differ between two files\n' +
+  '  stat <path>             show a file\'s permissions, owner, size, and modified time';
+
 export default function InvestigationGame({
   assignmentId, color, initialState, onComplete,
   tree, hostname, user, culprit, culpritAliases, keyEvidence, hints,
+  commandSet = 'basic',
 }) {
+  const isAdvanced = commandSet === 'advanced';
+  const COMMANDS = isAdvanced ? ADVANCED_COMMANDS : BASIC_COMMANDS;
+  const HELP_TEXT = isAdvanced ? ADVANCED_HELP : BASIC_HELP;
   const homeSegs = useMemo(() => ['home', user], [user]);
   const fs = useMemo(() => dir({ home: dir({ [user]: tree }) }), [tree, user]);
   const shell = useMemo(() => makeReadOnlyCommands({ fs, homeSegs, user }), [fs, homeSegs, user]);
@@ -129,6 +144,14 @@ export default function InvestigationGame({
     setHistory((h) => [...h, raw]);
     historyPosRef.current = -1;
 
+    if (isAdvanced && trimmed.includes('|')) {
+      const result = runPipeline(trimmed, shell, cwd);
+      if (result?.out) appendLine({ type: 'out', text: result.out });
+      if (result?.err) appendLine({ type: 'err', text: result.err });
+      if (result?.readPaths) recordEvidence(result.readPaths);
+      return;
+    }
+
     const spaceIdx = trimmed.indexOf(' ');
     const cmd = spaceIdx === -1 ? trimmed : trimmed.slice(0, spaceIdx);
     const argsStr = spaceIdx === -1 ? '' : trimmed.slice(spaceIdx + 1).trim();
@@ -149,6 +172,13 @@ export default function InvestigationGame({
       case 'file':   result = shell.cmdFile(argsStr, cwd); break;
       case 'grep':   result = shell.cmdGrep(argsStr, cwd); break;
       case 'find':   result = shell.cmdFind(argsStr, cwd); break;
+      case 'diff':   result = isAdvanced ? shell.cmdDiff(argsStr, cwd) : { err: `bash: diff: command not found` }; break;
+      case 'stat':   result = isAdvanced ? shell.cmdStat(argsStr, cwd) : { err: `bash: stat: command not found` }; break;
+      case 'sort': case 'uniq': case 'wc': case 'cut':
+        result = isAdvanced
+          ? { err: `${cmd}: expects piped input, e.g. cat file | ${cmd}` }
+          : { err: `bash: ${cmd}: command not found` };
+        break;
       case 'whoami': result = { out: user }; break;
       case 'help':   result = { out: HELP_TEXT }; break;
       case 'hint':   result = { out: nextHint() }; break;
@@ -161,7 +191,7 @@ export default function InvestigationGame({
     if (result?.err) appendLine({ type: 'err', text: result.err });
     if (result?.readPaths) recordEvidence(result.readPaths);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cwd, homeSegs, hostname, user, appendLine, shell, nextHint, cmdAccuse, recordEvidence]);
+  }, [cwd, homeSegs, hostname, user, appendLine, shell, nextHint, cmdAccuse, recordEvidence, isAdvanced]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {

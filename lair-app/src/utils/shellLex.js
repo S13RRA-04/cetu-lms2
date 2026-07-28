@@ -48,6 +48,7 @@ export function file(content, opts = {}) {
     perms: opts.perms ?? '-rw-r--r--',
     owner: opts.owner ?? 'analyst',
     hidden: opts.hidden ?? false,
+    mtime: opts.mtime ?? 'Jul 24 03:14',
     content,
   };
 }
