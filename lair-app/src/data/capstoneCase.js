@@ -1,14 +1,21 @@
 /**
- * LAIR capstone — "Operation Quiet Ledger" (vertical slice v1). Original
- * content written for this course (same standing rule as every other
- * case in this project). Rendered by InvestigationGame.jsx (reused, not
- * reimplemented) inside CapstoneCase.jsx's terminal panel.
+ * LAIR capstone — "Operation Quiet Ledger". Original content written for
+ * this course (same standing rule as every other case in this project).
+ * Rendered by InvestigationGame.jsx (reused, not reimplemented) inside
+ * CapstoneCase.jsx's terminal panel.
  *
- * BASE_TREE is everything the analyst may lawfully review from the start —
- * the workstation owner's own consented log review, no warrant needed.
- * POST_WARRANT_TREE is only merged in once the backend's legal_requests
- * gate approves the residence search warrant (see legalRequest.service.js —
- * its unlocked_evidence_keys must stay in sync with these paths).
+ * Evidence unlocks in three tiers, each gated by its own legal-process
+ * request in sequence (see backend/src/services/legalRequest.service.js's
+ * PROCESS_TYPES — the order and unlocksEvidence paths there must stay in
+ * sync with the trees below):
+ *   BASE_TREE           — always available: the workstation owner's own
+ *                          consented log review, no process needed.
+ *   SUBPOENA_TREE        — unlocked once the administrative subpoena
+ *                          (relevance) is approved.
+ *   ORDER_2703D_TREE     — unlocked once the §2703(d) order (specific and
+ *                          articulable facts) is approved.
+ *   RESIDENCE_TREE       — unlocked once the search warrant (probable
+ *                          cause) is approved.
  *
  * CASE_BRIEF in backend/src/services/legalRequest.service.js is a hand-kept
  * copy of the facts below, used to prompt the AUSA persona — keep both in
@@ -46,10 +53,12 @@ export const BASE_TREE = dir({
   'case-file': dir({
     'brief.txt': file(
       'The owner of this contractor workstation noticed unexpected data-usage spikes overnight and ' +
-      'consented to a full review of the machine\'s own logs — no warrant is needed for that, it\'s his ' +
-      'own equipment. You have shell access as analyst. Review connection logs, auth logs, and the staged-' +
-      'file evidence below, then use the Legal Process panel to request whatever comes next once you can ' +
-      'articulate why it\'s needed. Nothing under post-warrant/ exists until that request is approved.\n'
+      'consented to a full review of the machine\'s own logs — no legal process is needed for that, it\'s ' +
+      'his own equipment. You have shell access as analyst. Review connection logs, auth logs, and the ' +
+      'staged-file evidence below, then use the Legal Process panel to request whatever comes next once ' +
+      'you can articulate why it\'s needed. Anything beyond this machine\'s own records — who controls the ' +
+      'external IP, their communications, their home — is outside the company\'s own records and requires ' +
+      'its own legal process, escalating step by step. Nothing further exists until each step is approved.\n'
     ),
     'personnel_note.txt': file(
       'Two employees have console access to this workstation after hours: Daniel Reyes (junior analyst, ' +
@@ -72,12 +81,32 @@ export const BASE_TREE = dir({
   }),
 });
 
-export const POST_WARRANT_TREE = dir({
+export const SUBPOENA_TREE = dir({
+  'subpoena-returns': dir({
+    'isp_subscriber_info.txt': file(
+      'Subscriber records returned for the external IP: it resolves to a personal cloud-storage account, ' +
+      'not a corporate one. That distinction matters — it\'s outside the workstation owner\'s own consent ' +
+      'and outside the company\'s own records entirely, which is exactly why this required its own legal ' +
+      'process rather than just being pulled from the workstation.\n'
+    ),
+  }),
+});
+
+export const ORDER_2703D_TREE = dir({
+  'comms-metadata': dir({
+    'email_header_log.txt': file(
+      'Non-content header metadata (sender/recipient/timestamp only, no message bodies) for that account, ' +
+      'covering the same window as the workstation\'s own logs. The login timestamps on this account line ' +
+      'up with the outbound connection log almost to the minute, each of the six occasions.\n'
+    ),
+  }),
+});
+
+export const RESIDENCE_TREE = dir({
   'post-warrant': dir({
     'residence-search.txt': file(
-      'Search of Daniel Reyes\'s residence executed under warrant. A personal laptop and an external ' +
-      'drive were located in a desk drawer, both powered on and connected to the home network at the time ' +
-      'of entry.\n'
+      'Search of the residence executed under warrant. A personal laptop and an external drive were ' +
+      'located in a desk drawer, both powered on and connected to the home network at the time of entry.\n'
     ),
     'seized-devices.txt': file(
       'Seized: 1x personal laptop (matches MAC address seen initiating the outbound TLS sessions), 1x ' +
@@ -94,6 +123,8 @@ export const KEY_EVIDENCE = [
   'system-logs/outbound_connections.log',
   'system-logs/auth_and_commands.log',
   'evidence/staged_files_manifest.txt',
+  'subpoena-returns/isp_subscriber_info.txt',
+  'comms-metadata/email_header_log.txt',
   'post-warrant/residence-search.txt',
   'post-warrant/seized-devices.txt',
 ];
@@ -102,7 +133,8 @@ export const HINTS = [
   'Start with case-file/brief.txt, then case-file/personnel_note.txt.',
   'Compare system-logs/outbound_connections.log timestamps against system-logs/auth_and_commands.log.',
   'evidence/staged_files_manifest.txt explains what was actually being exfiltrated.',
-  'Once you can name who, what, and why it\'s tied to his home, use the Legal Process panel to request a search warrant.',
-  'After the warrant is approved, review everything under post-warrant/ before you accuse.',
-  'When you\'re confident, run: accuse <last name>',
+  'The external IP itself is outside the company\'s own records — use the Legal Process panel to request ' +
+  'whatever comes next, one step at a time.',
+  'Each approved request unlocks the next tier of evidence — review it before requesting the next step.',
+  'Once every step is granted and reviewed, run: accuse <last name>',
 ];

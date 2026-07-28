@@ -8,8 +8,8 @@ async function list(req, res, next) {
 
 async function submit(req, res, next) {
   try {
-    const { message, requestId, requestType } = req.body;
-    const request = await legalRequestService.submitOrContinue(req.params.aid, req.user.id, requestId ?? null, message, requestType);
+    const { message, requestId } = req.body;
+    const request = await legalRequestService.submitOrContinue(req.params.aid, req.user.id, requestId ?? null, message);
     return res.status(201).json(request);
   } catch (err) { return next(err); }
 }

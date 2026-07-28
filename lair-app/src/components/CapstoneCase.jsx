@@ -3,12 +3,22 @@ import { getLegalRequests, submitLegalRequest } from '../api/lair.js';
 import { dir } from '../utils/shellLex.js';
 import InvestigationGame from './InvestigationGame.jsx';
 import {
-  BASE_TREE, POST_WARRANT_TREE, HOSTNAME, USER,
-  CULPRIT, CULPRIT_ALIASES, KEY_EVIDENCE, HINTS,
+  BASE_TREE, SUBPOENA_TREE, ORDER_2703D_TREE, RESIDENCE_TREE,
+  HOSTNAME, USER, CULPRIT, CULPRIT_ALIASES, KEY_EVIDENCE, HINTS,
 } from '../data/capstoneCase.js';
 
-const STATUS_LABEL = { pending: 'Pending review', approved: 'Approved', denied: 'Denied' };
-const STATUS_COLOR = { pending: '#e8b339', approved: '#33ff5e', denied: '#ef4444' };
+/**
+ * Mirrors backend/src/services/legalRequest.service.js's PROCESS_TYPES —
+ * display-only here (id/label/threshold, which tree each unlocks). The
+ * server alone decides the actual sequencing/gate; this is just so the UI
+ * can label whichever step comes back and show a progression strip without
+ * a round trip. If the backend order ever changes, update this too.
+ */
+const PROCESS_TYPES = [
+  { id: 'subpoena',      label: 'Administrative Subpoena', threshold: 'relevance',                        tree: SUBPOENA_TREE },
+  { id: 'order_2703d',   label: '§2703(d) Order',           threshold: 'specific and articulable facts',   tree: ORDER_2703D_TREE },
+  { id: 'search_warrant', label: 'Search Warrant',          threshold: 'probable cause',                    tree: RESIDENCE_TREE },
+];
 
 export default function CapstoneCase({ assignmentId, color, initialState, onComplete }) {
   const [requests, setRequests]   = useState([]);
@@ -24,19 +34,34 @@ export default function CapstoneCase({ assignmentId, color, initialState, onComp
       .finally(() => setLoading(false));
   }, [assignmentId]);
 
+  const approvedIds = useMemo(
+    () => requests.filter((r) => r.status === 'approved').map((r) => r.request_type),
+    [requests],
+  );
+
   const activeRequest = useMemo(() => {
     const pending = requests.find((r) => r.status === 'pending');
     if (pending) return pending;
     return requests[requests.length - 1] ?? null;
   }, [requests]);
 
-  const isApproved = activeRequest?.status === 'approved'
-    || (initialState?.unlockedEvidence?.length ?? 0) > 0;
+  const nextType = useMemo(
+    () => PROCESS_TYPES.find((p) => !approvedIds.includes(p.id)) ?? null,
+    [approvedIds],
+  );
+
+  const fullyEscalated = !nextType;
+  const currentType = activeRequest?.status === 'pending'
+    ? PROCESS_TYPES.find((p) => p.id === activeRequest.request_type)
+    : nextType;
 
   const tree = useMemo(() => {
-    if (!isApproved) return BASE_TREE;
-    return dir({ ...BASE_TREE.children, ...POST_WARRANT_TREE.children });
-  }, [isApproved]);
+    let merged = { ...BASE_TREE.children };
+    for (const p of PROCESS_TYPES) {
+      if (approvedIds.includes(p.id)) merged = { ...merged, ...p.tree.children };
+    }
+    return dir(merged);
+  }, [approvedIds]);
 
   const handleSend = useCallback(async (e) => {
     e.preventDefault();
@@ -70,25 +95,25 @@ export default function CapstoneCase({ assignmentId, color, initialState, onComp
         <div className="section-label">Case Dashboard</div>
         <div className="briefing-box" style={{ marginBottom: 16 }}>
           A workstation has been making unexplained outbound connections. Review the consented log data,
-          then request whatever legal process you need from the AUSA before anything further unlocks.
+          then request whatever legal process you need from the AUSA — one step at a time — before
+          anything further unlocks.
         </div>
 
         <div className="capstone-status-row">
-          <div className="capstone-status-chip">
-            <span className="capstone-status-key">Legal Process</span>
-            <span
-              className="capstone-status-val"
-              style={{ color: activeRequest ? STATUS_COLOR[activeRequest.status] : 'var(--muted)' }}
-            >
-              {loading ? 'Loading…' : activeRequest ? STATUS_LABEL[activeRequest.status] : 'Not yet requested'}
-            </span>
-          </div>
-          <div className="capstone-status-chip">
-            <span className="capstone-status-key">Post-Warrant Evidence</span>
-            <span className="capstone-status-val" style={{ color: isApproved ? '#33ff5e' : 'var(--muted)' }}>
-              {isApproved ? 'Unlocked' : 'Locked'}
-            </span>
-          </div>
+          {PROCESS_TYPES.map((p) => {
+            const isApproved = approvedIds.includes(p.id);
+            const isCurrent  = !isApproved && currentType?.id === p.id;
+            const state = isApproved ? 'Approved' : isCurrent ? 'Current step' : 'Locked';
+            const stateColor = isApproved ? '#33ff5e' : isCurrent ? '#e8b339' : 'var(--muted)';
+            return (
+              <div className="capstone-status-chip" key={p.id}>
+                <span className="capstone-status-key">{p.label}</span>
+                <span className="capstone-status-val" style={{ color: stateColor }}>
+                  {loading ? '…' : state}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -98,7 +123,7 @@ export default function CapstoneCase({ assignmentId, color, initialState, onComp
         <div className="capstone-panel">
           <div className="section-label">Terminal — {HOSTNAME}</div>
           <InvestigationGame
-            key={isApproved ? 'unlocked' : 'locked'}
+            key={approvedIds.join(',')}
             assignmentId={assignmentId}
             color={color}
             initialState={initialState}
@@ -115,12 +140,14 @@ export default function CapstoneCase({ assignmentId, color, initialState, onComp
         </div>
 
         <div className="capstone-panel">
-          <div className="section-label">Legal Process — Request from the AUSA</div>
+          <div className="section-label">
+            Legal Process — {fullyEscalated ? 'All steps granted' : `Requesting: ${currentType.label}`}
+          </div>
           <div className="capstone-chat">
-            {(activeRequest?.transcript ?? []).length === 0 && (
+            {(activeRequest?.transcript ?? []).length === 0 && !fullyEscalated && (
               <div className="capstone-chat-empty">
-                No request submitted yet. Write your justification for a search warrant of Daniel Reyes's
-                residence below — reference specific evidence from the terminal.
+                No request submitted yet. Once you've built a case from the evidence in the terminal,
+                submit your justification below — reference specific evidence, not just a hunch.
               </div>
             )}
             {(activeRequest?.transcript ?? []).map((turn, i) => (
@@ -131,8 +158,8 @@ export default function CapstoneCase({ assignmentId, color, initialState, onComp
             ))}
           </div>
 
-          {isApproved ? (
-            <div className="success-banner">✓ Warrant approved — post-warrant evidence unlocked below.</div>
+          {fullyEscalated ? (
+            <div className="success-banner">✓ Every step has been granted — full evidence set unlocked below.</div>
           ) : (
             <form onSubmit={handleSend} className="capstone-chat-form">
               {error && <div className="err-msg" style={{ marginBottom: 8 }}>{error}</div>}
@@ -141,7 +168,7 @@ export default function CapstoneCase({ assignmentId, color, initialState, onComp
                 rows={3}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                placeholder="Articulate why a search warrant is needed…"
+                placeholder={`Articulate why a ${currentType.label.toLowerCase()} is needed…`}
                 disabled={sending}
               />
               <div className="action-row">
