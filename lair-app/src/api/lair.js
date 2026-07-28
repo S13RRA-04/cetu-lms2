@@ -64,6 +64,12 @@ export const submitLegalRequest = (assignmentId, { message, requestId, requestTy
     message, requestId, requestType,
   }).then((r) => r.data);
 
+/* ── Capstone Tactical Specialist (advisory OSINT consult) ── */
+export const sendTacticalMessage = (assignmentId, { history, message }) =>
+  client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/tactical-chat`, {
+    history, message,
+  }).then((r) => r.data);
+
 /* ── Cohorts ── */
 export const getCohorts = () =>
   client.get(`/courses/${COURSE_ID}/cohorts`).then((r) => {

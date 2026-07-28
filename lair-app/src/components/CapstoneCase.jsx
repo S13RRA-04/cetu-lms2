@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getLegalRequests, submitLegalRequest } from '../api/lair.js';
+import { getLegalRequests, submitLegalRequest, sendTacticalMessage } from '../api/lair.js';
 import { dir } from '../utils/shellLex.js';
 import InvestigationGame from './InvestigationGame.jsx';
 import {
@@ -88,6 +88,29 @@ export default function CapstoneCase({ assignmentId, color, initialState, onComp
       setSending(false);
     }
   }, [assignmentId, draft, sending, activeRequest]);
+
+  const [tacticalHistory, setTacticalHistory] = useState([]);
+  const [tacticalDraft, setTacticalDraft]     = useState('');
+  const [tacticalSending, setTacticalSending] = useState(false);
+  const [tacticalError, setTacticalError]     = useState('');
+
+  const handleTacticalSend = useCallback(async (e) => {
+    e.preventDefault();
+    if (!tacticalDraft.trim() || tacticalSending) return;
+    const message = tacticalDraft;
+    setTacticalSending(true);
+    setTacticalError('');
+    setTacticalHistory((prev) => [...prev, { role: 'user', content: message }]);
+    setTacticalDraft('');
+    try {
+      const { reply } = await sendTacticalMessage(assignmentId, { history: tacticalHistory, message });
+      setTacticalHistory((prev) => [...prev, { role: 'assistant', content: reply }]);
+    } catch (err) {
+      setTacticalError(err.response?.data?.error?.message ?? 'Failed to send — try again.');
+    } finally {
+      setTacticalSending(false);
+    }
+  }, [assignmentId, tacticalDraft, tacticalSending, tacticalHistory]);
 
   return (
     <div className="capstone-case">
@@ -179,6 +202,41 @@ export default function CapstoneCase({ assignmentId, color, initialState, onComp
             </form>
           )}
         </div>
+      </div>
+
+      <div className="capstone-panel capstone-panel-full">
+        <div className="section-label">Staff Operations — Tactical Specialist</div>
+        <div className="capstone-chat">
+          {tacticalHistory.length === 0 && (
+            <div className="capstone-chat-empty">
+              Consult with Staff Ops on anything you want run down — an IP address, a name, background on
+              someone with access. This is advisory only; it doesn't unlock evidence on its own.
+            </div>
+          )}
+          {tacticalHistory.map((turn, i) => (
+            <div key={i} className={`capstone-chat-msg capstone-chat-${turn.role}`}>
+              <span className="capstone-chat-role">{turn.role === 'user' ? 'You' : 'Staff Ops'}</span>
+              <span className="capstone-chat-text">{turn.content}</span>
+            </div>
+          ))}
+        </div>
+
+        <form onSubmit={handleTacticalSend} className="capstone-chat-form">
+          {tacticalError && <div className="err-msg" style={{ marginBottom: 8 }}>{tacticalError}</div>}
+          <textarea
+            className="response-textarea"
+            rows={2}
+            value={tacticalDraft}
+            onChange={(e) => setTacticalDraft(e.target.value)}
+            placeholder="Ask Staff Ops to run something down…"
+            disabled={tacticalSending}
+          />
+          <div className="action-row">
+            <button type="submit" className="btn-submit" style={{ background: color }} disabled={tacticalSending || !tacticalDraft.trim()}>
+              {tacticalSending ? 'Sending…' : 'Ask Staff Ops'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
