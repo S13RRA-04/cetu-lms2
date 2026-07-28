@@ -1,6 +1,6 @@
 'use strict';
 const { LegalRequest, Assignment, Submission } = require('../models');
-const { callClaude } = require('../config/anthropic');
+const { callGemini } = require('../config/gemini');
 const { NotFoundError, AppError, ForbiddenError } = require('../utils/errors');
 
 const MAX_TURNS = 8; // user+assistant pairs; caps LLM cost/abuse per request
@@ -119,7 +119,7 @@ async function submitOrContinue(assignmentId, userId, requestId, message, reques
   const allMet = elements.every((el) => met[el.id]);
 
   const systemPrompt = buildSystemPrompt(request.request_type, elements, met);
-  const reply = await callClaude(systemPrompt, transcript.map((t) => ({ role: t.role, content: t.content })));
+  const reply = await callGemini(systemPrompt, transcript.map((t) => ({ role: t.role, content: t.content })));
 
   transcript.push({ role: 'assistant', content: reply, created_at: new Date().toISOString() });
 
