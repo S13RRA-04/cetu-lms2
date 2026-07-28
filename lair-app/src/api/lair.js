@@ -55,6 +55,15 @@ export const submitGrade = (assignmentId, userId, data) =>
 export const getSurveyResults = (assignmentId) =>
   client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/survey-results`).then((r) => r.data);
 
+/* ── Capstone legal-process requests (AUSA persona gate) ── */
+export const getLegalRequests = (assignmentId) =>
+  client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/legal-requests`).then((r) => r.data);
+
+export const submitLegalRequest = (assignmentId, { message, requestId, requestType }) =>
+  client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/legal-requests`, {
+    message, requestId, requestType,
+  }).then((r) => r.data);
+
 /* ── Cohorts ── */
 export const getCohorts = () =>
   client.get(`/courses/${COURSE_ID}/cohorts`).then((r) => {

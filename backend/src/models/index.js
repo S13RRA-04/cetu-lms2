@@ -32,6 +32,7 @@ const IntelBoard            = require('./IntelBoard')(sequelize);
 const SquadChallengeState   = require('./SquadChallengeState')(sequelize);
 const SquadPuzzleCompletion = require('./SquadPuzzleCompletion')(sequelize);
 const DropLocationSelection = require('./DropLocationSelection')(sequelize);
+const LegalRequest          = require('./LegalRequest')(sequelize);
 
 // ── User ↔ Course (instructor relationship) ────────────────────────────────
 Course.belongsTo(User, { as: 'instructor', foreignKey: 'instructor_id' });
@@ -163,6 +164,12 @@ IntelBoard.belongsTo(Course, { foreignKey: 'course_id', as: 'course' });
 SquadChallengeState.belongsTo(Assignment, { foreignKey: 'assignment_id', as: 'assignment' });
 SquadChallengeState.belongsTo(Squad,      { foreignKey: 'squad_id',      as: 'squad'      });
 
+// ── LegalRequest associations (capstone AUSA legal-process gate) ──────────────
+Assignment.hasMany(LegalRequest, { as: 'legalRequests', foreignKey: 'assignment_id', onDelete: 'CASCADE' });
+LegalRequest.belongsTo(Assignment,                      { foreignKey: 'assignment_id' });
+LegalRequest.belongsTo(User, { foreignKey: 'user_id', as: 'student' });
+User.hasMany(LegalRequest,                              { foreignKey: 'user_id' });
+
 module.exports = {
   sequelize,
   User,
@@ -196,4 +203,5 @@ module.exports = {
   SquadChallengeState,
   SquadPuzzleCompletion,
   DropLocationSelection,
+  LegalRequest,
 };

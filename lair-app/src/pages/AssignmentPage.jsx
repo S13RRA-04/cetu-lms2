@@ -5,6 +5,7 @@ import QuizFlow from '../components/QuizFlow.jsx';
 import TerminalGame from '../components/TerminalGame.jsx';
 import InvestigationGame from '../components/InvestigationGame.jsx';
 import SpeedrunArena from '../components/SpeedrunArena.jsx';
+import CapstoneCase from '../components/CapstoneCase.jsx';
 import { LEVELS as CORVID_LEVELS, HOSTNAME as CORVID_HOSTNAME, USER as CORVID_USER } from '../data/terminalGameLevels.js';
 import {
   TREE as LAB_TREE, HOSTNAME as LAB_HOSTNAME, USER as LAB_USER,
@@ -52,6 +53,7 @@ const TYPE_COLOR = {
   survey:     '#a78bfa',
   game:       '#33ff5e',
   challenge:  '#39d6ff',
+  capstone:   '#fb923c',
 };
 
 const PCT_STEPS = [0, 25, 50, 75, 100];
@@ -196,8 +198,9 @@ export default function AssignmentPage() {
   const isGame     = !isLocked && assignment.type === 'game';
   const { Component: GameComponent, ...gamePack } = GAME_PACKS[id] ?? GAME_PACKS['e1a10005-0000-0000-0000-000000000013'];
   const isSpeedrun = !isLocked && assignment.type === 'challenge';
+  const isCapstone = !isLocked && assignment.type === 'capstone';
   /* hasQuiz: any type with questions uses QuizFlow (modules and assessments with a question bank) */
-  const hasQuiz    = !isLocked && !isSurvey && !isGame && !isSpeedrun && Array.isArray(assignment.questions) && assignment.questions.length > 0;
+  const hasQuiz    = !isLocked && !isSurvey && !isGame && !isSpeedrun && !isCapstone && Array.isArray(assignment.questions) && assignment.questions.length > 0;
 
   return (
     <div className="assignment-page">
@@ -279,6 +282,22 @@ export default function AssignmentPage() {
                 color={color}
                 initialState={submission?.quiz_state}
                 onComplete={handleSpeedrunComplete}
+              />
+            </>
+          )
+        ) : /* ── Capstone case ── */
+        isCapstone ? (
+          submitted ? (
+            <GameSummary result={gameResult} color={color} />
+          ) : (
+            <>
+              {error && <div className="err-msg" style={{ marginBottom: 16 }}>{error}</div>}
+              <CapstoneCase
+                key={id}
+                assignmentId={id}
+                color={color}
+                initialState={submission?.quiz_state}
+                onComplete={handleGameComplete}
               />
             </>
           )

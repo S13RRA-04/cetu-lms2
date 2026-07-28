@@ -15,6 +15,7 @@ const intelCtrl        = require('../controllers/intel.controller');
 const chatCtrl         = require('../controllers/chat.controller');
 const squadStateCtrl   = require('../controllers/squadChallengeState.controller');
 const preRangeBriefingCtrl = require('../controllers/preRangeBriefing.controller');
+const legalRequestCtrl = require('../controllers/legalRequest.controller');
 const { requireAuth, requireInstructor, requireAdmin } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
 const { auditLog } = require('../middleware/audit');
@@ -89,6 +90,10 @@ router.put('/:id/assignments/:aid/submissions/:sid',       requireAuth, requireI
 router.put('/:id/assignments/:aid/progress',               requireAuth,                    subCtrl.updateProgress);
 router.get('/:id/assignments/:aid/progress',               requireAuth, requireInstructor, assignCtrl.getProgress);
 router.get('/:id/live-progress',                            requireAuth, requireInstructor, assignCtrl.getLiveOverview);
+
+// Capstone legal-process requests (AUSA persona gate)
+router.get('/:id/assignments/:aid/legal-requests',  requireAuth, legalRequestCtrl.list);
+router.post('/:id/assignments/:aid/legal-requests', requireAuth, legalRequestCtrl.submit);
 
 // Squad-shared challenge state (question progress/answers/hints shared across a squad)
 router.get('/:id/assignments/:aid/squad-state', requireAuth, squadStateCtrl.getState);
