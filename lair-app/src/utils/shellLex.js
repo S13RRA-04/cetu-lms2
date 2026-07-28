@@ -36,3 +36,18 @@ export function caseSuggestion(parentNode, leaf) {
 export function withCaseHint(message, suggestion) {
   return suggestion ? `${message} (did you mean '${suggestion}'? filenames are case-sensitive)` : message;
 }
+
+/** Virtual-filesystem node builders shared by every TerminalGame level-pack data file. */
+export function dir(children) {
+  return { type: 'dir', perms: 'drwxr-xr-x', children };
+}
+
+export function file(content, opts = {}) {
+  return {
+    type: 'file',
+    perms: opts.perms ?? '-rw-r--r--',
+    owner: opts.owner ?? 'analyst',
+    hidden: opts.hidden ?? false,
+    content,
+  };
+}

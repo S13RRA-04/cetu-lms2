@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LEVELS, HOSTNAME, USER, dir } from '../data/terminalGameLevels.js';
 import { updateProgress } from '../api/lair.js';
-import { tokenize, escapeRegex, caseSuggestion, withCaseHint } from '../utils/shellLex.js';
-
-const HOME_SEGS = ['home', 'analyst'];
+import { tokenize, escapeRegex, caseSuggestion, withCaseHint, dir } from '../utils/shellLex.js';
 
 const COMMANDS = ['pwd', 'ls', 'cd', 'cat', 'less', 'more', 'head', 'tail', 'file', 'grep', 'find', 'whoami', 'hint', 'clear', 'help'];
 
@@ -16,7 +13,7 @@ const HELP_TEXT =
   '  head/tail [-n N] f  print first/last N lines of a file\n' +
   '  less / more <file>  same as cat here\n' +
   '  file <path>         report whether a path is a file or directory\n' +
-  '  grep [-i] "p" f     search a file for lines matching pattern p\n' +
+  '  grep [-i] [-r] "p" f   search a file (or, with -r, a whole directory tree) for lines matching pattern p\n' +
   '  find <path> -name "pattern"   search a tree for matching names\n' +
   '  whoami              print current user\n' +
   '  hint                reveal a hint for the current objective\n' +
@@ -24,7 +21,7 @@ const HELP_TEXT =
 
 function parseFlags(argsStr) {
   const tokens = tokenize(argsStr);
-  let all = false, long = false, ignoreCase = false, nFlag = null;
+  let all = false, long = false, ignoreCase = false, recursive = false, nFlag = null;
   const rest = [];
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
@@ -34,16 +31,17 @@ function parseFlags(argsStr) {
         if (ch === 'a') all = true;
         else if (ch === 'l') long = true;
         else if (ch === 'i') ignoreCase = true;
+        else if (ch === 'r' || ch === 'R') recursive = true;
       }
     } else {
       rest.push(t);
     }
   }
-  return { all, long, ignoreCase, nFlag, rest };
+  return { all, long, ignoreCase, recursive, nFlag, rest };
 }
 
-function resolvePath(cwdSegs, argPath) {
-  if (!argPath || argPath === '~') return [...HOME_SEGS];
+function resolvePath(cwdSegs, argPath, homeSegs) {
+  if (!argPath || argPath === '~') return [...homeSegs];
   let segs = argPath.startsWith('/') ? [] : [...cwdSegs];
   for (const part of argPath.split('/').filter(Boolean)) {
     if (part === '.') continue;
@@ -63,11 +61,11 @@ function lookup(fsRoot, segs) {
 }
 
 /** Tab-completion: matches child names of the resolved directory portion of `partial` against its leaf prefix. */
-function completeToken(fsRoot, cwdSegs, partial) {
+function completeToken(fsRoot, cwdSegs, partial, homeSegs) {
   const lastSlash = partial.lastIndexOf('/');
   const dirPart  = lastSlash === -1 ? '' : partial.slice(0, lastSlash);
   const leafPart = lastSlash === -1 ? partial : partial.slice(lastSlash + 1);
-  const dirSegs  = dirPart ? resolvePath(cwdSegs, dirPart) : cwdSegs;
+  const dirSegs  = dirPart ? resolvePath(cwdSegs, dirPart, homeSegs) : cwdSegs;
   const dirNode  = lookup(fsRoot, dirSegs);
   if (!dirNode || dirNode.type !== 'dir') return null;
   const names = Object.keys(dirNode.children || {})
@@ -85,35 +83,40 @@ function completeToken(fsRoot, cwdSegs, partial) {
   return { replacement: prefix + (single ? names[0] : lcp) + suffix, matches: names };
 }
 
-function readable(node) {
+function readable(node, user) {
   const p = node.perms;
-  return (node.owner === USER && p[1] === 'r') || p[7] === 'r';
+  return (node.owner === user && p[1] === 'r') || p[7] === 'r';
 }
 
-function displayPath(segs) {
-  if (segs.length >= 2 && segs[0] === 'home' && segs[1] === 'analyst') {
-    const rest = segs.slice(2);
+function displayPath(segs, homeSegs) {
+  if (segs.length >= homeSegs.length && homeSegs.every((s, i) => segs[i] === s)) {
+    const rest = segs.slice(homeSegs.length);
     return '~' + (rest.length ? '/' + rest.join('/') : '');
   }
   return '/' + segs.join('/');
 }
 
-function buildFs(levelIndex) {
+function buildFs(levels, levelIndex, homeSegs) {
   const caseChildren = {};
-  for (let i = 0; i <= levelIndex && i < LEVELS.length; i++) {
-    caseChildren[LEVELS[i].id] = LEVELS[i].tree;
+  for (let i = 0; i <= levelIndex && i < levels.length; i++) {
+    caseChildren[levels[i].id] = levels[i].tree;
   }
-  return dir({ home: dir({ analyst: dir(caseChildren) }) });
+  let root = dir(caseChildren);
+  for (let i = homeSegs.length - 1; i >= 0; i--) {
+    root = dir({ [homeSegs[i]]: root });
+  }
+  return root;
 }
 
-export default function TerminalGame({ assignmentId, color, initialState, onComplete }) {
+export default function TerminalGame({ assignmentId, color, initialState, onComplete, levels, hostname, user }) {
+  const homeSegs = ['home', user];
   const startLevel = Math.min(
     Math.max(0, Number.isInteger(initialState?.levelIndex) ? initialState.levelIndex : 0),
-    LEVELS.length - 1
+    levels.length - 1
   );
 
   const [levelIndex, setLevelIndex] = useState(startLevel);
-  const [cwd, setCwd] = useState([...HOME_SEGS, LEVELS[startLevel].id]);
+  const [cwd, setCwd] = useState([...homeSegs, levels[startLevel].id]);
   const [output, setOutput] = useState([]);
   const [input, setInput] = useState('');
   const [history, setHistory] = useState([]);
@@ -125,7 +128,7 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
   const inputRef = useRef(null);
   const initedRef = useRef(false);
 
-  const fs = useMemo(() => buildFs(levelIndex), [levelIndex]);
+  const fs = useMemo(() => buildFs(levels, levelIndex, homeSegs), [levels, levelIndex, homeSegs.join('/')]);
 
   const appendLine = useCallback((line) => {
     setOutput((prev) => [...prev, line]);
@@ -134,11 +137,11 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
   useEffect(() => {
     if (initedRef.current) return;
     initedRef.current = true;
-    const level = LEVELS[startLevel];
+    const level = levels[startLevel];
     if (startLevel > 0) {
       appendLine({ type: 'sys', text: `Resuming at Level ${startLevel + 1}: ${level.title}` });
     }
-    appendLine({ type: 'sys', text: `Connected to ${HOSTNAME} as ${USER}.` });
+    appendLine({ type: 'sys', text: `Connected to ${hostname} as ${user}.` });
     appendLine({ type: 'out', text: level.briefing });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -156,27 +159,27 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
 
   const completeCurrentLevel = useCallback((currentLevel, currentIndex) => {
     const next = currentIndex + 1;
-    if (next >= LEVELS.length) {
-      appendLine({ type: 'ok', text: `\n✓ CASE CLOSED — all ${LEVELS.length} indicators of compromise recovered on ${HOSTNAME}.` });
+    if (next >= levels.length) {
+      appendLine({ type: 'ok', text: `\n✓ CASE CLOSED — all ${levels.length} pieces of evidence recovered on ${hostname}.` });
       setFinished(true);
       onComplete?.({
-        levelsCompleted: LEVELS.length,
-        totalLevels: LEVELS.length,
-        markersFound: LEVELS.map((l) => l.marker),
+        levelsCompleted: levels.length,
+        totalLevels: levels.length,
+        markersFound: levels.map((l) => l.marker),
       });
       return;
     }
-    const nextLevel = LEVELS[next];
+    const nextLevel = levels[next];
     appendLine({ type: 'ok', text: `✓ Evidence recovered: ${currentLevel.marker}. Advancing to Level ${next + 1}: ${nextLevel.title}.` });
     appendLine({ type: 'out', text: nextLevel.briefing });
     setLevelIndex(next);
-    setCwd([...HOME_SEGS, nextLevel.id]);
-    const pct = Math.round((next / LEVELS.length) * 100);
+    setCwd([...homeSegs, nextLevel.id]);
+    const pct = Math.round((next / levels.length) * 100);
     updateProgress(assignmentId, pct, { levelIndex: next }).catch(() => {});
-  }, [appendLine, assignmentId, onComplete]);
+  }, [appendLine, assignmentId, onComplete, levels, hostname, homeSegs.join('/')]);
 
   function suggest(cwdSegs, name) {
-    const segs = resolvePath(cwdSegs, name);
+    const segs = resolvePath(cwdSegs, name, homeSegs);
     const parent = lookup(fs, segs.slice(0, -1));
     return caseSuggestion(parent, segs[segs.length - 1]);
   }
@@ -184,7 +187,7 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
   function cmdLs(argsStr, cwdSegs) {
     const flags = parseFlags(argsStr);
     const pathArg = flags.rest[0];
-    const targetSegs = pathArg ? resolvePath(cwdSegs, pathArg) : cwdSegs;
+    const targetSegs = pathArg ? resolvePath(cwdSegs, pathArg, homeSegs) : cwdSegs;
     const node = lookup(fs, targetSegs);
     if (!node) return { err: withCaseHint(`ls: cannot access '${pathArg}': No such file or directory`, suggest(cwdSegs, pathArg)) };
     if (node.type !== 'dir') return { out: pathArg || '.' };
@@ -204,7 +207,7 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
 
   function cmdCd(argsStr, cwdSegs) {
     const arg = argsStr.trim();
-    const targetSegs = resolvePath(cwdSegs, arg || '~');
+    const targetSegs = resolvePath(cwdSegs, arg || '~', homeSegs);
     const node = lookup(fs, targetSegs);
     if (!node) return { err: withCaseHint(`bash: cd: ${arg}: No such file or directory`, suggest(cwdSegs, arg)) };
     if (node.type !== 'dir') return { err: `bash: cd: ${arg}: Not a directory` };
@@ -217,10 +220,10 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
     if (!names.length) return { err: 'usage: cat <file> [file2 ...]' };
     const outs = [];
     for (const name of names) {
-      const node = lookup(fs, resolvePath(cwdSegs, name));
+      const node = lookup(fs, resolvePath(cwdSegs, name, homeSegs));
       if (!node) { outs.push(withCaseHint(`cat: ${name}: No such file or directory`, suggest(cwdSegs, name))); continue; }
       if (node.type === 'dir') { outs.push(`cat: ${name}: Is a directory`); continue; }
-      if (!readable(node)) { outs.push(`cat: ${name}: Permission denied`); continue; }
+      if (!readable(node, user)) { outs.push(`cat: ${name}: Permission denied`); continue; }
       outs.push(node.content.replace(/\n$/, ''));
     }
     return { out: outs.join('\n') };
@@ -230,10 +233,10 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
     const flags = parseFlags(argsStr);
     const name = flags.rest[0];
     if (!name) return { err: `usage: ${mode} [-n N] <file>` };
-    const node = lookup(fs, resolvePath(cwdSegs, name));
+    const node = lookup(fs, resolvePath(cwdSegs, name, homeSegs));
     if (!node) return { err: withCaseHint(`${mode}: cannot open '${name}' (No such file or directory)`, suggest(cwdSegs, name)) };
     if (node.type === 'dir') return { err: `${mode}: error reading '${name}': Is a directory` };
-    if (!readable(node)) return { err: `${mode}: cannot open '${name}' (Permission denied)` };
+    if (!readable(node, user)) return { err: `${mode}: cannot open '${name}' (Permission denied)` };
     const n = Number.isInteger(flags.nFlag) ? flags.nFlag : 10;
     const lines = node.content.replace(/\n$/, '').split('\n');
     const slice = mode === 'head' ? lines.slice(0, n) : lines.slice(-n);
@@ -243,7 +246,7 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
   function cmdFile(argsStr, cwdSegs) {
     const name = argsStr.trim();
     if (!name) return { err: 'usage: file <path>' };
-    const node = lookup(fs, resolvePath(cwdSegs, name));
+    const node = lookup(fs, resolvePath(cwdSegs, name, homeSegs));
     if (!node) return { err: withCaseHint(`${name}: cannot open (No such file or directory)`, suggest(cwdSegs, name)) };
     return { out: node.type === 'dir' ? `${name}: directory` : `${name}: ASCII text` };
   }
@@ -251,12 +254,34 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
   function cmdGrep(argsStr, cwdSegs) {
     const flags = parseFlags(argsStr);
     const [pattern, name] = flags.rest;
-    if (!pattern || !name) return { err: 'usage: grep [-i] "<pattern>" <file>' };
-    const node = lookup(fs, resolvePath(cwdSegs, name));
-    if (!node) return { err: withCaseHint(`grep: ${name}: No such file or directory`, suggest(cwdSegs, name)) };
-    if (node.type === 'dir') return { err: `grep: ${name}: Is a directory` };
-    if (!readable(node)) return { err: `grep: ${name}: Permission denied` };
+    if (!pattern) return { err: 'usage: grep [-i] [-r] "<pattern>" <file|dir>' };
     const re = new RegExp(escapeRegex(pattern), flags.ignoreCase ? 'i' : '');
+
+    if (flags.recursive) {
+      const startArg = name || '.';
+      const startNode = lookup(fs, resolvePath(cwdSegs, startArg, homeSegs));
+      if (!startNode) return { err: withCaseHint(`grep: ${startArg}: No such file or directory`, suggest(cwdSegs, startArg)) };
+      const results = [];
+      (function walk(node, displayPathStr) {
+        if (node.type === 'dir') {
+          for (const [childName, child] of Object.entries(node.children || {})) {
+            walk(child, displayPathStr === '.' ? childName : `${displayPathStr}/${childName}`);
+          }
+          return;
+        }
+        if (!readable(node, user)) return;
+        for (const line of node.content.split('\n')) {
+          if (re.test(line)) results.push(`${displayPathStr}:${line}`);
+        }
+      })(startNode, startArg);
+      return { out: results.join('\n') };
+    }
+
+    if (!name) return { err: 'usage: grep [-i] "<pattern>" <file>' };
+    const node = lookup(fs, resolvePath(cwdSegs, name, homeSegs));
+    if (!node) return { err: withCaseHint(`grep: ${name}: No such file or directory`, suggest(cwdSegs, name)) };
+    if (node.type === 'dir') return { err: `grep: ${name}: Is a directory (use -r to search recursively)` };
+    if (!readable(node, user)) return { err: `grep: ${name}: Permission denied` };
     const matches = node.content.split('\n').filter((l) => re.test(l));
     return { out: matches.join('\n') };
   }
@@ -269,7 +294,7 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
       else if (!tokens[i].startsWith('-')) path = tokens[i];
     }
     if (!pattern) return { err: 'usage: find <path> -name "<pattern>"' };
-    const startNode = lookup(fs, resolvePath(cwdSegs, path));
+    const startNode = lookup(fs, resolvePath(cwdSegs, path, homeSegs));
     if (!startNode) return { err: withCaseHint(`find: '${path}': No such file or directory`, suggest(cwdSegs, path)) };
     const regex = new RegExp('^' + pattern.split('*').map(escapeRegex).join('.*') + '$');
     const results = [];
@@ -287,7 +312,7 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
 
   const runCommand = useCallback((raw) => {
     const trimmed = raw.trim();
-    appendLine({ type: 'cmd', text: `analyst@${HOSTNAME}:${displayPath(cwd)}$ ${raw}` });
+    appendLine({ type: 'cmd', text: `analyst@${hostname}:${displayPath(cwd, homeSegs)}$ ${raw}` });
     if (!trimmed) return;
     setHistory((h) => [...h, raw]);
     historyPosRef.current = -1;
@@ -295,7 +320,7 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
     const spaceIdx = trimmed.indexOf(' ');
     const cmd = spaceIdx === -1 ? trimmed : trimmed.slice(0, spaceIdx);
     const argsStr = spaceIdx === -1 ? '' : trimmed.slice(spaceIdx + 1).trim();
-    const level = LEVELS[levelIndex];
+    const level = levels[levelIndex];
 
     let result;
     switch (cmd) {
@@ -308,7 +333,7 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
       case 'file':   result = cmdFile(argsStr, cwd); break;
       case 'grep':   result = cmdGrep(argsStr, cwd); break;
       case 'find':   result = cmdFind(argsStr, cwd); break;
-      case 'whoami': result = { out: USER }; break;
+      case 'whoami': result = { out: user }; break;
       case 'help':   result = { out: HELP_TEXT }; break;
       case 'hint':   result = { out: nextHint(level) }; break;
       case 'clear':  setOutput([]); return;
@@ -355,21 +380,21 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
       const lastSpace = input.lastIndexOf(' ');
       const head = input.slice(0, lastSpace + 1);
       const partial = input.slice(lastSpace + 1);
-      const result = completeToken(fs, cwd, partial);
+      const result = completeToken(fs, cwd, partial, homeSegs);
       if (!result) return;
       setInput(head + result.replacement);
       if (result.matches.length > 1) appendLine({ type: 'sys', text: result.matches.join('  ') });
     }
   };
 
-  const level = LEVELS[levelIndex];
-  const pct = Math.round((levelIndex / LEVELS.length) * 100);
+  const level = levels[levelIndex];
+  const pct = Math.round((levelIndex / levels.length) * 100);
 
   return (
     <div className="term-wrap" style={{ '--term-accent': color }}>
       <div className="term-toolbar">
         <div className="term-dots"><span /><span /><span /></div>
-        <div className="term-title">analyst@{HOSTNAME} — Level {levelIndex + 1}/{LEVELS.length}: {level.title}</div>
+        <div className="term-title">analyst@{hostname} — Level {levelIndex + 1}/{levels.length}: {level.title}</div>
       </div>
 
       <div className="term-progress-track">
@@ -382,7 +407,7 @@ export default function TerminalGame({ assignmentId, color, initialState, onComp
         ))}
         {!finished && (
           <div className="term-input-row">
-            <span className="term-prompt">analyst@{HOSTNAME}:{displayPath(cwd)}$</span>
+            <span className="term-prompt">analyst@{hostname}:{displayPath(cwd, homeSegs)}$</span>
             <input
               ref={inputRef}
               className="term-input"

@@ -4,6 +4,20 @@ import { getAssignment, getMySubmission, submitAssignment, updateProgress } from
 import QuizFlow from '../components/QuizFlow.jsx';
 import TerminalGame from '../components/TerminalGame.jsx';
 import SpeedrunArena from '../components/SpeedrunArena.jsx';
+import { LEVELS as CORVID_LEVELS, HOSTNAME as CORVID_HOSTNAME, USER as CORVID_USER } from '../data/terminalGameLevels.js';
+import { LEVELS as LAB_LEVELS, HOSTNAME as LAB_HOSTNAME, USER as LAB_USER } from '../data/mysteryGameLevels.js';
+
+/**
+ * Every `type: 'game'` assignment renders the same TerminalGame engine with
+ * a different level-pack — keyed by assignment id since content is static/
+ * frontend-bundled, not DB-driven (see project memory: no assignment type
+ * has a generic admin content editor). Add an entry here for any future
+ * TerminalGame-based game.
+ */
+const GAME_PACKS = {
+  'e1a10005-0000-0000-0000-000000000013': { levels: CORVID_LEVELS, hostname: CORVID_HOSTNAME, user: CORVID_USER },
+  'e1a10007-0000-0000-0000-000000000015': { levels: LAB_LEVELS, hostname: LAB_HOSTNAME, user: LAB_USER },
+};
 
 const TYPE_COLOR = {
   module:     '#f0a428',
@@ -153,6 +167,7 @@ export default function AssignmentPage() {
   const isLocked   = assignment.is_unlocked === false;
   const isSurvey   = assignment.type === 'survey';
   const isGame     = !isLocked && assignment.type === 'game';
+  const gamePack   = GAME_PACKS[id] ?? GAME_PACKS['e1a10005-0000-0000-0000-000000000013'];
   const isSpeedrun = !isLocked && assignment.type === 'challenge';
   /* hasQuiz: any type with questions uses QuizFlow (modules and assessments with a question bank) */
   const hasQuiz    = !isLocked && !isSurvey && !isGame && !isSpeedrun && Array.isArray(assignment.questions) && assignment.questions.length > 0;
@@ -220,6 +235,9 @@ export default function AssignmentPage() {
                 color={color}
                 initialState={submission?.quiz_state}
                 onComplete={handleGameComplete}
+                levels={gamePack.levels}
+                hostname={gamePack.hostname}
+                user={gamePack.user}
               />
             </>
           )

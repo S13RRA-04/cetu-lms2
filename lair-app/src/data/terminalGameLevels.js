@@ -11,6 +11,7 @@
  * `marker` string appears anywhere in a command's rendered output, the game
  * advances. This keeps the parser free of per-level special cases.
  */
+import { dir, file } from '../utils/shellLex.js';
 
 const HOSTNAME = 'corvid-web01';
 const USER = 'analyst';
@@ -46,15 +47,6 @@ function buildSyslog(marker) {
   lines.splice(163, 0, `Jul 24 03:14:08 ${HOSTNAME} sshd[19283]: authentication failure; rhost=203.0.113.44 user=www-data MARKER:${marker}`);
   return lines.join('\n');
 }
-
-const dir = (children) => ({ type: 'dir', perms: 'drwxr-xr-x', owner: USER, children });
-const file = (content, opts = {}) => ({
-  type: 'file',
-  perms: opts.perms ?? '-rw-r--r--',
-  owner: opts.owner ?? USER,
-  hidden: opts.hidden ?? false,
-  content,
-});
 
 export const LEVELS = [
   // ── Level 0 — Orientation ──────────────────────────────────────────────
@@ -263,4 +255,4 @@ export const LEVELS = [
 ];
 
 export const HOME_PATH = '/home/analyst';
-export { HOSTNAME, USER, dir, file };
+export { HOSTNAME, USER };
