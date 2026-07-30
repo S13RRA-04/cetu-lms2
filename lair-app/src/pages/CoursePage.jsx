@@ -187,7 +187,9 @@ function SectionRow({ section, files, pendingPct, onProgress }) {
           <Link to={`/assignment/${section.id}`} className="btn-sm-primary section-quiz-link">
             {playLabels
               ? (pct >= 100 ? playLabels.review : (pct > 0 ? 'Continue' : playLabels.start))
-              : (pct >= 100 ? 'Review Assessment' : 'Start Assessment')}
+              : section.type === 'survey'
+                ? (pct >= 100 ? 'Review Survey' : 'Start Survey')
+                : (pct >= 100 ? 'Review Assessment' : 'Start Assessment')}
           </Link>
         )}
       </div>
