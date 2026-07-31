@@ -36,6 +36,31 @@ function tierLabel(tier) {
   return tier === 'discovered' ? 'Discovered' : (LADDER[tier]?.label ?? tier);
 }
 
+function Die20({ value, rolling, idle, color, onClick }) {
+  return (
+    <div
+      className={`cf-die20${rolling ? ' cf-die-tumbling' : ''}${idle ? ' cf-die20-idle' : ''}`}
+      style={{ '--cat-color': color ?? 'var(--primary)' }}
+      onClick={idle ? undefined : onClick}
+      role="button"
+      tabIndex={idle ? -1 : 0}
+    >
+      <span className="cf-die20-facets" />
+      <span className="cf-die-face-num">{idle ? '?' : (value ?? '20')}</span>
+    </div>
+  );
+}
+
+const DIE6_PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
+function Die6({ value, rolling, onClick }) {
+  const on = new Set(DIE6_PIPS[value] ?? []);
+  return (
+    <div className={`cf-die6${rolling ? ' cf-die-tumbling' : ''}`} onClick={onClick} role="button" tabIndex={0}>
+      {Array.from({ length: 9 }, (_, i) => <span key={i} className={`cf-die6-pip${on.has(i) ? ' on' : ''}`} />)}
+    </div>
+  );
+}
+
 function CaseStrengthTrack({ caseStrength }) {
   const cells = Array.from({ length: 31 }, (_, n) => n);
   const currentBand = bandForCaseStrength(caseStrength);
@@ -94,6 +119,10 @@ export default function CaseFileFacilitator() {
   const [convertTo, setConvertTo] = useState('financial');
   const [guideOpen, setGuideOpen] = useState(false);
 
+  // Investigating a category is now a two-step gesture: click a deck to
+  // "arm" it (armedCategory), then click the d20 itself to actually roll —
+  // nothing is sent to the server until that explicit roll click.
+  const [armedCategory, setArmedCategory] = useState(null);
   const [rolling, setRolling] = useState(false);
   const [rollFace, setRollFace] = useState(null);
   const [rollingCategory, setRollingCategory] = useState(null);
@@ -101,6 +130,16 @@ export default function CaseFileFacilitator() {
   const rollTimer = useRef(null);
   const rollStart = useRef(0);
   const pendingRequestId = useRef(null);
+
+  // Category Die (d6) — only relevant on Partial Success / Critical Success
+  // bands (a bonus card is drawn from a d6-selected category). The value is
+  // already known once the d20's action_result arrives, but the facilitator
+  // still explicitly clicks the d6 to watch it tumble to that value, rather
+  // than it just appearing.
+  const [pendingCategoryDie, setPendingCategoryDie] = useState(null); // { value, bonusCategory, bonusCardName } | null
+  const [rollFace6, setRollFace6] = useState(null);
+  const [rolling6, setRolling6] = useState(false);
+  const roll6Timer = useRef(null);
 
   // Card-flip choreography: a card renders face-down the instant it appears
   // in resolvedEvidence, then flips face-up on a short stagger — revealedIds
@@ -180,6 +219,7 @@ export default function CaseFileFacilitator() {
 
   useEffect(() => () => {
     clearInterval(rollTimer.current);
+    clearInterval(roll6Timer.current);
     flipTimersRef.current.forEach(clearTimeout);
   }, []);
 
@@ -204,6 +244,12 @@ export default function CaseFileFacilitator() {
       setRollFace(lastResult.result?.roll?.nat ?? null);
       setRolling(false);
       setRollingCategory(null);
+      const dieRoll = lastResult.result?.roll?.categoryDieRoll;
+      if (dieRoll) {
+        const bonus = lastResult.result.drawn?.[lastResult.result.drawn.length - 1];
+        const bonusCard = bonus ? findCard(bonus.cardId) : null;
+        setPendingCategoryDie({ value: dieRoll, bonusCategory: bonus?.category, bonusCardName: bonusCard?.name ?? bonus?.cardId });
+      }
       if (lastResult.result?.injects?.length) {
         const kind = lastResult.result.injects[0].type;
         setFlashPile(kind);
@@ -238,8 +284,19 @@ export default function CaseFileFacilitator() {
     setTimeout(() => setFlyingCards((prev) => prev.filter((f) => f.id !== id)), 620);
   }
 
-  function investigate(cat) {
+  /** Step 1: click a deck to arm it — nothing is sent to the server yet. */
+  function armCategory(cat) {
     if (rolling || !state || state.tokens[cat] <= 0 || state.gameOver) return;
+    setArmedCategory(cat);
+    setRollFace(null);
+    setPendingCategoryDie(null);
+    setRollFace6(null);
+  }
+
+  /** Step 2: click the d20 itself to actually roll and commit the action. */
+  function rollD20() {
+    if (!armedCategory || rolling || !state) return;
+    const cat = armedCategory;
     setRolling(true);
     setRollingCategory(cat);
     rollStart.current = Date.now();
@@ -247,6 +304,21 @@ export default function CaseFileFacilitator() {
     rollTimer.current = setInterval(() => setRollFace(1 + Math.floor(Math.random() * 20)), 70);
     pendingRequestId.current = sendAction('investigate', { category: cat, actionType: 'investigate' });
     flyCardFromDeck(cat);
+    setArmedCategory(null);
+  }
+
+  /** Optional 3rd step: click the d6 to tumble to the category already picked server-side for the bonus card. */
+  function rollD6() {
+    if (!pendingCategoryDie || rolling6) return;
+    setRolling6(true);
+    clearInterval(roll6Timer.current);
+    roll6Timer.current = setInterval(() => setRollFace6(1 + Math.floor(Math.random() * 6)), 70);
+    const target = pendingCategoryDie.value;
+    setTimeout(() => {
+      clearInterval(roll6Timer.current);
+      setRollFace6(target);
+      setRolling6(false);
+    }, 500);
   }
 
   if (!started || !state) {
@@ -347,9 +419,9 @@ export default function CaseFileFacilitator() {
                 <div
                   key={cat}
                   ref={(el) => { deckElRefs.current[cat] = el; }}
-                  className={`cf-deck${disabled ? ' cf-deck-disabled' : ''}${rollingCategory === cat ? ' cf-deck-pulse' : ''}`}
+                  className={`cf-deck${disabled ? ' cf-deck-disabled' : ''}${rollingCategory === cat ? ' cf-deck-pulse' : ''}${armedCategory === cat ? ' cf-deck-armed' : ''}`}
                   style={{ '--cat-color': meta.color }}
-                  onClick={() => investigate(cat)}
+                  onClick={() => armCategory(cat)}
                   role="button"
                   tabIndex={0}
                 >
@@ -380,9 +452,31 @@ export default function CaseFileFacilitator() {
           {/* Center: roll, play area, queue */}
           <div className="cf-center">
             <div className="cf-roll-widget">
-              <div className={`ttx-die${rolling ? ' ttx-die-rolling cf-die-shake' : ''}`}>{rollFace ?? '–'}</div>
+              <div className="cf-dice-area">
+                <Die20
+                  value={rollFace}
+                  rolling={rolling}
+                  idle={!armedCategory && !rolling}
+                  color={armedCategory ? CATEGORY_META[armedCategory].color : (rollingCategory ? CATEGORY_META[rollingCategory].color : undefined)}
+                  onClick={armedCategory ? rollD20 : undefined}
+                />
+                {pendingCategoryDie && (
+                  <Die6 value={rollFace6} rolling={rolling6} onClick={rollFace6 ? undefined : rollD6} />
+                )}
+              </div>
               <div className="cf-roll-outcome">
-                {lastResult?.result?.roll ? (
+                {armedCategory && !rolling && (
+                  <div>
+                    Investigating <strong style={{ color: CATEGORY_META[armedCategory].color }}>{CATEGORY_META[armedCategory].label}</strong> — click the d20 to roll.
+                    <div className="cf-btn-row" style={{ marginTop: 6 }}>
+                      <button className="btn-secondary" onClick={() => setArmedCategory(null)}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+                {!armedCategory && !rolling && !lastResult?.result?.roll && (
+                  <span className="ttx-panel-hint" style={{ margin: 0 }}>Click an Evidence Deck to arm an Investigation, then roll the d20.</span>
+                )}
+                {lastResult?.result?.roll && !armedCategory && !rolling && (
                   <>
                     d20 = {lastResult.result.roll.nat}{lastResult.result.roll.modified !== lastResult.result.roll.nat ? ` (${lastResult.result.roll.modified} after pressure)` : ''} → <strong>{lastResult.result.roll.band?.replace('_', ' ')}</strong>
                     {lastResult.result.drawn?.length > 0 && (
@@ -398,9 +492,15 @@ export default function CaseFileFacilitator() {
                         })}
                       </div>
                     )}
+                    {pendingCategoryDie && !rollFace6 && (
+                      <div style={{ marginTop: 6, color: 'var(--warning)' }}>Bonus card! Click the d6 to see which category it comes from.</div>
+                    )}
+                    {pendingCategoryDie && rollFace6 && (
+                      <div style={{ marginTop: 6 }}>
+                        d6 = {rollFace6} → bonus card from <strong style={{ color: CATEGORY_META[pendingCategoryDie.bonusCategory]?.color }}>{CATEGORY_META[pendingCategoryDie.bonusCategory]?.label}</strong>
+                      </div>
+                    )}
                   </>
-                ) : (
-                  <span className="ttx-panel-hint" style={{ margin: 0 }}>Click an Evidence Deck to Investigate.</span>
                 )}
               </div>
             </div>

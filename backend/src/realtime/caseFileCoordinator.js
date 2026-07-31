@@ -196,17 +196,14 @@ function createCaseFileCoordinator() {
 
     const drawn = [];
     const injects = [];
+    let categoryDieRoll = null;
 
     if (actionType === 'investigate') {
       const primary = drawCard(session, category);
       if (primary) drawn.push({ cardId: primary, category });
-      if (outcome.categoryDie) {
-        const dieCategory = CATEGORIES[rollDie(6) - 1] ?? category;
-        const bonus = drawCard(session, dieCategory);
-        if (bonus) drawn.push({ cardId: bonus, category: dieCategory });
-      }
-      if (outcome.extraCard) {
-        const dieCategory = CATEGORIES[rollDie(6) - 1] ?? category;
+      if (outcome.categoryDie || outcome.extraCard) {
+        categoryDieRoll = rollDie(6);
+        const dieCategory = CATEGORIES[categoryDieRoll - 1] ?? category;
         const bonus = drawCard(session, dieCategory);
         if (bonus) drawn.push({ cardId: bonus, category: dieCategory });
       }
@@ -235,7 +232,7 @@ function createCaseFileCoordinator() {
     checkGameOver(session);
     const state = publicState(session);
     publish(code, { type: 'state', state });
-    return { state, roll: { nat, modified, band: outcome.band }, drawn, injects };
+    return { state, roll: { nat, modified, band: outcome.band, categoryDieRoll }, drawn, injects };
   }
 
   function develop({ code, category, cardId, targetTier, delay }) {
