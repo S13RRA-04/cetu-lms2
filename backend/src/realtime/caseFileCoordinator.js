@@ -279,6 +279,7 @@ function createCaseFileCoordinator() {
 
   function markCaseDefining({ code, cardId }) {
     const session = requireSession(code);
+    if (session.gameOver) throw new Error('Investigation has ended');
     const entry = session.resolvedEvidence.find((e) => e.cardId === cardId);
     if (!entry) throw new Error('Card not found among resolved evidence');
     if (entry.caseDefining) return { state: publicState(session) };
@@ -306,6 +307,7 @@ function createCaseFileCoordinator() {
 
   function useProfessionalJudgment({ code }) {
     const session = requireSession(code);
+    if (session.gameOver) throw new Error('Investigation has ended');
     if (session.professionalJudgmentUsed) throw new Error('Professional Judgment already used this game');
     session.professionalJudgmentUsed = true;
     pushLog(session, 'Professional Judgment spent — next roll may be rerolled.');
@@ -316,6 +318,7 @@ function createCaseFileCoordinator() {
 
   function convertTokens({ code, from, to }) {
     const session = requireSession(code);
+    if (session.gameOver) throw new Error('Investigation has ended');
     if (!CATEGORIES.includes(from) || !CATEGORIES.includes(to)) throw new Error('Unknown category');
     if (session.tokens[from] < 2) throw new Error(`Not enough ${from} tokens to convert`);
     session.tokens[from] -= 2;
@@ -328,6 +331,7 @@ function createCaseFileCoordinator() {
 
   function setCommandPressure({ code, level }) {
     const session = requireSession(code);
+    if (session.gameOver) throw new Error('Investigation has ended');
     if (!PRESSURE_LEVELS.includes(level)) throw new Error('Unknown Command Pressure level');
     session.commandPressure = level;
     pushLog(session, `Command Pressure set to ${level}.`);
@@ -338,6 +342,7 @@ function createCaseFileCoordinator() {
 
   function delayPending({ code, cardId }) {
     const session = requireSession(code);
+    if (session.gameOver) throw new Error('Investigation has ended');
     const entry = session.pendingReturns.find((e) => e.cardId === cardId);
     if (!entry) throw new Error('Card not found in Pending Returns Queue');
     entry.roundsRemaining = Math.min(entry.startingRounds, entry.roundsRemaining + 1);
@@ -370,6 +375,7 @@ function createCaseFileCoordinator() {
 
   function presentGrandJury({ code, success, penaltyNote }) {
     const session = requireSession(code);
+    if (session.gameOver) throw new Error('Investigation has ended');
     if (success) {
       session.indicted = true;
       session.caseStrength = Math.max(session.caseStrength, 21);
@@ -385,6 +391,7 @@ function createCaseFileCoordinator() {
 
   function applyDefenseCounterplay({ code, cardId, immune, tokenPenalty }) {
     const session = requireSession(code);
+    if (session.gameOver) throw new Error('Investigation has ended');
     if (!immune && tokenPenalty && CATEGORIES.includes(tokenPenalty.category)) {
       session.tokens[tokenPenalty.category] = Math.max(0, session.tokens[tokenPenalty.category] - (tokenPenalty.amount ?? 1));
     }

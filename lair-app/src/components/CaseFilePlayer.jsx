@@ -1,16 +1,49 @@
 import { useState } from 'react';
 import useCaseFileSession from '../hooks/useCaseFileSession.js';
-import { bandForCaseStrength } from '../data/caseFileSample.js';
+import { bandForCaseStrength, BAND_THRESHOLDS } from '../data/caseFileSample.js';
+import { CATEGORY_META, CATEGORIES, BAND_META, PRESSURE_META } from '../data/caseFileTheme.js';
 
-const CATEGORY_LABELS = {
-  interviews: 'Interviews',
-  documents: 'Documents',
-  digital: 'Digital',
-  physical: 'Physical',
-  financial: 'Financial',
-  intelligence: 'Intelligence',
-};
-const CATEGORIES = Object.keys(CATEGORY_LABELS);
+function CaseStrengthTrack({ caseStrength }) {
+  const cells = Array.from({ length: 31 }, (_, n) => n);
+  const currentBand = bandForCaseStrength(caseStrength);
+  return (
+    <div className="cf-track-panel">
+      <div className="cf-track-title">Case Strength Track</div>
+      <div className="cf-track-row">
+        {cells.map((n) => {
+          const bandKey = bandForCaseStrength(n).key;
+          const clampedStrength = Math.min(caseStrength, 30);
+          const reached = n <= clampedStrength;
+          const isCurrent = n === clampedStrength;
+          return (
+            <div
+              key={n}
+              className={`cf-track-cell${reached ? ' cf-track-reached' : ''}${isCurrent ? ' cf-track-current' : ''}`}
+              style={{ background: reached ? BAND_META[bandKey].color : undefined, '--cf-marker-color': BAND_META[bandKey].color }}
+            >
+              {n}
+            </div>
+          );
+        })}
+      </div>
+      <div className="cf-track-bands">
+        {BAND_THRESHOLDS.map((b) => (
+          <div
+            key={b.key}
+            className="cf-track-band"
+            style={{
+              flex: (Math.min(b.max, 30) - b.min + 1),
+              background: b.key === currentBand.key ? `${BAND_META[b.key].color}33` : 'transparent',
+              color: b.key === currentBand.key ? BAND_META[b.key].color : undefined,
+            }}
+          >
+            {b.label}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function CaseFilePlayer() {
   const [codeInput, setCodeInput] = useState('');
@@ -59,11 +92,8 @@ export default function CaseFilePlayer() {
     );
   }
 
-  const band = bandForCaseStrength(state.caseStrength);
-  const evidenceCountByCategory = CATEGORIES.reduce((acc, cat) => {
-    acc[cat] = state.resolvedEvidence.filter((e) => e.category === cat).length;
-    return acc;
-  }, {});
+  const queueSlots = state.pendingReturns.length > 0 ? state.pendingReturns : [null, null, null];
+  const maxTurn = Math.max(state.round + 3, 12);
 
   return (
     <div className="ttx-wrap">
@@ -76,15 +106,6 @@ export default function CaseFilePlayer() {
         </div>
       </div>
 
-      <div className="cf-status-bar">
-        <div className="cf-stat"><span className="cf-stat-label">Round</span><span className="cf-stat-value">{state.round}</span></div>
-        <div className="cf-stat"><span className="cf-stat-label">Case Strength</span><span className="cf-stat-value">{state.caseStrength} / 30</span></div>
-        <div className="cf-stat"><span className="cf-stat-label">Band</span><span className="cf-stat-value">{band.label}</span></div>
-        <div className="cf-stat"><span className="cf-stat-label">Command Pressure</span><span className="cf-stat-value">{state.commandPressure}</span></div>
-        <div className="cf-stat"><span className="cf-stat-label">Consolidate</span><span className="cf-stat-value">{state.consolidateRemaining} / {state.consolidateCap}</span></div>
-        <div className="cf-stat"><span className="cf-stat-label">Professional Judgment</span><span className="cf-stat-value">{state.professionalJudgmentUsed ? 'Used' : 'Available'}</span></div>
-      </div>
-
       {state.gameOver && (
         <div className={`cf-outcome-banner cf-outcome-${state.outcome}`}>
           Investigation {state.outcome === 'win' ? 'won' : 'concluded — loss'}.
@@ -94,33 +115,104 @@ export default function CaseFilePlayer() {
         <div className="cf-outcome-banner">Indictment secured — Defense Counterplay is now active.</div>
       )}
 
-      <div className="ttx-board">
-        {CATEGORIES.map((cat) => (
-          <section key={cat} className="ttx-panel">
-            <div className="ttx-panel-head">
-              <span className="ttx-panel-label">{CATEGORY_LABELS[cat]}</span>
-              <span className="cf-token-count">{state.tokens[cat]} token{state.tokens[cat] === 1 ? '' : 's'}</span>
-            </div>
-            <p className="ttx-panel-hint">{evidenceCountByCategory[cat]} evidence resolved · {state.deckCounts[cat]} left in deck</p>
-          </section>
-        ))}
-      </div>
+      <div className="cf-board">
+        <CaseStrengthTrack caseStrength={state.caseStrength} />
 
-      <section className="ttx-panel">
-        <div className="ttx-panel-head"><span className="ttx-panel-label">Pending Returns Queue</span></div>
-        {state.pendingReturns.length === 0 ? (
-          <div className="ttx-card-empty">Nothing queued.</div>
-        ) : (
-          <div className="ttx-log">
-            {state.pendingReturns.map((p) => (
-              <div key={p.cardId} className="ttx-log-row">
-                <span className="ttx-log-text">{CATEGORY_LABELS[p.category]} evidence</span>
-                <span className="ttx-log-roll">{p.roundsRemaining} round{p.roundsRemaining === 1 ? '' : 's'} left</span>
-              </div>
-            ))}
+        <div className="cf-board-main">
+          {/* Evidence Decks (read-only — counts only, never card names) */}
+          <div className="cf-decks">
+            {CATEGORIES.map((cat) => {
+              const meta = CATEGORY_META[cat];
+              return (
+                <div key={cat} className="cf-deck cf-deck-disabled" style={{ '--cat-color': meta.color, cursor: 'default' }}>
+                  <span className="cf-deck-icon">{meta.icon}</span>
+                  <div className="cf-deck-name">{meta.label}</div>
+                  <div className="cf-deck-count">{state.deckCounts[cat]} left</div>
+                  <div className="cf-deck-pips">
+                    {Array.from({ length: Math.max(state.tokens[cat], 0) }, (_, i) => (
+                      <span key={i} className="cf-pip cf-pip-filled" style={{ '--cat-color': meta.color }} />
+                    ))}
+                    {state.tokens[cat] === 0 && <span className="cf-pip" style={{ '--cat-color': meta.color }} />}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        )}
-      </section>
+
+          <div className="cf-center">
+            <div className="cf-playarea-panel">
+              <div className="cf-track-title">Play Area</div>
+              {state.resolvedEvidence.length === 0 ? (
+                <div className="cf-playarea-empty">No evidence resolved yet.</div>
+              ) : (
+                <div className="cf-playarea-grid">
+                  {Object.entries(
+                    state.resolvedEvidence.reduce((acc, e) => {
+                      acc[e.category] = (acc[e.category] ?? 0) + 1;
+                      return acc;
+                    }, {})
+                  ).map(([cat, count]) => (
+                    <div key={cat} className="cf-play-card" style={{ '--cat-color': CATEGORY_META[cat].color }}>
+                      <div className="cf-play-card-name">{CATEGORY_META[cat].label}</div>
+                      <div className="cf-play-card-foot">
+                        <span className="cf-play-card-tier">{count} resolved</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="cf-queue-panel">
+              <div className="cf-track-title">Pending Returns Queue</div>
+              <div className="cf-queue-row">
+                {queueSlots.map((p, i) => {
+                  if (!p) return <div key={`empty-${i}`} className="cf-queue-slot">empty</div>;
+                  const meta = CATEGORY_META[p.category];
+                  return (
+                    <div key={p.cardId} className="cf-queue-slot cf-queue-slot-filled" style={{ '--cat-color': meta.color }}>
+                      <div>{meta.label}</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, margin: '4px 0' }}>{p.roundsRemaining}</div>
+                      <div style={{ fontSize: 8 }}>round{p.roundsRemaining === 1 ? '' : 's'} left</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="cf-piles">
+            <div className="cf-pile">
+              <div className="cf-pile-count">{state.consolidateRemaining}</div>
+              <div className="cf-pile-label">Consolidate Left</div>
+            </div>
+            <div className="cf-pile">
+              <div className="cf-pile-count">{state.professionalJudgmentUsed ? '0' : '1'}</div>
+              <div className="cf-pile-label">Professional Judgment</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="cf-bottom">
+          <div className="cf-bank-panel">
+            <div className="cf-track-title">Status</div>
+            <div className="cf-bank-row">
+              <span className="ttx-panel-hint" style={{ margin: 0, minWidth: 130 }}>Command Pressure</span>
+              <span style={{ color: PRESSURE_META[state.commandPressure].color, fontWeight: 700, textTransform: 'uppercase', fontSize: 12 }}>
+                {PRESSURE_META[state.commandPressure].label}
+              </span>
+            </div>
+          </div>
+          <div className="cf-turns-panel">
+            <div className="cf-track-title">Round {state.round}</div>
+            <div className="cf-turn-strip">
+              {Array.from({ length: maxTurn }, (_, i) => i + 1).map((n) => (
+                <div key={n} className={`cf-turn-cell${n === state.round ? ' cf-turn-current' : ''}`}>{n}</div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

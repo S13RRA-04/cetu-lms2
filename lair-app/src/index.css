@@ -3192,3 +3192,170 @@ body::after {
   border-radius: var(--radius-sm); padding: 12px 16px; margin: 12px 0; font-weight: 700; text-align: center;
 }
 .cf-outcome-loss { background: var(--danger-lt); border-color: var(--danger); color: var(--danger); }
+
+/* ── Case File — game board ──────────────────────────────────────────── */
+.cf-board {
+  display: flex; flex-direction: column; gap: 16px; margin-top: 16px;
+}
+
+/* Case Strength Track */
+.cf-track-panel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 14px 16px;
+}
+.cf-track-title {
+  font-size: 11px; font-family: var(--mono); letter-spacing: .12em; text-transform: uppercase;
+  color: rgba(var(--primary-rgb), .55); margin-bottom: 8px;
+}
+.cf-track-row { display: flex; gap: 2px; margin-bottom: 6px; }
+.cf-track-cell {
+  flex: 1; min-width: 0; text-align: center; font-family: var(--mono); font-size: 10px;
+  padding: 4px 0; border-radius: 3px; color: rgba(255,255,255,.35);
+  background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06);
+  transition: transform .25s ease, box-shadow .25s ease;
+  position: relative;
+}
+.cf-track-cell.cf-track-reached { color: #0d1520; font-weight: 700; }
+.cf-track-cell.cf-track-current {
+  transform: scale(1.35); z-index: 1; box-shadow: 0 0 14px var(--cf-marker-color, var(--primary));
+  border-color: #fff;
+}
+.cf-track-bands { display: flex; gap: 2px; }
+.cf-track-band {
+  flex: 1; text-align: center; font-size: 9px; font-family: var(--mono); text-transform: uppercase;
+  letter-spacing: .04em; padding: 3px 2px; border-radius: 3px; color: rgba(255,255,255,.55);
+}
+
+/* Board main grid */
+.cf-board-main { display: grid; grid-template-columns: 240px 1fr 200px; gap: 14px; align-items: start; }
+@media (max-width: 980px) { .cf-board-main { grid-template-columns: 1fr; } }
+
+/* Evidence Decks */
+.cf-decks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cf-deck {
+  border-radius: var(--radius-sm); padding: 10px; cursor: pointer; position: relative;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--cat-color) 22%, #0a0a0f), #0a0a0f);
+  border: 1px solid color-mix(in srgb, var(--cat-color) 55%, transparent);
+  transition: transform .15s ease, box-shadow .15s ease;
+  user-select: none;
+}
+.cf-deck:hover:not(.cf-deck-disabled) { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.4); }
+.cf-deck-disabled { opacity: .45; cursor: not-allowed; }
+.cf-deck-icon { font-size: 18px; line-height: 1; }
+.cf-deck-name {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--cat-color); margin-top: 6px;
+}
+.cf-deck-count { font-size: 10px; color: rgba(255,255,255,.5); font-family: var(--mono); }
+.cf-deck-pips { display: flex; gap: 3px; margin-top: 8px; flex-wrap: wrap; }
+.cf-pip {
+  width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--cat-color, var(--primary));
+  transition: background .2s ease, transform .2s ease;
+}
+.cf-pip-filled { background: var(--cat-color, var(--primary)); box-shadow: 0 0 6px var(--cat-color, var(--primary)); }
+.cf-deck-actions { display: flex; gap: 4px; margin-top: 8px; }
+.cf-deck-btn {
+  flex: 1; font-size: 9px; padding: 3px 4px; border-radius: 3px; cursor: pointer; text-transform: uppercase;
+  letter-spacing: .03em; font-weight: 700; border: 1px solid var(--cat-color); color: var(--cat-color); background: transparent;
+}
+.cf-deck-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--cat-color) 18%, transparent); }
+.cf-deck-btn:disabled { opacity: .35; cursor: not-allowed; }
+@keyframes cf-deck-pulse { 0% { box-shadow: 0 0 0 0 var(--cat-color); } 100% { box-shadow: 0 0 0 10px transparent; } }
+.cf-deck-pulse { animation: cf-deck-pulse .5s ease-out; }
+
+/* Center column: dice, play area, queue */
+.cf-center { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.cf-roll-widget { display: flex; align-items: center; gap: 14px; }
+.cf-roll-outcome { font-size: 13px; color: var(--text); }
+.cf-roll-outcome strong { color: var(--primary); text-transform: capitalize; }
+
+.cf-playarea-panel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;
+}
+.cf-playarea-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 8px; min-height: 64px;
+}
+@keyframes cf-deal {
+  from { opacity: 0; transform: translateY(-16px) scale(.8) rotate(var(--cf-rot, -3deg)); }
+  to   { opacity: 1; transform: translateY(0) scale(1) rotate(var(--cf-rot, -3deg)); }
+}
+.cf-play-card {
+  background: linear-gradient(165deg, color-mix(in srgb, var(--cat-color) 18%, #0c0c11), #0c0c11);
+  border: 1px solid color-mix(in srgb, var(--cat-color) 60%, transparent);
+  border-radius: 6px; padding: 8px; font-size: 10px; animation: cf-deal .4s ease-out both;
+  transform: rotate(var(--cf-rot, -1deg));
+  display: flex; flex-direction: column; gap: 4px;
+}
+.cf-play-card-name { color: var(--text); font-weight: 600; line-height: 1.25; min-height: 24px; }
+.cf-play-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.cf-play-card-tier {
+  font-size: 8px; text-transform: uppercase; letter-spacing: .03em; color: var(--cat-color);
+  border: 1px solid var(--cat-color); border-radius: 3px; padding: 1px 4px;
+}
+.cf-play-card-star { color: var(--warning); font-size: 12px; }
+.cf-play-card-actions { display: flex; gap: 4px; margin-top: 2px; }
+.cf-play-card-actions button {
+  flex: 1; font-size: 8px; padding: 2px 3px; border-radius: 3px; cursor: pointer;
+  border: 1px solid var(--border-hi); background: transparent; color: var(--text);
+}
+.cf-play-card-actions button:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.cf-play-card-actions button:disabled { opacity: .35; cursor: not-allowed; }
+.cf-playarea-empty { color: var(--muted); font-size: 12px; font-style: italic; padding: 20px; text-align: center; }
+
+/* Pending Returns Queue */
+.cf-queue-panel {
+  background: var(--surface); border: 1px solid var(--border-hi); border-radius: var(--radius-sm); padding: 12px;
+}
+.cf-queue-row { display: flex; align-items: center; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+.cf-queue-slot {
+  flex: 0 0 auto; width: 92px; border: 1px dashed var(--border-hi); border-radius: 6px; padding: 6px;
+  font-size: 9px; text-align: center; color: var(--muted); transition: transform .3s ease, border-color .3s ease;
+}
+.cf-queue-slot-filled {
+  border-style: solid; border-color: var(--cat-color, var(--primary)); color: var(--text);
+  background: color-mix(in srgb, var(--cat-color, var(--primary)) 12%, transparent);
+}
+.cf-queue-arrow { color: var(--primary); font-size: 14px; flex: 0 0 auto; }
+.cf-queue-empty { color: var(--muted); font-size: 12px; font-style: italic; }
+
+/* Consequences / Injects piles */
+.cf-piles { display: flex; flex-direction: column; gap: 10px; }
+.cf-pile {
+  border-radius: var(--radius-sm); padding: 10px; text-align: center; position: relative;
+  border: 1px solid var(--border-hi); background: var(--surface);
+}
+.cf-pile-count { font-size: 22px; font-weight: 700; font-family: var(--mono); }
+.cf-pile-label { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-top: 2px; }
+.cf-pile-negative .cf-pile-count { color: var(--danger); }
+.cf-pile-positive .cf-pile-count { color: var(--primary); }
+.cf-pile-defense .cf-pile-count { color: var(--warning); }
+@keyframes cf-pile-flash { 0% { box-shadow: 0 0 0 0 currentColor; } 100% { box-shadow: 0 0 0 12px transparent; } }
+.cf-pile-flash { animation: cf-pile-flash .5s ease-out; }
+
+/* Bottom: token bank + turn counter */
+.cf-bottom { display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px; }
+@media (max-width: 980px) { .cf-bottom { grid-template-columns: 1fr; } }
+.cf-bank-panel, .cf-turns-panel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px;
+}
+.cf-bank-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.cf-bank-row:last-child { margin-bottom: 0; }
+.cf-pressure-ladder { display: flex; gap: 4px; }
+.cf-pressure-cell {
+  width: 22px; height: 22px; border-radius: 4px; cursor: pointer; border: 1px solid rgba(255,255,255,.15);
+  transition: transform .15s ease;
+}
+.cf-pressure-cell:hover { transform: scale(1.1); }
+.cf-pressure-cell.cf-pressure-active { border-color: #fff; box-shadow: 0 0 8px currentColor; }
+
+.cf-turn-strip { display: flex; flex-wrap: wrap; gap: 4px; }
+.cf-turn-cell {
+  width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  border-radius: 4px; font-family: var(--mono); font-size: 11px; color: rgba(255,255,255,.35);
+  border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.02);
+}
+.cf-turn-cell.cf-turn-current {
+  color: #0d1520; background: var(--primary); font-weight: 700; box-shadow: 0 0 10px var(--primary);
+  animation: cf-turn-pop .3s ease-out;
+}
+@keyframes cf-turn-pop { from { transform: scale(.6); } to { transform: scale(1); } }
