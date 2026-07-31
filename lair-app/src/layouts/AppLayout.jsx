@@ -52,6 +52,9 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
           <NavLink to="/grades" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
             <span className="sidebar-icon">◇</span> Grades
           </NavLink>
+          <NavLink to="/case-file" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
+            <span className="sidebar-icon">⚖</span> Case File
+          </NavLink>
 
           <div className="sidebar-section-label">Sections</div>
           {groups.map(({ day, items }) => (
@@ -96,6 +99,9 @@ export default function AppLayout({ assignments = [], enrollment = null }) {
               </NavLink>
               <NavLink to="/admin/ttx" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
                 <span className="sidebar-icon">⚄</span> TTX Facilitator
+              </NavLink>
+              <NavLink to="/admin/case-file" className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}>
+                <span className="sidebar-icon">⚖</span> Case File Facilitator
               </NavLink>
             </>
           )}

@@ -9,6 +9,8 @@ import AssignmentPage from './pages/AssignmentPage.jsx';
 import GradesPage     from './pages/GradesPage.jsx';
 import AdminPage      from './pages/AdminPage.jsx';
 import TTXFacilitator from './components/TTXFacilitator.jsx';
+import CaseFileFacilitator from './components/CaseFileFacilitator.jsx';
+import CaseFilePlayer from './components/CaseFilePlayer.jsx';
 import AppShell       from './layouts/AppShell.jsx';
 
 function Guard({ children }) {
@@ -35,6 +37,8 @@ const router = createBrowserRouter([
       { path: '/grades',           element: <GradesPage /> },
       { path: '/admin',            element: <AdminGuard><AdminPage /></AdminGuard> },
       { path: '/admin/ttx',        element: <AdminGuard><TTXFacilitator /></AdminGuard> },
+      { path: '/admin/case-file',  element: <AdminGuard><CaseFileFacilitator /></AdminGuard> },
+      { path: '/case-file',        element: <Guard><CaseFilePlayer /></Guard> },
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },
