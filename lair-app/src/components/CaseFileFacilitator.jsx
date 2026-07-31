@@ -18,6 +18,8 @@ import {
   BAND_THRESHOLDS,
   findCard,
   findFact,
+  positiveInjectById,
+  negativeInjectById,
 } from '../data/caseFileSample.js';
 
 // Legal Instrument Ladder: tier -> { label, delay, minCaseStrength } per the Rulebook.
@@ -115,9 +117,66 @@ export default function CaseFileFacilitator() {
   const deckElRefs = useRef({});
   const playAreaRef = useRef(null);
 
+  // Pending Inject resolution — a drawn Positive/Negative inject card
+  // (see caseFileInjectDecks.js) carries a real mechanical effect, several
+  // of which need the facilitator to pick a target (which category, which
+  // queued card, which resolved evidence card) before it can be applied.
+  // Defense Counterplay draws are excluded here — those stay on the
+  // existing "Defense Counterplay Reference" apply-any-card flow below.
+  const [pendingInjects, setPendingInjects] = useState([]);
+  const seenInjectKeyRef = useRef(new Set());
+
   useEffect(() => {
     if (ended) setStarted(false);
   }, [ended]);
+
+  useEffect(() => {
+    if (!lastResult?.result?.injects?.length) return;
+    const additions = [];
+    lastResult.result.injects.forEach((inj, i) => {
+      if (inj.type !== 'positive' && inj.type !== 'negative') return;
+      const key = `${lastResult.requestId}-${i}-${inj.cardId}`;
+      if (seenInjectKeyRef.current.has(key)) return;
+      seenInjectKeyRef.current.add(key);
+      const ref = inj.type === 'positive' ? positiveInjectById(inj.cardId) : negativeInjectById(inj.cardId);
+      if (!ref) return;
+      additions.push({
+        uid: key, type: inj.type, cardId: inj.cardId,
+        title: ref.title, flavor: ref.flavor, band: ref.band, effect: ref.effect,
+        category: CATEGORIES[0], queueCardId: '', evidenceCardId: '',
+      });
+    });
+    if (additions.length) setPendingInjects((prev) => [...prev, ...additions]);
+  }, [lastResult]);
+
+  function updatePendingInject(uid, patch) {
+    setPendingInjects((prev) => prev.map((p) => (p.uid === uid ? { ...p, ...patch } : p)));
+  }
+  function dismissPendingInject(uid) {
+    setPendingInjects((prev) => prev.filter((p) => p.uid !== uid));
+  }
+  function applyPendingInject(pi) {
+    switch (pi.effect) {
+      case 'recover_token': sendAction('recover_token', { category: pi.category }); break;
+      case 'lose_token': sendAction('lose_token', { category: pi.category }); break;
+      case 'bonus_card': sendAction('draw_bonus_card', { category: pi.category }); break;
+      case 'reduce_pressure': {
+        const idx = PRESSURE_LEVELS.indexOf(state.commandPressure);
+        sendAction('set_command_pressure', { level: PRESSURE_LEVELS[Math.max(0, idx - 1)] });
+        break;
+      }
+      case 'increase_pressure': {
+        const idx = PRESSURE_LEVELS.indexOf(state.commandPressure);
+        sendAction('set_command_pressure', { level: PRESSURE_LEVELS[Math.min(PRESSURE_LEVELS.length - 1, idx + 1)] });
+        break;
+      }
+      case 'expedite_queue': if (pi.queueCardId) sendAction('expedite_pending', { cardId: pi.queueCardId }); break;
+      case 'delay_queue': if (pi.queueCardId) sendAction('delay_pending', { cardId: pi.queueCardId }); break;
+      case 'suppress_evidence': if (pi.evidenceCardId) sendAction('suppress_evidence', { cardId: pi.evidenceCardId }); break;
+      default: break;
+    }
+    dismissPendingInject(pi.uid);
+  }
 
   useEffect(() => () => {
     clearInterval(rollTimer.current);
@@ -330,7 +389,12 @@ export default function CaseFileFacilitator() {
                       <div style={{ marginTop: 4 }}>
                         {lastResult.result.drawn.map((d) => {
                           const card = findCard(d.cardId);
-                          return <div key={d.cardId} style={{ color: CATEGORY_META[d.category].color }}>{card ? card.name : d.cardId}</div>;
+                          return (
+                            <div key={d.cardId}>
+                              <span style={{ color: CATEGORY_META[d.category].color, fontWeight: 600 }}>{card ? card.name : d.cardId}</span>
+                              {card?.flavor && <span style={{ color: 'var(--muted)' }}> — {card.flavor}</span>}
+                            </div>
+                          );
                         })}
                       </div>
                     )}
@@ -371,6 +435,7 @@ export default function CaseFileFacilitator() {
                           </div>
                           <div className="cf-play-card-face cf-play-card-front" style={{ '--cat-color': meta?.color }}>
                             <div className="cf-play-card-name">{card ? card.name : e.cardId}</div>
+                            {card?.flavor && <div className="cf-play-card-flavor">{card.flavor}</div>}
                             <div className="cf-play-card-foot">
                               <span className="cf-play-card-tier">{tierLabel(e.tier)}</span>
                               {e.caseDefining && <span className="cf-play-card-star" title="Case-Defining">★</span>}
@@ -493,6 +558,46 @@ export default function CaseFileFacilitator() {
           </div>
         </div>
       </div>
+
+      {/* Pending Injects — drawn Positive/Negative cards awaiting a target before their mechanical effect applies */}
+      {pendingInjects.length > 0 && (
+        <section className="ttx-panel" style={{ marginTop: 16, borderColor: 'var(--warning)' }}>
+          <div className="ttx-panel-head"><span className="ttx-panel-label">Pending Injects — Resolve to Apply Effect</span></div>
+          {pendingInjects.map((pi) => (
+            <div key={pi.uid} className={`cf-inject-row cf-inject-${pi.type}`}>
+              <div>
+                <strong>{pi.title}</strong> <span className="cf-cat-tag">{pi.band}</span>
+                <div className="ttx-panel-hint" style={{ margin: '2px 0 6px' }}>{pi.flavor}</div>
+              </div>
+              <div className="cf-btn-row" style={{ marginTop: 0 }}>
+                {(pi.effect === 'recover_token' || pi.effect === 'lose_token' || pi.effect === 'bonus_card') && (
+                  <select className="cf-select" value={pi.category} onChange={(e) => updatePendingInject(pi.uid, { category: e.target.value })}>
+                    {CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_META[c].label}</option>)}
+                  </select>
+                )}
+                {(pi.effect === 'expedite_queue' || pi.effect === 'delay_queue') && (
+                  <select className="cf-select" value={pi.queueCardId} onChange={(e) => updatePendingInject(pi.uid, { queueCardId: e.target.value })}>
+                    <option value="">Select queued card…</option>
+                    {state.pendingReturns.map((p) => (
+                      <option key={p.cardId} value={p.cardId}>{findCard(p.cardId)?.name ?? p.cardId} ({CATEGORY_META[p.category].label})</option>
+                    ))}
+                  </select>
+                )}
+                {pi.effect === 'suppress_evidence' && (
+                  <select className="cf-select" value={pi.evidenceCardId} onChange={(e) => updatePendingInject(pi.uid, { evidenceCardId: e.target.value })}>
+                    <option value="">Select evidence card…</option>
+                    {dedupedEvidence.map((e) => (
+                      <option key={e.cardId} value={e.cardId}>{findCard(e.cardId)?.name ?? e.cardId} (value {e.evidenceValue ?? 1})</option>
+                    ))}
+                  </select>
+                )}
+                <button className="btn-sm-primary" onClick={() => applyPendingInject(pi)}>Apply</button>
+                <button className="btn-secondary" onClick={() => dismissPendingInject(pi.uid)}>Dismiss</button>
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
 
       {/* Case Notes — narrative reveal text per central fact */}
       <section className="ttx-panel" style={{ marginTop: 16 }}>

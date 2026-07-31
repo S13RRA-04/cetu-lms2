@@ -8,10 +8,14 @@
   creation — the reveal text, rubric, and inject flavor below never leave
   the facilitator's browser.
 
-  Also serves as this case's Evidence Card Reference (no reference catalog
-  existed yet to draw from, per the Author's Guide's "Building a Case"
-  step 4 — inventing the card pool is part of authoring a case).
+  Card names are pulled from the official Evidence Card Reference
+  (caseFileEvidenceReference.js) and inject decks from the official
+  Inject Card Deck reference (caseFileInjectDecks.js), per the Author's
+  Guide's "Building a Case" step 4 — a case authors a themed *subset* of
+  the shared reference catalog, not its own invented card names.
 */
+
+import { POSITIVE_INJECTS, NEGATIVE_INJECTS } from './caseFileInjectDecks.js';
 
 export const caseMeta = {
   title: 'The Meridian Consulting Skim',
@@ -88,54 +92,60 @@ export const factMatrix = [
 // `caseDefining: true` marks the ~1-in-4 rate the Author's Guide targets
 // (9 of 36 here), spread across bands rather than clustered late.
 // ---------------------------------------------------------------------------
+// Card `name` values are drawn from the official Evidence Card Reference
+// (see caseFileEvidenceReference.js) — this case's pool is a themed subset
+// per the Author's Guide's "Building a Case" step 4, not invented titles.
+// `flavor` gives this specific instance's case-specific detail (what makes
+// this particular Employment Records card *this* card), since the
+// reference catalog itself is deliberately generic/reusable.
 export const evidenceCards = [
   // Interviews
-  { id: 'int-01', category: 'interviews', factId: 'silenced_accountant', name: 'Okafor Exit Interview Notes', caseDefining: false },
-  { id: 'int-02', category: 'interviews', factId: 'silenced_accountant', name: 'HR Complaint Log Entry', caseDefining: true },
-  { id: 'int-03', category: 'interviews', factId: 'phantom_staffing', name: 'Agency Building-Access Supervisor Statement', caseDefining: false },
-  { id: 'int-04', category: 'interviews', factId: 'shell_companies', name: 'Former Meridian Bookkeeper Statement', caseDefining: false },
-  { id: 'int-05', category: 'interviews', factId: 'silenced_accountant', name: 'Okafor Follow-Up Interview', caseDefining: false },
-  { id: 'int-06', category: 'interviews', factId: 'personal_enrichment', name: 'Real Estate Agent Statement', caseDefining: false },
+  { id: 'int-01', category: 'interviews', factId: 'silenced_accountant', name: 'Former Employee Interview', flavor: 'Raymond Okafor, on his time as Meridian\'s staff accountant.', caseDefining: false },
+  { id: 'int-02', category: 'interviews', factId: 'silenced_accountant', name: 'Co-worker Statement', flavor: 'An HR staffer describes the complaint Okafor filed and withdrew.', caseDefining: true },
+  { id: 'int-03', category: 'interviews', factId: 'phantom_staffing', name: 'Witness Interview', flavor: 'The agency\'s building-access supervisor, on the badge log discrepancy.', caseDefining: false },
+  { id: 'int-04', category: 'interviews', factId: 'shell_companies', name: 'Former Employee Interview', flavor: 'A former Meridian bookkeeper describes the vendor onboarding process.', caseDefining: false },
+  { id: 'int-05', category: 'interviews', factId: 'silenced_accountant', name: 'Conflicting Statement', flavor: 'Okafor\'s follow-up account no longer matches his first.', caseDefining: false },
+  { id: 'int-06', category: 'interviews', factId: 'personal_enrichment', name: 'Witness Interview', flavor: 'The closing agent on the Lakeview property purchase.', caseDefining: false },
 
   // Documents
-  { id: 'doc-01', category: 'documents', factId: 'phantom_staffing', name: 'Contract Staffing Roster', caseDefining: false },
-  { id: 'doc-02', category: 'documents', factId: 'phantom_staffing', name: 'Submitted Federal Invoices (Q2-Q3)', caseDefining: true },
-  { id: 'doc-03', category: 'documents', factId: 'shell_companies', name: 'Shell Entity Formation Filings', caseDefining: true },
-  { id: 'doc-04', category: 'documents', factId: 'shell_companies', name: 'Vendor Services Agreement (Shell Co.)', caseDefining: false },
-  { id: 'doc-05', category: 'documents', factId: 'silenced_accountant', name: 'Internal Audit Memo, Marked "Do Not Escalate"', caseDefining: false },
-  { id: 'doc-06', category: 'documents', factId: 'altered_timesheets', name: 'Original vs. Revised Timesheet Printouts', caseDefining: false },
+  { id: 'doc-01', category: 'documents', factId: 'phantom_staffing', name: 'Employment Records', flavor: 'Contract staffing roster listing the three "senior systems analysts."', caseDefining: false },
+  { id: 'doc-02', category: 'documents', factId: 'phantom_staffing', name: 'Official Record', flavor: 'Submitted federal invoices for Q2–Q3 billing the phantom positions.', caseDefining: true },
+  { id: 'doc-03', category: 'documents', factId: 'shell_companies', name: 'Corporate Filing', flavor: 'Shell entity formation filings for two newly-registered vendors.', caseDefining: true },
+  { id: 'doc-04', category: 'documents', factId: 'shell_companies', name: 'Signed Contract', flavor: 'Vendor services agreement between Meridian and Shell Co.', caseDefining: false },
+  { id: 'doc-05', category: 'documents', factId: 'silenced_accountant', name: 'Internal Memo', flavor: 'An audit memo about billing discrepancies, marked "Do Not Escalate."', caseDefining: false },
+  { id: 'doc-06', category: 'documents', factId: 'altered_timesheets', name: 'Business Ledger', flavor: 'Original vs. revised timesheet printouts, side by side.', caseDefining: false },
 
   // Digital
-  { id: 'dig-01', category: 'digital', factId: 'altered_timesheets', name: 'HR System Edit-History Log', caseDefining: true },
-  { id: 'dig-02', category: 'digital', factId: 'phantom_staffing', name: 'VPN Login Records for "Billed" Analysts', caseDefining: true },
-  { id: 'dig-03', category: 'digital', factId: 'altered_timesheets', name: 'Deleted Email Recovered from Backup', caseDefining: false },
-  { id: 'dig-04', category: 'digital', factId: 'shell_companies', name: 'Cloud Drive Folder Shared with Voss\'s Personal Email', caseDefining: false },
-  { id: 'dig-05', category: 'digital', factId: 'silenced_accountant', name: 'Slack Messages Between Voss and Okafor', caseDefining: true },
-  { id: 'dig-06', category: 'digital', factId: 'phantom_staffing', name: 'Badge Reader Database Export', caseDefining: false },
+  { id: 'dig-01', category: 'digital', factId: 'altered_timesheets', name: 'Metadata Analysis', flavor: 'HR system edit-history log for the phantom analysts\' timesheets.', caseDefining: true },
+  { id: 'dig-02', category: 'digital', factId: 'phantom_staffing', name: 'VPN Activity Log', flavor: 'Login records for the three "billed" analyst accounts — empty.', caseDefining: true },
+  { id: 'dig-03', category: 'digital', factId: 'altered_timesheets', name: 'Deleted File Recovery', flavor: 'An email recovered from backup after deletion.', caseDefining: false },
+  { id: 'dig-04', category: 'digital', factId: 'shell_companies', name: 'Cloud Storage Files', flavor: "A shared drive folder linked to Voss's personal email.", caseDefining: false },
+  { id: 'dig-05', category: 'digital', factId: 'silenced_accountant', name: 'Chat Application Backup', flavor: 'Slack messages between Voss and Okafor.', caseDefining: true },
+  { id: 'dig-06', category: 'digital', factId: 'phantom_staffing', name: 'Authentication Logs', flavor: "Badge reader database export for the agency's front doors.", caseDefining: false },
 
   // Physical
-  { id: 'phy-01', category: 'physical', factId: 'altered_timesheets', name: 'Printed Timesheet with Handwritten Corrections', caseDefining: false },
-  { id: 'phy-02', category: 'physical', factId: 'personal_enrichment', name: 'Property Deed, Lakeview Address', caseDefining: false },
-  { id: 'phy-03', category: 'physical', factId: 'personal_enrichment', name: 'Cashier\'s Check Photocopy from Voss\'s Files', caseDefining: false },
-  { id: 'phy-04', category: 'physical', factId: 'phantom_staffing', name: 'Sign-In Sheet Binder from Agency Front Desk', caseDefining: false },
-  { id: 'phy-05', category: 'physical', factId: 'altered_timesheets', name: 'Discarded Notepad with Timesheet Math', caseDefining: true },
-  { id: 'phy-06', category: 'physical', factId: 'shell_companies', name: 'Shell Company Mailbox Rental Agreement', caseDefining: false },
+  { id: 'phy-01', category: 'physical', factId: 'altered_timesheets', name: 'Handwriting Sample', flavor: 'A printed timesheet with handwritten corrections.', caseDefining: false },
+  { id: 'phy-02', category: 'physical', factId: 'personal_enrichment', name: 'Inventory Record', flavor: "A listing of Voss's recently acquired assets, including a Lakeview property.", caseDefining: false },
+  { id: 'phy-03', category: 'physical', factId: 'personal_enrichment', name: 'Photographs', flavor: "A photographed copy of a cashier's check found in Voss's files.", caseDefining: false },
+  { id: 'phy-04', category: 'physical', factId: 'phantom_staffing', name: 'Access Log', flavor: "The agency front desk's physical sign-in binder.", caseDefining: false },
+  { id: 'phy-05', category: 'physical', factId: 'altered_timesheets', name: 'Discarded Item Recovery', flavor: 'A discarded notepad with timesheet math matching the altered entries.', caseDefining: true },
+  { id: 'phy-06', category: 'physical', factId: 'shell_companies', name: 'Physical Evidence', flavor: "A mailbox rental agreement for one of the shell companies.", caseDefining: false },
 
   // Financial
-  { id: 'fin-01', category: 'financial', factId: 'shell_companies', name: 'Wire Transfer Records, Meridian → Shell Co. A', caseDefining: false },
-  { id: 'fin-02', category: 'financial', factId: 'shell_companies', name: 'Wire Transfer Records, Shell Co. A → Shell Co. B', caseDefining: true },
-  { id: 'fin-03', category: 'financial', factId: 'personal_enrichment', name: 'Shell Co. B → Voss Personal Account Transfer', caseDefining: true },
-  { id: 'fin-04', category: 'financial', factId: 'personal_enrichment', name: 'Real Estate Closing Statement', caseDefining: false },
-  { id: 'fin-05', category: 'financial', factId: 'phantom_staffing', name: 'Federal Payment Disbursement Records', caseDefining: false },
-  { id: 'fin-06', category: 'financial', factId: 'shell_companies', name: 'Shell Co. Bank Account Opening Documents', caseDefining: false },
+  { id: 'fin-01', category: 'financial', factId: 'shell_companies', name: 'Wire Transfer Record', flavor: 'Meridian → Shell Co. A.', caseDefining: false },
+  { id: 'fin-02', category: 'financial', factId: 'shell_companies', name: 'Suspicious Activity Report', flavor: 'A bank-flagged pass-through: Shell Co. A → Shell Co. B.', caseDefining: true },
+  { id: 'fin-03', category: 'financial', factId: 'personal_enrichment', name: 'Wire Transfer Record', flavor: "Shell Co. B → Voss's personal account.", caseDefining: true },
+  { id: 'fin-04', category: 'financial', factId: 'personal_enrichment', name: 'Escrow Record', flavor: 'Closing statement for the Lakeview property purchase.', caseDefining: false },
+  { id: 'fin-05', category: 'financial', factId: 'phantom_staffing', name: 'Financial Record', flavor: 'Federal payment disbursement records for the modernization contract.', caseDefining: false },
+  { id: 'fin-06', category: 'financial', factId: 'shell_companies', name: 'Shell Company Registration', flavor: "Shell Co.'s bank account opening documents.", caseDefining: false },
 
   // Intelligence
-  { id: 'intel-01', category: 'intelligence', factId: 'silenced_accountant', name: 'Whistleblower Tip Follow-Up', caseDefining: false },
-  { id: 'intel-02', category: 'intelligence', factId: 'shell_companies', name: 'Corporate Registry Cross-Reference (Shell Co. Officers)', caseDefining: false },
-  { id: 'intel-03', category: 'intelligence', factId: 'phantom_staffing', name: 'Analyst Background Check Discrepancy', caseDefining: false },
-  { id: 'intel-04', category: 'intelligence', factId: 'personal_enrichment', name: 'Asset Search on Elena Voss', caseDefining: false },
-  { id: 'intel-05', category: 'intelligence', factId: 'silenced_accountant', name: 'Prior Complaint Pattern at Meridian (Other Employees)', caseDefining: false },
-  { id: 'intel-06', category: 'intelligence', factId: 'shell_companies', name: 'Registered Agent Cross-Filing Alert', caseDefining: false },
+  { id: 'intel-01', category: 'intelligence', factId: 'silenced_accountant', name: 'Confidential Source Report', flavor: 'A follow-up on the original whistleblower tip.', caseDefining: false },
+  { id: 'intel-02', category: 'intelligence', factId: 'shell_companies', name: 'Prior Case Cross-Reference', flavor: "Corporate registry cross-reference on the shell companies' officers.", caseDefining: false },
+  { id: 'intel-03', category: 'intelligence', factId: 'phantom_staffing', name: 'Criminal History Summary', flavor: 'Background check discrepancy on one of the "billed" analysts.', caseDefining: false },
+  { id: 'intel-04', category: 'intelligence', factId: 'personal_enrichment', name: 'Asset Forfeiture Record', flavor: 'An asset search on Elena Voss.', caseDefining: false },
+  { id: 'intel-05', category: 'intelligence', factId: 'silenced_accountant', name: 'Pattern Analysis', flavor: 'A pattern of prior complaints at Meridian from other employees.', caseDefining: false },
+  { id: 'intel-06', category: 'intelligence', factId: 'shell_companies', name: 'Watchlist Match', flavor: 'A registered-agent cross-filing alert.', caseDefining: false },
 ];
 
 // ---------------------------------------------------------------------------
@@ -211,26 +221,13 @@ export const caseDefiningDevelopments = evidenceCards
   }));
 
 // ---------------------------------------------------------------------------
-// Inject Flavor
+// Inject Decks — this case uses the official base/generic 20+20 decks
+// unmodified (see caseFileInjectDecks.js); a case's Facilitator Guide may
+// override individual cards' flavor text without touching band ratios or
+// mechanical effects, but this sample case has no such overrides.
 // ---------------------------------------------------------------------------
-export const positiveInjectFlavor = [
-  { band: 'momentum', text: 'A records clerk processes your request same-day instead of the usual week-long backlog.' },
-  { band: 'momentum', text: 'A cooperative witness volunteers a document you hadn\'t even asked for yet.' },
-  { band: 'relief', text: 'A supervisory sign-off clears a procedural hurdle that had been slowing your requests.' },
-  { band: 'relief', text: 'Command receives a positive update from the prosecutor\'s office and eases off.' },
-  { band: 'lead', text: 'A financial analyst flags an unusual transaction pattern you hadn\'t noticed.' },
-  { band: 'lead', text: 'An informal tip points you toward a document you didn\'t know existed.' },
-  { band: 'expedite', text: 'A judge signs off ahead of the usual docket, cutting the wait on a pending request.' },
-];
-
-export const negativeInjectFlavor = [
-  { hasDelay: true, text: 'Meridian\'s outside counsel files a motion contesting the scope of your request.' },
-  { hasDelay: true, text: 'A records custodian is out on leave; the request sits untouched.' },
-  { hasDelay: false, text: 'A reporter starts asking questions, and Command wants briefed before you proceed further.' },
-  { hasDelay: true, text: 'The evidence you requested turns out to be stored off-site and takes longer to retrieve.' },
-  { hasDelay: false, text: 'A witness becomes noticeably less cooperative after learning who else was interviewed.' },
-  { hasDelay: true, text: 'A backlog at the clerk\'s office pushes your filing behind a batch of unrelated cases.' },
-];
+export const positiveInjectFlavor = POSITIVE_INJECTS;
+export const negativeInjectFlavor = NEGATIVE_INJECTS;
 
 // ---------------------------------------------------------------------------
 // Grand Jury Rubric

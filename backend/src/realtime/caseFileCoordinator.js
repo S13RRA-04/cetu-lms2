@@ -211,7 +211,7 @@ function createCaseFileCoordinator() {
         if (bonus) drawn.push({ cardId: bonus, category: dieCategory });
       }
       for (const d of drawn) {
-        session.resolvedEvidence.push({ cardId: d.cardId, category: d.category, tier: 'discovered', caseDefining: false });
+        session.resolvedEvidence.push({ cardId: d.cardId, category: d.category, tier: 'discovered', caseDefining: false, evidenceValue: 1 });
         session.caseStrength += 1;
       }
       if (outcome.bonusCardStrength) session.caseStrength += outcome.bonusCardStrength - 1; // nat20: +3 total for the primary draw
@@ -352,6 +352,12 @@ function createCaseFileCoordinator() {
     return { state };
   }
 
+  /** Moves a Pending Returns Queue entry into resolvedEvidence at its target tier. */
+  function resolveQueueEntry(session, entry) {
+    session.resolvedEvidence.push({ cardId: entry.cardId, category: entry.category, tier: entry.targetTier, caseDefining: false, evidenceValue: 1 });
+    session.caseStrength += 1;
+  }
+
   function advanceRound({ code }) {
     const session = requireSession(code);
     if (session.gameOver) throw new Error('Investigation has ended');
@@ -360,8 +366,7 @@ function createCaseFileCoordinator() {
     for (const entry of session.pendingReturns) entry.roundsRemaining -= 1;
     session.pendingReturns = session.pendingReturns.filter((entry) => {
       if (entry.roundsRemaining > 0) return true;
-      session.resolvedEvidence.push({ cardId: entry.cardId, category: entry.category, tier: entry.targetTier, caseDefining: false });
-      session.caseStrength += 1;
+      resolveQueueEntry(session, entry);
       resolved.push(entry.cardId);
       return false;
     });
@@ -402,6 +407,91 @@ function createCaseFileCoordinator() {
     return { state };
   }
 
+  /** Positive Inject — Momentum band: recover 1 Resource Token, no Consolidate cap cost. */
+  function recoverToken({ code, category }) {
+    const session = requireSession(code);
+    if (session.gameOver) throw new Error('Investigation has ended');
+    if (!CATEGORIES.includes(category)) throw new Error('Unknown evidence category');
+    session.tokens[category] += 1;
+    pushLog(session, `Momentum inject — recovered 1 ${category} token.`);
+    const state = publicState(session);
+    publish(code, { type: 'state', state });
+    return { state };
+  }
+
+  /** Positive Inject — Lead band: draw 1 bonus Evidence Card from a chosen category, no roll/token cost. */
+  function drawBonusCard({ code, category }) {
+    const session = requireSession(code);
+    if (session.gameOver) throw new Error('Investigation has ended');
+    if (!CATEGORIES.includes(category)) throw new Error('Unknown evidence category');
+    const cardId = drawCard(session, category);
+    if (cardId) {
+      session.resolvedEvidence.push({ cardId, category, tier: 'discovered', caseDefining: false, evidenceValue: 1 });
+      session.caseStrength += 1;
+      pushLog(session, `Lead inject — bonus card drawn from ${category}.`);
+    } else {
+      pushLog(session, `Lead inject — ${category} deck was empty, no bonus card drawn.`);
+    }
+    checkGameOver(session);
+    const state = publicState(session);
+    publish(code, { type: 'state', state });
+    return { state, cardId };
+  }
+
+  /** Positive Inject — Expedite band: advance 1 queued card one additional space (may resolve it immediately). */
+  function expeditePending({ code, cardId }) {
+    const session = requireSession(code);
+    if (session.gameOver) throw new Error('Investigation has ended');
+    const entry = session.pendingReturns.find((e) => e.cardId === cardId);
+    if (!entry) throw new Error('Card not found in Pending Returns Queue');
+    entry.roundsRemaining -= 1;
+    let resolved = false;
+    if (entry.roundsRemaining <= 0) {
+      resolveQueueEntry(session, entry);
+      session.pendingReturns = session.pendingReturns.filter((e) => e !== entry);
+      resolved = true;
+    }
+    pushLog(session, `Expedite inject — ${cardId} advanced${resolved ? ' and resolved' : ' in the queue'}.`);
+    checkGameOver(session);
+    const state = publicState(session);
+    publish(code, { type: 'state', state });
+    return { state, resolved };
+  }
+
+  /** Negative Inject — Setback band: lose 1 Resource Token (facilitator/team picks the category). */
+  function loseToken({ code, category }) {
+    const session = requireSession(code);
+    if (session.gameOver) throw new Error('Investigation has ended');
+    if (!CATEGORIES.includes(category)) throw new Error('Unknown evidence category');
+    session.tokens[category] = Math.max(0, session.tokens[category] - 1);
+    pushLog(session, `Setback inject — lost 1 ${category} token.`);
+    checkGameOver(session);
+    const state = publicState(session);
+    publish(code, { type: 'state', state });
+    return { state };
+  }
+
+  /** Negative Inject — Suppression band: reduce a resolved card's Evidence Value by 1 (floor 0). */
+  function suppressEvidence({ code, cardId }) {
+    const session = requireSession(code);
+    if (session.gameOver) throw new Error('Investigation has ended');
+    const entry = session.resolvedEvidence.find((e) => e.cardId === cardId && (e.evidenceValue ?? 0) > 0);
+    if (!entry) {
+      // Already suppressed to floor (or card not found) — per the Inject
+      // Deck reference, treat this as narrative-only, not an error.
+      pushLog(session, `Suppression inject — ${cardId} has no further Evidence Value to reduce.`);
+      const state = publicState(session);
+      publish(code, { type: 'state', state });
+      return { state, suppressed: false };
+    }
+    entry.evidenceValue -= 1;
+    session.caseStrength = Math.max(0, session.caseStrength - 1);
+    pushLog(session, `Suppression inject — ${cardId}'s Evidence Value reduced by 1.`);
+    const state = publicState(session);
+    publish(code, { type: 'state', state });
+    return { state, suppressed: true };
+  }
+
   function declareOutcome({ code, outcome }) {
     const session = requireSession(code);
     session.gameOver = true;
@@ -433,6 +523,11 @@ function createCaseFileCoordinator() {
     advanceRound,
     presentGrandJury,
     applyDefenseCounterplay,
+    recoverToken,
+    drawBonusCard,
+    expeditePending,
+    loseToken,
+    suppressEvidence,
     declareOutcome,
     subscribe,
   };

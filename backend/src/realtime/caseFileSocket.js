@@ -24,6 +24,11 @@ const FACILITATOR_ACTIONS = {
   advance_round: (c, msg) => c.advanceRound(msg),
   present_grand_jury: (c, msg) => c.presentGrandJury(msg),
   apply_defense_counterplay: (c, msg) => c.applyDefenseCounterplay(msg),
+  recover_token: (c, msg) => c.recoverToken(msg),
+  draw_bonus_card: (c, msg) => c.drawBonusCard(msg),
+  expedite_pending: (c, msg) => c.expeditePending(msg),
+  lose_token: (c, msg) => c.loseToken(msg),
+  suppress_evidence: (c, msg) => c.suppressEvidence(msg),
   declare_outcome: (c, msg) => c.declareOutcome(msg),
 };
 
