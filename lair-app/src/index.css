@@ -3279,12 +3279,34 @@ body::after {
   from { opacity: 0; transform: translateY(-16px) scale(.8) rotate(var(--cf-rot, -3deg)); }
   to   { opacity: 1; transform: translateY(0) scale(1) rotate(var(--cf-rot, -3deg)); }
 }
-.cf-play-card {
+
+/* Play Area cards: 3D flip container — dealt face-down, flips face-up on reveal */
+.cf-play-card-flip {
+  min-height: 116px; perspective: 700px; animation: cf-deal .4s ease-out both;
+  transform: rotate(var(--cf-rot, -1deg));
+}
+.cf-play-card-inner {
+  position: relative; width: 100%; height: 100%; min-height: 116px;
+  transform-style: preserve-3d; transition: transform .6s cubic-bezier(.4, .2, .2, 1);
+}
+.cf-play-card-inner.cf-flipped { transform: rotateY(180deg); }
+.cf-play-card-face {
+  position: absolute; inset: 0; backface-visibility: hidden; border-radius: 6px;
+  padding: 8px; font-size: 10px; display: flex; flex-direction: column; gap: 4px;
+}
+.cf-play-card-back {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--cat-color) 30%, #0a0a0f), #0a0a0f);
+  border: 1px solid var(--cat-color);
+  align-items: center; justify-content: center; gap: 6px;
+}
+.cf-card-back-label {
+  font-size: 8px; letter-spacing: .1em; color: color-mix(in srgb, var(--cat-color) 70%, white);
+  opacity: .8;
+}
+.cf-play-card-front {
   background: linear-gradient(165deg, color-mix(in srgb, var(--cat-color) 18%, #0c0c11), #0c0c11);
   border: 1px solid color-mix(in srgb, var(--cat-color) 60%, transparent);
-  border-radius: 6px; padding: 8px; font-size: 10px; animation: cf-deal .4s ease-out both;
-  transform: rotate(var(--cf-rot, -1deg));
-  display: flex; flex-direction: column; gap: 4px;
+  transform: rotateY(180deg);
 }
 .cf-play-card-name { color: var(--text); font-weight: 600; line-height: 1.25; min-height: 24px; }
 .cf-play-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
@@ -3301,6 +3323,29 @@ body::after {
 .cf-play-card-actions button:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
 .cf-play-card-actions button:disabled { opacity: .35; cursor: not-allowed; }
 .cf-playarea-empty { color: var(--muted); font-size: 12px; font-style: italic; padding: 20px; text-align: center; }
+
+/* Flying "dealt" card — travels from the clicked deck to the Play Area */
+.cf-flying-card {
+  position: fixed; width: 44px; height: 44px; border-radius: 6px; pointer-events: none; z-index: 999;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--cat-color) 40%, #0a0a0f), #0a0a0f);
+  border: 1px solid var(--cat-color); box-shadow: 0 4px 16px rgba(0,0,0,.5);
+  animation: cf-fly .6s cubic-bezier(.3, .1, .3, 1) forwards;
+}
+@keyframes cf-fly {
+  0%   { transform: translate(0, 0) scale(1) rotate(0deg); opacity: 1; }
+  70%  { opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) scale(.55) rotate(10deg); opacity: 0; }
+}
+
+/* Dice shake while rolling */
+@keyframes cf-die-shake {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  20% { transform: rotate(-8deg) scale(1.05); }
+  40% { transform: rotate(6deg) scale(.97); }
+  60% { transform: rotate(-4deg) scale(1.03); }
+  80% { transform: rotate(3deg) scale(.99); }
+}
+.cf-die-shake { animation: cf-die-shake .35s ease-in-out infinite; }
 
 /* Pending Returns Queue */
 .cf-queue-panel {

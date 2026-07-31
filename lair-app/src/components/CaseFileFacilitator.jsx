@@ -100,11 +100,41 @@ export default function CaseFileFacilitator() {
   const rollStart = useRef(0);
   const pendingRequestId = useRef(null);
 
+  // Card-flip choreography: a card renders face-down the instant it appears
+  // in resolvedEvidence, then flips face-up on a short stagger — revealedIds
+  // persists across renders so a card only ever flips once (tier upgrades
+  // later don't re-trigger it).
+  const [revealedIds, setRevealedIds] = useState(() => new Set());
+  const pendingFlipRef = useRef(new Set());
+  const flipTimersRef = useRef([]);
+
+  // "Dealt from deck" flying-card ghost, from the clicked deck tile to the
+  // Play Area panel — pure CSS keyframe driven by --dx/--dy deltas computed
+  // from real DOM rects at click time.
+  const [flyingCards, setFlyingCards] = useState([]);
+  const deckElRefs = useRef({});
+  const playAreaRef = useRef(null);
+
   useEffect(() => {
     if (ended) setStarted(false);
   }, [ended]);
 
-  useEffect(() => () => clearInterval(rollTimer.current), []);
+  useEffect(() => () => {
+    clearInterval(rollTimer.current);
+    flipTimersRef.current.forEach(clearTimeout);
+  }, []);
+
+  useEffect(() => {
+    if (!state) return;
+    const ids = [...new Set(state.resolvedEvidence.map((e) => e.cardId))];
+    const newIds = ids.filter((id) => !revealedIds.has(id) && !pendingFlipRef.current.has(id));
+    newIds.forEach((id, i) => {
+      pendingFlipRef.current.add(id);
+      const t = setTimeout(() => setRevealedIds((prev) => new Set(prev).add(id)), 220 + i * 170);
+      flipTimersRef.current.push(t);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state ? state.resolvedEvidence.map((e) => e.cardId).join(',') : '']);
 
   useEffect(() => {
     if (!rolling || !lastResult || lastResult.requestId !== pendingRequestId.current) return;
@@ -130,6 +160,25 @@ export default function CaseFileFacilitator() {
     setTimeout(() => setStarted(true), 0);
   }
 
+  function flyCardFromDeck(cat) {
+    const deckEl = deckElRefs.current[cat];
+    const targetEl = playAreaRef.current;
+    if (!deckEl || !targetEl) return;
+    const from = deckEl.getBoundingClientRect();
+    const to = targetEl.getBoundingClientRect();
+    const id = `${cat}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const dx = (to.left + 44) - (from.left + from.width / 2 - 22);
+    const dy = (to.top + 44) - (from.top + from.height / 2 - 22);
+    setFlyingCards((prev) => [...prev, {
+      id,
+      left: from.left + from.width / 2 - 22,
+      top: from.top + from.height / 2 - 22,
+      dx, dy,
+      color: CATEGORY_META[cat].color,
+    }]);
+    setTimeout(() => setFlyingCards((prev) => prev.filter((f) => f.id !== id)), 620);
+  }
+
   function investigate(cat) {
     if (rolling || !state || state.tokens[cat] <= 0 || state.gameOver) return;
     setRolling(true);
@@ -138,6 +187,7 @@ export default function CaseFileFacilitator() {
     clearInterval(rollTimer.current);
     rollTimer.current = setInterval(() => setRollFace(1 + Math.floor(Math.random() * 20)), 70);
     pendingRequestId.current = sendAction('investigate', { category: cat, actionType: 'investigate' });
+    flyCardFromDeck(cat);
   }
 
   if (!started || !state) {
@@ -237,6 +287,7 @@ export default function CaseFileFacilitator() {
               return (
                 <div
                   key={cat}
+                  ref={(el) => { deckElRefs.current[cat] = el; }}
                   className={`cf-deck${disabled ? ' cf-deck-disabled' : ''}${rollingCategory === cat ? ' cf-deck-pulse' : ''}`}
                   style={{ '--cat-color': meta.color }}
                   onClick={() => investigate(cat)}
@@ -270,7 +321,7 @@ export default function CaseFileFacilitator() {
           {/* Center: roll, play area, queue */}
           <div className="cf-center">
             <div className="cf-roll-widget">
-              <div className={`ttx-die${rolling ? ' ttx-die-rolling' : ''}`}>{rollFace ?? '–'}</div>
+              <div className={`ttx-die${rolling ? ' ttx-die-rolling cf-die-shake' : ''}`}>{rollFace ?? '–'}</div>
               <div className="cf-roll-outcome">
                 {lastResult?.result?.roll ? (
                   <>
@@ -290,7 +341,7 @@ export default function CaseFileFacilitator() {
               </div>
             </div>
 
-            <div className="cf-playarea-panel">
+            <div className="cf-playarea-panel" ref={playAreaRef}>
               <div className="cf-track-title">Play Area</div>
               {dedupedEvidence.length === 0 ? (
                 <div className="cf-playarea-empty">No evidence resolved yet.</div>
@@ -306,31 +357,40 @@ export default function CaseFileFacilitator() {
                     const canDevelop = routed && ladderStep && !alreadyQueued && !state.gameOver
                       && state.caseStrength >= ladderStep.minCaseStrength
                       && card && state.tokens[card.category] > 0;
+                    const flipped = revealedIds.has(e.cardId);
                     return (
                       <div
                         key={e.cardId}
-                        className="cf-play-card"
+                        className="cf-play-card-flip"
                         style={{ '--cat-color': meta?.color, '--cf-rot': `${((i * 37) % 7) - 3}deg` }}
                       >
-                        <div className="cf-play-card-name">{card ? card.name : e.cardId}</div>
-                        <div className="cf-play-card-foot">
-                          <span className="cf-play-card-tier">{tierLabel(e.tier)}</span>
-                          {e.caseDefining && <span className="cf-play-card-star" title="Case-Defining">★</span>}
-                        </div>
-                        <div className="cf-play-card-actions">
-                          {!e.caseDefining && (
-                            <button disabled={state.gameOver} onClick={() => sendAction('mark_case_defining', { cardId: e.cardId })}>Case-Defining</button>
-                          )}
-                          {!alreadyQueued && ladderStep && (
-                            <button
-                              disabled={!canDevelop}
-                              title={!routed ? 'Facilitator judgment call — not routed through the ladder' : `Requires Case Strength ${ladderStep.minCaseStrength}+`}
-                              onClick={() => sendAction('develop', { category: card.category, cardId: e.cardId, targetTier: nextTier, delay: ladderStep.delay })}
-                            >
-                              → {ladderStep.label}
-                            </button>
-                          )}
-                          {alreadyQueued && <span className="cf-cat-tag">Queued</span>}
+                        <div className={`cf-play-card-inner${flipped ? ' cf-flipped' : ''}`}>
+                          <div className="cf-play-card-face cf-play-card-back" style={{ '--cat-color': meta?.color }}>
+                            <span className="cf-deck-icon">{meta?.icon}</span>
+                            <span className="cf-card-back-label">CASE FILE</span>
+                          </div>
+                          <div className="cf-play-card-face cf-play-card-front" style={{ '--cat-color': meta?.color }}>
+                            <div className="cf-play-card-name">{card ? card.name : e.cardId}</div>
+                            <div className="cf-play-card-foot">
+                              <span className="cf-play-card-tier">{tierLabel(e.tier)}</span>
+                              {e.caseDefining && <span className="cf-play-card-star" title="Case-Defining">★</span>}
+                            </div>
+                            <div className="cf-play-card-actions">
+                              {!e.caseDefining && (
+                                <button disabled={state.gameOver} onClick={() => sendAction('mark_case_defining', { cardId: e.cardId })}>Case-Defining</button>
+                              )}
+                              {!alreadyQueued && ladderStep && (
+                                <button
+                                  disabled={!canDevelop}
+                                  title={!routed ? 'Facilitator judgment call — not routed through the ladder' : `Requires Case Strength ${ladderStep.minCaseStrength}+`}
+                                  onClick={() => sendAction('develop', { category: card.category, cardId: e.cardId, targetTier: nextTier, delay: ladderStep.delay })}
+                                >
+                                  → {ladderStep.label}
+                                </button>
+                              )}
+                              {alreadyQueued && <span className="cf-cat-tag">Queued</span>}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );
@@ -496,6 +556,14 @@ export default function CaseFileFacilitator() {
           <button className="btn-secondary" disabled={state.gameOver} onClick={() => sendAction('declare_outcome', { outcome: 'loss' })}>Declare Loss</button>
         </div>
       </section>
+
+      {flyingCards.map((f) => (
+        <div
+          key={f.id}
+          className="cf-flying-card"
+          style={{ left: f.left, top: f.top, '--cat-color': f.color, '--dx': `${f.dx}px`, '--dy': `${f.dy}px` }}
+        />
+      ))}
     </div>
   );
 }
