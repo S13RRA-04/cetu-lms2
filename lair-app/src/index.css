@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=VT323&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=VT323&family=JetBrains+Mono:wght@400;500;600;700&family=Bebas+Neue&family=Special+Elite&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -3465,3 +3465,187 @@ body::after {
   animation: cf-turn-pop .3s ease-out;
 }
 @keyframes cf-turn-pop { from { transform: scale(.6); } to { transform: scale(1); } }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Case File — physical tabletop theme. Scoped entirely under .cf-tabletop
+   (applied to the outer wrapper of both CaseFileFacilitator.jsx and
+   CaseFilePlayer.jsx) so it overrides the app's green-phosphor CRT skin
+   ONLY on these two screens — everything else in LAIR (including TTX
+   Facilitator, which shares some of the same base .ttx-* classes) is
+   untouched, since these rules only ever match inside .cf-tabletop.
+   ═══════════════════════════════════════════════════════════════════════ */
+.cf-tabletop {
+  --wood-dark: #241609;
+  --wood: #4a2f16;
+  --wood-light: #6e4720;
+  --felt: #0e3d29;
+  --felt-light: #175a3d;
+  --parchment: #ede1c3;
+  --parchment-dark: #d8c89e;
+  --ink: #2c2013;
+  --ink-soft: #5a4a34;
+  --brass: #c8a24e;
+  --brass-bright: #e6c876;
+  font-family: 'Special Elite', var(--mono);
+  color: var(--parchment);
+  background:
+    radial-gradient(ellipse at 25% 15%, rgba(255,255,255,.05), transparent 55%),
+    radial-gradient(ellipse at 80% 90%, rgba(0,0,0,.35), transparent 60%),
+    repeating-linear-gradient(115deg, rgba(0,0,0,.06) 0px, transparent 2px, transparent 5px),
+    linear-gradient(155deg, var(--wood-light) 0%, var(--wood) 45%, var(--wood-dark) 100%);
+  border-radius: 14px;
+  padding: 22px;
+  box-shadow: inset 0 0 70px rgba(0,0,0,.55), 0 14px 40px rgba(0,0,0,.6);
+  position: relative;
+}
+.cf-tabletop * { scrollbar-color: var(--brass) rgba(0,0,0,.3); }
+
+.cf-tabletop .page-title {
+  font-family: 'Bebas Neue', var(--display) !important;
+  color: var(--brass-bright) !important;
+  letter-spacing: .08em;
+  text-shadow: 0 2px 4px rgba(0,0,0,.6), 0 0 18px rgba(200,162,78,.25);
+}
+.cf-tabletop .page-subtitle { color: var(--parchment-dark); font-family: 'Special Elite', var(--mono); }
+.cf-tabletop .page-subtitle strong { color: var(--brass-bright) !important; }
+.cf-tabletop a { color: var(--brass-bright); }
+
+.cf-tabletop .ttx-header { border-bottom: 2px solid var(--wood-light); padding-bottom: 14px; margin-bottom: 14px; }
+.cf-tabletop .ttx-guide {
+  background: linear-gradient(160deg, var(--parchment), var(--parchment-dark));
+  border: 1px solid var(--wood-light); color: var(--ink);
+  box-shadow: 0 4px 14px rgba(0,0,0,.35);
+}
+.cf-tabletop .ttx-guide-toggle { color: var(--ink); }
+.cf-tabletop .ttx-guide p { color: var(--ink-soft); }
+.cf-tabletop .ttx-guide strong { color: var(--ink); }
+
+/* Wood-framed felt board */
+.cf-tabletop .cf-board { gap: 18px; }
+.cf-tabletop .cf-track-panel,
+.cf-tabletop .cf-playarea-panel,
+.cf-tabletop .cf-queue-panel,
+.cf-tabletop .cf-bank-panel,
+.cf-tabletop .cf-turns-panel,
+.cf-tabletop .cf-pile,
+.cf-tabletop .ttx-panel {
+  background:
+    radial-gradient(ellipse at 30% 0%, rgba(255,255,255,.05), transparent 60%),
+    linear-gradient(160deg, var(--felt-light), var(--felt));
+  border: 3px solid var(--wood-light);
+  border-radius: 10px;
+  box-shadow: inset 0 0 24px rgba(0,0,0,.4), 0 6px 16px rgba(0,0,0,.35);
+}
+.cf-tabletop .cf-track-title,
+.cf-tabletop .ttx-panel-label {
+  font-family: 'Bebas Neue', var(--display);
+  color: var(--brass-bright);
+  letter-spacing: .1em;
+  text-shadow: 0 1px 2px rgba(0,0,0,.6);
+}
+.cf-tabletop .ttx-panel-hint { color: var(--parchment-dark); }
+.cf-tabletop .ttx-panel-head { border-bottom: 1px solid var(--wood-light); }
+
+/* Evidence decks: stacked-card look on felt */
+.cf-tabletop .cf-deck {
+  border-radius: 8px;
+  border: 2px solid color-mix(in srgb, var(--cat-color) 70%, var(--wood-light));
+  box-shadow:
+    3px 3px 0 -1px var(--wood-dark), 3px 3px 0 0 var(--wood-light),
+    6px 6px 0 -1px var(--wood-dark), 6px 6px 0 0 rgba(0,0,0,.3),
+    0 8px 14px rgba(0,0,0,.45);
+}
+.cf-tabletop .cf-deck-name { font-family: 'Bebas Neue', var(--display); letter-spacing: .06em; font-size: 13px; }
+.cf-tabletop .cf-deck-count { color: var(--parchment-dark); }
+.cf-tabletop .cf-deck-armed { box-shadow: 0 0 0 3px var(--cat-color), 0 0 22px color-mix(in srgb, var(--cat-color) 80%, transparent); }
+
+/* Cards: parchment index-card look instead of dark terminal panels */
+.cf-tabletop .cf-play-card-back {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--cat-color) 35%, var(--wood)), var(--wood-dark));
+  border: 1px solid color-mix(in srgb, var(--cat-color) 60%, var(--brass));
+}
+.cf-tabletop .cf-play-card-front {
+  background:
+    repeating-linear-gradient(180deg, transparent 0 22px, rgba(0,0,0,.035) 22px 23px),
+    linear-gradient(160deg, var(--parchment), var(--parchment-dark));
+  border: 1px solid var(--wood-light);
+  box-shadow: 0 3px 8px rgba(0,0,0,.4);
+}
+.cf-tabletop .cf-play-card-front::before {
+  content: ''; position: absolute; top: 0; left: 10px; right: 10px; height: 6px;
+  background: var(--cat-color); border-radius: 0 0 3px 3px; opacity: .85;
+}
+.cf-tabletop .cf-play-card-name { color: var(--ink); font-family: 'Special Elite', var(--mono); font-weight: 400; }
+.cf-tabletop .cf-play-card-flavor { color: var(--ink-soft); }
+.cf-tabletop .cf-play-card-tier { color: var(--ink); border-color: var(--ink-soft); background: rgba(255,255,255,.3); }
+.cf-tabletop .cf-play-card-actions button { border-color: var(--ink-soft); color: var(--ink); }
+.cf-tabletop .cf-play-card-actions button:hover:not(:disabled) { border-color: var(--cat-color); color: var(--cat-color); }
+.cf-tabletop .cf-card-back-label { font-family: 'Bebas Neue', var(--display); letter-spacing: .15em; }
+
+/* Case Strength Track: inlaid game-board path */
+.cf-tabletop .cf-track-cell {
+  background: rgba(0,0,0,.25); border: 1px solid rgba(0,0,0,.3); color: rgba(255,255,255,.4);
+  font-family: 'Special Elite', var(--mono);
+}
+.cf-tabletop .cf-track-cell.cf-track-reached { color: var(--ink); }
+.cf-tabletop .cf-track-band { color: rgba(255,255,255,.55); font-family: 'Bebas Neue', var(--display); letter-spacing: .08em; }
+
+/* Pending Returns Queue slots */
+.cf-tabletop .cf-queue-slot { border-color: var(--wood-light); color: var(--parchment-dark); }
+.cf-tabletop .cf-queue-slot-filled {
+  background: color-mix(in srgb, var(--cat-color) 22%, var(--felt)); border-color: var(--cat-color); color: var(--parchment);
+}
+
+/* Piles */
+.cf-tabletop .cf-pile-count { font-family: 'Bebas Neue', var(--display); font-size: 26px; }
+.cf-tabletop .cf-pile-label { color: var(--parchment-dark); font-family: 'Special Elite', var(--mono); }
+
+/* Chip-style tokens instead of flat dots */
+.cf-tabletop .cf-pip {
+  width: 11px; height: 11px; border: 1px solid rgba(0,0,0,.4);
+  background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.5), transparent 60%), rgba(0,0,0,.3);
+  box-shadow: inset 0 0 2px rgba(0,0,0,.5);
+}
+.cf-tabletop .cf-pip-filled {
+  background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.75), color-mix(in srgb, var(--cat-color) 85%, black) 65%);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--cat-color) 70%, transparent), inset 0 0 2px rgba(0,0,0,.4);
+}
+
+/* Buttons: brass/wood tactile game pieces */
+.cf-tabletop .btn-primary {
+  background: linear-gradient(160deg, var(--brass-bright), var(--brass));
+  color: var(--wood-dark); font-family: 'Bebas Neue', var(--display); letter-spacing: .06em; font-size: 15px;
+  border: 1px solid var(--wood-dark); box-shadow: 0 3px 0 var(--wood-dark), 0 5px 10px rgba(0,0,0,.4);
+}
+.cf-tabletop .btn-primary:active:not(:disabled) { box-shadow: 0 1px 0 var(--wood-dark); transform: translateY(2px); }
+.cf-tabletop .btn-secondary, .cf-tabletop .cf-select {
+  background: var(--wood); border: 1px solid var(--wood-light); color: var(--parchment);
+  font-family: 'Special Elite', var(--mono);
+}
+.cf-tabletop .btn-secondary:hover:not(:disabled) { background: var(--wood-light); }
+.cf-tabletop .btn-sm-primary, .cf-tabletop .cf-deck-btn {
+  background: color-mix(in srgb, var(--cat-color, var(--brass)) 25%, var(--wood));
+  border: 1px solid var(--cat-color, var(--brass)); color: var(--parchment);
+  font-family: 'Special Elite', var(--mono);
+}
+.cf-tabletop .cf-deck-btn { color: var(--cat-color); }
+
+/* Command Pressure ladder + turn strip inlaid on felt */
+.cf-tabletop .cf-pressure-cell { border-color: rgba(0,0,0,.4); }
+.cf-tabletop .cf-turn-cell { background: rgba(0,0,0,.25); border-color: rgba(0,0,0,.3); color: rgba(255,255,255,.4); }
+.cf-tabletop .cf-turn-cell.cf-turn-current { color: var(--wood-dark); background: var(--brass-bright); box-shadow: 0 0 10px var(--brass); }
+
+/* Outcome banner + injects, restyled for parchment */
+.cf-tabletop .cf-outcome-banner {
+  background: linear-gradient(160deg, var(--parchment), var(--parchment-dark)); color: var(--ink);
+  border: 2px solid var(--brass); font-family: 'Bebas Neue', var(--display); font-size: 18px; letter-spacing: .05em;
+}
+.cf-tabletop .cf-outcome-loss { border-color: var(--danger); }
+.cf-tabletop .cf-inject-row { border-bottom-color: var(--wood-light); }
+.cf-tabletop .cf-inject-row strong { color: var(--brass-bright); }
+.cf-tabletop .cf-cat-tag { color: var(--parchment-dark); }
+.cf-tabletop .cf-drawn-list li { color: var(--parchment); }
+
+/* Roll widget dice sit directly on the felt */
+.cf-tabletop .cf-roll-outcome { color: var(--parchment); }
+.cf-tabletop .cf-roll-outcome strong { color: var(--brass-bright); }

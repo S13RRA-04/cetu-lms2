@@ -56,7 +56,7 @@ export default function CaseFilePlayer() {
 
   if (!joinCode || ended) {
     return (
-      <div className="ttx-wrap">
+      <div className="ttx-wrap cf-tabletop">
         <div className="ttx-header">
           <div>
             <h1 className="page-title" style={{ marginBottom: 4 }}>Case File</h1>
@@ -85,7 +85,7 @@ export default function CaseFilePlayer() {
 
   if (!state) {
     return (
-      <div className="ttx-wrap">
+      <div className="ttx-wrap cf-tabletop">
         <p className="page-subtitle">Connecting to session {joinCode}…</p>
         {error && <p style={{ color: 'var(--danger)' }}>{error}</p>}
       </div>
@@ -96,7 +96,7 @@ export default function CaseFilePlayer() {
   const maxTurn = Math.max(state.round + 3, 12);
 
   return (
-    <div className="ttx-wrap">
+    <div className="ttx-wrap cf-tabletop">
       <div className="ttx-header">
         <div>
           <h1 className="page-title" style={{ marginBottom: 4 }}>Case File — Investigation Board</h1>

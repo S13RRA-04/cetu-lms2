@@ -323,7 +323,7 @@ export default function CaseFileFacilitator() {
 
   if (!started || !state) {
     return (
-      <div className="ttx-wrap">
+      <div className="ttx-wrap cf-tabletop">
         <div className="ttx-header">
           <div>
             <h1 className="page-title" style={{ marginBottom: 4 }}>Case File — Facilitator</h1>
@@ -332,7 +332,7 @@ export default function CaseFileFacilitator() {
         </div>
         <div className="ttx-guide">
           <p style={{ margin: '0 0 12px' }}>{caseMeta.premise}</p>
-          <p style={{ margin: '0 0 16px', color: 'var(--text)' }}><strong>Initial Complaint:</strong> {caseMeta.initialComplaint}</p>
+          <p style={{ margin: '0 0 16px' }}><strong>Initial Complaint:</strong> {caseMeta.initialComplaint}</p>
           <button className="btn-primary" onClick={newSession}>
             {started ? 'Connecting…' : 'Start Investigation'}
           </button>
@@ -370,7 +370,7 @@ export default function CaseFileFacilitator() {
   const maxTurn = Math.max(state.round + 3, 12);
 
   return (
-    <div className="ttx-wrap">
+    <div className="ttx-wrap cf-tabletop">
       <div className="ttx-header">
         <div>
           <h1 className="page-title" style={{ marginBottom: 4 }}>Case File</h1>
