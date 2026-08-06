@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import useCaseFileSession from '../hooks/useCaseFileSession.js';
-import { bandForCaseStrength, BAND_THRESHOLDS } from '../data/caseFileSample.js';
+import { bandForCaseStrength, BAND_THRESHOLDS } from '../data/caseFileCaseUtils.js';
 import { CATEGORY_META, CATEGORIES, BAND_META, PRESSURE_META } from '../data/caseFileTheme.js';
+import CaseFileGuide from './CaseFileGuide.jsx';
+import { PLAYER_GUIDE_SECTIONS } from '../data/caseFileGuideContent.js';
 
 function CaseStrengthTrack({ caseStrength }) {
   const cells = Array.from({ length: 31 }, (_, n) => n);
@@ -48,6 +50,7 @@ function CaseStrengthTrack({ caseStrength }) {
 export default function CaseFilePlayer() {
   const [codeInput, setCodeInput] = useState('');
   const [joinCode, setJoinCode] = useState(null);
+  const [playerGuideOpen, setPlayerGuideOpen] = useState(false);
   const { connected, code, state, error, ended } = useCaseFileSession({
     role: 'player',
     joinCode,
@@ -61,6 +64,9 @@ export default function CaseFilePlayer() {
           <div>
             <h1 className="page-title" style={{ marginBottom: 4 }}>Case File</h1>
             <p className="page-subtitle" style={{ marginBottom: 0 }}>Enter the room code your facilitator gave you.</p>
+          </div>
+          <div className="ttx-session-controls">
+            <button className="btn-secondary" onClick={() => setPlayerGuideOpen(true)}>How to Play</button>
           </div>
         </div>
         <div className="ttx-guide">
@@ -79,6 +85,9 @@ export default function CaseFilePlayer() {
           </div>
           {error && <p style={{ color: 'var(--danger)', marginTop: 12 }}>{error}</p>}
         </div>
+        {playerGuideOpen && (
+          <CaseFileGuide title="How to Play" sections={PLAYER_GUIDE_SECTIONS} onClose={() => setPlayerGuideOpen(false)} />
+        )}
       </div>
     );
   }
@@ -104,7 +113,14 @@ export default function CaseFilePlayer() {
             Room {code} · {connected ? 'Connected' : 'Reconnecting…'}
           </p>
         </div>
+        <div className="ttx-session-controls">
+          <button className="btn-secondary" onClick={() => setPlayerGuideOpen(true)}>How to Play</button>
+        </div>
       </div>
+
+      {playerGuideOpen && (
+        <CaseFileGuide title="How to Play" sections={PLAYER_GUIDE_SECTIONS} onClose={() => setPlayerGuideOpen(false)} />
+      )}
 
       {state.gameOver && (
         <div className={`cf-outcome-banner cf-outcome-${state.outcome}`}>

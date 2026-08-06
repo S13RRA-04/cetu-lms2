@@ -1,24 +1,16 @@
 /*
-  Case File — sample case content, authored against the Case Author
-  Template (see project docs: Facilitator & Case Author's Guide) as an
-  original case for an original game design. Everything in this file is
-  facilitator-only narrative/rubric content: the CaseFilePlayer.jsx screen
-  never imports this module, and the coordinator (backend) never receives
-  anything from it beyond opaque card ID strings supplied at session
-  creation — the reveal text, rubric, and inject flavor below never leave
-  the facilitator's browser.
-
-  Card names are pulled from the official Evidence Card Reference
-  (caseFileEvidenceReference.js) and inject decks from the official
-  Inject Card Deck reference (caseFileInjectDecks.js), per the Author's
-  Guide's "Building a Case" step 4 — a case authors a themed *subset* of
-  the shared reference catalog, not its own invented card names.
+  Case File — "The Meridian Consulting Skim" (White-Collar Crime / Fraud).
+  Pure case data — see caseFileCaseUtils.js for the shared helpers that
+  operate on this shape, and CaseFileFacilitator.jsx for how it's consumed.
+  Card names are drawn from the official Evidence Card Reference
+  (../caseFileEvidenceReference.js); `flavor` is this case's specific spin
+  on a generic reference title.
 */
-
-import { POSITIVE_INJECTS, NEGATIVE_INJECTS } from './caseFileInjectDecks.js';
 
 export const caseMeta = {
   title: 'The Meridian Consulting Skim',
+  category: 'White-Collar Crime',
+  blurb: 'A federal contractor bills for phantom staff while its CFO launders the overpayments through shell companies.',
   premise:
     'Meridian Consulting Group holds a federal staffing subcontract supporting a regional agency ' +
     'IT modernization project. An anonymous tip alleges Meridian has been billing the government ' +
@@ -32,9 +24,6 @@ export const caseMeta = {
     'investigation rather than resolving it administratively.',
 };
 
-// ---------------------------------------------------------------------------
-// Central Facts
-// ---------------------------------------------------------------------------
 export const centralFacts = [
   {
     id: 'phantom_staffing',
@@ -73,11 +62,6 @@ export const centralFacts = [
   },
 ];
 
-// ---------------------------------------------------------------------------
-// Fact Matrix — which categories can reveal each fact, whether it is
-// citable at Grand Jury, and whether it is eligible to carry a
-// Case-Defining Development.
-// ---------------------------------------------------------------------------
 export const factMatrix = [
   { factId: 'phantom_staffing', categoryA: 'documents', categoryB: 'digital', grandJury: true, caseDefiningEligible: true },
   { factId: 'shell_companies', categoryA: 'financial', categoryB: 'documents', grandJury: true, caseDefiningEligible: true },
@@ -86,18 +70,6 @@ export const factMatrix = [
   { factId: 'personal_enrichment', categoryA: 'financial', categoryB: 'physical', grandJury: true, caseDefiningEligible: false },
 ];
 
-// ---------------------------------------------------------------------------
-// Evidence Pool / Card Reference — 6 cards per category (36 total).
-// Each card is routed to the one central fact it primarily develops.
-// `caseDefining: true` marks the ~1-in-4 rate the Author's Guide targets
-// (9 of 36 here), spread across bands rather than clustered late.
-// ---------------------------------------------------------------------------
-// Card `name` values are drawn from the official Evidence Card Reference
-// (see caseFileEvidenceReference.js) — this case's pool is a themed subset
-// per the Author's Guide's "Building a Case" step 4, not invented titles.
-// `flavor` gives this specific instance's case-specific detail (what makes
-// this particular Employment Records card *this* card), since the
-// reference catalog itself is deliberately generic/reusable.
 export const evidenceCards = [
   // Interviews
   { id: 'int-01', category: 'interviews', factId: 'silenced_accountant', name: 'Former Employee Interview', flavor: 'Raymond Okafor, on his time as Meridian\'s staff accountant.', caseDefining: false },
@@ -148,12 +120,6 @@ export const evidenceCards = [
   { id: 'intel-06', category: 'intelligence', factId: 'shell_companies', name: 'Watchlist Match', flavor: 'A registered-agent cross-filing alert.', caseDefining: false },
 ];
 
-// ---------------------------------------------------------------------------
-// Evidence-by-Threshold Table — the narrative reveal for each central fact
-// at each of the 5 Case Strength bands. Multiple cards contribute reveals
-// toward the same fact; this table is what the facilitator reads aloud
-// when a card tied to that fact resolves within a given band.
-// ---------------------------------------------------------------------------
 export const evidenceByThreshold = {
   phantom_staffing: {
     intake: 'Three billed analysts don\'t show up in the agency\'s own access logs for the audit period — could be a records error.',
@@ -192,13 +158,6 @@ export const evidenceByThreshold = {
   },
 };
 
-// ---------------------------------------------------------------------------
-// Legal Instrument Routing — how Developed evidence for each category
-// moves through the ladder. Per the Author's Guide, Financial/Digital/
-// Documents/Physical typically route through the ladder; Interviews and
-// Intelligence are treated as a facilitator judgment call per this case
-// (both stay informal here — useful for direction, not compelled process).
-// ---------------------------------------------------------------------------
 export const legalRouting = {
   documents: { routed: true, note: 'Subpoena for contract/invoice records; Court Order if Meridian resists production.' },
   digital: { routed: true, note: 'Subpoena for system logs; Search Warrant for forensic imaging of workstations.' },
@@ -208,30 +167,6 @@ export const legalRouting = {
   intelligence: { routed: false, note: 'Facilitator judgment call — background/registry work, rarely needs compulsory process.' },
 };
 
-// ---------------------------------------------------------------------------
-// Case-Defining Developments — the 9 cards above flagged caseDefining:true,
-// listed here with their narrative "why this one matters" note.
-// ---------------------------------------------------------------------------
-export const caseDefiningDevelopments = evidenceCards
-  .filter((c) => c.caseDefining)
-  .map((c) => ({
-    cardId: c.id,
-    name: c.name,
-    note: 'Directly ties fabricated billing to a traceable, intentional act rather than an administrative error.',
-  }));
-
-// ---------------------------------------------------------------------------
-// Inject Decks — this case uses the official base/generic 20+20 decks
-// unmodified (see caseFileInjectDecks.js); a case's Facilitator Guide may
-// override individual cards' flavor text without touching band ratios or
-// mechanical effects, but this sample case has no such overrides.
-// ---------------------------------------------------------------------------
-export const positiveInjectFlavor = POSITIVE_INJECTS;
-export const negativeInjectFlavor = NEGATIVE_INJECTS;
-
-// ---------------------------------------------------------------------------
-// Grand Jury Rubric
-// ---------------------------------------------------------------------------
 export const grandJuryRubric = {
   citableFacts: centralFacts.map((f) => f.id),
   threshold: 3,
@@ -246,10 +181,6 @@ export const grandJuryRubric = {
     'lost institutional confidence.',
 };
 
-// ---------------------------------------------------------------------------
-// Outcome Tiers (validated defaults — this case\'s Case-Defining rate is
-// 9/36 = 1-in-4, matching the simulation baseline, so no recalibration).
-// ---------------------------------------------------------------------------
 export const outcomeTiers = [
   { tier: 'Swift', roundRange: '≤ 15 rounds', description: 'Efficient investigation, minimal complications, strong early Legal Instrument usage.' },
   { tier: 'Solid', roundRange: '16 – 21 rounds', description: 'Typical pacing — the expected median outcome for this case.' },
@@ -265,70 +196,15 @@ export const failureConditions =
   'indictment, or a corroboration failure during Defense Counterplay collapses the case beyond recovery ' +
   '(facilitator discretion, e.g. a successful Motion to Suppress removing a fact the team never corroborated).';
 
-// ---------------------------------------------------------------------------
-// Defense Counterplay (post-indictment) — 10 cards.
-// ---------------------------------------------------------------------------
 export const defenseCounterplayCards = [
-  { id: 'def-01', name: 'Motion to Suppress — Digital Evidence', effect: 'Challenges the VPN/badge-log evidence chain; if unresolved, treat one Digital fact as uncorroborated for Grand Jury purposes going forward.', corroborationImmune: 'digital' },
-  { id: 'def-02', name: 'Competing Financial Expert', effect: 'Defense expert offers an alternate explanation for the wire transfer pattern; contest with a corroborating second Financial or Documents card.', corroborationImmune: 'financial' },
+  { id: 'def-01', name: 'Motion to Suppress — Digital Evidence', effect: 'Challenges the VPN/badge-log evidence chain; if unresolved, treat one Digital fact as uncorroborated for Grand Jury purposes going forward.', corroborationImmune: 'phantom_staffing' },
+  { id: 'def-02', name: 'Competing Financial Expert', effect: 'Defense expert offers an alternate explanation for the wire transfer pattern; contest with a corroborating second Financial or Documents card.', corroborationImmune: 'shell_companies' },
   { id: 'def-03', name: 'Witness Recantation — Okafor', effect: 'Okafor, under pressure, walks back parts of his statement; the Slack message evidence (dig-05) provides independent corroboration if already developed.', corroborationImmune: 'silenced_accountant' },
   { id: 'def-04', name: 'Discovery Demand', effect: 'Defense demands early production of your working files; costs the team 1 round of delay across the Pending Returns Queue.', corroborationImmune: null },
   { id: 'def-05', name: 'Change of Venue Motion', effect: 'Procedural delay; advance Command Pressure one level unless resolved.', corroborationImmune: null },
-  { id: 'def-06', name: 'Chain-of-Custody Challenge — Physical Evidence', effect: 'Contests handling of the notepad/timesheet physical evidence; needs a second independent category to corroborate.', corroborationImmune: 'physical' },
+  { id: 'def-06', name: 'Chain-of-Custody Challenge — Physical Evidence', effect: 'Contests handling of the notepad/timesheet physical evidence; needs a second independent category to corroborate.', corroborationImmune: 'altered_timesheets' },
   { id: 'def-07', name: 'Shell Company Ownership Dispute', effect: 'Defense claims the shell companies were legitimately unrelated to Voss; the registry cross-reference (intel-02) resists this if already developed.', corroborationImmune: 'shell_companies' },
   { id: 'def-08', name: 'Good-Faith Accounting Error Defense', effect: 'Frames the timesheet edits as innocent correction; the original unedited backups (band: beyond_a_reasonable_doubt reveal) directly rebut this.', corroborationImmune: 'altered_timesheets' },
   { id: 'def-09', name: 'Character/Reputation Evidence Motion', effect: 'Attempts to introduce unrelated favorable character evidence for Voss; facilitator judgment on relevance, generally low-impact if the financial trail is solid.', corroborationImmune: null },
   { id: 'def-10', name: 'Speedy Trial Pressure', effect: 'Defense pushes for an accelerated timeline; advance Command Pressure one level unless the team has already reached Probable Cause (16+).', corroborationImmune: null },
 ];
-
-// ---------------------------------------------------------------------------
-// Deck payload — grouped card IDs, ready to pass straight into
-// coordinator.createSession() via the WS `join` message.
-// ---------------------------------------------------------------------------
-export function buildDeckPayload() {
-  const decks = { interviews: [], documents: [], digital: [], physical: [], financial: [], intelligence: [] };
-  for (const card of evidenceCards) decks[card.category].push(card.id);
-  return {
-    decks,
-    positiveInjectIds: positiveInjectFlavor.map((_, i) => `pos-${i + 1}`),
-    negativeInjectIds: negativeInjectFlavor.map((_, i) => `neg-${i + 1}`),
-    defenseCounterplayIds: defenseCounterplayCards.map((c) => c.id),
-    consolidateCap: 8,
-  };
-}
-
-const BAND_THRESHOLDS = [
-  { key: 'intake', label: 'Intake', min: 0, max: 4 },
-  { key: 'relevance', label: 'Relevance', min: 5, max: 10 },
-  { key: 'specific_and_articulable_facts', label: 'Specific & Articulable Facts', min: 11, max: 15 },
-  { key: 'probable_cause', label: 'Probable Cause', min: 16, max: 20 },
-  { key: 'beyond_a_reasonable_doubt', label: 'Beyond a Reasonable Doubt', min: 21, max: Infinity },
-];
-
-export function bandForCaseStrength(caseStrength) {
-  return BAND_THRESHOLDS.find((b) => caseStrength >= b.min && caseStrength <= b.max) ?? BAND_THRESHOLDS[0];
-}
-
-export { BAND_THRESHOLDS };
-
-export function findCard(cardId) {
-  return evidenceCards.find((c) => c.id === cardId) ?? null;
-}
-
-export function findFact(factId) {
-  return centralFacts.find((f) => f.id === factId) ?? null;
-}
-
-export function findDefenseCard(cardId) {
-  return defenseCounterplayCards.find((c) => c.id === cardId) ?? null;
-}
-
-export function positiveInjectById(id) {
-  const idx = Number(String(id).split('-')[1]) - 1;
-  return positiveInjectFlavor[idx] ?? null;
-}
-
-export function negativeInjectById(id) {
-  const idx = Number(String(id).split('-')[1]) - 1;
-  return negativeInjectFlavor[idx] ?? null;
-}

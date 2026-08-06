@@ -1,26 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import useCaseFileSession from '../hooks/useCaseFileSession.js';
 import { CATEGORY_META, CATEGORIES, BAND_META, PRESSURE_META, PRESSURE_LEVELS } from '../data/caseFileTheme.js';
+import { CASES, getCaseById } from '../data/caseFileCases.js';
 import {
-  caseMeta,
-  centralFacts,
-  evidenceByThreshold,
-  legalRouting,
-  grandJuryRubric,
-  outcomeTiers,
-  victoryConditions,
-  failureConditions,
-  defenseCounterplayCards,
   positiveInjectFlavor,
   negativeInjectFlavor,
   buildDeckPayload,
   bandForCaseStrength,
   BAND_THRESHOLDS,
-  findCard,
-  findFact,
+  findCard as findCardUtil,
+  findFact as findFactUtil,
   positiveInjectById,
   negativeInjectById,
-} from '../data/caseFileSample.js';
+} from '../data/caseFileCaseUtils.js';
+import CaseFileGuide from './CaseFileGuide.jsx';
+import { INSTRUCTOR_GUIDE_SECTIONS } from '../data/caseFileGuideContent.js';
 
 // Legal Instrument Ladder: tier -> { label, delay, minCaseStrength } per the Rulebook.
 const LADDER = {
@@ -108,16 +102,24 @@ function CaseStrengthTrack({ caseStrength }) {
 
 export default function CaseFileFacilitator() {
   const [started, setStarted] = useState(false);
-  const [session] = useState(() => buildDeckPayload());
+  const [selectedCaseId, setSelectedCaseId] = useState(CASES[0].id);
+  const [session, setSession] = useState(null);
+  const activeCase = getCaseById(selectedCaseId).data;
+  // Shadow the generic 2-arg utils with case-bound versions so every call
+  // site below (findCard(id), findFact(id)) reads unchanged.
+  const findCard = (id) => findCardUtil(activeCase, id);
+  const findFact = (id) => findFactUtil(activeCase, id);
+
   const { connected, code, state, lastResult, error, ended, sendAction } = useCaseFileSession({
     role: 'facilitator',
     session,
-    enabled: started,
+    enabled: started && !!session,
   });
 
   const [convertFrom, setConvertFrom] = useState('documents');
   const [convertTo, setConvertTo] = useState('financial');
   const [guideOpen, setGuideOpen] = useState(false);
+  const [instructorGuideOpen, setInstructorGuideOpen] = useState(false);
 
   // Investigating a category is now a two-step gesture: click a deck to
   // "arm" it (armedCategory), then click the d20 itself to actually roll —
@@ -260,9 +262,14 @@ export default function CaseFileFacilitator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastResult, rolling]);
 
+  function startWithCase() {
+    setSession(buildDeckPayload(activeCase));
+    setStarted(true);
+  }
+
   function newSession() {
     setStarted(false);
-    setTimeout(() => setStarted(true), 0);
+    setSession(null);
   }
 
   function flyCardFromDeck(cat) {
@@ -327,17 +334,39 @@ export default function CaseFileFacilitator() {
         <div className="ttx-header">
           <div>
             <h1 className="page-title" style={{ marginBottom: 4 }}>Case File — Facilitator</h1>
-            <p className="page-subtitle" style={{ marginBottom: 0 }}>{caseMeta.title}</p>
+            <p className="page-subtitle" style={{ marginBottom: 0 }}>Choose a case, then start the investigation.</p>
+          </div>
+          <div className="ttx-session-controls">
+            <button className="btn-secondary" onClick={() => setInstructorGuideOpen(true)}>Instructor Guide</button>
           </div>
         </div>
+
+        <div className="cf-case-picker">
+          {CASES.map(({ id, data }) => (
+            <button
+              key={id}
+              className={`cf-case-card${selectedCaseId === id ? ' cf-case-card-selected' : ''}`}
+              onClick={() => setSelectedCaseId(id)}
+            >
+              <span className="cf-case-card-category">{data.caseMeta.category}</span>
+              <span className="cf-case-card-title">{data.caseMeta.title}</span>
+              <span className="cf-case-card-blurb">{data.caseMeta.blurb}</span>
+            </button>
+          ))}
+        </div>
+
         <div className="ttx-guide">
-          <p style={{ margin: '0 0 12px' }}>{caseMeta.premise}</p>
-          <p style={{ margin: '0 0 16px' }}><strong>Initial Complaint:</strong> {caseMeta.initialComplaint}</p>
-          <button className="btn-primary" onClick={newSession}>
+          <p style={{ margin: '0 0 12px' }}>{activeCase.caseMeta.premise}</p>
+          <p style={{ margin: '0 0 16px' }}><strong>Initial Complaint:</strong> {activeCase.caseMeta.initialComplaint}</p>
+          <button className="btn-primary" onClick={startWithCase}>
             {started ? 'Connecting…' : 'Start Investigation'}
           </button>
           {error && <p style={{ color: 'var(--danger)', marginTop: 12 }}>{error}</p>}
         </div>
+
+        {instructorGuideOpen && (
+          <CaseFileGuide title="Instructor Guide" sections={INSTRUCTOR_GUIDE_SECTIONS} onClose={() => setInstructorGuideOpen(false)} />
+        )}
       </div>
     );
   }
@@ -357,14 +386,14 @@ export default function CaseFileFacilitator() {
       return acc;
     }, {})
   );
-  const resolvedByFact = centralFacts.map((fact) => {
+  const resolvedByFact = activeCase.centralFacts.map((fact) => {
     const cards = dedupedEvidence.filter((e) => findCard(e.cardId)?.factId === fact.id);
     return { fact, cards };
   });
 
   const positiveDrawn = positiveInjectFlavor.length - state.positiveInjectRemaining;
   const negativeDrawn = negativeInjectFlavor.length - state.negativeInjectRemaining;
-  const defenseDrawn = defenseCounterplayCards.length - state.defenseCounterplayRemaining;
+  const defenseDrawn = activeCase.defenseCounterplayCards.length - state.defenseCounterplayRemaining;
 
   const queueSlots = state.pendingReturns.length > 0 ? state.pendingReturns : [null, null, null];
   const maxTurn = Math.max(state.round + 3, 12);
@@ -375,10 +404,11 @@ export default function CaseFileFacilitator() {
         <div>
           <h1 className="page-title" style={{ marginBottom: 4 }}>Case File</h1>
           <p className="page-subtitle" style={{ marginBottom: 0 }}>
-            {caseMeta.title} · Room Code: <strong style={{ color: 'var(--primary)' }}>{code}</strong> · {connected ? 'Connected' : 'Reconnecting…'}
+            {activeCase.caseMeta.title} · Room Code: <strong style={{ color: 'var(--primary)' }}>{code}</strong> · {connected ? 'Connected' : 'Reconnecting…'}
           </p>
         </div>
         <div className="ttx-session-controls">
+          <button className="btn-secondary" onClick={() => setInstructorGuideOpen(true)}>Instructor Guide</button>
           <button className="btn-secondary" onClick={newSession}>New Session</button>
         </div>
       </div>
@@ -392,10 +422,10 @@ export default function CaseFileFacilitator() {
         </button>
         {guideOpen && (
           <div>
-            <p><strong>Grand Jury threshold:</strong> {grandJuryRubric.threshold} of {grandJuryRubric.citableFacts.length} central facts, citable with evidence. {grandJuryRubric.guidance}</p>
-            <p><strong>Outcome tiers:</strong> {outcomeTiers.map((t) => `${t.tier} (${t.roundRange})`).join(' · ')}</p>
-            <p><strong>Victory:</strong> {victoryConditions}</p>
-            <p><strong>Failure:</strong> {failureConditions}</p>
+            <p><strong>Grand Jury threshold:</strong> {activeCase.grandJuryRubric.threshold} of {activeCase.grandJuryRubric.citableFacts.length} central facts, citable with evidence. {activeCase.grandJuryRubric.guidance}</p>
+            <p><strong>Outcome tiers:</strong> {activeCase.outcomeTiers.map((t) => `${t.tier} (${t.roundRange})`).join(' · ')}</p>
+            <p><strong>Victory:</strong> {activeCase.victoryConditions}</p>
+            <p><strong>Failure:</strong> {activeCase.failureConditions}</p>
           </div>
         )}
       </div>
@@ -514,7 +544,7 @@ export default function CaseFileFacilitator() {
                   {dedupedEvidence.map((e, i) => {
                     const card = findCard(e.cardId);
                     const meta = card ? CATEGORY_META[card.category] : null;
-                    const routed = card && legalRouting[card.category]?.routed;
+                    const routed = card && activeCase.legalRouting[card.category]?.routed;
                     const nextTier = NEXT_TIER[e.tier];
                     const ladderStep = nextTier ? LADDER[nextTier] : null;
                     const alreadyQueued = state.pendingReturns.some((p) => p.cardId === e.cardId);
@@ -706,7 +736,7 @@ export default function CaseFileFacilitator() {
           <div key={fact.id} style={{ marginBottom: 12 }}>
             <div className="ttx-panel-hint" style={{ marginBottom: 4 }}><strong>{fact.title}</strong> — {fact.summary}</div>
             <div className="ttx-panel-hint" style={{ fontStyle: 'italic' }}>
-              At {band.label} ({cards.length} card{cards.length === 1 ? '' : 's'} resolved): {evidenceByThreshold[fact.id]?.[band.key]}
+              At {band.label} ({cards.length} card{cards.length === 1 ? '' : 's'} resolved): {activeCase.evidenceByThreshold[fact.id]?.[band.key]}
             </div>
           </div>
         ))}
@@ -716,7 +746,7 @@ export default function CaseFileFacilitator() {
       <section className="ttx-panel">
         <div className="ttx-panel-head"><span className="ttx-panel-label">Grand Jury Presentation</span></div>
         <p className="ttx-panel-hint">
-          Facts currently citable: {resolvedByFact.filter((f) => f.cards.length > 0).length} of {centralFacts.length}. Need {grandJuryRubric.threshold}+.
+          Facts currently citable: {resolvedByFact.filter((f) => f.cards.length > 0).length} of {activeCase.centralFacts.length}. Need {activeCase.grandJuryRubric.threshold}+.
         </p>
         <div className="cf-btn-row">
           <button className="btn-sm-primary" disabled={state.indicted || state.gameOver} onClick={() => sendAction('present_grand_jury', { success: true })}>Present — Success</button>
@@ -730,7 +760,7 @@ export default function CaseFileFacilitator() {
           <div className="ttx-panel-head"><span className="ttx-panel-label">Defense Counterplay Reference</span></div>
           <p className="ttx-panel-hint">{state.defenseCounterplayRemaining} cards remaining in the deck. Drawn automatically as negative injects post-indictment.</p>
           <ul className="cf-drawn-list">
-            {defenseCounterplayCards.map((c) => (
+            {activeCase.defenseCounterplayCards.map((c) => (
               <li key={c.id}>
                 <strong>{c.name}</strong> — {c.effect}
                 {c.corroborationImmune && (

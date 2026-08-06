@@ -4,7 +4,7 @@
   the project's official Evidence Card Reference document. Per the
   Facilitator & Case Author's Guide's "Building a Case" step 4, authoring a
   new case means picking a subset of these titles that fits the premise —
-  individual cases (see caseFileSample.js) attach their own reveal text,
+  individual cases (see ./cases/*.js) attach their own reveal text,
   fact routing, and Case-Defining flags to specific cards drawn from here.
 
   This file only holds the reference names/categories themselves — no
