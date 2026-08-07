@@ -8,6 +8,7 @@ import SubmissionSuccess from '../components/SubmissionSuccess.jsx';
 import { FormattedTextEditor } from '../components/FormattedText.jsx';
 import QuizFlow, { MultipleChoice, TrueFalse, DragMatch, FillBlank } from '../components/QuizFlow.jsx';
 import ChallengeFlow    from '../components/ChallengeFlow.jsx';
+import InvestigationCase from '../components/InvestigationCase.jsx';
 import useDraft         from '../hooks/useDraft.js';
 import { TYPE_DEFINITIONS } from './DashboardHome.jsx';
 import TransmissionInterceptor from './TransmissionInterceptor.jsx';
@@ -19,6 +20,7 @@ const TYPE_COLOR = {
   survey:     '#a78bfa',
   challenge:  '#f87171',
   capstone:   '#fb923c',
+  investigation: '#22d3ee',
 };
 
 const PCT_STEPS = [0, 25, 50, 75, 100];
@@ -261,6 +263,7 @@ export default function AssignmentPage() {
     Array.isArray(assignment.questions) && assignment.questions.some((q) => q.kind === 'prompt');
   const hasQuiz    = !isLocked && !isSurvey && !isWorkshop && Array.isArray(assignment.questions) &&
     assignment.questions.some((q) => q.payload != null);
+  const isInvestigation = !isLocked && assignment.type === 'investigation';
 
   return (
     <div className="assignment-page">
@@ -337,6 +340,8 @@ export default function AssignmentPage() {
               />
             </>
           )
+        ) : isInvestigation ? (
+          <InvestigationCase assignmentId={id} color={color} />
         ) : isWorkshop ? (
           <ChallengeFlow
             assignment={assignment}

@@ -33,6 +33,16 @@ const SquadChallengeState   = require('./SquadChallengeState')(sequelize);
 const SquadPuzzleCompletion = require('./SquadPuzzleCompletion')(sequelize);
 const DropLocationSelection = require('./DropLocationSelection')(sequelize);
 const LegalRequest          = require('./LegalRequest')(sequelize);
+const InvestigationCase      = require('./InvestigationCase')(sequelize);
+const CaseEntity             = require('./CaseEntity')(sequelize);
+const CaseEntityRelationship = require('./CaseEntityRelationship')(sequelize);
+const CaseEvidence           = require('./CaseEvidence')(sequelize);
+const CasePersona            = require('./CasePersona')(sequelize);
+const SquadCaseState         = require('./SquadCaseState')(sequelize);
+const CaseAction             = require('./CaseAction')(sequelize);
+const CaseHypothesis         = require('./CaseHypothesis')(sequelize);
+const CaseLegalProcess       = require('./CaseLegalProcess')(sequelize);
+const CaseInterview          = require('./CaseInterview')(sequelize);
 
 // ── User ↔ Course (instructor relationship) ────────────────────────────────
 Course.belongsTo(User, { as: 'instructor', foreignKey: 'instructor_id' });
@@ -170,6 +180,54 @@ LegalRequest.belongsTo(Assignment,                      { foreignKey: 'assignmen
 LegalRequest.belongsTo(User, { foreignKey: 'user_id', as: 'student' });
 User.hasMany(LegalRequest,                              { foreignKey: 'user_id' });
 
+// ── Investigation simulation engine ───────────────────────────────────────
+Assignment.hasOne(InvestigationCase, { as: 'investigationCase', foreignKey: 'assignment_id', onDelete: 'CASCADE' });
+InvestigationCase.belongsTo(Assignment,                         { foreignKey: 'assignment_id' });
+
+InvestigationCase.hasMany(CaseEntity, { as: 'entities', foreignKey: 'case_id', onDelete: 'CASCADE' });
+CaseEntity.belongsTo(InvestigationCase,                 { foreignKey: 'case_id' });
+
+InvestigationCase.hasMany(CaseEntityRelationship, { as: 'relationships', foreignKey: 'case_id', onDelete: 'CASCADE' });
+CaseEntityRelationship.belongsTo(InvestigationCase,                      { foreignKey: 'case_id' });
+CaseEntityRelationship.belongsTo(CaseEntity, { as: 'fromEntity', foreignKey: 'from_entity_id' });
+CaseEntityRelationship.belongsTo(CaseEntity, { as: 'toEntity',   foreignKey: 'to_entity_id' });
+
+InvestigationCase.hasMany(CaseEvidence, { as: 'evidence', foreignKey: 'case_id', onDelete: 'CASCADE' });
+CaseEvidence.belongsTo(InvestigationCase,                { foreignKey: 'case_id' });
+
+InvestigationCase.hasMany(CasePersona, { as: 'personas', foreignKey: 'case_id', onDelete: 'CASCADE' });
+CasePersona.belongsTo(InvestigationCase,                { foreignKey: 'case_id' });
+CasePersona.belongsTo(CaseEntity, { as: 'relatedEntity', foreignKey: 'related_entity_id' });
+
+InvestigationCase.hasMany(SquadCaseState, { as: 'squadStates', foreignKey: 'case_id', onDelete: 'CASCADE' });
+SquadCaseState.belongsTo(InvestigationCase,                    { foreignKey: 'case_id' });
+SquadCaseState.belongsTo(Squad,                                { foreignKey: 'squad_id', as: 'squad' });
+
+InvestigationCase.hasMany(CaseAction, { as: 'actions', foreignKey: 'case_id', onDelete: 'CASCADE' });
+CaseAction.belongsTo(InvestigationCase,                { foreignKey: 'case_id' });
+CaseAction.belongsTo(Squad, { foreignKey: 'squad_id', as: 'squad' });
+CaseAction.belongsTo(User,  { foreignKey: 'student_id', as: 'student' });
+CaseAction.belongsTo(CaseEntity,  { foreignKey: 'target_entity_id',   as: 'targetEntity' });
+CaseAction.belongsTo(CaseEvidence, { foreignKey: 'target_evidence_id', as: 'targetEvidence' });
+
+InvestigationCase.hasMany(CaseHypothesis, { as: 'hypotheses', foreignKey: 'case_id', onDelete: 'CASCADE' });
+CaseHypothesis.belongsTo(InvestigationCase,                    { foreignKey: 'case_id' });
+CaseHypothesis.belongsTo(Squad, { foreignKey: 'squad_id', as: 'squad' });
+CaseHypothesis.belongsTo(User,  { foreignKey: 'created_by', as: 'author' });
+CaseHypothesis.belongsTo(CaseHypothesis, { foreignKey: 'revision_of', as: 'previousVersion' });
+
+InvestigationCase.hasMany(CaseLegalProcess, { as: 'legalProcesses', foreignKey: 'case_id', onDelete: 'CASCADE' });
+CaseLegalProcess.belongsTo(InvestigationCase,                        { foreignKey: 'case_id' });
+CaseLegalProcess.belongsTo(Squad, { foreignKey: 'squad_id', as: 'squad' });
+CaseLegalProcess.belongsTo(User,  { foreignKey: 'requested_by', as: 'requester' });
+CaseLegalProcess.belongsTo(CaseEntity, { foreignKey: 'target_entity_id', as: 'targetEntity' });
+
+InvestigationCase.hasMany(CaseInterview, { as: 'interviews', foreignKey: 'case_id', onDelete: 'CASCADE' });
+CaseInterview.belongsTo(InvestigationCase,                   { foreignKey: 'case_id' });
+CaseInterview.belongsTo(Squad,       { foreignKey: 'squad_id',   as: 'squad' });
+CaseInterview.belongsTo(CasePersona, { foreignKey: 'persona_id', as: 'persona' });
+CaseInterview.belongsTo(User,        { foreignKey: 'student_id', as: 'student' });
+
 module.exports = {
   sequelize,
   User,
@@ -204,4 +262,14 @@ module.exports = {
   SquadPuzzleCompletion,
   DropLocationSelection,
   LegalRequest,
+  InvestigationCase,
+  CaseEntity,
+  CaseEntityRelationship,
+  CaseEvidence,
+  CasePersona,
+  SquadCaseState,
+  CaseAction,
+  CaseHypothesis,
+  CaseLegalProcess,
+  CaseInterview,
 };

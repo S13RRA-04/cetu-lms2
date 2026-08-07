@@ -11,6 +11,7 @@ import AdminPage      from './pages/AdminPage.jsx';
 import ScenariosPage     from './pages/ScenariosPage.jsx';
 import CourseContentPage from './pages/CourseContentPage.jsx';
 import IntelPage         from './pages/IntelPage.jsx';
+import InvestigationInstructorDashboard from './pages/InvestigationInstructorDashboard.jsx';
 import AppShell       from './layouts/AppShell.jsx';
 import LoggedOutPage  from './pages/LoggedOutPage.jsx';
 import RouteErrorPage from './pages/RouteErrorPage.jsx';
@@ -44,6 +45,8 @@ const router = createBrowserRouter([{
         { path: '/course-content',   element: <CourseContentPage /> },
         { path: '/intel',            element: <IntelPage /> },
         { path: '/admin',            element: <AdminGuard><AdminPage /></AdminGuard> },
+        { path: '/admin/investigation',              element: <AdminGuard><InvestigationInstructorDashboard /></AdminGuard> },
+        { path: '/admin/investigation/:assignmentId', element: <AdminGuard><InvestigationInstructorDashboard /></AdminGuard> },
       ],
     },
     { path: '*', element: <Navigate to="/" replace /> },

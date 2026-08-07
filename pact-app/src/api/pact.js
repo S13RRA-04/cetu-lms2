@@ -272,6 +272,58 @@ export const unlockContentItem = (id, cohortId, squadId = null) =>
 export const lockContentItem = (id, cohortId, squadId = null) =>
   client.post(`/courses/${COURSE_ID}/course-content/${id}/lock`, { cohort_id: cohortId, squad_id: squadId }).then((r) => r.data);
 
+/* ── Investigation case simulation ── */
+export const getCase = (assignmentId) =>
+  client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/case`).then((r) => r.data);
+
+export const getCaseState = (assignmentId) =>
+  client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/case/state`).then((r) => r.data);
+
+export const getCaseEntities = (assignmentId) =>
+  client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/case/entities`).then((r) => r.data);
+
+export const getCaseEvidence = (assignmentId) =>
+  client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/case/evidence`).then((r) => r.data);
+
+export const getCasePersonas = (assignmentId) =>
+  client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/case/personas`).then((r) => r.data);
+
+export const getCaseActions = (assignmentId) =>
+  client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/case/actions`).then((r) => r.data);
+
+export const submitCaseAction = (assignmentId, data) =>
+  client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/case/actions`, data).then((r) => r.data);
+
+export const getCaseHypotheses = (assignmentId) =>
+  client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/case/hypotheses`).then((r) => r.data);
+
+export const createCaseHypothesis = (assignmentId, data) =>
+  client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/case/hypotheses`, data).then((r) => r.data);
+
+export const reviseCaseHypothesis = (assignmentId, hypothesisId, data) =>
+  client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/case/hypotheses/${hypothesisId}`, data).then((r) => r.data);
+
+export const challengeCaseHypothesis = (assignmentId, hypothesisId) =>
+  client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/case/hypotheses/${hypothesisId}/challenge`).then((r) => r.data);
+
+export const getCaseLegalProcess = (assignmentId) =>
+  client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/case/legal-process`).then((r) => r.data);
+
+export const submitCaseLegalProcess = (assignmentId, data) =>
+  client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/case/legal-process`, data).then((r) => r.data);
+
+export const getCaseInterview = (assignmentId, personaId) =>
+  client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/case/interviews/${personaId}`).then((r) => r.data);
+
+export const submitCaseInterview = (assignmentId, personaId, data) =>
+  client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/case/interviews/${personaId}`, data).then((r) => r.data);
+
+export const getCaseInstructorDashboard = (assignmentId) =>
+  client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/case/instructor`).then((r) => r.data);
+
+export const submitCaseInject = (assignmentId, data) =>
+  client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/case/inject`, data).then((r) => r.data);
+
 /* ── Intel Board ── */
 export const getIntelBoard = () =>
   client.get(`/courses/${COURSE_ID}/intel`).then((r) => r.data).catch((err) => {

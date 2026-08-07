@@ -18,6 +18,7 @@ const preRangeBriefingCtrl = require('../controllers/preRangeBriefing.controller
 const legalRequestCtrl = require('../controllers/legalRequest.controller');
 const tacticalSpecialistCtrl = require('../controllers/tacticalSpecialist.controller');
 const trainingAgentCtrl = require('../controllers/trainingAgent.controller');
+const caseSimCtrl = require('../controllers/caseSimulation.controller');
 const { requireAuth, requireInstructor, requireAdmin } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
 const { auditLog } = require('../middleware/audit');
@@ -106,6 +107,25 @@ router.post('/:id/assignments/:aid/training-chat', requireAuth, trainingAgentCtr
 // Squad-shared challenge state (question progress/answers/hints shared across a squad)
 router.get('/:id/assignments/:aid/squad-state', requireAuth, squadStateCtrl.getState);
 router.put('/:id/assignments/:aid/squad-state', requireAuth, squadStateCtrl.saveState);
+
+// Investigation simulation engine (type: 'investigation' assignments)
+router.get('/:id/assignments/:aid/case',            requireAuth, caseSimCtrl.getCase);
+router.get('/:id/assignments/:aid/case/state',       requireAuth, caseSimCtrl.getState);
+router.get('/:id/assignments/:aid/case/entities',    requireAuth, caseSimCtrl.getEntities);
+router.get('/:id/assignments/:aid/case/evidence',    requireAuth, caseSimCtrl.getEvidence);
+router.get('/:id/assignments/:aid/case/personas',    requireAuth, caseSimCtrl.getPersonas);
+router.get('/:id/assignments/:aid/case/actions',     requireAuth, caseSimCtrl.listActions);
+router.post('/:id/assignments/:aid/case/actions',    requireAuth, caseSimCtrl.submitAction);
+router.get('/:id/assignments/:aid/case/hypotheses',  requireAuth, caseSimCtrl.listHypotheses);
+router.post('/:id/assignments/:aid/case/hypotheses', requireAuth, caseSimCtrl.createHypothesis);
+router.put('/:id/assignments/:aid/case/hypotheses/:hid',            requireAuth, caseSimCtrl.reviseHypothesis);
+router.post('/:id/assignments/:aid/case/hypotheses/:hid/challenge', requireAuth, caseSimCtrl.challengeHypothesis);
+router.get('/:id/assignments/:aid/case/legal-process',  requireAuth, caseSimCtrl.getLegalProcess);
+router.post('/:id/assignments/:aid/case/legal-process', requireAuth, caseSimCtrl.submitLegalProcess);
+router.get('/:id/assignments/:aid/case/interviews/:personaId',  requireAuth, caseSimCtrl.getInterview);
+router.post('/:id/assignments/:aid/case/interviews/:personaId', requireAuth, caseSimCtrl.submitInterview);
+router.get('/:id/assignments/:aid/case/instructor', requireAuth, requireInstructor, caseSimCtrl.instructorDashboard);
+router.post('/:id/assignments/:aid/case/inject',    requireAuth, requireInstructor, caseSimCtrl.inject);
 
 // Assignment unlock/lock (per cohort)
 router.post('/:id/assignments/:aid/unlock',  requireAuth, requireInstructor, validate(unlockSchema), auditLog('unlock', 'assignment'), assignCtrl.unlockForCohort);

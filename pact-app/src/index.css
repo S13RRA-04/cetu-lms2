@@ -8663,3 +8663,52 @@ body {
 .pre-range-scale div { display:flex; gap:7px; padding:7px; border:1px solid var(--border); font-size:11px; }
 .pre-range-scale strong { color:var(--primary); }
 @media(max-width:700px) { .pre-range-scale { grid-template-columns:1fr 1fr; } }
+
+/* ── Investigation Case (simulation engine) ─────────────────────────────── */
+.ic-root { display:flex; flex-direction:column; gap:20px; }
+.ic-loading { padding:60px 0; text-align:center; font-family:var(--mono); font-size:11px; letter-spacing:.16em; color:var(--muted); }
+.ic-tabs { display:flex; flex-wrap:wrap; gap:6px; border-bottom:1px solid var(--border); padding-bottom:10px; }
+.ic-tab { font-family:var(--mono); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; padding:7px 12px; background:transparent; border:1px solid var(--border); border-radius:4px; color:var(--muted); cursor:pointer; }
+.ic-tab--active { color:var(--primary); border-color:var(--primary); }
+.ic-section { display:flex; flex-direction:column; gap:10px; }
+.ic-list { margin:0; padding-left:20px; line-height:1.6; font-size:13px; color:var(--text); }
+.ic-action-input { width:100%; resize:vertical; background:var(--card); border:1px solid var(--border); border-radius:6px; padding:10px 12px; font-size:13px; color:var(--bright); font-family:inherit; }
+.ic-action-result { margin-top:8px; padding:10px 12px; border-radius:6px; font-size:12.5px; line-height:1.5; border:1px solid var(--border); background:var(--card-hi); color:var(--text); }
+.ic-action-result--denied { border-color:var(--danger); color:var(--danger); background:var(--danger-lt); }
+.ic-action-result--completed { border-color:var(--green); color:var(--green); background:var(--green-lt); }
+.ic-entity-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px; }
+.ic-entity-card { border:1px solid var(--border); border-radius:6px; padding:10px 12px; background:var(--card); }
+.ic-entity-type { font-family:var(--mono); font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+.ic-entity-name { font-size:13.5px; color:var(--bright); margin-top:3px; }
+.ic-evidence-list { display:flex; flex-direction:column; gap:10px; }
+.ic-evidence-card { border:1px solid var(--border); border-radius:6px; padding:12px 14px; background:var(--card); }
+.ic-evidence-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+.ic-evidence-key { font-family:var(--mono); font-size:11px; color:var(--primary); letter-spacing:.04em; }
+.ic-evidence-source { font-family:var(--mono); font-size:9.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; }
+.ic-evidence-body { font-size:13px; line-height:1.6; color:var(--text); white-space:pre-wrap; }
+.ic-evidence-reliability { margin-top:6px; font-size:11px; color:var(--muted); }
+.ic-hypothesis-list { display:flex; flex-direction:column; gap:10px; margin-top:6px; }
+.ic-hypothesis-card { border:1px solid var(--border); border-radius:6px; padding:12px 14px; background:var(--card); }
+.ic-hypothesis-statement { font-size:13.5px; color:var(--bright); }
+.ic-hypothesis-meta { font-size:11px; color:var(--muted); margin:6px 0 8px; }
+.ic-hypothesis-challenge { margin-top:8px; padding:10px 12px; border-left:3px solid var(--primary); background:var(--primary-lt); font-size:12.5px; line-height:1.5; color:var(--text); }
+.ic-legal-approved { font-size:12.5px; color:var(--green); font-family:var(--mono); }
+.ic-chat { border:1px solid var(--border); border-radius:6px; overflow:hidden; }
+.ic-chat-transcript { max-height:260px; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:8px; background:var(--card); }
+.ic-chat-empty { font-size:12px; color:var(--muted); }
+.ic-chat-msg { display:flex; gap:8px; font-size:13px; line-height:1.5; }
+.ic-chat-msg--user { color:var(--bright); }
+.ic-chat-msg--assistant { color:var(--text); }
+.ic-chat-role { font-family:var(--mono); font-size:9px; letter-spacing:.1em; color:var(--muted); flex-shrink:0; padding-top:2px; }
+.ic-chat-input { display:flex; gap:8px; padding:10px; border-top:1px solid var(--border); background:var(--card-hi); }
+.ic-chat-input textarea { flex:1; resize:none; background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:8px 10px; font-size:13px; color:var(--bright); font-family:inherit; }
+.ic-chat-disabled { padding:12px; font-size:12px; color:var(--muted); text-align:center; border-top:1px solid var(--border); }
+.ic-journal { display:flex; flex-direction:column; gap:8px; }
+.ic-journal-entry { border:1px solid var(--border); border-left:3px solid var(--muted); border-radius:4px; padding:10px 12px; background:var(--card); }
+.ic-journal-entry--completed { border-left-color:var(--green); }
+.ic-journal-entry--denied { border-left-color:var(--danger); }
+.ic-journal-head { display:flex; gap:10px; align-items:center; font-family:var(--mono); font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); flex-wrap:wrap; }
+.ic-journal-type { color:var(--bright); }
+.ic-journal-time { margin-left:auto; }
+.ic-journal-just { margin-top:6px; font-size:12.5px; font-style:italic; color:var(--text); }
+.ic-journal-result { margin-top:4px; font-size:12.5px; color:var(--text); }
