@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import useCaseFileSession from '../hooks/useCaseFileSession.js';
-import { CATEGORY_META, CATEGORIES, BAND_META, PRESSURE_META, PRESSURE_LEVELS, LADDER, NEXT_TIER, TIER_RANK, tierLabel } from '../data/caseFileTheme.js';
+import { CATEGORY_META, CATEGORIES, BAND_META, PRESSURE_META, PRESSURE_LEVELS, LADDER, NEXT_TIER, TIER_RANK, TIER_NUMBER, tierLabel } from '../data/caseFileTheme.js';
 import { CASES, getCaseById } from '../data/caseFileCases.js';
 import {
   positiveInjectFlavor,
@@ -476,6 +476,27 @@ export default function CaseFileFacilitator() {
         </div>
       )}
 
+      {state.gameOver && state.outcome === 'win' && activeCase.realWorldContext && (
+        <section className="ttx-panel" style={{ marginBottom: 16 }}>
+          <div className="ttx-panel-head"><span className="ttx-panel-label">{activeCase.realWorldContext.heading}</span></div>
+          <p className="ttx-panel-hint" style={{ fontStyle: 'italic', marginBottom: 10 }}>
+            This case is a fictional composite for the game, not a dramatization of one real prosecution — but the pattern is real. Here's where it shows up in actual cases:
+          </p>
+          {activeCase.realWorldContext.paragraphs.map((p, i) => (
+            <p key={i} style={{ margin: '0 0 10px' }}>{p}</p>
+          ))}
+          <div className="ttx-panel-hint" style={{ marginTop: 8 }}>
+            <strong>Sources:</strong>{' '}
+            {activeCase.realWorldContext.sources.map((s, i) => (
+              <span key={s.url}>
+                {i > 0 && ' · '}
+                <a href={s.url} target="_blank" rel="noreferrer">{s.title}</a>
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
       {!state.gameOver && state.playerRoster?.length > 0 && (() => {
         const active = state.playerRoster.find((p) => p.userId === state.activePlayerId);
         return (
@@ -600,7 +621,7 @@ export default function CaseFileFacilitator() {
                   <div className="cf-playarea-empty">No evidence resolved yet.</div>
                 ) : (
                   dedupedEvidence.map((e, i) => {
-                    const card = findCard(e.cardId);
+                    const card = findCard(e.cardId, TIER_NUMBER[e.tier]);
                     const meta = card ? CATEGORY_META[card.category] : null;
                     const routed = card && activeCase.legalRouting[card.category]?.routed;
                     const nextTier = NEXT_TIER[e.tier];
@@ -608,18 +629,24 @@ export default function CaseFileFacilitator() {
                     const alreadyQueued = state.pendingReturns.some((p) => p.cardId === e.cardId);
                     const meetsCaseStrength = ladderStep && state.caseStrength >= ladderStep.minCaseStrength;
                     const hasTokens = card && state.tokens[card.category] > 0;
-                    const canDevelop = routed && ladderStep && !alreadyQueued && !state.gameOver && meetsCaseStrength && hasTokens;
+                    // A card's own narrative depth can cap it below the case-wide
+                    // ladder — e.g. a single Photograph (maxTier 1) has nothing
+                    // further to reveal even once Case Strength clears Subpoena.
+                    const underMaxTier = nextTier && card && TIER_NUMBER[nextTier] <= card.maxTier;
+                    const canDevelop = routed && ladderStep && !alreadyQueued && !state.gameOver && meetsCaseStrength && hasTokens && underMaxTier;
                     // The disabled button used to always say "Requires Case Strength X+"
                     // regardless of which condition actually failed — e.g. it looked
                     // like a Case Strength block even when the real blocker was an
                     // exhausted token pool. Report the actual reason instead.
                     const developBlockedReason = !routed
                       ? 'Facilitator judgment call — not routed through the ladder'
-                      : !meetsCaseStrength
-                        ? `Requires Case Strength ${ladderStep?.minCaseStrength}+ (currently ${state.caseStrength})`
-                        : !hasTokens
-                          ? `No ${card ? CATEGORY_META[card.category].label : ''} tokens remaining`
-                          : '';
+                      : !underMaxTier
+                        ? 'This evidence has nothing further to reveal'
+                        : !meetsCaseStrength
+                          ? `Requires Case Strength ${ladderStep?.minCaseStrength}+ (currently ${state.caseStrength})`
+                          : !hasTokens
+                            ? `No ${card ? CATEGORY_META[card.category].label : ''} tokens remaining`
+                            : '';
                     const flipped = revealedIds.has(e.cardId);
                     return (
                       <div

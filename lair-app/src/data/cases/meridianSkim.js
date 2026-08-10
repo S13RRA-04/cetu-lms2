@@ -72,11 +72,21 @@ export const factMatrix = [
 
 export const evidenceCards = [
   // Interviews
-  { id: 'int-01', category: 'interviews', factId: 'silenced_accountant', name: 'Former Employee Interview', flavor: 'Raymond Okafor, on his time as Meridian\'s staff accountant.', caseDefining: false },
-  { id: 'int-02', category: 'interviews', factId: 'silenced_accountant', name: 'Co-worker Statement', flavor: 'An HR staffer describes the complaint Okafor filed and withdrew.', caseDefining: true },
+  // Four-tier proof-of-concept (see caseFileEvidenceDeck.js / caseFileCaseUtils.js):
+  // ref replaces inline name, tiers replaces the static flavor. ref-int-former-employee's
+  // maxTier is 3, so this card's Develop button stops offering Search Warrant.
+  {
+    id: 'int-01', category: 'interviews', ref: 'ref-int-former-employee', factId: 'silenced_accountant', caseDefining: false,
+    tiers: [
+      { tier: 1, narrative_entry: 'Raymond Okafor, on his time as Meridian\'s staff accountant.' },
+      { tier: 2, narrative_entry: 'Under a subpoenaed follow-up interview, Okafor is more specific: he flagged a billing discrepancy to his supervisor months before the invoices in question were even sent.' },
+      { tier: 3, narrative_entry: 'Compelled by court order to answer directly, Okafor confirms he was told the discrepancy was "handled" and that pursuing it further would jeopardize his upcoming performance review.' },
+    ],
+  },
+  { id: 'int-02', category: 'interviews', factId: 'silenced_accountant', name: 'Co-worker Statement', flavor: 'An HR staffer describes the complaint staff accountant Raymond Okafor filed and withdrew.', caseDefining: true },
   { id: 'int-03', category: 'interviews', factId: 'phantom_staffing', name: 'Witness Interview', flavor: 'The agency\'s building-access supervisor, on the badge log discrepancy.', caseDefining: false },
   { id: 'int-04', category: 'interviews', factId: 'shell_companies', name: 'Former Employee Interview', flavor: 'A former Meridian bookkeeper describes the vendor onboarding process.', caseDefining: false },
-  { id: 'int-05', category: 'interviews', factId: 'silenced_accountant', name: 'Conflicting Statement', flavor: 'Okafor\'s follow-up account no longer matches his first.', caseDefining: false },
+  { id: 'int-05', category: 'interviews', factId: 'silenced_accountant', name: 'Conflicting Statement', flavor: 'Staff accountant Raymond Okafor\'s follow-up account no longer matches his first.', caseDefining: false },
   { id: 'int-06', category: 'interviews', factId: 'personal_enrichment', name: 'Witness Interview', flavor: 'The closing agent on the Lakeview property purchase.', caseDefining: false },
 
   // Documents
@@ -91,22 +101,31 @@ export const evidenceCards = [
   { id: 'dig-01', category: 'digital', factId: 'altered_timesheets', name: 'Metadata Analysis', flavor: 'HR system edit-history log for the phantom analysts\' timesheets.', caseDefining: true },
   { id: 'dig-02', category: 'digital', factId: 'phantom_staffing', name: 'VPN Activity Log', flavor: 'Login records for the three "billed" analyst accounts — empty.', caseDefining: true },
   { id: 'dig-03', category: 'digital', factId: 'altered_timesheets', name: 'Deleted File Recovery', flavor: 'An email recovered from backup after deletion.', caseDefining: false },
-  { id: 'dig-04', category: 'digital', factId: 'shell_companies', name: 'Cloud Storage Files', flavor: "A shared drive folder linked to Voss's personal email.", caseDefining: false },
-  { id: 'dig-05', category: 'digital', factId: 'silenced_accountant', name: 'Chat Application Backup', flavor: 'Slack messages between Voss and Okafor.', caseDefining: true },
+  { id: 'dig-04', category: 'digital', factId: 'shell_companies', name: 'Cloud Storage Files', flavor: "A shared drive folder linked to CFO Elena Voss's personal email.", caseDefining: false },
+  { id: 'dig-05', category: 'digital', factId: 'silenced_accountant', name: 'Chat Application Backup', flavor: 'Slack messages between CFO Elena Voss and staff accountant Raymond Okafor.', caseDefining: true },
   { id: 'dig-06', category: 'digital', factId: 'phantom_staffing', name: 'Authentication Logs', flavor: "Badge reader database export for the agency's front doors.", caseDefining: false },
 
   // Physical
   { id: 'phy-01', category: 'physical', factId: 'altered_timesheets', name: 'Handwriting Sample', flavor: 'A printed timesheet with handwritten corrections.', caseDefining: false },
-  { id: 'phy-02', category: 'physical', factId: 'personal_enrichment', name: 'Inventory Record', flavor: "A listing of Voss's recently acquired assets, including a Lakeview property.", caseDefining: false },
-  { id: 'phy-03', category: 'physical', factId: 'personal_enrichment', name: 'Photographs', flavor: "A photographed copy of a cashier's check found in Voss's files.", caseDefining: false },
+  { id: 'phy-02', category: 'physical', factId: 'personal_enrichment', name: 'Inventory Record', flavor: "A listing of CFO Elena Voss's recently acquired assets, including a Lakeview property.", caseDefining: false },
+  { id: 'phy-03', category: 'physical', factId: 'personal_enrichment', name: 'Photographs', flavor: "A photographed copy of a cashier's check found in CFO Elena Voss's files.", caseDefining: false },
   { id: 'phy-04', category: 'physical', factId: 'phantom_staffing', name: 'Access Log', flavor: "The agency front desk's physical sign-in binder.", caseDefining: false },
   { id: 'phy-05', category: 'physical', factId: 'altered_timesheets', name: 'Discarded Item Recovery', flavor: 'A discarded notepad with timesheet math matching the altered entries.', caseDefining: true },
   { id: 'phy-06', category: 'physical', factId: 'shell_companies', name: 'Physical Evidence', flavor: "A mailbox rental agreement for one of the shell companies.", caseDefining: false },
 
   // Financial
   { id: 'fin-01', category: 'financial', factId: 'shell_companies', name: 'Wire Transfer Record', flavor: 'Meridian → Shell Co. A.', caseDefining: false },
-  { id: 'fin-02', category: 'financial', factId: 'shell_companies', name: 'Suspicious Activity Report', flavor: 'A bank-flagged pass-through: Shell Co. A → Shell Co. B.', caseDefining: true },
-  { id: 'fin-03', category: 'financial', factId: 'personal_enrichment', name: 'Wire Transfer Record', flavor: "Shell Co. B → Voss's personal account.", caseDefining: true },
+  // Four-tier proof-of-concept, capped case: ref-fin-suspicious-activity-report's
+  // maxTier is 2, so this card's Develop button stops offering Court Order —
+  // the SAR narrative has nothing further to reveal past the subpoenaed detail.
+  {
+    id: 'fin-02', category: 'financial', ref: 'ref-fin-suspicious-activity-report', factId: 'shell_companies', caseDefining: true,
+    tiers: [
+      { tier: 1, narrative_entry: 'A bank-flagged pass-through: Shell Co. A → Shell Co. B.' },
+      { tier: 2, narrative_entry: 'The bank\'s full SAR narrative shows the same pass-through pattern recurring four times in the audit period, each transfer landing just under the reporting threshold.' },
+    ],
+  },
+  { id: 'fin-03', category: 'financial', factId: 'personal_enrichment', name: 'Wire Transfer Record', flavor: "Shell Co. B → CFO Elena Voss's personal account.", caseDefining: true },
   { id: 'fin-04', category: 'financial', factId: 'personal_enrichment', name: 'Escrow Record', flavor: 'Closing statement for the Lakeview property purchase.', caseDefining: false },
   { id: 'fin-05', category: 'financial', factId: 'phantom_staffing', name: 'Financial Record', flavor: 'Federal payment disbursement records for the modernization contract.', caseDefining: false },
   { id: 'fin-06', category: 'financial', factId: 'shell_companies', name: 'Shell Company Registration', flavor: "Shell Co.'s bank account opening documents.", caseDefining: false },
@@ -115,7 +134,7 @@ export const evidenceCards = [
   { id: 'intel-01', category: 'intelligence', factId: 'silenced_accountant', name: 'Confidential Source Report', flavor: 'A follow-up on the original whistleblower tip.', caseDefining: false },
   { id: 'intel-02', category: 'intelligence', factId: 'shell_companies', name: 'Prior Case Cross-Reference', flavor: "Corporate registry cross-reference on the shell companies' officers.", caseDefining: false },
   { id: 'intel-03', category: 'intelligence', factId: 'phantom_staffing', name: 'Criminal History Summary', flavor: 'Background check discrepancy on one of the "billed" analysts.', caseDefining: false },
-  { id: 'intel-04', category: 'intelligence', factId: 'personal_enrichment', name: 'Asset Forfeiture Record', flavor: 'An asset search on Elena Voss.', caseDefining: false },
+  { id: 'intel-04', category: 'intelligence', factId: 'personal_enrichment', name: 'Asset Forfeiture Record', flavor: 'An asset search on CFO Elena Voss.', caseDefining: false },
   { id: 'intel-05', category: 'intelligence', factId: 'silenced_accountant', name: 'Pattern Analysis', flavor: 'A pattern of prior complaints at Meridian from other employees.', caseDefining: false },
   { id: 'intel-06', category: 'intelligence', factId: 'shell_companies', name: 'Watchlist Match', flavor: 'A registered-agent cross-filing alert.', caseDefining: false },
 ];
@@ -208,3 +227,19 @@ export const defenseCounterplayCards = [
   { id: 'def-09', name: 'Character/Reputation Evidence Motion', effect: 'Attempts to introduce unrelated favorable character evidence for Voss; facilitator judgment on relevance, generally low-impact if the financial trail is solid.', corroborationImmune: null },
   { id: 'def-10', name: 'Speedy Trial Pressure', effect: 'Defense pushes for an accelerated timeline; advance Command Pressure one level unless the team has already reached Probable Cause (16+).', corroborationImmune: null },
 ];
+
+// Shown at a successful indictment — this case is a fictional composite, not
+// a dramatization of one real prosecution, but every mechanic in it (phantom
+// billing, shell-company layering, a silenced internal witness) is a
+// documented, recurring pattern in real government-contractor fraud cases.
+export const realWorldContext = {
+  heading: 'The Real-World Pattern Behind This Case',
+  paragraphs: [
+    'Billing the government for staff who never actually did the work — "phantom" or "ghost" employees — is a well-documented, recurring fraud pattern, not a rare scheme. In 2023, VJ Associates paid $3.13 million to resolve DOJ charges for billing government-funded infrastructure projects for hours that were never actually worked.',
+    'The scale can run far higher: one of the world\'s largest consulting firms paid $337.5 million — among the largest procurement false-claims settlements in DOJ history — after a former employee\'s whistleblower complaint exposed improper government billing that had gone on for more than a decade.',
+    'Layering the proceeds through shell companies before they reach an individual, the way CFO Elena Voss does here, is likewise a recurring feature of real contractor-fraud and money-laundering prosecutions — it\'s the same basic playbook investigators look for whenever a corporate vendor with no real staff or operations shows up in a payment chain.',
+  ],
+  sources: [
+    { title: 'Government contractor agrees to plead guilty to fraudulently billing federal and state programs (DOJ, District of Massachusetts)', url: 'https://www.justice.gov/usao-ma/pr/government-contractor-agrees-plead-guilty-fraudulently-billing-federal-and-state' },
+  ],
+};

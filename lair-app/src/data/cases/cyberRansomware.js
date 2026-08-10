@@ -68,52 +68,52 @@ export const factMatrix = [
 
 export const evidenceCards = [
   // Interviews
-  { id: 'int-01', category: 'interviews', factId: 'insider_access', name: 'Former Employee Interview', flavor: 'Petrosyan\'s exit interview notes — terminated for a policy violation weeks before the attack.', caseDefining: false },
-  { id: 'int-02', category: 'interviews', factId: 'insider_access', name: 'Co-worker Statement', flavor: 'A Bellcrest IT staffer admits Petrosyan\'s access was never actually revoked after termination.', caseDefining: true },
-  { id: 'int-03', category: 'interviews', factId: 'insider_access', name: 'Person of Interest Interview', flavor: 'Petrosyan\'s voluntary interview — denies any contact with the attackers.', caseDefining: false },
+  { id: 'int-01', category: 'interviews', factId: 'insider_access', name: 'Former Employee Interview', flavor: 'Former IT contractor Aaron Petrosyan\'s exit interview notes — terminated for a policy violation weeks before the attack.', caseDefining: false },
+  { id: 'int-02', category: 'interviews', factId: 'insider_access', name: 'Co-worker Statement', flavor: 'A Bellcrest IT staffer admits departed contractor Aaron Petrosyan\'s access was never actually revoked after termination.', caseDefining: true },
+  { id: 'int-03', category: 'interviews', factId: 'insider_access', name: 'Person of Interest Interview', flavor: 'Former contractor Aaron Petrosyan\'s voluntary interview — denies any contact with the attackers.', caseDefining: false },
   { id: 'int-04', category: 'interviews', factId: 'ransomware_deployment', name: 'Medical Professional Interview', flavor: 'A treating physician describes the operational chaos during the six-day encryption event.', caseDefining: false },
   { id: 'int-05', category: 'interviews', factId: 'ransom_payment', name: 'Financial Advisor Interview', flavor: 'Outside counsel walks through how Bellcrest\'s leadership decided to authorize the ransom.', caseDefining: false },
   { id: 'int-06', category: 'interviews', factId: 'data_exfiltration', name: 'Expert Consultation', flavor: 'The incident response contractor\'s account of when the exfiltration actually occurred.', caseDefining: false },
 
   // Documents
   { id: 'doc-01', category: 'documents', factId: 'ransomware_deployment', name: 'Internal Memo', flavor: 'Bellcrest\'s internal incident response timeline memo.', caseDefining: false },
-  { id: 'doc-02', category: 'documents', factId: 'insider_access', name: 'Employment Records', flavor: 'Petrosyan\'s termination paperwork, including an incomplete access-revocation checklist.', caseDefining: true },
+  { id: 'doc-02', category: 'documents', factId: 'insider_access', name: 'Employment Records', flavor: 'Former IT contractor Aaron Petrosyan\'s termination paperwork, including an incomplete access-revocation checklist.', caseDefining: true },
   { id: 'doc-03', category: 'documents', factId: 'ransom_payment', name: 'Insurance Policy', flavor: 'Bellcrest\'s cyber insurance policy and its ransom-authorization procedure.', caseDefining: false },
   { id: 'doc-04', category: 'documents', factId: 'data_exfiltration', name: 'Civil Court Filing', flavor: 'A patient class-action filing describing the scope of the data breach.', caseDefining: false },
   { id: 'doc-05', category: 'documents', factId: 'ransom_payment', name: 'Official Record', flavor: 'The incident report Bellcrest filed with a federal regulator, detailing the ransom payment.', caseDefining: false },
   { id: 'doc-06', category: 'documents', factId: 'crypto_laundering', name: 'Licensing/Permit Records', flavor: 'NovaSwap Exchange\'s complete lack of money-transmitter licensing.', caseDefining: false },
 
   // Digital
-  { id: 'dig-01', category: 'digital', factId: 'insider_access', name: 'Chat Application Backup', flavor: 'A recovered dark web forum chat where Petrosyan negotiates the sale of his credentials.', caseDefining: false },
-  { id: 'dig-02', category: 'digital', factId: 'insider_access', name: 'Authentication Logs', flavor: 'VPN logs showing Petrosyan\'s "terminated" account authenticating well after his last day.', caseDefining: true },
+  { id: 'dig-01', category: 'digital', factId: 'insider_access', name: 'Chat Application Backup', flavor: 'A recovered dark web forum chat where former contractor Aaron Petrosyan negotiates the sale of his credentials.', caseDefining: false },
+  { id: 'dig-02', category: 'digital', factId: 'insider_access', name: 'Authentication Logs', flavor: 'VPN logs showing former contractor Aaron Petrosyan\'s "terminated" account authenticating well after his last day.', caseDefining: true },
   { id: 'dig-03', category: 'digital', factId: 'ransomware_deployment', name: 'Deleted File Recovery', flavor: 'The recovered ransomware binary and deployment script from a compromised server.', caseDefining: false },
   { id: 'dig-04', category: 'digital', factId: 'data_exfiltration', name: 'Dark Web Marketplace Listing', flavor: 'A listing advertising a sample of Bellcrest\'s stolen patient data.', caseDefining: true },
   { id: 'dig-05', category: 'digital', factId: 'crypto_laundering', name: 'Cryptocurrency Exchange Records', flavor: 'Records tying the ransom wallet to a deposit at a known mixing service.', caseDefining: false },
   { id: 'dig-06', category: 'digital', factId: 'ransom_payment', name: 'Digital Wallet Transaction', flavor: 'The on-chain ransom payment transaction itself.', caseDefining: false },
 
   // Physical
-  { id: 'phy-01', category: 'physical', factId: 'ransomware_deployment', name: 'Digital Storage Media', flavor: 'A USB drive recovered from Petrosyan\'s former workstation, holding staging tools.', caseDefining: true },
-  { id: 'phy-02', category: 'physical', factId: 'insider_access', name: 'Surveillance Footage', flavor: 'Badge and camera footage of Petrosyan re-entering the building after his termination date.', caseDefining: false },
+  { id: 'phy-01', category: 'physical', factId: 'ransomware_deployment', name: 'Digital Storage Media', flavor: 'A USB drive recovered from former IT contractor Aaron Petrosyan\'s old workstation, holding staging tools.', caseDefining: true },
+  { id: 'phy-02', category: 'physical', factId: 'insider_access', name: 'Surveillance Footage', flavor: 'Badge and camera footage of former contractor Aaron Petrosyan re-entering the building after his termination date.', caseDefining: false },
   { id: 'phy-03', category: 'physical', factId: 'ransomware_deployment', name: 'Tool Recovery', flavor: 'A hardware keylogger found attached to a nurses\' station workstation.', caseDefining: false },
   { id: 'phy-04', category: 'physical', factId: 'ransomware_deployment', name: 'Access Log', flavor: 'The physical server room access log shows after-hours entry the night of deployment.', caseDefining: false },
-  { id: 'phy-05', category: 'physical', factId: 'insider_access', name: 'Discarded Item Recovery', flavor: 'A discarded printed password list found near Petrosyan\'s old desk.', caseDefining: false },
+  { id: 'phy-05', category: 'physical', factId: 'insider_access', name: 'Discarded Item Recovery', flavor: 'A discarded printed password list found near former contractor Aaron Petrosyan\'s old desk.', caseDefining: false },
   { id: 'phy-06', category: 'physical', factId: 'ransomware_deployment', name: 'Photographs', flavor: 'Photos of the ransom note displayed across hospital workstation screens.', caseDefining: false },
 
   // Financial
   { id: 'fin-01', category: 'financial', factId: 'ransom_payment', name: 'Cryptocurrency Wallet', flavor: 'Bellcrest\'s own wallet, used to send the ransom.', caseDefining: true },
   { id: 'fin-02', category: 'financial', factId: 'ransom_payment', name: 'Wire Transfer Record', flavor: 'Bellcrest\'s bank wire purchasing the cryptocurrency used for the ransom.', caseDefining: false },
   { id: 'fin-03', category: 'financial', factId: 'crypto_laundering', name: 'Cryptocurrency Exchange Records', flavor: 'NovaSwap Exchange records showing the mixed funds converted to cash.', caseDefining: true },
-  { id: 'fin-04', category: 'financial', factId: 'crypto_laundering', name: 'Suspicious Activity Report', flavor: 'A bank flags Basanets\' cash withdrawal pattern on its own.', caseDefining: false },
-  { id: 'fin-05', category: 'financial', factId: 'insider_access', name: 'Merchant Account Records', flavor: 'A shell "IT consulting" merchant account used to pay Petrosyan a share of the proceeds.', caseDefining: false },
+  { id: 'fin-04', category: 'financial', factId: 'crypto_laundering', name: 'Suspicious Activity Report', flavor: 'A bank flags NovaSwap Exchange operator Yuri Basanets\' cash withdrawal pattern on its own.', caseDefining: false },
+  { id: 'fin-05', category: 'financial', factId: 'insider_access', name: 'Merchant Account Records', flavor: 'A shell "IT consulting" merchant account used to pay former contractor Aaron Petrosyan a share of the proceeds.', caseDefining: false },
   { id: 'fin-06', category: 'financial', factId: 'crypto_laundering', name: 'Currency Exchange Record', flavor: 'A portion of the laundered funds converted again through a separate currency exchange.', caseDefining: false },
 
   // Intelligence
   { id: 'intel-01', category: 'intelligence', factId: 'ransomware_deployment', name: 'Open-Source Intelligence Summary', flavor: 'Public reporting linking ShadowLatch\'s known tooling to this specific incident.', caseDefining: false },
-  { id: 'intel-02', category: 'intelligence', factId: 'insider_access', name: 'Confidential Source Report', flavor: 'A source inside a cybercrime forum describes how ShadowLatch recruits affiliates like Petrosyan.', caseDefining: false },
+  { id: 'intel-02', category: 'intelligence', factId: 'insider_access', name: 'Confidential Source Report', flavor: 'A source inside a cybercrime forum describes how ShadowLatch recruits affiliates like former contractor Aaron Petrosyan.', caseDefining: false },
   { id: 'intel-03', category: 'intelligence', factId: 'data_exfiltration', name: 'Signals Intelligence Report', flavor: 'Intercepted traffic ties the exfiltration server to known ShadowLatch infrastructure.', caseDefining: true },
-  { id: 'intel-04', category: 'intelligence', factId: 'crypto_laundering', name: 'Interagency Data Match', flavor: 'A federal financial-crimes match links Basanets\' exchange to prior, unrelated laundering cases.', caseDefining: true },
+  { id: 'intel-04', category: 'intelligence', factId: 'crypto_laundering', name: 'Interagency Data Match', flavor: 'A federal financial-crimes match links NovaSwap Exchange operator Yuri Basanets\' exchange to prior, unrelated laundering cases.', caseDefining: true },
   { id: 'intel-05', category: 'intelligence', factId: 'data_exfiltration', name: 'Network Mapping', flavor: 'Network analysis mapping the exfiltration path from Bellcrest\'s servers outward.', caseDefining: false },
-  { id: 'intel-06', category: 'intelligence', factId: 'crypto_laundering', name: 'Criminal History Summary', flavor: 'Basanets\' prior record for unlicensed money transmission.', caseDefining: false },
+  { id: 'intel-06', category: 'intelligence', factId: 'crypto_laundering', name: 'Criminal History Summary', flavor: 'NovaSwap Exchange operator Yuri Basanets\' prior record for unlicensed money transmission.', caseDefining: false },
 ];
 
 export const evidenceByThreshold = {
@@ -204,3 +204,21 @@ export const defenseCounterplayCards = [
   { id: 'def-09', name: 'Character/Reputation Evidence Motion', effect: 'Attempts to introduce unrelated favorable character evidence for Petrosyan; facilitator judgment on relevance, generally low-impact if the technical trail is solid.', corroborationImmune: null },
   { id: 'def-10', name: 'Speedy Trial Pressure', effect: 'Defense pushes for an accelerated timeline; advance Command Pressure one level unless the team has already reached Probable Cause (16+).', corroborationImmune: null },
 ];
+
+// Shown at a successful indictment — a fictional composite, not a
+// dramatization of one real prosecution, but every mechanic here (a departed
+// insider selling live credentials, a hospital ransomware target, a
+// crypto-mixing cash-out) reflects a documented, real attack pattern.
+export const realWorldContext = {
+  heading: 'The Real-World Pattern Behind This Case',
+  paragraphs: [
+    'Selling network access to ransomware operators is a real, named criminal role — "Initial Access Brokers" compromise or buy corporate VPN and remote-access credentials, then sell that access on dark web forums to ransomware affiliates, who are the ones who actually deploy the encryption. The credential pairs that trade hands most often on these markets are exactly the kind Aaron Petrosyan sells in this case: corporate VPN logins.',
+    'Hospitals have been a frequent real-world target of this exact playbook. The U.S. Department of Justice has charged foreign, state-linked hackers specifically for ransomware attacks against American hospitals and health care providers, and the Treasury Department has sanctioned VPN infrastructure providers found to be directly supporting ransomware groups that hit hospitals, financial firms, and municipal governments.',
+    'Running ransom proceeds through a cryptocurrency mixing service before cashing out — the way this case\'s laundering chain works — is likewise a standard, well-documented step in real ransomware cash-out operations, and one of the main things that lets investigators eventually trace the money back to a person.',
+  ],
+  sources: [
+    { title: 'North Korean Government Hacker Charged for Involvement in Ransomware Attacks Targeting U.S. Hospitals and Health Care Providers (DOJ)', url: 'https://www.justice.gov/archives/opa/pr/north-korean-government-hacker-charged-involvement-ransomware-attacks-targeting-us-hospitals' },
+    { title: 'Initial Access Brokers Are Key to Rise in Ransomware Attacks (Recorded Future)', url: 'https://www.recordedfuture.com/research/initial-access-brokers-key-to-rise-in-ransomware-attacks' },
+    { title: 'Treasury sanctions VPN provider, individuals tied to hospital ransomware (Becker\'s Hospital Review)', url: 'https://www.beckershospitalreview.com/healthcare-information-technology/cybersecurity/treasury-sanctions-vpn-provider-individuals-tied-to-hospital-ransomware/' },
+  ],
+};

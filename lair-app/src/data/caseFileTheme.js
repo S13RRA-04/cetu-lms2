@@ -42,6 +42,11 @@ export const LADDER = {
 };
 export const NEXT_TIER = { discovered: 'subpoena', subpoena: 'court_order', court_order: 'search_warrant' };
 export const TIER_RANK = { discovered: 0, subpoena: 1, court_order: 2, search_warrant: 3 };
+// Same 4 states as TIER_RANK, 1-indexed to match the four-tier evidence card
+// narrative system's tier/max_tier numbering (and the physical card's four
+// orientation states) — see caseFileEvidenceDeck.js and
+// caseFileCaseUtils.js's resolveCardNarrative()/resolveMaxTier().
+export const TIER_NUMBER = { discovered: 1, subpoena: 2, court_order: 3, search_warrant: 4 };
 
 export function tierLabel(tier) {
   return tier === 'discovered' ? 'Discovered' : (LADDER[tier]?.label ?? tier);
