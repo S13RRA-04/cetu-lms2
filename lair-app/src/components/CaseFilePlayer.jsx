@@ -195,11 +195,16 @@ export default function CaseFilePlayer() {
   function armCategory(cat) {
     // Blocked while a Category Die is owed — the server rejects a new
     // Investigate until it's resolved (see caseFileCoordinator.js), so
-    // arming here would just set up a roll that's guaranteed to fail.
-    if (!isMyTurn || rolling || pendingCategoryDie || !state || state.tokens[cat] <= 0 || state.gameOver) return;
+    // arming here would just set up a roll that's guaranteed to fail. Gate
+    // on the server's own state.pendingCategoryDie, not the local
+    // pendingCategoryDie — that one stays truthy after a resolved roll so
+    // its "d6 = X → category" confirmation text keeps showing, and never
+    // clearing it would otherwise lock the decks forever.
+    if (!isMyTurn || rolling || state?.pendingCategoryDie || !state || state.tokens[cat] <= 0 || state.gameOver) return;
     setArmedCategory(cat);
     setRollFace(null);
     setRollFace6(null);
+    setPendingCategoryDie(null);
   }
 
   function rollD20() {
@@ -338,7 +343,7 @@ export default function CaseFilePlayer() {
           <div className="cf-decks" data-tour="decks">
             {CATEGORIES.map((cat) => {
               const meta = CATEGORY_META[cat];
-              const interactive = isMyTurn && !rolling && !pendingCategoryDie && state.tokens[cat] > 0 && !state.gameOver;
+              const interactive = isMyTurn && !rolling && !state.pendingCategoryDie && state.tokens[cat] > 0 && !state.gameOver;
               const disabled = !interactive;
               return (
                 <div
