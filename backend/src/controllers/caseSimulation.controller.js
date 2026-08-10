@@ -10,6 +10,7 @@ const caseEvidenceService = require('../services/caseEvidence.service');
 const caseHypothesisService = require('../services/caseHypothesis.service');
 const caseLegalProcessService = require('../services/caseLegalProcess.service');
 const caseInterviewService = require('../services/caseInterview.service');
+const caseAttributionService = require('../services/caseAttribution.service');
 
 /** Resolves the requesting student's squad within this course, and this assignment's case. Shared by every student-facing handler below. */
 async function resolveContext(req) {
@@ -156,6 +157,31 @@ async function submitInterview(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function listAttribution(req, res, next) {
+  try {
+    const { investigationCase, squadId } = await resolveContext(req);
+    res.json(await caseAttributionService.listForSquad(investigationCase.id, squadId));
+  } catch (err) { next(err); }
+}
+
+async function getAttribution(req, res, next) {
+  try {
+    const { investigationCase, squadId } = await resolveContext(req);
+    res.json(await caseAttributionService.get(investigationCase.id, squadId, req.params.entityId));
+  } catch (err) { next(err); }
+}
+
+async function updateAttributionDimension(req, res, next) {
+  try {
+    const { investigationCase, squadId } = await resolveContext(req);
+    const { rating, supporting_evidence_ids: supportingEvidenceIds, notes } = req.body;
+    res.json(await caseAttributionService.updateDimension(
+      investigationCase.id, squadId, req.params.entityId, req.params.dimension,
+      { rating, supporting_evidence_ids: supportingEvidenceIds, notes }, req.user.id,
+    ));
+  } catch (err) { next(err); }
+}
+
 // ── Instructor ──────────────────────────────────────────────────────────
 
 async function instructorDashboard(req, res, next) {
@@ -199,5 +225,6 @@ module.exports = {
   getCase, getState, getEntities, getEvidence, getPersonas, listActions, submitAction,
   listHypotheses, createHypothesis, reviseHypothesis, challengeHypothesis,
   getLegalProcess, submitLegalProcess, getInterview, submitInterview,
+  listAttribution, getAttribution, updateAttributionDimension,
   instructorDashboard, inject,
 };

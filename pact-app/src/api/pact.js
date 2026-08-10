@@ -324,6 +324,15 @@ export const getCaseInstructorDashboard = (assignmentId) =>
 export const submitCaseInject = (assignmentId, data) =>
   client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/case/inject`, data).then((r) => r.data);
 
+export const getCaseAttributionList = (assignmentId) =>
+  client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/case/attribution`).then((r) => r.data);
+
+export const getCaseAttribution = (assignmentId, entityId) =>
+  client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/case/attribution/${entityId}`).then((r) => r.data);
+
+export const updateCaseAttributionDimension = (assignmentId, entityId, dimension, data) =>
+  client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/case/attribution/${entityId}/${dimension}`, data).then((r) => r.data);
+
 /* ── Intel Board ── */
 export const getIntelBoard = () =>
   client.get(`/courses/${COURSE_ID}/intel`).then((r) => r.data).catch((err) => {

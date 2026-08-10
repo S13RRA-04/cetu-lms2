@@ -3,9 +3,11 @@ import {
   getCase, getCaseState, getCaseEntities, getCaseEvidence, getCasePersonas, getCaseActions,
   submitCaseAction, getCaseHypotheses, createCaseHypothesis, challengeCaseHypothesis,
   getCaseLegalProcess, submitCaseLegalProcess, getCaseInterview, submitCaseInterview,
+  getCaseAttribution, updateCaseAttributionDimension,
 } from '../api/pact.js';
 
-const TABS = ['Brief', 'Leads & Evidence', 'Entities', 'Hypotheses', 'Requests', 'Journal'];
+const TABS = ['Brief', 'Leads & Evidence', 'Entities', 'Attribution', 'Hypotheses', 'Requests', 'Journal'];
+const RATING_OPTIONS = ['none', 'weak', 'moderate', 'strong'];
 
 function Section({ title, children }) {
   return (
@@ -138,6 +140,10 @@ export default function InvestigationCase({ assignmentId, color }) {
             ))}
           </div>
         </Section>
+      )}
+
+      {tab === 'Attribution' && (
+        <Attribution assignmentId={assignmentId} entities={entities} evidence={evidence} />
       )}
 
       {tab === 'Hypotheses' && (
@@ -286,6 +292,95 @@ function Hypotheses({ assignmentId, hypotheses, onChanged }) {
           </div>
         ))}
       </div>
+    </Section>
+  );
+}
+
+function Attribution({ assignmentId, entities, evidence }) {
+  const [subjectId, setSubjectId] = useState('');
+  const [assessment, setAssessment] = useState(null);
+  const [gaps, setGaps] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const candidates = entities.filter((e) => e.type === 'person');
+
+  const load = useCallback((id) => {
+    if (!id) return;
+    getCaseAttribution(assignmentId, id).then((r) => { setAssessment(r.assessment); setGaps(r.gaps); });
+  }, [assignmentId]);
+
+  useEffect(() => {
+    if (!subjectId && candidates.length > 0) setSubjectId(candidates[0].id);
+  }, [candidates, subjectId]);
+
+  useEffect(() => { load(subjectId); }, [subjectId, load]);
+
+  const save = async (dimension, rating, evidenceIds, notes) => {
+    setSaving(true);
+    try {
+      const r = await updateCaseAttributionDimension(assignmentId, subjectId, dimension, { rating, supporting_evidence_ids: evidenceIds, notes });
+      setAssessment(r.assessment);
+      setGaps(r.gaps);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (candidates.length === 0) {
+    return <Section title="ATTRIBUTION"><p className="ind-prose">No person entities discovered yet to assess.</p></Section>;
+  }
+
+  return (
+    <Section title="ATTRIBUTION WORKSPACE">
+      <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className="ic-action-input" style={{ maxWidth: 320 }}>
+        {candidates.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+      </select>
+
+      {gaps && (
+        <div className="ic-hypothesis-meta" style={{ marginTop: 8 }}>
+          Readiness: <strong>{gaps.readiness}</strong> · Corroborated: {gaps.corroborated.length} ·
+          Weak/uncited: {gaps.weak.length} · Unassessed: {gaps.unassessed.length}
+          {gaps.unassessed.length > 0 && <> — still missing: {gaps.unassessed.join(', ')}</>}
+        </div>
+      )}
+
+      {assessment && (
+        <div className="ic-hypothesis-list">
+          {Object.keys(assessment.dimensions || {}).length === 0 && candidates.length > 0 && null}
+          {['technical', 'infrastructure', 'identity', 'behavioral', 'financial', 'device', 'account', 'intelligence', 'corroboration'].map((dim) => {
+            const d = assessment.dimensions?.[dim] ?? { rating: 'none', supporting_evidence_ids: [], notes: '' };
+            return (
+              <div key={dim} className="ic-hypothesis-card">
+                <div className="ic-hypothesis-statement" style={{ textTransform: 'capitalize' }}>{dim}</div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
+                  <select
+                    value={d.rating}
+                    onChange={(e) => save(dim, e.target.value, d.supporting_evidence_ids, d.notes)}
+                    disabled={saving}
+                  >
+                    {RATING_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                  <select
+                    multiple size={Math.min(4, Math.max(2, evidence.length))}
+                    value={d.supporting_evidence_ids}
+                    onChange={(e) => save(dim, d.rating, Array.from(e.target.selectedOptions, (o) => o.value), d.notes)}
+                    disabled={saving}
+                    style={{ minWidth: 200 }}
+                  >
+                    {evidence.map((ev) => <option key={ev.id} value={ev.id}>{ev.evidence_key}</option>)}
+                  </select>
+                </div>
+                <textarea
+                  className="ic-action-input" rows={1} style={{ marginTop: 6 }}
+                  defaultValue={d.notes}
+                  placeholder="Notes…"
+                  onBlur={(e) => save(dim, d.rating, d.supporting_evidence_ids, e.target.value)}
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
     </Section>
   );
 }

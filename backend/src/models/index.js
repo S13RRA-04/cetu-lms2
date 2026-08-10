@@ -43,6 +43,7 @@ const CaseAction             = require('./CaseAction')(sequelize);
 const CaseHypothesis         = require('./CaseHypothesis')(sequelize);
 const CaseLegalProcess       = require('./CaseLegalProcess')(sequelize);
 const CaseInterview          = require('./CaseInterview')(sequelize);
+const CaseAttributionAssessment = require('./CaseAttributionAssessment')(sequelize);
 
 // ── User ↔ Course (instructor relationship) ────────────────────────────────
 Course.belongsTo(User, { as: 'instructor', foreignKey: 'instructor_id' });
@@ -228,6 +229,11 @@ CaseInterview.belongsTo(Squad,       { foreignKey: 'squad_id',   as: 'squad' });
 CaseInterview.belongsTo(CasePersona, { foreignKey: 'persona_id', as: 'persona' });
 CaseInterview.belongsTo(User,        { foreignKey: 'student_id', as: 'student' });
 
+InvestigationCase.hasMany(CaseAttributionAssessment, { as: 'attributionAssessments', foreignKey: 'case_id', onDelete: 'CASCADE' });
+CaseAttributionAssessment.belongsTo(InvestigationCase,                               { foreignKey: 'case_id' });
+CaseAttributionAssessment.belongsTo(Squad,      { foreignKey: 'squad_id',          as: 'squad' });
+CaseAttributionAssessment.belongsTo(CaseEntity, { foreignKey: 'subject_entity_id', as: 'subjectEntity' });
+
 module.exports = {
   sequelize,
   User,
@@ -272,4 +278,5 @@ module.exports = {
   CaseHypothesis,
   CaseLegalProcess,
   CaseInterview,
+  CaseAttributionAssessment,
 };

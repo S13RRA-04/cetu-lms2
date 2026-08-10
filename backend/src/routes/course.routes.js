@@ -124,6 +124,9 @@ router.get('/:id/assignments/:aid/case/legal-process',  requireAuth, caseSimCtrl
 router.post('/:id/assignments/:aid/case/legal-process', requireAuth, caseSimCtrl.submitLegalProcess);
 router.get('/:id/assignments/:aid/case/interviews/:personaId',  requireAuth, caseSimCtrl.getInterview);
 router.post('/:id/assignments/:aid/case/interviews/:personaId', requireAuth, caseSimCtrl.submitInterview);
+router.get('/:id/assignments/:aid/case/attribution',                        requireAuth, caseSimCtrl.listAttribution);
+router.get('/:id/assignments/:aid/case/attribution/:entityId',              requireAuth, caseSimCtrl.getAttribution);
+router.put('/:id/assignments/:aid/case/attribution/:entityId/:dimension',   requireAuth, caseSimCtrl.updateAttributionDimension);
 router.get('/:id/assignments/:aid/case/instructor', requireAuth, requireInstructor, caseSimCtrl.instructorDashboard);
 router.post('/:id/assignments/:aid/case/inject',    requireAuth, requireInstructor, caseSimCtrl.inject);
 
