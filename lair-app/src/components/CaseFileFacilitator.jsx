@@ -15,6 +15,7 @@ import {
 } from '../data/caseFileCaseUtils.js';
 import CaseFileGuide from './CaseFileGuide.jsx';
 import { INSTRUCTOR_GUIDE_SECTIONS } from '../data/caseFileGuideContent.js';
+import Die3D from './Die3D.jsx';
 import CaseFileTourOverlay from './CaseFileTourOverlay.jsx';
 import useCaseFileTour from '../hooks/useCaseFileTour.js';
 import { FACILITATOR_TOUR_BEATS } from '../data/caseFileTourScript.js';
@@ -36,13 +37,13 @@ function tierLabel(tier) {
 function Die20({ value, rolling, idle, color, onClick }) {
   return (
     <div
-      className={`cf-die20${rolling ? ' cf-die-tumbling' : ''}${idle ? ' cf-die20-idle' : ''}`}
+      className={`cf-die20${idle ? ' cf-die20-idle' : ''}`}
       style={{ '--cat-color': color ?? 'var(--primary)' }}
       onClick={idle ? undefined : onClick}
       role="button"
       tabIndex={idle ? -1 : 0}
     >
-      <span className="cf-die20-facets" />
+      <Die3D variant="d20" rolling={rolling} color={color} />
       <span className="cf-die-face-num">{idle ? '?' : (value ?? '20')}</span>
     </div>
   );
@@ -52,8 +53,11 @@ const DIE6_PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 
 function Die6({ value, rolling, onClick }) {
   const on = new Set(DIE6_PIPS[value] ?? []);
   return (
-    <div className={`cf-die6${rolling ? ' cf-die-tumbling' : ''}`} onClick={onClick} role="button" tabIndex={0}>
-      {Array.from({ length: 9 }, (_, i) => <span key={i} className={`cf-die6-pip${on.has(i) ? ' on' : ''}`} />)}
+    <div className="cf-die6" onClick={onClick} role="button" tabIndex={0}>
+      <Die3D variant="d6" rolling={rolling} />
+      <div className="cf-die6-pips">
+        {Array.from({ length: 9 }, (_, i) => <span key={i} className={`cf-die6-pip${on.has(i) ? ' on' : ''}`} />)}
+      </div>
     </div>
   );
 }
@@ -421,6 +425,8 @@ export default function CaseFileFacilitator() {
     const cards = dedupedEvidence.filter((e) => findCard(e.cardId)?.factId === fact.id);
     return { fact, cards };
   });
+  const citableFacts = resolvedByFact.filter((f) => f.cards.length > 0);
+  const uncitableFacts = resolvedByFact.filter((f) => f.cards.length === 0);
 
   const positiveDrawn = positiveInjectFlavor.length - state.positiveInjectRemaining;
   const negativeDrawn = negativeInjectFlavor.length - state.negativeInjectRemaining;
@@ -723,7 +729,7 @@ export default function CaseFileFacilitator() {
 
       {/* Pending Injects — drawn Positive/Negative cards awaiting a target before their mechanical effect applies */}
       {pendingInjects.length > 0 && (
-        <section className="ttx-panel" style={{ marginTop: 16, borderColor: 'var(--warning)' }}>
+        <section className="ttx-panel" style={{ marginTop: 16, borderColor: 'var(--warning)' }} data-tour="pending-injects">
           <div className="ttx-panel-head"><span className="ttx-panel-label">Pending Injects — Resolve to Apply Effect</span></div>
           {pendingInjects.map((pi) => (
             <div key={pi.uid} className={`cf-inject-row cf-inject-${pi.type}`}>
@@ -778,8 +784,14 @@ export default function CaseFileFacilitator() {
       <section className="ttx-panel" data-tour="grand-jury">
         <div className="ttx-panel-head"><span className="ttx-panel-label">Grand Jury Presentation</span></div>
         <p className="ttx-panel-hint">
-          Facts currently citable: {resolvedByFact.filter((f) => f.cards.length > 0).length} of {activeCase.centralFacts.length}. Need {activeCase.grandJuryRubric.threshold}+.
+          Facts currently citable: {citableFacts.length} of {activeCase.centralFacts.length}. Need {activeCase.grandJuryRubric.threshold}+.
         </p>
+        {citableFacts.length > 0 && (
+          <p className="ttx-panel-hint"><strong>Citable:</strong> {citableFacts.map((f) => f.fact.title).join(', ')}</p>
+        )}
+        {uncitableFacts.length > 0 && (
+          <p className="ttx-panel-hint"><strong>Not yet citable:</strong> {uncitableFacts.map((f) => f.fact.title).join(', ')}</p>
+        )}
         <div className="cf-btn-row">
           <button className="btn-sm-primary" disabled={state.indicted || state.gameOver} onClick={() => sendAction('present_grand_jury', { success: true })}>Present — Success</button>
           <button className="btn-secondary" disabled={state.indicted || state.gameOver} onClick={() => sendAction('present_grand_jury', { success: false, penaltyNote: 'Presentation fell short of the rubric threshold.' })}>Present — Fell Short</button>

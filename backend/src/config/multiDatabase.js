@@ -10,12 +10,14 @@ const logger = require('../utils/logger');
  * config/database.js as before; they never touch this file, since each of
  * them only ever operates on its own single course.
  *
- * Requires LAIR_DATABASE_URL / PACT_DATABASE_URL / KCR_DATABASE_URL — the
- * three now-physically-separate program databases. A program whose env var
- * isn't set is skipped everywhere this registry is consulted (logged once
- * at startup) rather than throwing, so `frontend` still runs in a
- * partially-configured environment (e.g. local dev with only one DB handy)
- * instead of every admin page breaking outright.
+ * Requires LAIR_DATABASE_URL / PACT_DATABASE_URL — the two physically
+ * separate program databases (KCR shares LAIR's — it has no data of its
+ * own yet, so it was bundled back in rather than given a third Supabase
+ * project past the free-tier project cap). A program whose env var isn't
+ * set is skipped everywhere this registry is consulted (logged once at
+ * startup) rather than throwing, so `frontend` still runs in a partially-
+ * configured environment (e.g. local dev with only one DB handy) instead
+ * of every admin page breaking outright.
  */
 
 const opts = {
@@ -27,9 +29,8 @@ const opts = {
 };
 
 const PROGRAM_ENV_VARS = {
-  lair: 'LAIR_DATABASE_URL',
+  lair: 'LAIR_DATABASE_URL', // also holds KCR's data — see file header
   pact: 'PACT_DATABASE_URL',
-  kcr: 'KCR_DATABASE_URL',
 };
 
 const connections = {};

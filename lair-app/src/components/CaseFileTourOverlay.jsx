@@ -54,13 +54,18 @@ export default function CaseFileTourOverlay({ tour }) {
     width: rect.width + pad * 2, height: rect.height + pad * 2,
   } : { left: '50%', top: '50%', width: 0, height: 0 };
 
-  // Place the callout below the hole if there's room, otherwise above; clamp horizontally on-screen.
+  // Place the callout below the hole if there's room, otherwise above; clamp
+  // fully inside the viewport either way. A target taller than the viewport
+  // (e.g. a long reference panel) or a very tall callout body would otherwise
+  // push the popup past the screen edge with no way to reach it.
   const calloutWidth = 340;
+  const calloutMaxHeight = Math.min(460, window.innerHeight - 24);
   const spaceBelow = rect ? window.innerHeight - (rect.bottom + pad) : 0;
-  const placeAbove = rect && spaceBelow < 200 && rect.top > 200;
-  const calloutTop = rect
-    ? (placeAbove ? Math.max(12, rect.top - pad - 12) : rect.bottom + pad + 12)
+  const placeAbove = rect && spaceBelow < calloutMaxHeight && rect.top > calloutMaxHeight;
+  const rawTop = rect
+    ? (placeAbove ? rect.top - pad - 12 - calloutMaxHeight : rect.bottom + pad + 12)
     : window.innerHeight / 2 - 80;
+  const calloutTop = Math.min(Math.max(12, rawTop), window.innerHeight - calloutMaxHeight - 12);
   const calloutLeft = rect
     ? Math.min(Math.max(12, rect.left + rect.width / 2 - calloutWidth / 2), window.innerWidth - calloutWidth - 12)
     : window.innerWidth / 2 - calloutWidth / 2;
@@ -72,9 +77,10 @@ export default function CaseFileTourOverlay({ tour }) {
         className="cf-tour-callout"
         style={{
           width: calloutWidth,
+          maxHeight: calloutMaxHeight,
+          overflowY: 'auto',
           left: calloutLeft,
-          top: placeAbove ? undefined : calloutTop,
-          bottom: placeAbove ? window.innerHeight - calloutTop : undefined,
+          top: calloutTop,
         }}
       >
         <div className="cf-tour-progress">Step {tour.stepIndex + 1} of {tour.steps.length}</div>

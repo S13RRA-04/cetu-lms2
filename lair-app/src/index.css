@@ -3309,47 +3309,31 @@ body::after {
 .cf-dice-area { display: flex; align-items: center; gap: 14px; perspective: 500px; flex-shrink: 0; }
 .cf-die20 {
   position: relative; width: 78px; height: 78px; cursor: pointer;
-  clip-path: polygon(50% 0%, 79% 10%, 98% 35%, 98% 65%, 79% 90%, 50% 100%, 21% 90%, 2% 65%, 2% 35%, 21% 10%);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--cat-color) 60%, #1a1a22), color-mix(in srgb, var(--cat-color) 18%, #08080b));
-  border: 2px solid color-mix(in srgb, var(--cat-color) 75%, white);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--cat-color) 55%, transparent), inset 0 0 14px rgba(0,0,0,.4);
   display: flex; align-items: center; justify-content: center;
+  filter: drop-shadow(0 0 12px color-mix(in srgb, var(--cat-color) 55%, transparent));
   transition: transform .15s ease, opacity .2s ease, filter .2s ease;
-  transform-style: preserve-3d;
 }
 .cf-die20:hover { transform: scale(1.06); }
-.cf-die20-idle { cursor: default; opacity: .45; filter: grayscale(.7); box-shadow: none; }
+.cf-die20-idle { cursor: default; opacity: .45; filter: grayscale(.7); }
 .cf-die20-idle:hover { transform: none; }
-.cf-die20-facets {
-  position: absolute; inset: 0; clip-path: inherit; pointer-events: none;
-  background:
-    linear-gradient(105deg, transparent 38%, rgba(255,255,255,.14) 50%, transparent 62%),
-    linear-gradient(210deg, transparent 40%, rgba(0,0,0,.22) 55%, transparent 68%);
-}
 .cf-die-face-num {
-  position: relative; z-index: 1; font-family: var(--mono); font-weight: 700; font-size: 24px;
-  color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.6);
+  position: absolute; z-index: 1; font-family: var(--mono); font-weight: 700; font-size: 24px;
+  color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.8), 0 0 6px rgba(0,0,0,.5); pointer-events: none;
 }
-@keyframes cf-die-tumble {
-  0%   { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
-  25%  { transform: rotateX(140deg) rotateY(70deg) rotateZ(35deg); }
-  50%  { transform: rotateX(260deg) rotateY(200deg) rotateZ(-25deg); }
-  75%  { transform: rotateX(320deg) rotateY(310deg) rotateZ(45deg); }
-  100% { transform: rotateX(360deg) rotateY(360deg) rotateZ(0deg); }
-}
-.cf-die-tumbling { animation: cf-die-tumble .5s linear infinite; }
+.cf-die3d { position: absolute; inset: 0; width: 100% !important; height: 100% !important; }
 
 .cf-die6 {
-  width: 58px; height: 58px; border-radius: 10px; cursor: pointer; flex-shrink: 0;
-  background: linear-gradient(145deg, #f6f6f2, #d6d6cc);
-  border: 1px solid rgba(0,0,0,.25);
-  box-shadow: 0 4px 10px rgba(0,0,0,.4), inset 0 1px 2px rgba(255,255,255,.7);
-  display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
-  padding: 9px; gap: 2px; transition: transform .15s ease;
-  transform-style: preserve-3d;
+  position: relative; width: 58px; height: 58px; cursor: pointer; flex-shrink: 0;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,.4));
+  transition: transform .15s ease;
 }
 .cf-die6:hover { transform: scale(1.06); }
-.cf-die6-pip { width: 9px; height: 9px; border-radius: 50%; background: #1a1a1a; margin: auto; opacity: 0; }
+.cf-die6-pips {
+  position: absolute; inset: 0; pointer-events: none;
+  display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
+  padding: 9px; gap: 2px;
+}
+.cf-die6-pip { width: 9px; height: 9px; border-radius: 50%; background: #fff; margin: auto; opacity: 0; box-shadow: 0 1px 2px rgba(0,0,0,.7); }
 .cf-die6-pip.on { opacity: 1; }
 
 .cf-playarea-panel {
@@ -3726,11 +3710,11 @@ body::after {
   transition: left .3s ease, top .3s ease, width .3s ease, height .3s ease;
 }
 .cf-tour-callout {
-  position: fixed; pointer-events: auto;
+  position: fixed; pointer-events: auto; box-sizing: border-box;
   background: linear-gradient(160deg, var(--parchment, #ede1c3), var(--parchment-dark, #d8c89e));
   color: var(--ink, #2c2013); border-radius: 8px; padding: 16px 18px;
   box-shadow: 0 16px 40px rgba(0,0,0,.55), 0 0 0 3px var(--wood, #4a2f16), 0 0 0 5px var(--brass, #c8a24e);
-  transition: left .3s ease, top .3s ease, bottom .3s ease;
+  transition: left .3s ease, top .3s ease;
 }
 .cf-tour-progress {
   font-family: 'Special Elite', var(--mono); font-size: 11px; letter-spacing: .06em;

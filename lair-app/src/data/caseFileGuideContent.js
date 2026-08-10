@@ -36,7 +36,7 @@ export const PLAYER_GUIDE_SECTIONS = [
       'Natural 20 (Critical Success): pressure ignored, +3 Case Strength, a bonus card via the d6, a Positive Inject, and your token back.',
       '16–19 (Opportunity): +1 Case Strength, a Positive Inject.',
       '11–15 (Success): +1 Case Strength.',
-      '6–10 (Partial Success): +1 Case Strength, plus a bonus card from a category picked by the d6.',
+      "6–10 (Partial Success): +1 Case Strength, but the card comes from a category picked by the d6, not the one you armed.",
       '2–5 (Complication): +1 Case Strength, 1 Negative Inject.',
       'Natural 1 (Major Complication): +1 Case Strength, 2 Negative Injects.',
     ],

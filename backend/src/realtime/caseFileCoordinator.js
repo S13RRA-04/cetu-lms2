@@ -199,13 +199,24 @@ function createCaseFileCoordinator() {
     let categoryDieRoll = null;
 
     if (actionType === 'investigate') {
-      const primary = drawCard(session, category);
-      if (primary) drawn.push({ cardId: primary, category });
-      if (outcome.categoryDie || outcome.extraCard) {
+      if (outcome.extraCard) {
+        // Critical Success: the chosen category's card PLUS a Category Die bonus card.
+        const primary = drawCard(session, category);
+        if (primary) drawn.push({ cardId: primary, category });
         categoryDieRoll = rollDie(6);
         const dieCategory = CATEGORIES[categoryDieRoll - 1] ?? category;
         const bonus = drawCard(session, dieCategory);
         if (bonus) drawn.push({ cardId: bonus, category: dieCategory });
+      } else if (outcome.categoryDie) {
+        // Partial Success: a single card from whichever category the Category
+        // Die lands on — it replaces the chosen category's draw, not adds to it.
+        categoryDieRoll = rollDie(6);
+        const dieCategory = CATEGORIES[categoryDieRoll - 1] ?? category;
+        const card = drawCard(session, dieCategory);
+        if (card) drawn.push({ cardId: card, category: dieCategory });
+      } else {
+        const primary = drawCard(session, category);
+        if (primary) drawn.push({ cardId: primary, category });
       }
       for (const d of drawn) {
         session.resolvedEvidence.push({ cardId: d.cardId, category: d.category, tier: 'discovered', caseDefining: false, evidenceValue: 1 });

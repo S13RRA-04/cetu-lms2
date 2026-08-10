@@ -103,17 +103,16 @@ export const FACILITATOR_TOUR_BEATS = [
     body: 'Documents is armed — click the glowing d20 to roll. The result decides what you draw and whether Case Strength moves.',
     result: {
       roll: { nat: 8, modified: 8, band: 'partial_success', categoryDieRoll: 5 },
-      drawn: [{ cardId: 'doc-02', category: 'documents' }, { cardId: 'fin-02', category: 'financial' }],
+      drawn: [{ cardId: 'fin-02', category: 'financial' }],
       injects: [],
     },
     stateAfter: (() => {
       withTokens({ documents: cur.tokens.documents - 1 });
-      withDeckCounts({ documents: cur.deckCounts.documents - 1, financial: cur.deckCounts.financial - 1 });
+      withDeckCounts({ financial: cur.deckCounts.financial - 1 });
       step({
-        caseStrength: cur.caseStrength + 2,
+        caseStrength: cur.caseStrength + 1,
         resolvedEvidence: [
           ...cur.resolvedEvidence,
-          { cardId: 'doc-02', category: 'documents', tier: 'discovered', caseDefining: false, evidenceValue: 1 },
           { cardId: 'fin-02', category: 'financial', tier: 'discovered', caseDefining: false, evidenceValue: 1 },
         ],
       });
@@ -122,21 +121,21 @@ export const FACILITATOR_TOUR_BEATS = [
   },
   {
     target: 'dice', type: 'narrate', started: true, state: cur,
-    lastResult: { action: 'investigate', requestId: 9000, result: { roll: { nat: 8, modified: 8, band: 'partial_success', categoryDieRoll: 5 }, drawn: [{ cardId: 'doc-02', category: 'documents' }, { cardId: 'fin-02', category: 'financial' }], injects: [] } },
+    lastResult: { action: 'investigate', requestId: 9000, result: { roll: { nat: 8, modified: 8, band: 'partial_success', categoryDieRoll: 5 }, drawn: [{ cardId: 'fin-02', category: 'financial' }], injects: [] } },
     title: 'Reading the Result',
-    body: 'd20 = 8, a Partial Success (the 6–10 band): +1 Case Strength for the card drawn, plus a bonus card from a category picked by the d6. Higher rolls do more — a natural 20 ignores Command Pressure entirely and nets +3, a bonus card, and a Positive Inject.',
+    body: "d20 = 8, a Partial Success (the 6–10 band): +1 Case Strength, but the card doesn't come from Documents — roll the Category Die and resolve one Evidence Card from whatever category it lands on instead. Higher rolls do more — a natural 20 ignores Command Pressure entirely and nets +3, your original card plus a bonus one from the die, and a Positive Inject.",
   },
   {
     target: 'dice', type: 'narrate', started: true, state: cur,
-    lastResult: { action: 'investigate', requestId: 9000, result: { roll: { nat: 8, modified: 8, band: 'partial_success', categoryDieRoll: 5 }, drawn: [{ cardId: 'doc-02', category: 'documents' }, { cardId: 'fin-02', category: 'financial' }], injects: [] } },
-    title: 'The Bonus Category Die',
-    body: 'On a Partial Success or Critical Success, a d6 appears next to the d20 — click it to tumble to the category the bonus card comes from. Here it landed on Financial, drawing a Suspicious Activity Report alongside the Documents card.',
+    lastResult: { action: 'investigate', requestId: 9000, result: { roll: { nat: 8, modified: 8, band: 'partial_success', categoryDieRoll: 5 }, drawn: [{ cardId: 'fin-02', category: 'financial' }], injects: [] } },
+    title: 'The Category Die',
+    body: 'On a Partial Success, a d6 appears next to the d20 — click it to tumble to the category the card actually comes from, which can differ from the one you armed. Here it landed on Financial instead of Documents, drawing a Suspicious Activity Report. (On a Critical Success the die draws an extra card on top of your original pick, rather than replacing it.)',
   },
   {
     target: 'play-area', type: 'narrate', started: true,
     state: step({
       caseStrength: cur.caseStrength + 4,
-      resolvedEvidence: cur.resolvedEvidence.map((e) => (e.cardId === 'doc-02' ? { ...e, caseDefining: true } : e)),
+      resolvedEvidence: cur.resolvedEvidence.map((e) => (e.cardId === 'fin-02' ? { ...e, caseDefining: true } : e)),
     }),
     title: 'The Play Area & Case-Defining Evidence',
     body: 'Resolved cards land here face-down, then flip to reveal their name and flavor text. Marking a card Case-Defining (★) is a judgment call worth +4 Case Strength — save it for genuine narrative breakthroughs, roughly 1-in-4 cards over a case, not a quota to hit every round.',
@@ -144,11 +143,11 @@ export const FACILITATOR_TOUR_BEATS = [
   {
     target: 'play-area', type: 'action', started: true, state: cur,
     title: 'Developing Through the Legal Ladder',
-    body: "Some evidence needs formal process to deepen. Click \"→ Subpoena\" on the Official Record card — Documents is routed through the ladder, and Case Strength 6 already clears a Subpoena's minimum of 5.",
+    body: "Some evidence needs formal process to deepen. Click \"→ Subpoena\" on the Suspicious Activity Report card — Financial is routed through the ladder, and Case Strength 5 already clears a Subpoena's minimum of 5.",
     result: { roll: { nat: 14, modified: 14, band: 'success' } },
     stateAfter: (() => {
-      withTokens({ documents: cur.tokens.documents - 1 });
-      step({ pendingReturns: [...cur.pendingReturns, { cardId: 'doc-02', category: 'documents', targetTier: 'subpoena', roundsRemaining: 1, startingRounds: 1 }] });
+      withTokens({ financial: cur.tokens.financial - 1 });
+      step({ pendingReturns: [...cur.pendingReturns, { cardId: 'fin-02', category: 'financial', targetTier: 'subpoena', roundsRemaining: 1, startingRounds: 1 }] });
       return cur;
     })(),
   },
@@ -158,7 +157,7 @@ export const FACILITATOR_TOUR_BEATS = [
     body: "Developed evidence sits here counting down — 1 round for a Subpoena, 2 for a Court Order, 3 for a Search Warrant. It resolves automatically when the countdown hits zero. \"Delay\" on a slot pushes it back a round if you need to.",
   },
   {
-    target: 'piles', type: 'action', started: true,
+    target: 'pending-injects', type: 'action', started: true,
     state: step({ positiveInjectRemaining: cur.positiveInjectRemaining - 1 }),
     lastResult: { action: 'investigate', requestId: 9001, result: { roll: { nat: 16, modified: 16, band: 'opportunity' }, drawn: [], injects: [{ type: 'positive', cardId: 'pos-3' }] } },
     title: 'Positive & Negative Injects',
@@ -179,14 +178,14 @@ export const FACILITATOR_TOUR_BEATS = [
   {
     target: 'advance-round', type: 'action', started: true, state: cur,
     title: 'Advancing the Round',
-    body: 'Click "Advance Round →" to tick the Pending Returns Queue down and start the next round. Watch the Official Record — its countdown is about to hit zero.',
+    body: 'Click "Advance Round →" to tick the Pending Returns Queue down and start the next round. Watch the Suspicious Activity Report — its countdown is about to hit zero.',
     result: {},
     stateAfter: (() => {
       step({
         round: cur.round + 1,
         pendingReturns: [],
         caseStrength: cur.caseStrength + 2,
-        resolvedEvidence: [...cur.resolvedEvidence, { cardId: 'doc-02', category: 'documents', tier: 'subpoena', caseDefining: true, evidenceValue: 1 }],
+        resolvedEvidence: [...cur.resolvedEvidence, { cardId: 'fin-02', category: 'financial', tier: 'subpoena', caseDefining: true, evidenceValue: 1 }],
       });
       return cur;
     })(),
@@ -199,7 +198,7 @@ export const FACILITATOR_TOUR_BEATS = [
   {
     target: 'grand-jury', type: 'narrate', started: true, state: cur,
     title: 'Grand Jury Presentation',
-    body: "This case needs 3 of 5 central facts citable with evidence. Right now only 2 are (Phantom Staffing and Shell Company Layering) — below threshold. Judging whether a presentation actually clears the bar is yours to call, not just a card count. Let's fast-forward past a successful presentation.",
+    body: "This case needs 3 of 5 central facts citable with evidence. Right now only 1 is (Shell Company Layering) — below threshold. Judging whether a presentation actually clears the bar is yours to call, not just a card count. Let's fast-forward past a successful presentation.",
   },
   {
     target: 'defense-counterplay', type: 'narrate', started: true,
