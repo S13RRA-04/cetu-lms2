@@ -83,6 +83,16 @@ export default function useCaseFileSession({ role, joinCode, session, enabled })
             break;
           case 'error':
             setError(msg.message);
+            // A rejected action (e.g. "Resolve the pending Category Die roll
+            // before investigating again") still carries the requestId of
+            // whatever triggered it. Route it through lastResult too so a
+            // caller mid-roll-animation (matching pendingRequestId against
+            // lastResult.requestId) can detect the failure and stop
+            // spinning, instead of waiting forever for a success that will
+            // never come.
+            if (msg.requestId != null) {
+              setLastResult({ action: msg.action, requestId: msg.requestId, error: msg.message });
+            }
             break;
           case 'ended':
             setEnded(true);

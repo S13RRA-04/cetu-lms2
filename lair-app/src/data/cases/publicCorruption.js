@@ -13,9 +13,10 @@ export const caseMeta = {
     'alleging the winning developer paid off the councilman who championed the rezoning, and that the ' +
     'competitive bidding process for the follow-on city contracts was quietly rigged in the developer\'s favor.',
   initialComplaint:
-    'A rival contractor\'s complaint letter notes that the winning subcontractor\'s bid specifications ' +
-    'matched an unusually specific, proprietary construction method — one that only the eventual winner ' +
-    'actually uses. The city\'s procurement office refers the matter rather than simply re-opening bidding.',
+    'Complainant: losing bidder, via written complaint to City Procurement. Nature of complaint: awarded ' +
+    'subcontractor\'s bid specification matches a proprietary construction method used exclusively by that ' +
+    'subcontractor. Complainant alleges the specification was written around a predetermined winner. ' +
+    'Referred for investigation rather than administrative rebid.',
 };
 
 export const centralFacts = [
@@ -66,52 +67,52 @@ export const factMatrix = [
 
 export const evidenceCards = [
   // Interviews
-  { id: 'int-01', category: 'interviews', factId: 'bribery_payments', name: 'Person of Interest Interview', flavor: 'Councilman Cole\'s voluntary interview — evasive about the "consulting" payments.', caseDefining: false },
-  { id: 'int-02', category: 'interviews', factId: 'bribery_payments', name: 'Co-worker Statement', flavor: 'A council aide describes Councilman Cole personally pushing hard for the rezoning vote.', caseDefining: false },
-  { id: 'int-03', category: 'interviews', factId: 'shell_consulting', name: 'Former Employee Interview', flavor: 'A former Anand Development employee describes the "consulting fee" arrangement.', caseDefining: false },
-  { id: 'int-04', category: 'interviews', factId: 'staffer_intimidation', name: 'Witness Interview', flavor: 'City planning staffer Marcus Whitfield, on being reassigned days after raising his concerns.', caseDefining: false },
-  { id: 'int-05', category: 'interviews', factId: 'staffer_intimidation', name: 'Conflicting Statement', flavor: 'Planning staffer Marcus Whitfield\'s account softens noticeably after a conversation with his new supervisor.', caseDefining: true },
-  { id: 'int-06', category: 'interviews', factId: 'rigged_bid_specs', name: 'Confidential Informant', flavor: 'A competing contractor says he was told the bid was "already decided" before submitting.', caseDefining: false },
+  { id: 'int-01', category: 'interviews', factId: 'bribery_payments', name: 'Person of Interest Interview', flavor: '"I don\'t recall the specifics of that arrangement — you\'d have to ask my staff." — Councilman Cole\'s voluntary interview, on the Coastal Advisory payments.', caseDefining: false },
+  { id: 'int-02', category: 'interviews', factId: 'bribery_payments', name: 'Co-worker Statement', flavor: '"He called three colleagues personally the night before the vote — I\'d never seen him lobby that hard for anything." — a council aide, on Councilman Cole\'s push for the Harbor District rezoning.', caseDefining: false },
+  { id: 'int-03', category: 'interviews', factId: 'shell_consulting', name: 'Former Employee Interview', flavor: '"We paid Coastal Advisory $15,000 a month flat and I never once saw a deliverable — I asked what we were paying for and got told not to worry about it." — a former Anand Development employee.', caseDefining: false },
+  { id: 'int-04', category: 'interviews', factId: 'staffer_intimidation', name: 'Witness Interview', flavor: '"Three days after I sent that memo, I was moved to permit intake — a demotion in everything but title." — city planning staffer Marcus Whitfield.', caseDefining: false },
+  { id: 'int-05', category: 'interviews', factId: 'staffer_intimidation', name: 'Conflicting Statement', flavor: 'In his first interview, planning staffer Marcus Whitfield called the bid specification "obviously written for one bidder." A week later, after a conversation with his new supervisor, he calls it "a routine technical requirement."', caseDefining: true },
+  { id: 'int-06', category: 'interviews', factId: 'rigged_bid_specs', name: 'Confidential Informant', flavor: '"A city contact told me flat out not to bother bidding seriously — it was already decided." — a competing subcontractor on the Harbor District bid.', caseDefining: false },
 
   // Documents
-  { id: 'doc-01', category: 'documents', factId: 'bribery_payments', name: 'Meeting Minutes', flavor: 'Council session minutes for the rezoning vote — no recusal noted despite the conflict.', caseDefining: false },
-  { id: 'doc-02', category: 'documents', factId: 'shell_consulting', name: 'Corporate Filing', flavor: 'Coastal Advisory Partners LLC formation documents, filed by Councilman Cole\'s brother-in-law.', caseDefining: true },
-  { id: 'doc-03', category: 'documents', factId: 'shell_consulting', name: 'Signed Contract', flavor: '"Consulting services" agreement between Anand Development and Coastal Advisory.', caseDefining: false },
-  { id: 'doc-04', category: 'documents', factId: 'bribery_payments', name: 'Licensing/Permit Records', flavor: 'Zoning permits for developer Priya Anand\'s project fast-tracked well outside normal review timelines.', caseDefining: false },
-  { id: 'doc-05', category: 'documents', factId: 'rigged_bid_specs', name: 'Civil Court Filing', flavor: 'The bid specification itself — language matching developer Priya Anand\'s subcontractor\'s patented method.', caseDefining: true },
-  { id: 'doc-06', category: 'documents', factId: 'staffer_intimidation', name: 'Internal Memo', flavor: 'A planning department memo flagging the bid specs as unusually narrow — later buried in the file.', caseDefining: false },
+  { id: 'doc-01', category: 'documents', factId: 'bribery_payments', name: 'Meeting Minutes', flavor: 'Council session minutes for the rezoning vote show no recusal filed by Councilman Cole, despite his brother-in-law\'s name appearing on a related LLC formed six weeks earlier.', caseDefining: false },
+  { id: 'doc-02', category: 'documents', factId: 'shell_consulting', name: 'Corporate Filing', flavor: 'Formation documents for "Coastal Advisory Partners LLC," filed by Councilman Cole\'s brother-in-law nine days before the rezoning vote, listing a UPS Store as its business address.', caseDefining: true },
+  { id: 'doc-03', category: 'documents', factId: 'shell_consulting', name: 'Signed Contract', flavor: 'A signed "consulting services" agreement between Anand Development and shell firm Coastal Advisory Partners LLC — no scope of work, no deliverables, a flat $15,000 monthly retainer.', caseDefining: false },
+  { id: 'doc-04', category: 'documents', factId: 'bribery_payments', name: 'Licensing/Permit Records', flavor: 'Developer Priya Anand\'s zoning permits were approved in 11 days — city records show the average review time for comparable projects is 90.', caseDefining: false },
+  { id: 'doc-05', category: 'documents', factId: 'rigged_bid_specs', name: 'Civil Court Filing', flavor: 'The posted bid specification requires a patented construction method held exclusively by developer Priya Anand\'s preferred subcontractor — no other firm in the region is licensed to use it.', caseDefining: true },
+  { id: 'doc-06', category: 'documents', factId: 'staffer_intimidation', name: 'Internal Memo', flavor: 'A planning department memo calls the bid specification "unusually narrow, worth a second look" — stamped received, never logged as reviewed, buried three folders deep in the project file.', caseDefining: false },
 
   // Digital
-  { id: 'dig-01', category: 'digital', factId: 'rigged_bid_specs', name: 'Email Header', flavor: 'Emails between Councilman Cole\'s staff and Anand Development discussing bid language before the RFP posted.', caseDefining: false },
-  { id: 'dig-02', category: 'digital', factId: 'bribery_payments', name: 'Text Messages', flavor: 'Texts between Councilman Cole and developer Priya Anand referencing "the usual arrangement."', caseDefining: true },
-  { id: 'dig-03', category: 'digital', factId: 'rigged_bid_specs', name: 'Deleted File Recovery', flavor: 'A deleted draft bid specification, recovered, showing edits favoring developer Priya Anand\'s subcontractor.', caseDefining: false },
-  { id: 'dig-04', category: 'digital', factId: 'staffer_intimidation', name: 'Metadata Analysis', flavor: 'The bid-irregularity memo was edited after planning staffer Marcus Whitfield\'s reassignment, not before.', caseDefining: false },
-  { id: 'dig-05', category: 'digital', factId: 'shell_consulting', name: 'Cloud Storage Files', flavor: 'A shared drive folder linking Coastal Advisory\'s accountant to Councilman Cole\'s personal email.', caseDefining: false },
-  { id: 'dig-06', category: 'digital', factId: 'shell_consulting', name: 'Account Registration', flavor: 'Coastal Advisory\'s bank account registration lists Councilman Cole\'s home address.', caseDefining: true },
+  { id: 'dig-01', category: 'digital', factId: 'rigged_bid_specs', name: 'Email Header', flavor: 'Email headers show Councilman Cole\'s chief of staff exchanging four messages with Anand Development about "bid language" eleven days before the RFP was ever posted publicly.', caseDefining: false },
+  { id: 'dig-02', category: 'digital', factId: 'bribery_payments', name: 'Text Messages', flavor: 'A text from developer Priya Anand to Councilman Cole: "Same as last time, usual arrangement, my guy will reach out." Cole replies with a thumbs-up.', caseDefining: true },
+  { id: 'dig-03', category: 'digital', factId: 'rigged_bid_specs', name: 'Deleted File Recovery', flavor: 'A deleted draft of the bid specification, recovered from a city laptop, shows three separate edit passes narrowing the language until only one subcontractor could qualify.', caseDefining: false },
+  { id: 'dig-04', category: 'digital', factId: 'staffer_intimidation', name: 'Metadata Analysis', flavor: 'Document metadata shows planning staffer Marcus Whitfield\'s "unusually narrow" memo was edited twice after his reassignment — both edits soften the original language.', caseDefining: false },
+  { id: 'dig-05', category: 'digital', factId: 'shell_consulting', name: 'Cloud Storage Files', flavor: 'A shared drive folder containing shell firm Coastal Advisory\'s books is shared with exactly one outside address — Councilman Cole\'s personal Gmail.', caseDefining: false },
+  { id: 'dig-06', category: 'digital', factId: 'shell_consulting', name: 'Account Registration', flavor: 'Coastal Advisory Partners LLC\'s bank account registration lists Councilman Cole\'s home address as its official place of business.', caseDefining: true },
 
   // Physical
-  { id: 'phy-01', category: 'physical', factId: 'bribery_payments', name: 'Photographs', flavor: 'Photos of Councilman Cole accepting an envelope from developer Priya Anand at a private dinner.', caseDefining: true },
-  { id: 'phy-02', category: 'physical', factId: 'bribery_payments', name: 'Surveillance Footage', flavor: 'Parking garage footage placing both of them at that same meeting.', caseDefining: false },
-  { id: 'phy-03', category: 'physical', factId: 'rigged_bid_specs', name: 'Discarded Item Recovery', flavor: 'A discarded notebook page with handwritten bid numbers matching developer Priya Anand\'s eventual submission.', caseDefining: false },
-  { id: 'phy-04', category: 'physical', factId: 'bribery_payments', name: 'Access Log', flavor: 'City hall badge log showing developer Priya Anand visiting Councilman Cole\'s office repeatedly before the vote.', caseDefining: false },
-  { id: 'phy-05', category: 'physical', factId: 'bribery_payments', name: 'Inventory Record', flavor: 'An inventory of gifts — golf clubs, a watch — found in Councilman Cole\'s office.', caseDefining: false },
-  { id: 'phy-06', category: 'physical', factId: 'staffer_intimidation', name: 'Physical Evidence', flavor: 'A torn Coastal Advisory Partners business card found in planning staffer Marcus Whitfield\'s old desk.', caseDefining: false },
+  { id: 'phy-01', category: 'physical', factId: 'bribery_payments', name: 'Photographs', flavor: 'Photographs show developer Priya Anand handing Councilman Cole a sealed envelope at a private dinner, six days before the rezoning vote.', caseDefining: true },
+  { id: 'phy-02', category: 'physical', factId: 'bribery_payments', name: 'Surveillance Footage', flavor: 'Parking garage footage timestamps Councilman Cole\'s car and developer Priya Anand\'s car arriving four minutes apart, both leaving within the hour, the night of the dinner.', caseDefining: false },
+  { id: 'phy-03', category: 'physical', factId: 'rigged_bid_specs', name: 'Discarded Item Recovery', flavor: 'A notebook page pulled from a city trash bin has handwritten bid numbers penciled in — they match developer Priya Anand\'s eventual submission to the dollar.', caseDefining: false },
+  { id: 'phy-04', category: 'physical', factId: 'bribery_payments', name: 'Access Log', flavor: 'City hall\'s badge log shows developer Priya Anand visiting Councilman Cole\'s office seven times in the six weeks before the vote — more than any other visitor that quarter.', caseDefining: false },
+  { id: 'phy-05', category: 'physical', factId: 'bribery_payments', name: 'Inventory Record', flavor: 'An inventory of items in Councilman Cole\'s office: a set of golf clubs still in the box, and a watch with a jeweler\'s tag reading "P. Anand — gift."', caseDefining: false },
+  { id: 'phy-06', category: 'physical', factId: 'staffer_intimidation', name: 'Physical Evidence', flavor: 'A torn Coastal Advisory Partners business card, found taped inside planning staffer Marcus Whitfield\'s old desk drawer — he says he doesn\'t remember putting it there.', caseDefining: false },
 
   // Financial
-  { id: 'fin-01', category: 'financial', factId: 'shell_consulting', name: 'Vendor Invoice', flavor: 'Coastal Advisory\'s invoices to Anand Development — vague "strategic consulting services."', caseDefining: false },
-  { id: 'fin-02', category: 'financial', factId: 'shell_consulting', name: 'Wire Transfer Record', flavor: 'Anand Development → Coastal Advisory Partners.', caseDefining: false },
-  { id: 'fin-03', category: 'financial', factId: 'bribery_payments', name: 'Wire Transfer Record', flavor: 'Coastal Advisory → an account held by Councilman Cole\'s relative, days before the vote.', caseDefining: false },
-  { id: 'fin-04', category: 'financial', factId: 'offshore_transfer', name: 'Offshore Account Record', flavor: 'A share of Coastal Advisory\'s funds moved to an offshore account tied to co-conspirator Iris Delgado.', caseDefining: true },
-  { id: 'fin-05', category: 'financial', factId: 'bribery_payments', name: 'Suspicious Activity Report', flavor: 'The bank flagged the Coastal-to-relative transfer pattern on its own.', caseDefining: false },
-  { id: 'fin-06', category: 'financial', factId: 'offshore_transfer', name: 'Currency Exchange Record', flavor: 'Co-conspirator Iris Delgado\'s offshore transfer converted through an exchange with no other client history.', caseDefining: false },
+  { id: 'fin-01', category: 'financial', factId: 'shell_consulting', name: 'Vendor Invoice', flavor: 'Coastal Advisory Partners\' monthly invoices to Anand Development all read "strategic consulting services rendered" — same wording, same $15,000 amount, every month for a year.', caseDefining: false },
+  { id: 'fin-02', category: 'financial', factId: 'shell_consulting', name: 'Wire Transfer Record', flavor: 'A wire transfer: Anand Development → shell firm Coastal Advisory Partners LLC, $15,000, memo line reads "Q3 consulting retainer."', caseDefining: false },
+  { id: 'fin-03', category: 'financial', factId: 'bribery_payments', name: 'Wire Transfer Record', flavor: 'A wire transfer: shell firm Coastal Advisory Partners LLC → an account held by Councilman Cole\'s brother-in-law, $12,000, four days before the rezoning vote.', caseDefining: false },
+  { id: 'fin-04', category: 'financial', factId: 'offshore_transfer', name: 'Offshore Account Record', flavor: 'A $9,000 share of Coastal Advisory\'s funds moved to an offshore account tied to co-conspirator Iris Delgado, routed through a currency exchange with no other client history.', caseDefining: true },
+  { id: 'fin-05', category: 'financial', factId: 'bribery_payments', name: 'Suspicious Activity Report', flavor: 'The bank\'s own SAR flags the Coastal Advisory-to-relative transfer as matching the exact profile of a structured payment — flagged without any customer complaint.', caseDefining: false },
+  { id: 'fin-06', category: 'financial', factId: 'offshore_transfer', name: 'Currency Exchange Record', flavor: 'Co-conspirator Iris Delgado\'s offshore transfer passed through a currency exchange that has processed no other client transactions in the past two years.', caseDefining: false },
 
   // Intelligence
-  { id: 'intel-01', category: 'intelligence', factId: 'bribery_payments', name: 'Confidential Source Report', flavor: 'A source describes rumors around city hall that Councilman Cole\'s votes are "for sale."', caseDefining: false },
-  { id: 'intel-02', category: 'intelligence', factId: 'offshore_transfer', name: 'Prior Case Cross-Reference', flavor: 'Anand Development\'s shell-company pattern matches a prior public-corruption case elsewhere.', caseDefining: false },
-  { id: 'intel-03', category: 'intelligence', factId: 'offshore_transfer', name: 'Asset Forfeiture Record', flavor: 'Co-conspirator Iris Delgado\'s offshore assets were already flagged in an unrelated forfeiture action.', caseDefining: true },
-  { id: 'intel-04', category: 'intelligence', factId: 'bribery_payments', name: 'Pattern Analysis', flavor: 'Councilman Cole\'s committee votes correlate tightly with developer Priya Anand\'s project milestones.', caseDefining: false },
-  { id: 'intel-05', category: 'intelligence', factId: 'staffer_intimidation', name: 'Behavioral Assessment', flavor: 'Planning staffer Marcus Whitfield\'s abrupt change in demeanor and duties is consistent with intimidation, not routine reassignment.', caseDefining: true },
-  { id: 'intel-06', category: 'intelligence', factId: 'offshore_transfer', name: 'Watchlist Match', flavor: 'Co-conspirator Iris Delgado is flagged on an interagency financial watchlist for offshore shell activity.', caseDefining: false },
+  { id: 'intel-01', category: 'intelligence', factId: 'bribery_payments', name: 'Confidential Source Report', flavor: '"Everyone at city hall already knew — his vote on anything zoning-related came with a price, we just never had proof." — a confidential source, on Councilman Cole.', caseDefining: false },
+  { id: 'intel-02', category: 'intelligence', factId: 'offshore_transfer', name: 'Prior Case Cross-Reference', flavor: 'Anand Development\'s shell-consulting-firm pattern matches, almost line for line, a public-corruption case prosecuted in a different state three years ago.', caseDefining: false },
+  { id: 'intel-03', category: 'intelligence', factId: 'offshore_transfer', name: 'Asset Forfeiture Record', flavor: 'Co-conspirator Iris Delgado\'s offshore holdings were already flagged in an unrelated federal forfeiture action eighteen months before this case opened.', caseDefining: true },
+  { id: 'intel-04', category: 'intelligence', factId: 'bribery_payments', name: 'Pattern Analysis', flavor: 'A pattern analysis of Councilman Cole\'s committee votes over three years shows every favorable vote landing within two weeks of a developer Priya Anand project milestone.', caseDefining: false },
+  { id: 'intel-05', category: 'intelligence', factId: 'staffer_intimidation', name: 'Behavioral Assessment', flavor: 'A behavioral assessment notes planning staffer Marcus Whitfield\'s abrupt shift from detailed, specific answers to vague, rehearsed-sounding ones — consistent with pressure, not a change of heart.', caseDefining: true },
+  { id: 'intel-06', category: 'intelligence', factId: 'offshore_transfer', name: 'Watchlist Match', flavor: 'Co-conspirator Iris Delgado\'s name is flagged on an interagency financial watchlist, tied to offshore shell activity in two other unrelated cases.', caseDefining: false },
 ];
 
 export const evidenceByThreshold = {

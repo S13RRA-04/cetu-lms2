@@ -14,10 +14,10 @@ export const caseMeta = {
     'earlier, and the six-figure ransom Bellcrest paid in cryptocurrency has already started moving ' +
     'through accounts that don\'t belong to the hospital or its insurer.',
   initialComplaint:
-    'Bellcrest\'s incident response contractor notices the attackers authenticated with real, valid VPN ' +
-    'credentials rather than exploiting any vulnerability — credentials belonging to a contractor whose ' +
-    'access should have been revoked when his contract ended three weeks before the attack. IT reports ' +
-    'the discrepancy rather than quietly closing the ticket.',
+    'Complainant: incident response contractor, on behalf of Bellcrest Regional Health IT. Nature of ' +
+    'complaint: forensic review of the ransomware intrusion shows attacker authentication used valid VPN ' +
+    'credentials issued to a former IT contractor whose access should have been revoked three weeks ' +
+    'earlier, at contract termination. Referred for investigation.',
 };
 
 export const centralFacts = [
@@ -68,52 +68,52 @@ export const factMatrix = [
 
 export const evidenceCards = [
   // Interviews
-  { id: 'int-01', category: 'interviews', factId: 'insider_access', name: 'Former Employee Interview', flavor: 'Former IT contractor Aaron Petrosyan\'s exit interview notes — terminated for a policy violation weeks before the attack.', caseDefining: false },
-  { id: 'int-02', category: 'interviews', factId: 'insider_access', name: 'Co-worker Statement', flavor: 'A Bellcrest IT staffer admits departed contractor Aaron Petrosyan\'s access was never actually revoked after termination.', caseDefining: true },
-  { id: 'int-03', category: 'interviews', factId: 'insider_access', name: 'Person of Interest Interview', flavor: 'Former contractor Aaron Petrosyan\'s voluntary interview — denies any contact with the attackers.', caseDefining: false },
-  { id: 'int-04', category: 'interviews', factId: 'ransomware_deployment', name: 'Medical Professional Interview', flavor: 'A treating physician describes the operational chaos during the six-day encryption event.', caseDefining: false },
-  { id: 'int-05', category: 'interviews', factId: 'ransom_payment', name: 'Financial Advisor Interview', flavor: 'Outside counsel walks through how Bellcrest\'s leadership decided to authorize the ransom.', caseDefining: false },
-  { id: 'int-06', category: 'interviews', factId: 'data_exfiltration', name: 'Expert Consultation', flavor: 'The incident response contractor\'s account of when the exfiltration actually occurred.', caseDefining: false },
+  { id: 'int-01', category: 'interviews', factId: 'insider_access', name: 'Former Employee Interview', flavor: 'Exit interview notes for former IT contractor Aaron Petrosyan: terminated for a "policy violation" — accessing systems outside his assigned scope — three weeks before the attack.', caseDefining: false },
+  { id: 'int-02', category: 'interviews', factId: 'insider_access', name: 'Co-worker Statement', flavor: '"I checked the offboarding ticket after this all happened — his VPN account was still marked active. Nobody ever closed it out." — a Bellcrest IT staffer, on former contractor Aaron Petrosyan.', caseDefining: true },
+  { id: 'int-03', category: 'interviews', factId: 'insider_access', name: 'Person of Interest Interview', flavor: '"I have no idea how anyone would\'ve gotten my old login — I never gave it to anybody." — former IT contractor Aaron Petrosyan\'s voluntary interview.', caseDefining: false },
+  { id: 'int-04', category: 'interviews', factId: 'ransomware_deployment', name: 'Medical Professional Interview', flavor: '"We were writing vitals on paper and running charts down the hall by hand — for six days." — a treating physician, on the encryption event.', caseDefining: false },
+  { id: 'int-05', category: 'interviews', factId: 'ransom_payment', name: 'Financial Advisor Interview', flavor: '"The insurer\'s breach coach recommended paying within 48 hours — patient safety was the deciding factor, not the dollar amount." — outside counsel, on Bellcrest\'s decision to authorize the ransom.', caseDefining: false },
+  { id: 'int-06', category: 'interviews', factId: 'data_exfiltration', name: 'Expert Consultation', flavor: '"The data was already gone almost two full days before the ransom note ever appeared — encryption was the second half of the attack, not the first." — the incident response contractor.', caseDefining: false },
 
   // Documents
-  { id: 'doc-01', category: 'documents', factId: 'ransomware_deployment', name: 'Internal Memo', flavor: 'Bellcrest\'s internal incident response timeline memo.', caseDefining: false },
-  { id: 'doc-02', category: 'documents', factId: 'insider_access', name: 'Employment Records', flavor: 'Former IT contractor Aaron Petrosyan\'s termination paperwork, including an incomplete access-revocation checklist.', caseDefining: true },
-  { id: 'doc-03', category: 'documents', factId: 'ransom_payment', name: 'Insurance Policy', flavor: 'Bellcrest\'s cyber insurance policy and its ransom-authorization procedure.', caseDefining: false },
-  { id: 'doc-04', category: 'documents', factId: 'data_exfiltration', name: 'Civil Court Filing', flavor: 'A patient class-action filing describing the scope of the data breach.', caseDefining: false },
-  { id: 'doc-05', category: 'documents', factId: 'ransom_payment', name: 'Official Record', flavor: 'The incident report Bellcrest filed with a federal regulator, detailing the ransom payment.', caseDefining: false },
-  { id: 'doc-06', category: 'documents', factId: 'crypto_laundering', name: 'Licensing/Permit Records', flavor: 'NovaSwap Exchange\'s complete lack of money-transmitter licensing.', caseDefining: false },
+  { id: 'doc-01', category: 'documents', factId: 'ransomware_deployment', name: 'Internal Memo', flavor: 'Bellcrest\'s internal incident response timeline logs first anomalous VPN activity at 2:14 AM — nine hours before IT staff noticed anything was wrong.', caseDefining: false },
+  { id: 'doc-02', category: 'documents', factId: 'insider_access', name: 'Employment Records', flavor: 'Former IT contractor Aaron Petrosyan\'s termination paperwork includes an access-revocation checklist with the VPN line item unchecked — the only item left incomplete.', caseDefining: true },
+  { id: 'doc-03', category: 'documents', factId: 'ransom_payment', name: 'Insurance Policy', flavor: 'Bellcrest\'s cyber insurance policy caps ransom coverage at $500,000 and requires sign-off from both the CFO and outside counsel before any payment is authorized.', caseDefining: false },
+  { id: 'doc-04', category: 'documents', factId: 'data_exfiltration', name: 'Civil Court Filing', flavor: 'A patient class-action filing alleges 40,000 records — names, diagnoses, insurance numbers — were exposed, based on the sample posted to the dark web listing.', caseDefining: false },
+  { id: 'doc-05', category: 'documents', factId: 'ransom_payment', name: 'Official Record', flavor: 'Bellcrest\'s federal breach notification discloses a ransom payment of $340,000 in cryptocurrency, paid six hours after systems were confirmed encrypted.', caseDefining: false },
+  { id: 'doc-06', category: 'documents', factId: 'crypto_laundering', name: 'Licensing/Permit Records', flavor: 'NovaSwap Exchange holds no money-transmitter license in any U.S. state — a requirement for any legitimate cryptocurrency cash-out service of its size.', caseDefining: false },
 
   // Digital
-  { id: 'dig-01', category: 'digital', factId: 'insider_access', name: 'Chat Application Backup', flavor: 'A recovered dark web forum chat where former contractor Aaron Petrosyan negotiates the sale of his credentials.', caseDefining: false },
-  { id: 'dig-02', category: 'digital', factId: 'insider_access', name: 'Authentication Logs', flavor: 'VPN logs showing former contractor Aaron Petrosyan\'s "terminated" account authenticating well after his last day.', caseDefining: true },
-  { id: 'dig-03', category: 'digital', factId: 'ransomware_deployment', name: 'Deleted File Recovery', flavor: 'The recovered ransomware binary and deployment script from a compromised server.', caseDefining: false },
-  { id: 'dig-04', category: 'digital', factId: 'data_exfiltration', name: 'Dark Web Marketplace Listing', flavor: 'A listing advertising a sample of Bellcrest\'s stolen patient data.', caseDefining: true },
-  { id: 'dig-05', category: 'digital', factId: 'crypto_laundering', name: 'Cryptocurrency Exchange Records', flavor: 'Records tying the ransom wallet to a deposit at a known mixing service.', caseDefining: false },
-  { id: 'dig-06', category: 'digital', factId: 'ransom_payment', name: 'Digital Wallet Transaction', flavor: 'The on-chain ransom payment transaction itself.', caseDefining: false },
+  { id: 'dig-01', category: 'digital', factId: 'insider_access', name: 'Chat Application Backup', flavor: 'A recovered dark web forum chat: a user handle later tied to former contractor Aaron Petrosyan offers "still-live VPN, healthcare, no MFA" for $4,000 in cryptocurrency.', caseDefining: false },
+  { id: 'dig-02', category: 'digital', factId: 'insider_access', name: 'Authentication Logs', flavor: 'VPN logs show former contractor Aaron Petrosyan\'s "terminated" account authenticating successfully eleven days after his last day on Bellcrest\'s payroll.', caseDefining: true },
+  { id: 'dig-03', category: 'digital', factId: 'ransomware_deployment', name: 'Deleted File Recovery', flavor: 'The recovered ransomware binary carries a compile timestamp four hours before deployment — built specifically for this attack, not a reused off-the-shelf tool.', caseDefining: false },
+  { id: 'dig-04', category: 'digital', factId: 'data_exfiltration', name: 'Dark Web Marketplace Listing', flavor: 'A dark web marketplace listing offers "500 healthcare records, verified" as a free sample, with the full 40,000-record set priced at 2 BTC.', caseDefining: true },
+  { id: 'dig-05', category: 'digital', factId: 'crypto_laundering', name: 'Cryptocurrency Exchange Records', flavor: 'Blockchain records trace the ransom wallet\'s payout to a known cryptocurrency mixing service within four hours of Bellcrest\'s payment clearing.', caseDefining: false },
+  { id: 'dig-06', category: 'digital', factId: 'ransom_payment', name: 'Digital Wallet Transaction', flavor: 'The on-chain transaction record: Bellcrest\'s wallet → the ransom wallet, $340,000 in equivalent value, timestamped six hours after the systems went dark.', caseDefining: false },
 
   // Physical
-  { id: 'phy-01', category: 'physical', factId: 'ransomware_deployment', name: 'Digital Storage Media', flavor: 'A USB drive recovered from former IT contractor Aaron Petrosyan\'s old workstation, holding staging tools.', caseDefining: true },
-  { id: 'phy-02', category: 'physical', factId: 'insider_access', name: 'Surveillance Footage', flavor: 'Badge and camera footage of former contractor Aaron Petrosyan re-entering the building after his termination date.', caseDefining: false },
-  { id: 'phy-03', category: 'physical', factId: 'ransomware_deployment', name: 'Tool Recovery', flavor: 'A hardware keylogger found attached to a nurses\' station workstation.', caseDefining: false },
-  { id: 'phy-04', category: 'physical', factId: 'ransomware_deployment', name: 'Access Log', flavor: 'The physical server room access log shows after-hours entry the night of deployment.', caseDefining: false },
-  { id: 'phy-05', category: 'physical', factId: 'insider_access', name: 'Discarded Item Recovery', flavor: 'A discarded printed password list found near former contractor Aaron Petrosyan\'s old desk.', caseDefining: false },
-  { id: 'phy-06', category: 'physical', factId: 'ransomware_deployment', name: 'Photographs', flavor: 'Photos of the ransom note displayed across hospital workstation screens.', caseDefining: false },
+  { id: 'phy-01', category: 'physical', factId: 'ransomware_deployment', name: 'Digital Storage Media', flavor: 'A USB drive recovered from former IT contractor Aaron Petrosyan\'s old workstation contains network-mapping and credential-staging tools, last modified two days before his termination.', caseDefining: true },
+  { id: 'phy-02', category: 'physical', factId: 'insider_access', name: 'Surveillance Footage', flavor: 'Badge and camera footage shows former contractor Aaron Petrosyan re-entering the building nine days after his termination date, tailgating through the door on a colleague\'s badge.', caseDefining: false },
+  { id: 'phy-03', category: 'physical', factId: 'ransomware_deployment', name: 'Tool Recovery', flavor: 'A hardware keylogger, physically wired between the keyboard and the tower, is recovered from a nurses\' station workstation — dust accumulation suggests weeks of use, not days.', caseDefining: false },
+  { id: 'phy-04', category: 'physical', factId: 'ransomware_deployment', name: 'Access Log', flavor: 'The server room\'s physical access log shows an after-hours badge entry at 1:52 AM the night of deployment — 22 minutes before the first ransomware alert fired.', caseDefining: false },
+  { id: 'phy-05', category: 'physical', factId: 'insider_access', name: 'Discarded Item Recovery', flavor: 'A discarded printed password list, found in a recycling bin near former contractor Aaron Petrosyan\'s old desk, lists a VPN username matching the one used in the intrusion.', caseDefining: false },
+  { id: 'phy-06', category: 'physical', factId: 'ransomware_deployment', name: 'Photographs', flavor: 'Photographs of the ransom note displayed on hospital workstation screens demand payment "within 72 hours or the price doubles," with a countdown timer running in the corner.', caseDefining: false },
 
   // Financial
-  { id: 'fin-01', category: 'financial', factId: 'ransom_payment', name: 'Cryptocurrency Wallet', flavor: 'Bellcrest\'s own wallet, used to send the ransom.', caseDefining: true },
-  { id: 'fin-02', category: 'financial', factId: 'ransom_payment', name: 'Wire Transfer Record', flavor: 'Bellcrest\'s bank wire purchasing the cryptocurrency used for the ransom.', caseDefining: false },
-  { id: 'fin-03', category: 'financial', factId: 'crypto_laundering', name: 'Cryptocurrency Exchange Records', flavor: 'NovaSwap Exchange records showing the mixed funds converted to cash.', caseDefining: true },
-  { id: 'fin-04', category: 'financial', factId: 'crypto_laundering', name: 'Suspicious Activity Report', flavor: 'A bank flags NovaSwap Exchange operator Yuri Basanets\' cash withdrawal pattern on its own.', caseDefining: false },
-  { id: 'fin-05', category: 'financial', factId: 'insider_access', name: 'Merchant Account Records', flavor: 'A shell "IT consulting" merchant account used to pay former contractor Aaron Petrosyan a share of the proceeds.', caseDefining: false },
-  { id: 'fin-06', category: 'financial', factId: 'crypto_laundering', name: 'Currency Exchange Record', flavor: 'A portion of the laundered funds converted again through a separate currency exchange.', caseDefining: false },
+  { id: 'fin-01', category: 'financial', factId: 'ransom_payment', name: 'Cryptocurrency Wallet', flavor: 'Bellcrest\'s own cryptocurrency wallet, opened the same day the ransom note appeared, shows a single outbound transaction — the ransom payment — and nothing else.', caseDefining: true },
+  { id: 'fin-02', category: 'financial', factId: 'ransom_payment', name: 'Wire Transfer Record', flavor: 'Bellcrest\'s bank wire to a cryptocurrency exchange, $340,000, memo line reads "emergency IT services" — the wire that funded the ransom wallet.', caseDefining: false },
+  { id: 'fin-03', category: 'financial', factId: 'crypto_laundering', name: 'Cryptocurrency Exchange Records', flavor: 'NovaSwap Exchange records show the mixed ransom funds converted to cash across eleven separate withdrawals, each just under the $10,000 reporting threshold.', caseDefining: true },
+  { id: 'fin-04', category: 'financial', factId: 'crypto_laundering', name: 'Suspicious Activity Report', flavor: 'The bank\'s own SAR flags NovaSwap Exchange operator Yuri Basanets\' eleven-withdrawal pattern as structuring — flagged without any customer complaint.', caseDefining: false },
+  { id: 'fin-05', category: 'financial', factId: 'insider_access', name: 'Merchant Account Records', flavor: 'A shell "IT consulting" merchant account pays former contractor Aaron Petrosyan $4,000 — the exact asking price from the dark web forum listing — nine days after the ransom cleared.', caseDefining: false },
+  { id: 'fin-06', category: 'financial', factId: 'crypto_laundering', name: 'Currency Exchange Record', flavor: 'A further $60,000 of the laundered funds converts again through a second currency exchange with no other client history — the same pattern NovaSwap used.', caseDefining: false },
 
   // Intelligence
-  { id: 'intel-01', category: 'intelligence', factId: 'ransomware_deployment', name: 'Open-Source Intelligence Summary', flavor: 'Public reporting linking ShadowLatch\'s known tooling to this specific incident.', caseDefining: false },
-  { id: 'intel-02', category: 'intelligence', factId: 'insider_access', name: 'Confidential Source Report', flavor: 'A source inside a cybercrime forum describes how ShadowLatch recruits affiliates like former contractor Aaron Petrosyan.', caseDefining: false },
-  { id: 'intel-03', category: 'intelligence', factId: 'data_exfiltration', name: 'Signals Intelligence Report', flavor: 'Intercepted traffic ties the exfiltration server to known ShadowLatch infrastructure.', caseDefining: true },
-  { id: 'intel-04', category: 'intelligence', factId: 'crypto_laundering', name: 'Interagency Data Match', flavor: 'A federal financial-crimes match links NovaSwap Exchange operator Yuri Basanets\' exchange to prior, unrelated laundering cases.', caseDefining: true },
-  { id: 'intel-05', category: 'intelligence', factId: 'data_exfiltration', name: 'Network Mapping', flavor: 'Network analysis mapping the exfiltration path from Bellcrest\'s servers outward.', caseDefining: false },
-  { id: 'intel-06', category: 'intelligence', factId: 'crypto_laundering', name: 'Criminal History Summary', flavor: 'NovaSwap Exchange operator Yuri Basanets\' prior record for unlicensed money transmission.', caseDefining: false },
+  { id: 'intel-01', category: 'intelligence', factId: 'ransomware_deployment', name: 'Open-Source Intelligence Summary', flavor: 'Public security reporting on the ShadowLatch ransomware affiliate group matches the exact encryption tooling and ransom note wording recovered from Bellcrest\'s systems.', caseDefining: false },
+  { id: 'intel-02', category: 'intelligence', factId: 'insider_access', name: 'Confidential Source Report', flavor: '"ShadowLatch pays a flat fee for verified healthcare access, no negotiation — that\'s their whole recruiting pitch on the forums." — a source inside a cybercrime forum.', caseDefining: false },
+  { id: 'intel-03', category: 'intelligence', factId: 'data_exfiltration', name: 'Signals Intelligence Report', flavor: 'Intercepted network traffic ties the exfiltration server\'s IP address to infrastructure previously attributed to the ShadowLatch ransomware affiliate group in two other incidents.', caseDefining: true },
+  { id: 'intel-04', category: 'intelligence', factId: 'crypto_laundering', name: 'Interagency Data Match', flavor: 'A federal financial-crimes database match links NovaSwap Exchange operator Yuri Basanets to two prior, unrelated cryptocurrency laundering investigations.', caseDefining: true },
+  { id: 'intel-05', category: 'intelligence', factId: 'data_exfiltration', name: 'Network Mapping', flavor: 'Network analysis maps the exfiltration path — patient database → a compromised backup server → an external IP address — completed within a nineteen-minute window.', caseDefining: false },
+  { id: 'intel-06', category: 'intelligence', factId: 'crypto_laundering', name: 'Criminal History Summary', flavor: 'NovaSwap Exchange operator Yuri Basanets has a prior conviction for unlicensed money transmission in a separate jurisdiction, five years before this case opened.', caseDefining: false },
 ];
 
 export const evidenceByThreshold = {

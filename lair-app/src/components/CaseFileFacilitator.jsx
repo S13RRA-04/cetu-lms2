@@ -140,6 +140,17 @@ export default function CaseFileFacilitator() {
   const roll6Start = useRef(0);
   const pendingRoll6RequestId = useRef(null);
 
+  // The server's own broadcast state (state.pendingCategoryDie) is the
+  // source of truth; this local pendingCategoryDie only drives the roll
+  // animation. Sync from the server on mount/reconnect so a refresh mid-owed
+  // Category Die still shows the d6 instead of silently blocking every
+  // future Investigate with no visible explanation.
+  useEffect(() => {
+    if (state?.pendingCategoryDie && !pendingCategoryDie) {
+      setPendingCategoryDie({ category: state.pendingCategoryDie.category });
+    }
+  }, [state?.pendingCategoryDie, pendingCategoryDie]);
+
   // Card-flip choreography: a card renders face-down the instant it appears
   // in resolvedEvidence, then flips face-up on a short stagger — revealedIds
   // persists across renders so a card only ever flips once (tier upgrades
@@ -265,9 +276,14 @@ export default function CaseFileFacilitator() {
     const wait = Math.max(0, ROLL_MIN_MS - elapsed);
     const t = setTimeout(() => {
       clearInterval(rollTimer.current);
-      setRollFace(lastResult.result?.roll?.nat ?? null);
       setRolling(false);
       setRollingCategory(null);
+      // A rejected roll (e.g. a pending Category Die from the previous roll
+      // never got resolved) would otherwise leave the die spinning forever —
+      // nothing else clears `rolling` on failure. Reset to idle instead of
+      // hanging; the rejection reason surfaces via the board's error banner.
+      if (lastResult.error) { setRollFace(null); return; }
+      setRollFace(lastResult.result?.roll?.nat ?? null);
       if (lastResult.result?.roll?.categoryDiePending) setPendingCategoryDie({});
       if (lastResult.result?.injects?.length) {
         const kind = lastResult.result.injects[0].type;
@@ -285,8 +301,9 @@ export default function CaseFileFacilitator() {
     const wait = Math.max(0, ROLL6_MIN_MS - elapsed);
     const t = setTimeout(() => {
       clearInterval(roll6Timer.current);
-      setRollFace6(lastResult.result?.categoryDieRoll ?? null);
       setRolling6(false);
+      if (lastResult.error) { setRollFace6(null); return; }
+      setRollFace6(lastResult.result?.categoryDieRoll ?? null);
       const bonus = lastResult.result?.drawn?.[0];
       setPendingCategoryDie((prev) => (prev ? { ...prev, bonusCategory: bonus?.category } : prev));
     }, wait);
@@ -331,10 +348,12 @@ export default function CaseFileFacilitator() {
 
   /** Step 1: click a deck to arm it — nothing is sent to the server yet. */
   function armCategory(cat) {
-    if (rolling || !state || state.tokens[cat] <= 0 || state.gameOver) return;
+    // Blocked while a Category Die is owed — the server rejects a new
+    // Investigate until it's resolved (see caseFileCoordinator.js), so
+    // arming here would just set up a roll that's guaranteed to fail.
+    if (rolling || pendingCategoryDie || !state || state.tokens[cat] <= 0 || state.gameOver) return;
     setArmedCategory(cat);
     setRollFace(null);
-    setPendingCategoryDie(null);
     setRollFace6(null);
   }
 
@@ -514,7 +533,7 @@ export default function CaseFileFacilitator() {
           <div className="cf-decks" data-tour="decks">
             {CATEGORIES.map((cat) => {
               const meta = CATEGORY_META[cat];
-              const disabled = state.gameOver || state.tokens[cat] <= 0;
+              const disabled = state.gameOver || state.tokens[cat] <= 0 || !!pendingCategoryDie;
               return (
                 <div
                   key={cat}

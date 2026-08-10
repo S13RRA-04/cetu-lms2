@@ -18,10 +18,10 @@ export const caseMeta = {
     'the resulting overpayments has been quietly funneled out of the company through entities that ' +
     'do not appear to do any real business at all.',
   initialComplaint:
-    'A federal contracting officer flags a routine invoice audit anomaly: three "senior systems ' +
-    'analysts" billed at full time on the modernization contract do not appear in the agency\'s own ' +
-    'building access logs for the audit period. The contracting officer refers the matter for ' +
-    'investigation rather than resolving it administratively.',
+    'Complainant: Contracting Officer, regional agency IT Modernization Program. Nature of complaint: ' +
+    'routine invoice audit found three billed "Senior Systems Analyst" positions with no matching ' +
+    'entries in the agency\'s building access log for the billing period. Referred for investigation — ' +
+    'discrepancy could not be resolved administratively.',
 };
 
 export const centralFacts = [
@@ -78,65 +78,65 @@ export const evidenceCards = [
   {
     id: 'int-01', category: 'interviews', ref: 'ref-int-former-employee', factId: 'silenced_accountant', caseDefining: false,
     tiers: [
-      { tier: 1, narrative_entry: 'Raymond Okafor, on his time as Meridian\'s staff accountant.' },
+      { tier: 1, narrative_entry: 'Raymond Okafor describes a routine three years as Meridian\'s staff accountant — nothing unusual, nothing worth mentioning.' },
       { tier: 2, narrative_entry: 'Under a subpoenaed follow-up interview, Okafor is more specific: he flagged a billing discrepancy to his supervisor months before the invoices in question were even sent.' },
       { tier: 3, narrative_entry: 'Compelled by court order to answer directly, Okafor confirms he was told the discrepancy was "handled" and that pursuing it further would jeopardize his upcoming performance review.' },
     ],
   },
-  { id: 'int-02', category: 'interviews', factId: 'silenced_accountant', name: 'Co-worker Statement', flavor: 'An HR staffer describes the complaint staff accountant Raymond Okafor filed and withdrew.', caseDefining: true },
-  { id: 'int-03', category: 'interviews', factId: 'phantom_staffing', name: 'Witness Interview', flavor: 'The agency\'s building-access supervisor, on the badge log discrepancy.', caseDefining: false },
-  { id: 'int-04', category: 'interviews', factId: 'shell_companies', name: 'Former Employee Interview', flavor: 'A former Meridian bookkeeper describes the vendor onboarding process.', caseDefining: false },
-  { id: 'int-05', category: 'interviews', factId: 'silenced_accountant', name: 'Conflicting Statement', flavor: 'Staff accountant Raymond Okafor\'s follow-up account no longer matches his first.', caseDefining: false },
-  { id: 'int-06', category: 'interviews', factId: 'personal_enrichment', name: 'Witness Interview', flavor: 'The closing agent on the Lakeview property purchase.', caseDefining: false },
+  { id: 'int-02', category: 'interviews', factId: 'silenced_accountant', name: 'Co-worker Statement', flavor: '"He came to me about the billing thing in March, then a week later told me to forget he\'d ever said anything." — an HR staffer, on the complaint staff accountant Raymond Okafor filed and withdrew.', caseDefining: true },
+  { id: 'int-03', category: 'interviews', factId: 'phantom_staffing', name: 'Witness Interview', flavor: '"Those three badge numbers were never issued — I checked twice." — the agency\'s building-access supervisor, on the three billed "Senior Systems Analyst" positions.', caseDefining: false },
+  { id: 'int-04', category: 'interviews', factId: 'shell_companies', name: 'Former Employee Interview', flavor: '"Elena set up two new vendors herself that quarter — usually the CFO doesn\'t handle onboarding personally." — a former Meridian bookkeeper.', caseDefining: false },
+  { id: 'int-05', category: 'interviews', factId: 'silenced_accountant', name: 'Conflicting Statement', flavor: 'In his first interview, staff accountant Raymond Okafor said he "never really looked into" the billing numbers. In the follow-up, he can\'t explain how he already knew the exact invoice totals.', caseDefining: false },
+  { id: 'int-06', category: 'interviews', factId: 'personal_enrichment', name: 'Witness Interview', flavor: '"The down payment came as a cashier\'s check — unusual for a purchase this size." — the closing agent on CFO Elena Voss\'s recent lakeside property purchase.', caseDefining: false },
 
   // Documents
-  { id: 'doc-01', category: 'documents', factId: 'phantom_staffing', name: 'Employment Records', flavor: 'Contract staffing roster listing the three "senior systems analysts."', caseDefining: false },
-  { id: 'doc-02', category: 'documents', factId: 'phantom_staffing', name: 'Official Record', flavor: 'Submitted federal invoices for Q2–Q3 billing the phantom positions.', caseDefining: true },
-  { id: 'doc-03', category: 'documents', factId: 'shell_companies', name: 'Corporate Filing', flavor: 'Shell entity formation filings for two newly-registered vendors.', caseDefining: true },
-  { id: 'doc-04', category: 'documents', factId: 'shell_companies', name: 'Signed Contract', flavor: 'Vendor services agreement between Meridian and Shell Co.', caseDefining: false },
-  { id: 'doc-05', category: 'documents', factId: 'silenced_accountant', name: 'Internal Memo', flavor: 'An audit memo about billing discrepancies, marked "Do Not Escalate."', caseDefining: false },
-  { id: 'doc-06', category: 'documents', factId: 'altered_timesheets', name: 'Business Ledger', flavor: 'Original vs. revised timesheet printouts, side by side.', caseDefining: false },
+  { id: 'doc-01', category: 'documents', factId: 'phantom_staffing', name: 'Employment Records', flavor: 'The Q1–Q3 staffing roster bills three "Senior Systems Analyst" positions — Priya Chen, Marcus Webb, and David Tran — at 40 hours a week apiece since January.', caseDefining: false },
+  { id: 'doc-02', category: 'documents', factId: 'phantom_staffing', name: 'Official Record', flavor: 'Meridian\'s Q2–Q3 invoices bill the government $187,000 for the three "Senior Systems Analyst" positions — Chen, Webb, and Tran — named on the staffing roster.', caseDefining: true },
+  { id: 'doc-03', category: 'documents', factId: 'shell_companies', name: 'Corporate Filing', flavor: 'Formation filings for two shell vendors, "Beacon Advisory Group" and "Crestline Solutions LLC," registered nine days apart, sharing the same registered agent — neither with a business address that isn\'t a UPS Store.', caseDefining: true },
+  { id: 'doc-04', category: 'documents', factId: 'shell_companies', name: 'Signed Contract', flavor: 'A signed "strategic advisory" services agreement between Meridian and shell vendor Beacon Advisory Group — no scope of work attached, no deliverables specified, just a flat monthly fee.', caseDefining: false },
+  { id: 'doc-05', category: 'documents', factId: 'silenced_accountant', name: 'Internal Memo', flavor: 'An internal audit memo flags the three phantom analyst billings as "unusual." A handwritten note in the margin reads "Do Not Escalate," initialed but not dated.', caseDefining: false },
+  { id: 'doc-06', category: 'documents', factId: 'altered_timesheets', name: 'Business Ledger', flavor: 'Two printed timesheet versions for the same pay period — the revised copy adds 120 hours across the three phantom analyst names that don\'t appear on the original.', caseDefining: false },
 
   // Digital
-  { id: 'dig-01', category: 'digital', factId: 'altered_timesheets', name: 'Metadata Analysis', flavor: 'HR system edit-history log for the phantom analysts\' timesheets.', caseDefining: true },
-  { id: 'dig-02', category: 'digital', factId: 'phantom_staffing', name: 'VPN Activity Log', flavor: 'Login records for the three "billed" analyst accounts — empty.', caseDefining: true },
-  { id: 'dig-03', category: 'digital', factId: 'altered_timesheets', name: 'Deleted File Recovery', flavor: 'An email recovered from backup after deletion.', caseDefining: false },
-  { id: 'dig-04', category: 'digital', factId: 'shell_companies', name: 'Cloud Storage Files', flavor: "A shared drive folder linked to CFO Elena Voss's personal email.", caseDefining: false },
-  { id: 'dig-05', category: 'digital', factId: 'silenced_accountant', name: 'Chat Application Backup', flavor: 'Slack messages between CFO Elena Voss and staff accountant Raymond Okafor.', caseDefining: true },
-  { id: 'dig-06', category: 'digital', factId: 'phantom_staffing', name: 'Authentication Logs', flavor: "Badge reader database export for the agency's front doors.", caseDefining: false },
+  { id: 'dig-01', category: 'digital', factId: 'altered_timesheets', name: 'Metadata Analysis', flavor: 'The HR system\'s edit log shows the three phantom analysts\' timesheets were all modified 61 days after the pay period closed — well past the 30-day correction window.', caseDefining: true },
+  { id: 'dig-02', category: 'digital', factId: 'phantom_staffing', name: 'VPN Activity Log', flavor: 'VPN login records for the three billed "Senior Systems Analyst" accounts — Chen, Webb, and Tran — show zero authentication events for the entire billing period.', caseDefining: true },
+  { id: 'dig-03', category: 'digital', factId: 'altered_timesheets', name: 'Deleted File Recovery', flavor: 'A deleted email recovered from backup: Okafor to himself, subject line "billing question — don\'t send yet," sent the same week as his withdrawn complaint.', caseDefining: false },
+  { id: 'dig-04', category: 'digital', factId: 'shell_companies', name: 'Cloud Storage Files', flavor: 'A shared drive folder holding both shell vendors\' formation paperwork is shared with exactly one external address — CFO Elena Voss\'s personal Gmail.', caseDefining: false },
+  { id: 'dig-05', category: 'digital', factId: 'silenced_accountant', name: 'Chat Application Backup', flavor: 'Recovered Slack messages: CFO Elena Voss tells staff accountant Raymond Okafor "it\'s handled, don\'t make this a thing" three days after his internal complaint, then asks if he\'s "still good for the promotion conversation next month."', caseDefining: true },
+  { id: 'dig-06', category: 'digital', factId: 'phantom_staffing', name: 'Authentication Logs', flavor: 'The agency\'s badge reader database has no entries at all for any of the three billed "Senior Systems Analysts" — not one badge was ever issued in those names.', caseDefining: false },
 
   // Physical
-  { id: 'phy-01', category: 'physical', factId: 'altered_timesheets', name: 'Handwriting Sample', flavor: 'A printed timesheet with handwritten corrections.', caseDefining: false },
-  { id: 'phy-02', category: 'physical', factId: 'personal_enrichment', name: 'Inventory Record', flavor: "A listing of CFO Elena Voss's recently acquired assets, including a Lakeview property.", caseDefining: false },
-  { id: 'phy-03', category: 'physical', factId: 'personal_enrichment', name: 'Photographs', flavor: "A photographed copy of a cashier's check found in CFO Elena Voss's files.", caseDefining: false },
-  { id: 'phy-04', category: 'physical', factId: 'phantom_staffing', name: 'Access Log', flavor: "The agency front desk's physical sign-in binder.", caseDefining: false },
-  { id: 'phy-05', category: 'physical', factId: 'altered_timesheets', name: 'Discarded Item Recovery', flavor: 'A discarded notepad with timesheet math matching the altered entries.', caseDefining: true },
-  { id: 'phy-06', category: 'physical', factId: 'shell_companies', name: 'Physical Evidence', flavor: "A mailbox rental agreement for one of the shell companies.", caseDefining: false },
+  { id: 'phy-01', category: 'physical', factId: 'altered_timesheets', name: 'Handwriting Sample', flavor: 'A printed timesheet with hour totals penciled into the margin by hand — the pencil totals match the revised digital numbers exactly; the printed ones don\'t.', caseDefining: false },
+  { id: 'phy-02', category: 'physical', factId: 'personal_enrichment', name: 'Inventory Record', flavor: 'An asset inventory lists a $640,000 lakeside property purchased by CFO Elena Voss four months after Meridian\'s first invoice to the shell vendors.', caseDefining: false },
+  { id: 'phy-03', category: 'physical', factId: 'personal_enrichment', name: 'Photographs', flavor: 'A photographed cashier\'s check for $95,000, made out to a title company, found in CFO Elena Voss\'s personal files — the purchaser line is blank.', caseDefining: false },
+  { id: 'phy-04', category: 'physical', factId: 'phantom_staffing', name: 'Access Log', flavor: 'The agency\'s paper sign-in binder — the backup for when badge readers fail — has no entries for the three phantom analysts either, for the entire audit period.', caseDefining: false },
+  { id: 'phy-05', category: 'physical', factId: 'altered_timesheets', name: 'Discarded Item Recovery', flavor: 'A notepad pulled from an office trash bin shows handwritten addition — 40, 40, 40, totaling 120 — matching the exact hours later added to the revised timesheets.', caseDefining: true },
+  { id: 'phy-06', category: 'physical', factId: 'shell_companies', name: 'Physical Evidence', flavor: 'A UPS Store mailbox rental agreement for shell vendor Beacon Advisory Group, signed by someone using a name that doesn\'t match any registered officer on file.', caseDefining: false },
 
   // Financial
-  { id: 'fin-01', category: 'financial', factId: 'shell_companies', name: 'Wire Transfer Record', flavor: 'Meridian → Shell Co. A.', caseDefining: false },
+  { id: 'fin-01', category: 'financial', factId: 'shell_companies', name: 'Wire Transfer Record', flavor: 'A wire transfer: Meridian Consulting Group → shell vendor Beacon Advisory Group, $62,000, memo line reads "Q2 consulting services."', caseDefining: false },
   // Four-tier proof-of-concept, capped case: ref-fin-suspicious-activity-report's
   // maxTier is 2, so this card's Develop button stops offering Court Order —
   // the SAR narrative has nothing further to reveal past the subpoenaed detail.
   {
     id: 'fin-02', category: 'financial', ref: 'ref-fin-suspicious-activity-report', factId: 'shell_companies', caseDefining: true,
     tiers: [
-      { tier: 1, narrative_entry: 'A bank-flagged pass-through: Shell Co. A → Shell Co. B.' },
+      { tier: 1, narrative_entry: 'A bank-flagged pass-through, $58,000: shell vendor Beacon Advisory Group → shell vendor Crestline Solutions LLC.' },
       { tier: 2, narrative_entry: 'The bank\'s full SAR narrative shows the same pass-through pattern recurring four times in the audit period, each transfer landing just under the reporting threshold.' },
     ],
   },
-  { id: 'fin-03', category: 'financial', factId: 'personal_enrichment', name: 'Wire Transfer Record', flavor: "Shell Co. B → CFO Elena Voss's personal account.", caseDefining: true },
-  { id: 'fin-04', category: 'financial', factId: 'personal_enrichment', name: 'Escrow Record', flavor: 'Closing statement for the Lakeview property purchase.', caseDefining: false },
-  { id: 'fin-05', category: 'financial', factId: 'phantom_staffing', name: 'Financial Record', flavor: 'Federal payment disbursement records for the modernization contract.', caseDefining: false },
-  { id: 'fin-06', category: 'financial', factId: 'shell_companies', name: 'Shell Company Registration', flavor: "Shell Co.'s bank account opening documents.", caseDefining: false },
+  { id: 'fin-03', category: 'financial', factId: 'personal_enrichment', name: 'Wire Transfer Record', flavor: 'A wire transfer: shell vendor Crestline Solutions LLC → an account in CFO Elena Voss\'s name, $58,000, three days after the Beacon-to-Crestline pass-through.', caseDefining: true },
+  { id: 'fin-04', category: 'financial', factId: 'personal_enrichment', name: 'Escrow Record', flavor: 'The lakeside property\'s closing statement shows a $95,000 down payment paid by cashier\'s check — the same amount, same day, as the wire that left Crestline Solutions.', caseDefining: false },
+  { id: 'fin-05', category: 'financial', factId: 'phantom_staffing', name: 'Financial Record', flavor: 'Federal disbursement records confirm the agency paid Meridian\'s full invoiced amount for the three billed "Senior Systems Analyst" positions — no partial payments, no rejected line items.', caseDefining: false },
+  { id: 'fin-06', category: 'financial', factId: 'shell_companies', name: 'Shell Company Registration', flavor: 'Shell vendor Beacon Advisory Group\'s bank account was opened eleven days before its first invoice to Meridian — a $500 opening deposit, no other clients on record.', caseDefining: false },
 
   // Intelligence
-  { id: 'intel-01', category: 'intelligence', factId: 'silenced_accountant', name: 'Confidential Source Report', flavor: 'A follow-up on the original whistleblower tip.', caseDefining: false },
-  { id: 'intel-02', category: 'intelligence', factId: 'shell_companies', name: 'Prior Case Cross-Reference', flavor: "Corporate registry cross-reference on the shell companies' officers.", caseDefining: false },
-  { id: 'intel-03', category: 'intelligence', factId: 'phantom_staffing', name: 'Criminal History Summary', flavor: 'Background check discrepancy on one of the "billed" analysts.', caseDefining: false },
-  { id: 'intel-04', category: 'intelligence', factId: 'personal_enrichment', name: 'Asset Forfeiture Record', flavor: 'An asset search on CFO Elena Voss.', caseDefining: false },
-  { id: 'intel-05', category: 'intelligence', factId: 'silenced_accountant', name: 'Pattern Analysis', flavor: 'A pattern of prior complaints at Meridian from other employees.', caseDefining: false },
-  { id: 'intel-06', category: 'intelligence', factId: 'shell_companies', name: 'Watchlist Match', flavor: 'A registered-agent cross-filing alert.', caseDefining: false },
+  { id: 'intel-01', category: 'intelligence', factId: 'silenced_accountant', name: 'Confidential Source Report', flavor: 'A follow-up contact with the original tipster: "ask about the two accountants who quit that department in the last year — Okafor isn\'t the first."', caseDefining: false },
+  { id: 'intel-02', category: 'intelligence', factId: 'shell_companies', name: 'Prior Case Cross-Reference', flavor: 'A corporate registry cross-reference: the registered agent behind shell vendor Beacon Advisory Group has formed six other shell entities in the past two years, four now under separate state investigation.', caseDefining: false },
+  { id: 'intel-03', category: 'intelligence', factId: 'phantom_staffing', name: 'Criminal History Summary', flavor: 'A background check on one of the three billed "Senior Systems Analysts," Marcus Webb, turns up a Social Security number issued to someone else entirely.', caseDefining: false },
+  { id: 'intel-04', category: 'intelligence', factId: 'personal_enrichment', name: 'Asset Forfeiture Record', flavor: 'An asset search on CFO Elena Voss finds no other real estate purchases in the five years prior — the lakeside property is a first, and a large one, on a CFO\'s reported salary.', caseDefining: false },
+  { id: 'intel-05', category: 'intelligence', factId: 'silenced_accountant', name: 'Pattern Analysis', flavor: 'HR records show two prior internal complaints about "vendor irregularities" in the last 18 months — both closed without action, both predating Okafor\'s.', caseDefining: false },
+  { id: 'intel-06', category: 'intelligence', factId: 'shell_companies', name: 'Watchlist Match', flavor: 'An automated registered-agent alert flags shell vendor Crestline Solutions LLC as sharing a filing address with a company already on a state fraud watchlist.', caseDefining: false },
 ];
 
 export const evidenceByThreshold = {
