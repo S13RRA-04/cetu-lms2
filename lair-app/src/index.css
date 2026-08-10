@@ -3395,6 +3395,27 @@ body::after {
 .cf-play-card-actions button:disabled { opacity: .35; cursor: not-allowed; }
 .cf-playarea-empty { color: var(--muted); font-size: 12px; font-style: italic; padding: 20px; text-align: center; }
 
+/* Player-side Play Area tile: one per resolved card (category/tier/Case-Defining
+   only — no name or flavor, since this client never receives card identity). */
+.cf-play-card {
+  border-radius: var(--radius-sm); padding: 8px; border: 1px solid color-mix(in srgb, var(--cat-color) 50%, var(--border-hi));
+  background: color-mix(in srgb, var(--cat-color) 8%, var(--surface));
+  display: flex; flex-direction: column; gap: 6px; font-size: 11px;
+}
+.cf-play-card .cf-play-card-name { color: var(--cat-color); font-size: 11px; min-height: 0; }
+
+/* Initial Complaint — the case's opening hook, not evidence: pinned first in
+   the Play Area, permanently face-up, visually distinct (dashed border, no
+   category color) from the evidence cards next to it. */
+.cf-play-card-complaint {
+  min-height: 148px; border-radius: 6px; padding: 8px; font-size: 10px;
+  display: flex; flex-direction: column; gap: 4px;
+  background: linear-gradient(165deg, color-mix(in srgb, var(--warning) 18%, #0c0c11), #0c0c11);
+  border: 1px dashed color-mix(in srgb, var(--warning) 60%, transparent);
+}
+.cf-play-card-complaint .cf-play-card-name { color: var(--warning); }
+.cf-play-card-complaint-text { color: var(--muted); font-size: 9px; line-height: 1.35; flex: 1; }
+
 /* Flying "dealt" card — travels from the clicked deck to the Play Area */
 .cf-flying-card {
   position: fixed; width: 44px; height: 44px; border-radius: 6px; pointer-events: none; z-index: 999;

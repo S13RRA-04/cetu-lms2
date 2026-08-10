@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import useCaseFileSession from '../hooks/useCaseFileSession.js';
-import { CATEGORY_META, CATEGORIES, BAND_META, PRESSURE_META, PRESSURE_LEVELS } from '../data/caseFileTheme.js';
+import { CATEGORY_META, CATEGORIES, BAND_META, PRESSURE_META, PRESSURE_LEVELS, LADDER, NEXT_TIER, TIER_RANK, tierLabel } from '../data/caseFileTheme.js';
 import { CASES, getCaseById } from '../data/caseFileCases.js';
 import {
   positiveInjectFlavor,
@@ -21,20 +21,8 @@ import CaseFileTourOverlay from './CaseFileTourOverlay.jsx';
 import useCaseFileTour from '../hooks/useCaseFileTour.js';
 import { FACILITATOR_TOUR_BEATS } from '../data/caseFileTourScript.js';
 
-// Legal Instrument Ladder: tier -> { label, delay, minCaseStrength } per the Rulebook.
-const LADDER = {
-  subpoena: { label: 'Subpoena', delay: 1, minCaseStrength: 5 },
-  court_order: { label: 'Court Order', delay: 2, minCaseStrength: 11 },
-  search_warrant: { label: 'Search Warrant', delay: 3, minCaseStrength: 16 },
-};
-const NEXT_TIER = { discovered: 'subpoena', subpoena: 'court_order', court_order: 'search_warrant' };
-const TIER_RANK = { discovered: 0, subpoena: 1, court_order: 2, search_warrant: 3 };
 const ROLL_MIN_MS = 550;
 const ROLL6_MIN_MS = 500;
-
-function tierLabel(tier) {
-  return tier === 'discovered' ? 'Discovered' : (LADDER[tier]?.label ?? tier);
-}
 
 function CaseStrengthTrack({ caseStrength }) {
   const cells = Array.from({ length: 31 }, (_, n) => n);
@@ -603,11 +591,15 @@ export default function CaseFileFacilitator() {
 
             <div className="cf-playarea-panel" ref={playAreaRef} data-tour="play-area">
               <div className="cf-track-title">Play Area</div>
-              {dedupedEvidence.length === 0 ? (
-                <div className="cf-playarea-empty">No evidence resolved yet.</div>
-              ) : (
-                <div className="cf-playarea-grid">
-                  {dedupedEvidence.map((e, i) => {
+              <div className="cf-playarea-grid">
+                <div className="cf-play-card-complaint">
+                  <div className="cf-play-card-name">Initial Complaint</div>
+                  <div className="cf-play-card-complaint-text">{activeCase.caseMeta.initialComplaint}</div>
+                </div>
+                {dedupedEvidence.length === 0 ? (
+                  <div className="cf-playarea-empty">No evidence resolved yet.</div>
+                ) : (
+                  dedupedEvidence.map((e, i) => {
                     const card = findCard(e.cardId);
                     const meta = card ? CATEGORY_META[card.category] : null;
                     const routed = card && activeCase.legalRouting[card.category]?.routed;
@@ -666,9 +658,9 @@ export default function CaseFileFacilitator() {
                         </div>
                       </div>
                     );
-                  })}
-                </div>
-              )}
+                  })
+                )}
+              </div>
             </div>
 
             <div className="cf-queue-panel" data-tour="queue">

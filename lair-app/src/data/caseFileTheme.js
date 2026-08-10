@@ -33,3 +33,16 @@ export const PRESSURE_META = {
   black: { color: '#8888a0', label: 'Black' },
 };
 export const PRESSURE_LEVELS = Object.keys(PRESSURE_META);
+
+// Legal Instrument Ladder: tier -> { label, delay, minCaseStrength } per the Rulebook.
+export const LADDER = {
+  subpoena: { label: 'Subpoena', delay: 1, minCaseStrength: 5 },
+  court_order: { label: 'Court Order', delay: 2, minCaseStrength: 11 },
+  search_warrant: { label: 'Search Warrant', delay: 3, minCaseStrength: 16 },
+};
+export const NEXT_TIER = { discovered: 'subpoena', subpoena: 'court_order', court_order: 'search_warrant' };
+export const TIER_RANK = { discovered: 0, subpoena: 1, court_order: 2, search_warrant: 3 };
+
+export function tierLabel(tier) {
+  return tier === 'discovered' ? 'Discovered' : (LADDER[tier]?.label ?? tier);
+}

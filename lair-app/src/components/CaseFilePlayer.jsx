@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import useCaseFileSession from '../hooks/useCaseFileSession.js';
 import useAuthStore from '../store/authStore.js';
 import { bandForCaseStrength, BAND_THRESHOLDS, positiveInjectById, negativeInjectById } from '../data/caseFileCaseUtils.js';
-import { CATEGORY_META, CATEGORIES, BAND_META, PRESSURE_META } from '../data/caseFileTheme.js';
+import { CATEGORY_META, CATEGORIES, BAND_META, PRESSURE_META, TIER_RANK, tierLabel } from '../data/caseFileTheme.js';
 import CaseFileGuide from './CaseFileGuide.jsx';
 import { PLAYER_GUIDE_SECTIONS } from '../data/caseFileGuideContent.js';
 import CaseFileTourOverlay from './CaseFileTourOverlay.jsx';
@@ -253,6 +253,22 @@ export default function CaseFilePlayer() {
   const queueSlots = state.pendingReturns.length > 0 ? state.pendingReturns : [null, null, null];
   const maxTurn = Math.max(state.round + 3, 12);
 
+  // One tile per resolved card — category, tier, Case-Defining — same dedupe
+  // CaseFileFacilitator.jsx uses (a card can appear once per ladder tier it
+  // advanced through; collapse to its highest tier). No name or flavor text:
+  // this client never receives card identity, only category/tier/counts.
+  const dedupedEvidence = Object.values(
+    state.resolvedEvidence.reduce((acc, e) => {
+      const prev = acc[e.cardId];
+      if (!prev || TIER_RANK[e.tier] > TIER_RANK[prev.tier]) {
+        acc[e.cardId] = { ...e, caseDefining: e.caseDefining || prev?.caseDefining || false };
+      } else {
+        prev.caseDefining = prev.caseDefining || e.caseDefining;
+      }
+      return acc;
+    }, {})
+  );
+
   return (
     <div className="ttx-wrap cf-tabletop">
       <div className="ttx-header">
@@ -377,23 +393,24 @@ export default function CaseFilePlayer() {
 
             <div className="cf-playarea-panel" data-tour="play-area">
               <div className="cf-track-title">Play Area</div>
-              {state.resolvedEvidence.length === 0 ? (
+              {dedupedEvidence.length === 0 ? (
                 <div className="cf-playarea-empty">No evidence resolved yet.</div>
               ) : (
                 <div className="cf-playarea-grid">
-                  {Object.entries(
-                    state.resolvedEvidence.reduce((acc, e) => {
-                      acc[e.category] = (acc[e.category] ?? 0) + 1;
-                      return acc;
-                    }, {})
-                  ).map(([cat, count]) => (
-                    <div key={cat} className="cf-play-card" style={{ '--cat-color': CATEGORY_META[cat].color }}>
-                      <div className="cf-play-card-name">{CATEGORY_META[cat].label}</div>
-                      <div className="cf-play-card-foot">
-                        <span className="cf-play-card-tier">{count} resolved</span>
+                  {dedupedEvidence.map((e) => {
+                    const meta = CATEGORY_META[e.category];
+                    return (
+                      <div key={e.cardId} className="cf-play-card" style={{ '--cat-color': meta.color }}>
+                        <div className="cf-play-card-name">
+                          <span className="cf-deck-icon">{meta.icon}</span> {meta.label}
+                        </div>
+                        <div className="cf-play-card-foot">
+                          <span className="cf-play-card-tier">{tierLabel(e.tier)}</span>
+                          {e.caseDefining && <span className="cf-play-card-star" title="Case-Defining">★</span>}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
