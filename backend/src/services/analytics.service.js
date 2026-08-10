@@ -301,11 +301,16 @@ async function getCourseEffectiveness(courseId, cohortId) {
    Program Overview
    One row per course with health KPIs; grouped by instructor for unit
    management to assess how program managers are running their courses.
-───────────────────────────────────────────────────────────────────────────── */
-async function getProgramOverview() {
-  const { sequelize } = require('../config/database');
 
-  const rows = await sequelize.query(
+   LAIR, PACT, and KCR are separate physical databases (see
+   backend/src/config/multiDatabase.js) — there is no single SQL query that
+   can span them. This runs the same per-database aggregation against each
+   registered program connection and concatenates the results; the health-
+   score computation below is unaffected since it only ever looks at one
+   course's row at a time.
+───────────────────────────────────────────────────────────────────────────── */
+async function _queryProgramOverviewRows(sequelize) {
+  return sequelize.query(
     `WITH student_e AS (
        SELECT e.user_id, e.course_id, e.cohort_id
        FROM   enrollments e
@@ -370,6 +375,22 @@ async function getProgramOverview() {
      ORDER BY u.last_name NULLS LAST, u.first_name NULLS LAST, c.title`,
     { type: sequelize.QueryTypes.SELECT }
   );
+}
+
+async function getProgramOverview() {
+  const multiDb = require('../config/multiDatabase');
+
+  const perProgramRows = await Promise.all(
+    multiDb.allConnections().map(([, connection]) => _queryProgramOverviewRows(connection))
+  );
+  // Each database's own rows come back pre-sorted; re-sort after merging so
+  // the combined result still reads as one consistent list (mirrors the
+  // original single-query ORDER BY instructor last/first name, then title).
+  const rows = perProgramRows.flat().sort((a, b) => {
+    const byLast  = (a.instructorName ?? '').localeCompare(b.instructorName ?? '');
+    if (byLast !== 0) return byLast;
+    return (a.courseTitle ?? '').localeCompare(b.courseTitle ?? '');
+  });
 
   /* ── Compute a simple health score (0–100) per course ── */
   const scored = rows.map((r) => {

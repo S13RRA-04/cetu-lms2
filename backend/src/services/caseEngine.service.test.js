@@ -79,6 +79,36 @@ test('resolveOutcome reports nothing new when everything matching is already dis
   assert.match(result.narrative, /already been requested/);
 });
 
+test('resolveOutcome unlocks victim-scoped evidence only for the squad assigned that victim', () => {
+  const candidates = [
+    evidence('ev1', { unlock_conditions: { action_type: 'request_intrusion_telemetry', requires_entity_id: 'redstone', requires_squad_victim_code: 'REDSTONE' } }),
+  ];
+  const forAssignedSquad = resolveOutcome({
+    candidates, actionType: 'request_intrusion_telemetry', targetEntityId: 'redstone',
+    discoveredEvidenceIds: [], approvedProcessTypes: new Set(), squadVictimCode: 'REDSTONE',
+  });
+  assert.equal(forAssignedSquad.status, 'completed');
+  assert.deepEqual(forAssignedSquad.newlyEligible.map((e) => e.id), ['ev1']);
+
+  const forOtherSquad = resolveOutcome({
+    candidates, actionType: 'request_intrusion_telemetry', targetEntityId: 'redstone',
+    discoveredEvidenceIds: [], approvedProcessTypes: new Set(), squadVictimCode: 'DOGWOOD',
+  });
+  assert.equal(forOtherSquad.status, 'denied');
+  assert.match(forOtherSquad.narrative, /outside the scope of your squad/);
+});
+
+test('resolveOutcome unlocks victim-unscoped evidence for any squad regardless of assigned victim', () => {
+  const candidates = [
+    evidence('ev1', { unlock_conditions: { action_type: 'conduct_osint', requires_entity_id: 'restonit' } }),
+  ];
+  const result = resolveOutcome({
+    candidates, actionType: 'conduct_osint', targetEntityId: 'restonit',
+    discoveredEvidenceIds: [], approvedProcessTypes: new Set(), squadVictimCode: 'PIXELPLAY',
+  });
+  assert.equal(result.status, 'completed');
+});
+
 test('resolveOutcome denies an action_type/target pairing that leads nowhere in this case', () => {
   const result = resolveOutcome({
     candidates: [], actionType: 'interview_persona', targetEntityId: 'nonexistent',

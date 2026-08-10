@@ -15,6 +15,9 @@ import {
 } from '../data/caseFileCaseUtils.js';
 import CaseFileGuide from './CaseFileGuide.jsx';
 import { INSTRUCTOR_GUIDE_SECTIONS } from '../data/caseFileGuideContent.js';
+import CaseFileTourOverlay from './CaseFileTourOverlay.jsx';
+import useCaseFileTour from '../hooks/useCaseFileTour.js';
+import { FACILITATOR_TOUR_BEATS } from '../data/caseFileTourScript.js';
 
 // Legal Instrument Ladder: tier -> { label, delay, minCaseStrength } per the Rulebook.
 const LADDER = {
@@ -59,7 +62,7 @@ function CaseStrengthTrack({ caseStrength }) {
   const cells = Array.from({ length: 31 }, (_, n) => n);
   const currentBand = bandForCaseStrength(caseStrength);
   return (
-    <div className="cf-track-panel">
+    <div className="cf-track-panel" data-tour="case-strength-track">
       <div className="cf-track-title">Case Strength Track</div>
       <div className="cf-track-row">
         {cells.map((n) => {
@@ -101,7 +104,7 @@ function CaseStrengthTrack({ caseStrength }) {
 }
 
 export default function CaseFileFacilitator() {
-  const [started, setStarted] = useState(false);
+  const [realStarted, setStarted] = useState(false);
   const [selectedCaseId, setSelectedCaseId] = useState(CASES[0].id);
   const [session, setSession] = useState(null);
   const activeCase = getCaseById(selectedCaseId).data;
@@ -110,11 +113,29 @@ export default function CaseFileFacilitator() {
   const findCard = (id) => findCardUtil(activeCase, id);
   const findFact = (id) => findFactUtil(activeCase, id);
 
-  const { connected, code, state, lastResult, error, ended, sendAction } = useCaseFileSession({
+  // "Learn to Play" — a scripted walkthrough that impersonates
+  // useCaseFileSession's return shape (see useCaseFileTour.js) so the real
+  // board below renders unmodified whether it's live or touring.
+  const tour = useCaseFileTour(FACILITATOR_TOUR_BEATS);
+
+  const live = useCaseFileSession({
     role: 'facilitator',
     session,
-    enabled: started && !!session,
+    enabled: realStarted && !!session && !tour.active,
   });
+  const started = tour.active ? (tour.step?.started ?? true) : realStarted;
+  const connected = tour.active ? true : live.connected;
+  const code = tour.active ? 'DEMO' : live.code;
+  const state = tour.active ? tour.state : live.state;
+  const lastResult = tour.active ? tour.lastResult : live.lastResult;
+  const error = tour.active ? null : live.error;
+  const ended = tour.active ? false : live.ended;
+  const sendAction = tour.active ? tour.sendAction : live.sendAction;
+
+  function startTour() {
+    setSelectedCaseId('meridian-skim');
+    tour.start();
+  }
 
   const [convertFrom, setConvertFrom] = useState('documents');
   const [convertTo, setConvertTo] = useState('financial');
@@ -132,6 +153,12 @@ export default function CaseFileFacilitator() {
   const rollTimer = useRef(null);
   const rollStart = useRef(0);
   const pendingRequestId = useRef(null);
+
+  // Beats can request a deck pre-armed (arming is local UI state, not a
+  // sendAction call, so the tour can't detect/auto-advance on it itself).
+  useEffect(() => {
+    if (tour.active && tour.step?.autoArm) setArmedCategory(tour.step.autoArm);
+  }, [tour.active, tour.stepIndex]);
 
   // Category Die (d6) — only relevant on Partial Success / Critical Success
   // bands (a bonus card is drawn from a d6-selected category). The value is
@@ -263,6 +290,7 @@ export default function CaseFileFacilitator() {
   }, [lastResult, rolling]);
 
   function startWithCase() {
+    if (tour.active) { tour.next(); return; } // this click is just the tour's spotlight beat — don't open a real session
     setSession(buildDeckPayload(activeCase));
     setStarted(true);
   }
@@ -337,16 +365,17 @@ export default function CaseFileFacilitator() {
             <p className="page-subtitle" style={{ marginBottom: 0 }}>Choose a case, then start the investigation.</p>
           </div>
           <div className="ttx-session-controls">
+            <button className="btn-secondary" onClick={startTour}>Learn to Play</button>
             <button className="btn-secondary" onClick={() => setInstructorGuideOpen(true)}>Instructor Guide</button>
           </div>
         </div>
 
-        <div className="cf-case-picker">
+        <div className="cf-case-picker" data-tour="case-picker">
           {CASES.map(({ id, data }) => (
             <button
               key={id}
               className={`cf-case-card${selectedCaseId === id ? ' cf-case-card-selected' : ''}`}
-              onClick={() => setSelectedCaseId(id)}
+              onClick={() => { if (!tour.active) setSelectedCaseId(id); }}
             >
               <span className="cf-case-card-category">{data.caseMeta.category}</span>
               <span className="cf-case-card-title">{data.caseMeta.title}</span>
@@ -355,14 +384,16 @@ export default function CaseFileFacilitator() {
           ))}
         </div>
 
-        <div className="ttx-guide">
+        <div className="ttx-guide" data-tour="premise">
           <p style={{ margin: '0 0 12px' }}>{activeCase.caseMeta.premise}</p>
           <p style={{ margin: '0 0 16px' }}><strong>Initial Complaint:</strong> {activeCase.caseMeta.initialComplaint}</p>
-          <button className="btn-primary" onClick={startWithCase}>
+          <button className="btn-primary" data-tour="start-investigation" onClick={startWithCase}>
             {started ? 'Connecting…' : 'Start Investigation'}
           </button>
           {error && <p style={{ color: 'var(--danger)', marginTop: 12 }}>{error}</p>}
         </div>
+
+        {tour.active && <CaseFileTourOverlay tour={tour} />}
 
         {instructorGuideOpen && (
           <CaseFileGuide title="Instructor Guide" sections={INSTRUCTOR_GUIDE_SECTIONS} onClose={() => setInstructorGuideOpen(false)} />
@@ -403,13 +434,14 @@ export default function CaseFileFacilitator() {
       <div className="ttx-header">
         <div>
           <h1 className="page-title" style={{ marginBottom: 4 }}>Case File</h1>
-          <p className="page-subtitle" style={{ marginBottom: 0 }}>
+          <p className="page-subtitle" style={{ marginBottom: 0 }} data-tour="room-code">
             {activeCase.caseMeta.title} · Room Code: <strong style={{ color: 'var(--primary)' }}>{code}</strong> · {connected ? 'Connected' : 'Reconnecting…'}
           </p>
         </div>
         <div className="ttx-session-controls">
+          <button className="btn-secondary" onClick={startTour}>Learn to Play</button>
           <button className="btn-secondary" onClick={() => setInstructorGuideOpen(true)}>Instructor Guide</button>
-          <button className="btn-secondary" onClick={newSession}>New Session</button>
+          {!tour.active && <button className="btn-secondary" onClick={newSession}>New Session</button>}
         </div>
       </div>
 
@@ -441,7 +473,7 @@ export default function CaseFileFacilitator() {
 
         <div className="cf-board-main">
           {/* Evidence Decks */}
-          <div className="cf-decks">
+          <div className="cf-decks" data-tour="decks">
             {CATEGORIES.map((cat) => {
               const meta = CATEGORY_META[cat];
               const disabled = state.gameOver || state.tokens[cat] <= 0;
@@ -481,7 +513,7 @@ export default function CaseFileFacilitator() {
 
           {/* Center: roll, play area, queue */}
           <div className="cf-center">
-            <div className="cf-roll-widget">
+            <div className="cf-roll-widget" data-tour="dice">
               <div className="cf-dice-area">
                 <Die20
                   value={rollFace}
@@ -535,7 +567,7 @@ export default function CaseFileFacilitator() {
               </div>
             </div>
 
-            <div className="cf-playarea-panel" ref={playAreaRef}>
+            <div className="cf-playarea-panel" ref={playAreaRef} data-tour="play-area">
               <div className="cf-track-title">Play Area</div>
               {dedupedEvidence.length === 0 ? (
                 <div className="cf-playarea-empty">No evidence resolved yet.</div>
@@ -594,7 +626,7 @@ export default function CaseFileFacilitator() {
               )}
             </div>
 
-            <div className="cf-queue-panel">
+            <div className="cf-queue-panel" data-tour="queue">
               <div className="cf-track-title">Pending Returns Queue</div>
               <div className="cf-queue-row">
                 {queueSlots.map((p, i) => {
@@ -614,7 +646,7 @@ export default function CaseFileFacilitator() {
           </div>
 
           {/* Piles */}
-          <div className="cf-piles">
+          <div className="cf-piles" data-tour="piles">
             <div className={`cf-pile cf-pile-positive${flashPile === 'positive' ? ' cf-pile-flash' : ''}`}>
               <div className="cf-pile-count">{positiveDrawn}</div>
               <div className="cf-pile-label">Positive Injects</div>
@@ -634,7 +666,7 @@ export default function CaseFileFacilitator() {
 
         {/* Bottom: token bank + turn counter */}
         <div className="cf-bottom">
-          <div className="cf-bank-panel">
+          <div className="cf-bank-panel" data-tour="command-panel">
             <div className="cf-track-title">Command Actions</div>
             <div className="cf-bank-row">
               <span className="ttx-panel-hint" style={{ margin: 0, minWidth: 130 }}>Command Pressure</span>
@@ -684,7 +716,7 @@ export default function CaseFileFacilitator() {
                 <div key={n} className={`cf-turn-cell${n === state.round ? ' cf-turn-current' : ''}`}>{n}</div>
               ))}
             </div>
-            <button className="btn-primary" style={{ marginTop: 10, width: '100%' }} disabled={state.gameOver} onClick={() => sendAction('advance_round')}>Advance Round →</button>
+            <button className="btn-primary" data-tour="advance-round" style={{ marginTop: 10, width: '100%' }} disabled={state.gameOver} onClick={() => sendAction('advance_round')}>Advance Round →</button>
           </div>
         </div>
       </div>
@@ -730,7 +762,7 @@ export default function CaseFileFacilitator() {
       )}
 
       {/* Case Notes — narrative reveal text per central fact */}
-      <section className="ttx-panel" style={{ marginTop: 16 }}>
+      <section className="ttx-panel" style={{ marginTop: 16 }} data-tour="case-notes">
         <div className="ttx-panel-head"><span className="ttx-panel-label">Case Notes — by Central Fact</span></div>
         {resolvedByFact.map(({ fact, cards }) => (
           <div key={fact.id} style={{ marginBottom: 12 }}>
@@ -743,7 +775,7 @@ export default function CaseFileFacilitator() {
       </section>
 
       {/* Grand Jury */}
-      <section className="ttx-panel">
+      <section className="ttx-panel" data-tour="grand-jury">
         <div className="ttx-panel-head"><span className="ttx-panel-label">Grand Jury Presentation</span></div>
         <p className="ttx-panel-hint">
           Facts currently citable: {resolvedByFact.filter((f) => f.cards.length > 0).length} of {activeCase.centralFacts.length}. Need {activeCase.grandJuryRubric.threshold}+.
@@ -756,7 +788,7 @@ export default function CaseFileFacilitator() {
       </section>
 
       {state.indicted && (
-        <section className="ttx-panel">
+        <section className="ttx-panel" data-tour="defense-counterplay">
           <div className="ttx-panel-head"><span className="ttx-panel-label">Defense Counterplay Reference</span></div>
           <p className="ttx-panel-hint">{state.defenseCounterplayRemaining} cards remaining in the deck. Drawn automatically as negative injects post-indictment.</p>
           <ul className="cf-drawn-list">
@@ -784,7 +816,7 @@ export default function CaseFileFacilitator() {
         </section>
       )}
 
-      <section className="ttx-panel">
+      <section className="ttx-panel" data-tour="declare-outcome">
         <div className="ttx-panel-head"><span className="ttx-panel-label">Declare Outcome</span></div>
         <div className="cf-btn-row">
           <button className="btn-sm-primary" disabled={state.gameOver} onClick={() => sendAction('declare_outcome', { outcome: 'win' })}>Declare Win</button>
@@ -799,6 +831,11 @@ export default function CaseFileFacilitator() {
           style={{ left: f.left, top: f.top, '--cat-color': f.color, '--dx': `${f.dx}px`, '--dy': `${f.dy}px` }}
         />
       ))}
+
+      {instructorGuideOpen && (
+        <CaseFileGuide title="Instructor Guide" sections={INSTRUCTOR_GUIDE_SECTIONS} onClose={() => setInstructorGuideOpen(false)} />
+      )}
+      {tour.active && <CaseFileTourOverlay tour={tour} />}
     </div>
   );
 }

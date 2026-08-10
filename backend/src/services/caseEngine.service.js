@@ -1,5 +1,5 @@
 'use strict';
-const { SquadCaseState, CaseEvidence, CaseLegalProcess, CaseAction } = require('../models');
+const { SquadCaseState, CaseEvidence, CaseLegalProcess, CaseAction, Squad } = require('../models');
 
 /**
  * Deterministic rules engine for the investigation simulation. This file
@@ -14,9 +14,17 @@ const { SquadCaseState, CaseEvidence, CaseLegalProcess, CaseAction } = require('
  *     requires_entity_id: '<case_entities.id>' | null,
  *     requires_evidence_ids: ['<case_evidence.id>', ...],   // prior evidence prerequisite chain
  *     requires_legal_process: 'subpoena' | null,             // must have an approved CaseLegalProcess of this request_type
+ *     requires_squad_victim_code: 'REDSTONE' | null,          // must match this squad's Squad.victim_code — for
+ *                                                              // multi-victim cases (e.g. PACKET HEIST) where each
+ *                                                              // squad is assigned one victim and shouldn't see
+ *                                                              // another squad's victim-specific technical evidence.
+ *                                                              // Evidence with no victim restriction (e.g. shared
+ *                                                              // upstream-vendor/attribution evidence) is reachable
+ *                                                              // by any squad regardless of their assigned victim.
  *   }
  * `{ always: true }` marks evidence that's part of the initial complaint —
- * visible to every squad the moment they open the case, no action required.
+ * visible to every squad the moment they open the case (still subject to
+ * requires_squad_victim_code, if set), no action required.
  * This is the case-authoring surface (brief §29) — new investigative paths
  * are added by inserting case_evidence rows, not by editing this file.
  */
@@ -32,7 +40,7 @@ function prerequisitesMet(discoveredEvidenceIds, requiredIds) {
  * `approvedProcessTypes` is a Set<string> of this squad's already-approved
  * case_legal_processes.request_type values, computed once by the caller.
  */
-function resolveOutcome({ candidates, actionType, targetEntityId, discoveredEvidenceIds, approvedProcessTypes }) {
+function resolveOutcome({ candidates, actionType, targetEntityId, discoveredEvidenceIds, approvedProcessTypes, squadVictimCode = null }) {
   const matching = candidates.filter((ev) => {
     const cond = ev.unlock_conditions || {};
     if (cond.action_type !== actionType) return false;
@@ -49,8 +57,9 @@ function resolveOutcome({ candidates, actionType, targetEntityId, discoveredEvid
     const cond = ev.unlock_conditions || {};
     const prereqOk = prerequisitesMet(discoveredEvidenceIds, cond.requires_evidence_ids);
     const legalOk = !cond.requires_legal_process || approvedProcessTypes.has(cond.requires_legal_process);
-    if (prereqOk && legalOk) newlyEligible.push(ev);
-    else blocked.push({ evidence: ev, prereqOk, legalOk, requiresLegalProcess: cond.requires_legal_process });
+    const victimOk = !cond.requires_squad_victim_code || cond.requires_squad_victim_code === squadVictimCode;
+    if (prereqOk && legalOk && victimOk) newlyEligible.push(ev);
+    else blocked.push({ evidence: ev, prereqOk, legalOk, victimOk, requiresLegalProcess: cond.requires_legal_process });
   }
 
   let status = 'completed';
@@ -62,10 +71,13 @@ function resolveOutcome({ candidates, actionType, targetEntityId, discoveredEvid
     narrative = 'This has already been requested — nothing new resulted.';
   } else if (blocked.length > 0) {
     status = 'denied';
-    const reason = blocked.find((b) => !b.legalOk);
-    narrative = reason
-      ? `You do not currently have the legal authority (${reason.requiresLegalProcess}) required for this request.`
-      : 'You do not currently have sufficient information to pursue this request yet.';
+    const victimReason = blocked.find((b) => !b.victimOk);
+    const legalReason = blocked.find((b) => !b.legalOk);
+    narrative = victimReason
+      ? 'That is outside the scope of your squad\'s assigned matter.'
+      : legalReason
+        ? `You do not currently have the legal authority (${legalReason.requiresLegalProcess}) required for this request.`
+        : 'You do not currently have sufficient information to pursue this request yet.';
   } else {
     status = 'denied';
     narrative = 'That request does not lead anywhere in this investigation — reconsider the target or approach.';
@@ -74,7 +86,12 @@ function resolveOutcome({ candidates, actionType, targetEntityId, discoveredEvid
   return { status, narrative, newlyEligible, alreadyUnlocked, blocked };
 }
 
-/** New squad case states start seeded with whatever evidence/entities the intake complaint already discloses. */
+async function getSquadVictimCode(squadId) {
+  const squad = await Squad.findByPk(squadId, { attributes: ['victim_code'] });
+  return squad?.victim_code ?? null;
+}
+
+/** New squad case states start seeded with whatever evidence/entities the intake complaint already discloses, scoped to this squad's assigned victim if the case has victim-scoped evidence. */
 async function getOrCreateSquadCaseState(caseId, squadId) {
   const [state, created] = await SquadCaseState.findOrCreate({
     where: { case_id: caseId, squad_id: squadId },
@@ -82,8 +99,16 @@ async function getOrCreateSquadCaseState(caseId, squadId) {
   });
   if (!created) return state;
 
-  const intakeEvidence = await CaseEvidence.findAll({ where: { case_id: caseId } });
-  const alwaysVisible = intakeEvidence.filter((ev) => ev.unlock_conditions?.always === true);
+  const [intakeEvidence, squadVictimCode] = await Promise.all([
+    CaseEvidence.findAll({ where: { case_id: caseId } }),
+    getSquadVictimCode(squadId),
+  ]);
+  const alwaysVisible = intakeEvidence.filter((ev) => {
+    const cond = ev.unlock_conditions || {};
+    if (cond.always !== true) return false;
+    if (cond.requires_squad_victim_code && cond.requires_squad_victim_code !== squadVictimCode) return false;
+    return true;
+  });
   if (alwaysVisible.length === 0) return state;
 
   const entityIds = new Set();
@@ -108,14 +133,15 @@ async function getApprovedProcessTypes(caseId, squadId) {
  */
 async function evaluateAction({ caseId, squadId, actionType, targetEntityId = null, studentId = null, role = null, justificationText = null, extractedIntent = null, isInject = false }) {
   const state = await getOrCreateSquadCaseState(caseId, squadId);
-  const [candidates, approvedProcessTypes] = await Promise.all([
+  const [candidates, approvedProcessTypes, squadVictimCode] = await Promise.all([
     CaseEvidence.findAll({ where: { case_id: caseId } }),
     getApprovedProcessTypes(caseId, squadId),
+    getSquadVictimCode(squadId),
   ]);
 
   const discoveredEvidenceIds = [...(state.discovered_evidence_ids || [])];
   const { status, narrative, newlyEligible } = resolveOutcome({
-    candidates, actionType, targetEntityId, discoveredEvidenceIds, approvedProcessTypes,
+    candidates, actionType, targetEntityId, discoveredEvidenceIds, approvedProcessTypes, squadVictimCode,
   });
 
   const unlockedEntityIds = new Set(state.discovered_entity_ids || []);

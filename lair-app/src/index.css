@@ -3717,3 +3717,34 @@ body::after {
 .cf-guide-section-body p { margin: 0 0 10px; }
 .cf-guide-section-body ul { margin: 0 0 6px; padding-left: 20px; }
 .cf-guide-section-body li { margin-bottom: 6px; }
+
+/* ── Case File Tour — "Learn to Play" spotlight walkthrough ─────────────── */
+.cf-tour-layer { position: fixed; inset: 0; z-index: 1100; pointer-events: none; }
+.cf-tour-hole {
+  position: fixed; border-radius: 10px; pointer-events: none;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,.72), 0 0 0 2px var(--brass-bright, #e6c876), 0 0 24px rgba(230,200,118,.5);
+  transition: left .3s ease, top .3s ease, width .3s ease, height .3s ease;
+}
+.cf-tour-callout {
+  position: fixed; pointer-events: auto;
+  background: linear-gradient(160deg, var(--parchment, #ede1c3), var(--parchment-dark, #d8c89e));
+  color: var(--ink, #2c2013); border-radius: 8px; padding: 16px 18px;
+  box-shadow: 0 16px 40px rgba(0,0,0,.55), 0 0 0 3px var(--wood, #4a2f16), 0 0 0 5px var(--brass, #c8a24e);
+  transition: left .3s ease, top .3s ease, bottom .3s ease;
+}
+.cf-tour-progress {
+  font-family: 'Special Elite', var(--mono); font-size: 11px; letter-spacing: .06em;
+  color: var(--ink-soft, #5a4a34); text-transform: uppercase; margin-bottom: 6px;
+}
+.cf-tour-callout-title {
+  font-family: 'Bebas Neue', var(--display); letter-spacing: .05em; font-size: 20px;
+  color: var(--ink, #2c2013); margin-bottom: 8px;
+}
+.cf-tour-callout-body {
+  font-family: 'Special Elite', var(--mono); font-size: 13px; line-height: 1.6;
+  color: var(--ink-soft, #5a4a34);
+}
+.cf-tour-hint {
+  margin-top: 10px; font-size: 12px; font-weight: 600; color: var(--brass, #a3792f);
+}
+.cf-tour-btn-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; }

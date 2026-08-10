@@ -4,12 +4,15 @@ import { bandForCaseStrength, BAND_THRESHOLDS } from '../data/caseFileCaseUtils.
 import { CATEGORY_META, CATEGORIES, BAND_META, PRESSURE_META } from '../data/caseFileTheme.js';
 import CaseFileGuide from './CaseFileGuide.jsx';
 import { PLAYER_GUIDE_SECTIONS } from '../data/caseFileGuideContent.js';
+import CaseFileTourOverlay from './CaseFileTourOverlay.jsx';
+import useCaseFileTour from '../hooks/useCaseFileTour.js';
+import { PLAYER_TOUR_BEATS } from '../data/caseFileTourScript.js';
 
 function CaseStrengthTrack({ caseStrength }) {
   const cells = Array.from({ length: 31 }, (_, n) => n);
   const currentBand = bandForCaseStrength(caseStrength);
   return (
-    <div className="cf-track-panel">
+    <div className="cf-track-panel" data-tour="case-strength-track">
       <div className="cf-track-title">Case Strength Track</div>
       <div className="cf-track-row">
         {cells.map((n) => {
@@ -51,13 +54,24 @@ export default function CaseFilePlayer() {
   const [codeInput, setCodeInput] = useState('');
   const [joinCode, setJoinCode] = useState(null);
   const [playerGuideOpen, setPlayerGuideOpen] = useState(false);
-  const { connected, code, state, error, ended } = useCaseFileSession({
+
+  // "Learn to Play" — a scripted walkthrough that impersonates
+  // useCaseFileSession's return shape (see useCaseFileTour.js) so the real
+  // board below renders unmodified whether it's live or touring.
+  const tour = useCaseFileTour(PLAYER_TOUR_BEATS);
+
+  const live = useCaseFileSession({
     role: 'player',
     joinCode,
-    enabled: !!joinCode,
+    enabled: !!joinCode && !tour.active,
   });
+  const connected = tour.active ? true : live.connected;
+  const code = tour.active ? 'DEMO' : live.code;
+  const state = tour.active ? tour.state : live.state;
+  const error = tour.active ? null : live.error;
+  const ended = tour.active ? false : live.ended;
 
-  if (!joinCode || ended) {
+  if ((!joinCode || ended) && !tour.active) {
     return (
       <div className="ttx-wrap cf-tabletop">
         <div className="ttx-header">
@@ -66,6 +80,7 @@ export default function CaseFilePlayer() {
             <p className="page-subtitle" style={{ marginBottom: 0 }}>Enter the room code your facilitator gave you.</p>
           </div>
           <div className="ttx-session-controls">
+            <button className="btn-secondary" onClick={tour.start}>Learn to Play</button>
             <button className="btn-secondary" onClick={() => setPlayerGuideOpen(true)}>How to Play</button>
           </div>
         </div>
@@ -114,6 +129,7 @@ export default function CaseFilePlayer() {
           </p>
         </div>
         <div className="ttx-session-controls">
+          <button className="btn-secondary" onClick={tour.start}>Learn to Play</button>
           <button className="btn-secondary" onClick={() => setPlayerGuideOpen(true)}>How to Play</button>
         </div>
       </div>
@@ -131,12 +147,12 @@ export default function CaseFilePlayer() {
         <div className="cf-outcome-banner">Indictment secured — Defense Counterplay is now active.</div>
       )}
 
-      <div className="cf-board">
+      <div className="cf-board" data-tour="board">
         <CaseStrengthTrack caseStrength={state.caseStrength} />
 
         <div className="cf-board-main">
           {/* Evidence Decks (read-only — counts only, never card names) */}
-          <div className="cf-decks">
+          <div className="cf-decks" data-tour="decks">
             {CATEGORIES.map((cat) => {
               const meta = CATEGORY_META[cat];
               return (
@@ -156,7 +172,7 @@ export default function CaseFilePlayer() {
           </div>
 
           <div className="cf-center">
-            <div className="cf-playarea-panel">
+            <div className="cf-playarea-panel" data-tour="play-area">
               <div className="cf-track-title">Play Area</div>
               {state.resolvedEvidence.length === 0 ? (
                 <div className="cf-playarea-empty">No evidence resolved yet.</div>
@@ -179,7 +195,7 @@ export default function CaseFilePlayer() {
               )}
             </div>
 
-            <div className="cf-queue-panel">
+            <div className="cf-queue-panel" data-tour="queue">
               <div className="cf-track-title">Pending Returns Queue</div>
               <div className="cf-queue-row">
                 {queueSlots.map((p, i) => {
@@ -210,7 +226,7 @@ export default function CaseFilePlayer() {
         </div>
 
         <div className="cf-bottom">
-          <div className="cf-bank-panel">
+          <div className="cf-bank-panel" data-tour="status">
             <div className="cf-track-title">Status</div>
             <div className="cf-bank-row">
               <span className="ttx-panel-hint" style={{ margin: 0, minWidth: 130 }}>Command Pressure</span>
@@ -219,7 +235,7 @@ export default function CaseFilePlayer() {
               </span>
             </div>
           </div>
-          <div className="cf-turns-panel">
+          <div className="cf-turns-panel" data-tour="turns">
             <div className="cf-track-title">Round {state.round}</div>
             <div className="cf-turn-strip">
               {Array.from({ length: maxTurn }, (_, i) => i + 1).map((n) => (
@@ -229,6 +245,8 @@ export default function CaseFilePlayer() {
           </div>
         </div>
       </div>
+
+      {tour.active && <CaseFileTourOverlay tour={tour} />}
     </div>
   );
 }
