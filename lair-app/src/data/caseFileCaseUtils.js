@@ -11,9 +11,20 @@
 */
 
 import { POSITIVE_INJECTS, NEGATIVE_INJECTS } from './caseFileInjectDecks.js';
+import { referenceCardById } from './caseFileEvidenceDeck.js';
 
 export const positiveInjectFlavor = POSITIVE_INJECTS;
 export const negativeInjectFlavor = NEGATIVE_INJECTS;
+
+/**
+ * An evidenceCards entry either authors `name` inline (every card in the 3
+ * existing cases) or opts into the case-agnostic Evidence Card Reference via
+ * `ref` (see caseFileEvidenceDeck.js) and leaves `name` unset.
+ */
+function resolveCardName(entry) {
+  if (!entry.ref) return entry.name;
+  return referenceCardById(entry.category, entry.ref)?.name ?? entry.ref;
+}
 
 const BAND_THRESHOLDS = [
   { key: 'intake', label: 'Intake', min: 0, max: 4 },
@@ -33,7 +44,7 @@ export { BAND_THRESHOLDS };
 export function caseDefiningDevelopments(caseData) {
   return caseData.evidenceCards
     .filter((c) => c.caseDefining)
-    .map((c) => ({ cardId: c.id, name: c.name }));
+    .map((c) => ({ cardId: c.id, name: resolveCardName(c) }));
 }
 
 /** Deck payload — grouped card IDs, ready for coordinator.createSession() via the WS `join` message. */
@@ -50,7 +61,9 @@ export function buildDeckPayload(caseData) {
 }
 
 export function findCard(caseData, cardId) {
-  return caseData.evidenceCards.find((c) => c.id === cardId) ?? null;
+  const entry = caseData.evidenceCards.find((c) => c.id === cardId);
+  if (!entry) return null;
+  return { ...entry, name: resolveCardName(entry) };
 }
 
 export function findFact(caseData, factId) {

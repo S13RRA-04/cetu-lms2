@@ -15,10 +15,9 @@
   State snapshots follow the server's publicState() shape exactly
   (backend/src/realtime/caseFileCoordinator.js:83-106) so the real board
   JSX renders them with zero changes. Numbers are illustrative, not a real
-  simulation — starting tokens are a bit more generous than live play (2
-  per category vs. the server's 1) so the demo has room to show Consolidate
-  / Develop / a second roll without needing awkward "recovered a token
-  off-screen" hand-waving.
+  simulation — 2 tokens per category matches live play's starting amount,
+  giving the demo room to show Consolidate / Develop / a second roll
+  without needing awkward "recovered a token off-screen" hand-waving.
 
   Uses The Meridian Consulting Skim's real card names so the demo Play Area
   reads like an actual case, not placeholder text.
@@ -43,6 +42,7 @@ const BASE_STATE = {
   commandPressure: 'green',
   consolidateRemaining: 8,
   consolidateCap: 8,
+  consolidateUsedThisRound: false,
   professionalJudgmentUsed: false,
   tokens: freshTokens(2),
   resolvedEvidence: [],
@@ -104,12 +104,28 @@ export const FACILITATOR_TOUR_BEATS = [
     title: 'Rolling the d20',
     body: 'Documents is armed — click the glowing d20 to roll. The result decides what you draw and whether Case Strength moves.',
     result: {
-      roll: { nat: 8, modified: 8, band: 'partial_success', categoryDieRoll: 5 },
-      drawn: [{ cardId: 'fin-02', category: 'financial' }],
+      roll: { nat: 8, modified: 8, band: 'partial_success', categoryDieRoll: null, categoryDiePending: true },
+      drawn: [],
       injects: [],
     },
     stateAfter: (() => {
       withTokens({ documents: cur.tokens.documents - 1 });
+      return cur;
+    })(),
+  },
+  {
+    target: 'dice', type: 'narrate', started: true, state: cur,
+    lastResult: { action: 'investigate', requestId: 9000, result: { roll: { nat: 8, modified: 8, band: 'partial_success', categoryDieRoll: null, categoryDiePending: true }, drawn: [], injects: [] } },
+    title: 'Reading the Result',
+    body: "d20 = 8, a Partial Success (the 6–10 band): nothing is drawn yet. The only card this roll gets comes from a Category Die roll — until that actually happens, not even the category is decided, let alone the card. Higher rolls do more — a natural 20 ignores Command Pressure entirely, nets a flat +3 for your original pick, and still owes its own Category Die roll for a bonus card on top, plus a Positive Inject.",
+  },
+  {
+    target: 'dice', type: 'action', started: true, state: cur,
+    lastResult: { action: 'investigate', requestId: 9000, result: { roll: { nat: 8, modified: 8, band: 'partial_success', categoryDieRoll: null, categoryDiePending: true }, drawn: [], injects: [] } },
+    title: 'The Category Die',
+    body: 'A d6 has appeared next to the d20 — click it to actually roll. This is the real reveal: nothing about the bonus card, not even which category it comes from, exists until this roll happens.',
+    result: { categoryDieRoll: 5, drawn: [{ cardId: 'fin-02', category: 'financial' }] },
+    stateAfter: (() => {
       withDeckCounts({ financial: cur.deckCounts.financial - 1 });
       step({
         caseStrength: cur.caseStrength + 1,
@@ -120,18 +136,6 @@ export const FACILITATOR_TOUR_BEATS = [
       });
       return cur;
     })(),
-  },
-  {
-    target: 'dice', type: 'narrate', started: true, state: cur,
-    lastResult: { action: 'investigate', requestId: 9000, result: { roll: { nat: 8, modified: 8, band: 'partial_success', categoryDieRoll: 5 }, drawn: [{ cardId: 'fin-02', category: 'financial' }], injects: [] } },
-    title: 'Reading the Result',
-    body: "d20 = 8, a Partial Success (the 6–10 band): +1 Case Strength, but the card doesn't come from Documents — roll the Category Die and resolve one Evidence Card from whatever category it lands on instead. Higher rolls do more — a natural 20 ignores Command Pressure entirely and nets +3, your original card plus a bonus one from the die, and a Positive Inject.",
-  },
-  {
-    target: 'dice', type: 'narrate', started: true, state: cur,
-    lastResult: { action: 'investigate', requestId: 9000, result: { roll: { nat: 8, modified: 8, band: 'partial_success', categoryDieRoll: 5 }, drawn: [{ cardId: 'fin-02', category: 'financial' }], injects: [] } },
-    title: 'The Category Die',
-    body: 'On a Partial Success, a d6 appears next to the d20 — click it to tumble to the category the card actually comes from, which can differ from the one you armed. Here it landed on Financial instead of Documents, drawing a Suspicious Activity Report. (On a Critical Success the die draws an extra card on top of your original pick, rather than replacing it.)',
   },
   {
     target: 'play-area', type: 'narrate', started: true,
@@ -175,7 +179,7 @@ export const FACILITATOR_TOUR_BEATS = [
   {
     target: 'command-panel', type: 'narrate', started: true, state: cur,
     title: 'Consolidate, Professional Judgment & Convert',
-    body: 'Consolidate the Case recovers one token of your choice, capped at 8 uses per game — a buffer against bad luck, not a resource to lean on. Professional Judgment forces a reroll, once per game. Convert Tokens trades 2 tokens in one category for 1 in another when a team over-invests in one lane.',
+    body: 'Consolidate the Case stands in for the round\'s action — no roll, recover 1 token of your choice, but Command Pressure rises a level and it\'s usable once per round (on top of an 8-uses-per-game cap). Professional Judgment forces a reroll, once per game. Convert Tokens trades 2 tokens for 1 in another category — the 2 can be from the same over-invested lane, or one each from two different lanes.',
   },
   {
     target: 'advance-round', type: 'action', started: true, state: cur,

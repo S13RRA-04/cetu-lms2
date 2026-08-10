@@ -10,12 +10,17 @@ const WS_PATH = '/ws/case-file';
 const AUTH_TIMEOUT_MS = 5000;
 const FACILITATOR_ROLES = new Set(['admin', 'instructor', 'superadmin']);
 
-// Every action's handler, keyed by name. Most are facilitator-only; the
-// dispatcher below additionally lets a player socket call `investigate` on
-// their turn. The coordinator method of the same name is called with the
-// parsed message (minus `type`/`action`).
+// Player-permitted actions, split by how they're gated (see the dispatcher
+// below for the full rationale). Everything else in FACILITATOR_ACTIONS
+// stays facilitator-only.
+const PLAYER_TURN_ACTIONS = new Set(['investigate', 'roll_category_die']);
+const PLAYER_OPEN_ACTIONS = new Set(['recover_token', 'lose_token']);
+
+// Every action's handler, keyed by name. The coordinator method of the same
+// name is called with the parsed message (minus `type`/`action`).
 const FACILITATOR_ACTIONS = {
   investigate: (c, msg) => c.investigate(msg),
+  roll_category_die: (c, msg) => c.rollCategoryDie(msg),
   develop: (c, msg) => c.develop(msg),
   mark_case_defining: (c, msg) => c.markCaseDefining(msg),
   consolidate: (c, msg) => c.consolidate(msg),
@@ -134,19 +139,30 @@ async function attachCaseFileSocket(httpServer, options = {}) {
         if (msg.type === 'ping') return;
 
         if (msg.type === 'action') {
-          // Facilitator: full action set, always. Player: only Investigate,
-          // and only on their turn — Develop and everything else stays
-          // facilitator-only because they hinge on judgment calls or on
-          // card identities a player's client structurally never receives.
+          // Facilitator: full action set, always.
+          //
+          // Player: three tiers, matching how much judgment/private info an
+          // effect needs —
+          //  - Investigate / its follow-up Category Die roll: whoever's turn
+          //    it is (see activePlayerId).
+          //  - Recover/lose a Resource Token (a Momentum/Setback inject's
+          //    effect): just a category choice, which is public info any
+          //    player already sees — any connected player, no turn gate.
+          //  - Everything else (Develop, marking Case-Defining, Lead/
+          //    Expedite/Delay/Suppression injects, Grand Jury, pressure
+          //    overrides, ...): facilitator-only, because they hinge on
+          //    judgment calls or on card identities a player's client
+          //    structurally never receives.
           if (ws.__role === 'player') {
-            if (msg.action !== 'investigate') {
+            if (PLAYER_TURN_ACTIONS.has(msg.action)) {
+              let current;
+              try { current = coordinator.getState(ws.__code); }
+              catch (error) { return send(ws, { type: 'error', message: error.message, action: msg.action, requestId: msg.requestId }); }
+              if (current.activePlayerId !== ws.__user.id) {
+                return send(ws, { type: 'error', message: 'Not your turn.', action: msg.action, requestId: msg.requestId });
+              }
+            } else if (!PLAYER_OPEN_ACTIONS.has(msg.action)) {
               return send(ws, { type: 'error', message: 'Only the facilitator can take that action', action: msg.action, requestId: msg.requestId });
-            }
-            let current;
-            try { current = coordinator.getState(ws.__code); }
-            catch (error) { return send(ws, { type: 'error', message: error.message, action: msg.action, requestId: msg.requestId }); }
-            if (current.activePlayerId !== ws.__user.id) {
-              return send(ws, { type: 'error', message: 'Not your turn to investigate.', action: msg.action, requestId: msg.requestId });
             }
           } else if (ws.__role !== 'facilitator') {
             return send(ws, { type: 'error', message: 'Only the facilitator can take actions' });
@@ -156,7 +172,15 @@ async function attachCaseFileSocket(httpServer, options = {}) {
           if (!handler) return send(ws, { type: 'error', message: `Unknown action: ${msg.action}` });
           try {
             const result = handler(coordinator, { ...msg.params, code: ws.__code });
-            send(ws, { type: 'action_result', action: msg.action, requestId: msg.requestId, result });
+            // Broadcast, not unicast: every roll's outcome (including any
+            // drawn injects) has to reach the whole room, not just whoever
+            // triggered it — the facilitator still has to resolve
+            // facilitator-only injects even when a player rolled them, and
+            // any player can resolve a Momentum/Setback token inject
+            // regardless of who drew it. Nothing here is more sensitive
+            // broadcast than unicast — drawn cardIds are already opaque to
+            // any client without the bundled case file.
+            broadcastToRoom(ws.__code, { type: 'action_result', action: msg.action, requestId: msg.requestId, result });
           } catch (error) {
             send(ws, { type: 'error', message: error.message, action: msg.action, requestId: msg.requestId });
           }

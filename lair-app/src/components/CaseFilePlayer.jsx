@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import useCaseFileSession from '../hooks/useCaseFileSession.js';
 import useAuthStore from '../store/authStore.js';
-import { bandForCaseStrength, BAND_THRESHOLDS } from '../data/caseFileCaseUtils.js';
+import { bandForCaseStrength, BAND_THRESHOLDS, positiveInjectById, negativeInjectById } from '../data/caseFileCaseUtils.js';
 import { CATEGORY_META, CATEGORIES, BAND_META, PRESSURE_META } from '../data/caseFileTheme.js';
 import CaseFileGuide from './CaseFileGuide.jsx';
 import { PLAYER_GUIDE_SECTIONS } from '../data/caseFileGuideContent.js';
@@ -11,6 +11,7 @@ import { PLAYER_TOUR_BEATS } from '../data/caseFileTourScript.js';
 import { Die20, Die6 } from './CaseFileDice.jsx';
 
 const ROLL_MIN_MS = 550;
+const ROLL6_MIN_MS = 500;
 
 function CaseStrengthTrack({ caseStrength }) {
   const cells = Array.from({ length: 31 }, (_, n) => n);
@@ -95,10 +96,15 @@ export default function CaseFilePlayer() {
   const rollStart = useRef(0);
   const pendingRequestId = useRef(null);
 
-  const [pendingCategoryDie, setPendingCategoryDie] = useState(null); // { value, bonusCategory } | null
+  // Nothing about the Category Die — not even which category — is known
+  // until it's actually rolled via roll_category_die(); investigate() only
+  // reports that one is owed (roll.categoryDiePending).
+  const [pendingCategoryDie, setPendingCategoryDie] = useState(null); // { bonusCategory? } | null
   const [rollFace6, setRollFace6] = useState(null);
   const [rolling6, setRolling6] = useState(false);
   const roll6Timer = useRef(null);
+  const roll6Start = useRef(0);
+  const pendingRoll6RequestId = useRef(null);
 
   useEffect(() => () => {
     clearInterval(rollTimer.current);
@@ -114,15 +120,61 @@ export default function CaseFilePlayer() {
       setRollFace(lastResult.result?.roll?.nat ?? null);
       setRolling(false);
       setRollingCategory(null);
-      const dieRoll = lastResult.result?.roll?.categoryDieRoll;
-      if (dieRoll) {
-        const bonus = lastResult.result.drawn?.[lastResult.result.drawn.length - 1];
-        setPendingCategoryDie({ value: dieRoll, bonusCategory: bonus?.category });
-      }
+      if (lastResult.result?.roll?.categoryDiePending) setPendingCategoryDie({});
     }, wait);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastResult, rolling]);
+
+  useEffect(() => {
+    if (!rolling6 || !lastResult || lastResult.requestId !== pendingRoll6RequestId.current) return;
+    const elapsed = Date.now() - roll6Start.current;
+    const wait = Math.max(0, ROLL6_MIN_MS - elapsed);
+    const t = setTimeout(() => {
+      clearInterval(roll6Timer.current);
+      setRollFace6(lastResult.result?.categoryDieRoll ?? null);
+      setRolling6(false);
+      const bonus = lastResult.result?.drawn?.[0];
+      setPendingCategoryDie((prev) => (prev ? { ...prev, bonusCategory: bonus?.category } : prev));
+    }, wait);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastResult, rolling6]);
+
+  // Pending Injects a player can actually resolve — just Momentum (recover a
+  // token) and Setback (lose a token): a category choice, no private card
+  // info needed, so any connected player can act on it, not just whoever
+  // rolled it. Everything else (Lead/Expedite/Delay/Suppression) needs the
+  // facilitator's card knowledge and never shows up here. action_result is
+  // broadcast to the whole room now, so this fires for any player's roll.
+  const [pendingInjects, setPendingInjects] = useState([]);
+  const seenInjectKeyRef = useRef(new Set());
+
+  useEffect(() => {
+    if (!lastResult?.result?.injects?.length) return;
+    const additions = [];
+    lastResult.result.injects.forEach((inj, i) => {
+      if (inj.type !== 'positive' && inj.type !== 'negative') return;
+      const key = `${lastResult.requestId}-${i}-${inj.cardId}`;
+      if (seenInjectKeyRef.current.has(key)) return;
+      seenInjectKeyRef.current.add(key);
+      const ref = inj.type === 'positive' ? positiveInjectById(inj.cardId) : negativeInjectById(inj.cardId);
+      if (!ref || (ref.effect !== 'recover_token' && ref.effect !== 'lose_token')) return;
+      additions.push({ uid: key, type: inj.type, title: ref.title, flavor: ref.flavor, band: ref.band, effect: ref.effect, category: CATEGORIES[0] });
+    });
+    if (additions.length) setPendingInjects((prev) => [...prev, ...additions]);
+  }, [lastResult]);
+
+  function updatePendingInject(uid, patch) {
+    setPendingInjects((prev) => prev.map((p) => (p.uid === uid ? { ...p, ...patch } : p)));
+  }
+  function dismissPendingInject(uid) {
+    setPendingInjects((prev) => prev.filter((p) => p.uid !== uid));
+  }
+  function applyPendingInject(pi) {
+    sendAction(pi.effect, { category: pi.category });
+    dismissPendingInject(pi.uid);
+  }
 
   function armCategory(cat) {
     if (!isMyTurn || rolling || !state || state.tokens[cat] <= 0 || state.gameOver) return;
@@ -147,14 +199,10 @@ export default function CaseFilePlayer() {
   function rollD6() {
     if (!pendingCategoryDie || rolling6) return;
     setRolling6(true);
+    roll6Start.current = Date.now();
     clearInterval(roll6Timer.current);
     roll6Timer.current = setInterval(() => setRollFace6(1 + Math.floor(Math.random() * 6)), 70);
-    const target = pendingCategoryDie.value;
-    setTimeout(() => {
-      clearInterval(roll6Timer.current);
-      setRollFace6(target);
-      setRolling6(false);
-    }, 500);
+    pendingRoll6RequestId.current = sendAction('roll_category_die', {});
   }
 
   if ((!joinCode || ended) && !tour.active) {
@@ -373,6 +421,25 @@ export default function CaseFilePlayer() {
               <div className="cf-pile-count">{state.professionalJudgmentUsed ? '0' : '1'}</div>
               <div className="cf-pile-label">Professional Judgment</div>
             </div>
+
+            {pendingInjects.length > 0 && (
+              <div className="cf-pending-injects">
+                <div className="cf-pending-injects-head">Pending — Anyone Can Apply</div>
+                {pendingInjects.map((pi) => (
+                  <div key={pi.uid} className={`cf-inject-card cf-inject-${pi.type}`}>
+                    <strong>{pi.title}</strong> <span className="cf-cat-tag">{pi.band}</span>
+                    <div className="ttx-panel-hint" style={{ margin: '2px 0 6px' }}>{pi.flavor}</div>
+                    <select className="cf-select" style={{ width: '100%' }} value={pi.category} onChange={(e) => updatePendingInject(pi.uid, { category: e.target.value })}>
+                      {CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_META[c].label}</option>)}
+                    </select>
+                    <div className="cf-btn-row" style={{ marginTop: 6 }}>
+                      <button className="btn-sm-primary" style={{ flex: 1 }} onClick={() => applyPendingInject(pi)}>Apply</button>
+                      <button className="btn-secondary" style={{ flex: 1 }} onClick={() => dismissPendingInject(pi.uid)}>Dismiss</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

@@ -33,10 +33,10 @@ export const PLAYER_GUIDE_SECTIONS = [
       'Pressure) against this table:',
     ],
     list: [
-      'Natural 20 (Critical Success): pressure ignored, +3 Case Strength, a bonus card via the d6, a Positive Inject, and your token back.',
+      'Natural 20 (Critical Success): pressure ignored, +3 Case Strength for your original pick, a Positive Inject, your token back, and a bonus card once you roll the Category Die.',
       '16–19 (Opportunity): +1 Case Strength, a Positive Inject.',
       '11–15 (Success): +1 Case Strength.',
-      "6–10 (Partial Success): +1 Case Strength, but the card comes from a category picked by the d6, not the one you armed.",
+      "6–10 (Partial Success): +1 Case Strength, but nothing is drawn yet — the Category Die decides both the category and the card, and nothing about either is known until you actually roll it.",
       '2–5 (Complication): +1 Case Strength, 1 Negative Inject.',
       'Natural 1 (Major Complication): +1 Case Strength, 2 Negative Injects.',
     ],
@@ -72,8 +72,12 @@ export const PLAYER_GUIDE_SECTIONS = [
   {
     heading: 'Consolidate the Case & Professional Judgment',
     paragraphs: [
-      'Consolidate the Case recovers a token of your choice, but only a limited number of times per game ' +
-      '(8, by default) — it\'s your buffer against bad luck, not a resource to rely on constantly. ' +
+      'Consolidate the Case stands in for the round\'s action — instead of Investigating or Developing, ' +
+      'the team recovers 1 token of their choice with no roll and no Negative Inject risk. Because it ' +
+      'takes the place of the round\'s action, it\'s usable at most once per round, on top of the ' +
+      'game-wide cap (8, by default) — it\'s a buffer against bad luck, not a resource to lean on every ' +
+      'round. The trade-off: Command Pressure rises 1 level each time it\'s used, since recovering ' +
+      'resources outside normal channels draws scrutiny. ' +
       'Professional Judgment can be spent once per game to call for a reroll — save it for a roll that ' +
       'really matters.',
     ],
@@ -129,13 +133,14 @@ export const INSTRUCTOR_GUIDE_SECTIONS = [
     heading: 'Running a Round',
     paragraphs: [
       'Click an Evidence Deck to arm that category (it glows), then click the d20 itself to actually roll ' +
-      '— nothing happens until you click the die. If the roll draws a bonus card, a d6 appears next to it; ' +
-      'click that too to reveal which category the bonus comes from. Any Positive or Negative Inject drawn ' +
+      '— nothing happens until you click the die. On a Partial or Critical Success, a d6 also appears next ' +
+      'to it — click that too to actually roll it; that’s the real reveal, not just an animation, so ' +
+      'nothing about that card (not even its category) is decided until you do. Any Positive or Negative Inject drawn ' +
       'shows up in the Pending Injects panel below the board — pick a target where needed (a category, a ' +
       'queued card, a resolved card) and click Apply to actually apply its effect, or Dismiss to skip it.',
     ],
     list: [
-      'Consolidate on a deck tile recovers one token of that category (limited uses).',
+      'Consolidate on a deck tile recovers one token of that category — once per round, and it raises Command Pressure a level.',
       'Develop → [instrument] on a resolved card in the Play Area sends it through the legal ladder.',
       'Advance Round ticks the Pending Returns Queue down and starts the next round.',
     ],

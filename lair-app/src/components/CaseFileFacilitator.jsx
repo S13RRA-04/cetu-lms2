@@ -10,6 +10,7 @@ import {
   BAND_THRESHOLDS,
   findCard as findCardUtil,
   findFact as findFactUtil,
+  findDefenseCard as findDefenseCardUtil,
   positiveInjectById,
   negativeInjectById,
 } from '../data/caseFileCaseUtils.js';
@@ -29,6 +30,7 @@ const LADDER = {
 const NEXT_TIER = { discovered: 'subpoena', subpoena: 'court_order', court_order: 'search_warrant' };
 const TIER_RANK = { discovered: 0, subpoena: 1, court_order: 2, search_warrant: 3 };
 const ROLL_MIN_MS = 550;
+const ROLL6_MIN_MS = 500;
 
 function tierLabel(tier) {
   return tier === 'discovered' ? 'Discovered' : (LADDER[tier]?.label ?? tier);
@@ -88,6 +90,7 @@ export default function CaseFileFacilitator() {
   // site below (findCard(id), findFact(id)) reads unchanged.
   const findCard = (id) => findCardUtil(activeCase, id);
   const findFact = (id) => findFactUtil(activeCase, id);
+  const findDefenseCard = (id) => findDefenseCardUtil(activeCase, id);
 
   // "Learn to Play" — a scripted walkthrough that impersonates
   // useCaseFileSession's return shape (see useCaseFileTour.js) so the real
@@ -114,6 +117,7 @@ export default function CaseFileFacilitator() {
   }
 
   const [convertFrom, setConvertFrom] = useState('documents');
+  const [convertFrom2, setConvertFrom2] = useState('documents');
   const [convertTo, setConvertTo] = useState('financial');
   const [guideOpen, setGuideOpen] = useState(false);
   const [instructorGuideOpen, setInstructorGuideOpen] = useState(false);
@@ -136,15 +140,17 @@ export default function CaseFileFacilitator() {
     if (tour.active && tour.step?.autoArm) setArmedCategory(tour.step.autoArm);
   }, [tour.active, tour.stepIndex]);
 
-  // Category Die (d6) — only relevant on Partial Success / Critical Success
-  // bands (a bonus card is drawn from a d6-selected category). The value is
-  // already known once the d20's action_result arrives, but the facilitator
-  // still explicitly clicks the d6 to watch it tumble to that value, rather
-  // than it just appearing.
-  const [pendingCategoryDie, setPendingCategoryDie] = useState(null); // { value, bonusCategory, bonusCardName } | null
+  // Category Die (d6) — owed on Partial Success / Critical Success bands.
+  // Nothing about it — not even which category — is known until this die
+  // is actually rolled: investigate() only reports that one is pending
+  // (roll.categoryDiePending); the real roll_category_die action is what
+  // resolves and draws the card, exactly like the d20's own roll.
+  const [pendingCategoryDie, setPendingCategoryDie] = useState(null); // { bonusCategory? } | null
   const [rollFace6, setRollFace6] = useState(null);
   const [rolling6, setRolling6] = useState(false);
   const roll6Timer = useRef(null);
+  const roll6Start = useRef(0);
+  const pendingRoll6RequestId = useRef(null);
 
   // Card-flip choreography: a card renders face-down the instant it appears
   // in resolvedEvidence, then flips face-up on a short stagger — revealedIds
@@ -175,15 +181,43 @@ export default function CaseFileFacilitator() {
   }, [ended]);
 
   useEffect(() => {
-    if (!lastResult?.result?.injects?.length) return;
+    if (!lastResult?.result?.injects?.length || !state) return;
     const additions = [];
     lastResult.result.injects.forEach((inj, i) => {
-      if (inj.type !== 'positive' && inj.type !== 'negative') return;
       const key = `${lastResult.requestId}-${i}-${inj.cardId}`;
       if (seenInjectKeyRef.current.has(key)) return;
+
+      if (inj.type === 'defense_counterplay') {
+        // Auto-drawn post-indictment (see caseFileCoordinator.js investigate())
+        // — previously the only way to act on one was to hunt it down by hand
+        // in the Defense Counterplay Reference list below; surface it here
+        // instead, pre-wired to the actual card that was drawn.
+        seenInjectKeyRef.current.add(key);
+        const card = findDefenseCard(inj.cardId);
+        if (!card) return;
+        const corroborated = card.corroborationImmune
+          ? new Set(state.resolvedEvidence.filter((e) => findCard(e.cardId)?.factId === card.corroborationImmune).map((e) => e.cardId)).size >= 2
+          : false;
+        additions.push({
+          uid: key, type: inj.type, cardId: inj.cardId, effect: 'defense_counterplay',
+          title: card.name, flavor: card.effect, band: null, immune: corroborated,
+        });
+        return;
+      }
+
+      if (inj.type !== 'positive' && inj.type !== 'negative') return;
       seenInjectKeyRef.current.add(key);
       const ref = inj.type === 'positive' ? positiveInjectById(inj.cardId) : negativeInjectById(inj.cardId);
       if (!ref) return;
+      if (ref.effect === 'reduce_pressure' || ref.effect === 'increase_pressure') {
+        // Random band-shift — there's no target to choose, so it applies
+        // itself the instant it's drawn rather than waiting on a click.
+        const idx = PRESSURE_LEVELS.indexOf(state.commandPressure);
+        const delta = ref.effect === 'reduce_pressure' ? -1 : 1;
+        const level = PRESSURE_LEVELS[Math.max(0, Math.min(PRESSURE_LEVELS.length - 1, idx + delta))];
+        sendAction('set_command_pressure', { level });
+        return;
+      }
       additions.push({
         uid: key, type: inj.type, cardId: inj.cardId,
         title: ref.title, flavor: ref.flavor, band: ref.band, effect: ref.effect,
@@ -191,6 +225,7 @@ export default function CaseFileFacilitator() {
       });
     });
     if (additions.length) setPendingInjects((prev) => [...prev, ...additions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastResult]);
 
   function updatePendingInject(uid, patch) {
@@ -199,24 +234,20 @@ export default function CaseFileFacilitator() {
   function dismissPendingInject(uid) {
     setPendingInjects((prev) => prev.filter((p) => p.uid !== uid));
   }
+  // reduce_pressure/increase_pressure never reach here — they're auto-applied
+  // the instant they're drawn (see the intake effect above), since there's no
+  // target to choose.
   function applyPendingInject(pi) {
     switch (pi.effect) {
       case 'recover_token': sendAction('recover_token', { category: pi.category }); break;
       case 'lose_token': sendAction('lose_token', { category: pi.category }); break;
       case 'bonus_card': sendAction('draw_bonus_card', { category: pi.category }); break;
-      case 'reduce_pressure': {
-        const idx = PRESSURE_LEVELS.indexOf(state.commandPressure);
-        sendAction('set_command_pressure', { level: PRESSURE_LEVELS[Math.max(0, idx - 1)] });
-        break;
-      }
-      case 'increase_pressure': {
-        const idx = PRESSURE_LEVELS.indexOf(state.commandPressure);
-        sendAction('set_command_pressure', { level: PRESSURE_LEVELS[Math.min(PRESSURE_LEVELS.length - 1, idx + 1)] });
-        break;
-      }
       case 'expedite_queue': if (pi.queueCardId) sendAction('expedite_pending', { cardId: pi.queueCardId }); break;
       case 'delay_queue': if (pi.queueCardId) sendAction('delay_pending', { cardId: pi.queueCardId }); break;
       case 'suppress_evidence': if (pi.evidenceCardId) sendAction('suppress_evidence', { cardId: pi.evidenceCardId }); break;
+      case 'defense_counterplay':
+        sendAction('apply_defense_counterplay', { cardId: pi.cardId, immune: pi.immune, tokenPenalty: { category: 'financial', amount: 1 } });
+        break;
       default: break;
     }
     dismissPendingInject(pi.uid);
@@ -249,12 +280,7 @@ export default function CaseFileFacilitator() {
       setRollFace(lastResult.result?.roll?.nat ?? null);
       setRolling(false);
       setRollingCategory(null);
-      const dieRoll = lastResult.result?.roll?.categoryDieRoll;
-      if (dieRoll) {
-        const bonus = lastResult.result.drawn?.[lastResult.result.drawn.length - 1];
-        const bonusCard = bonus ? findCard(bonus.cardId) : null;
-        setPendingCategoryDie({ value: dieRoll, bonusCategory: bonus?.category, bonusCardName: bonusCard?.name ?? bonus?.cardId });
-      }
+      if (lastResult.result?.roll?.categoryDiePending) setPendingCategoryDie({});
       if (lastResult.result?.injects?.length) {
         const kind = lastResult.result.injects[0].type;
         setFlashPile(kind);
@@ -264,6 +290,21 @@ export default function CaseFileFacilitator() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastResult, rolling]);
+
+  useEffect(() => {
+    if (!rolling6 || !lastResult || lastResult.requestId !== pendingRoll6RequestId.current) return;
+    const elapsed = Date.now() - roll6Start.current;
+    const wait = Math.max(0, ROLL6_MIN_MS - elapsed);
+    const t = setTimeout(() => {
+      clearInterval(roll6Timer.current);
+      setRollFace6(lastResult.result?.categoryDieRoll ?? null);
+      setRolling6(false);
+      const bonus = lastResult.result?.drawn?.[0];
+      setPendingCategoryDie((prev) => (prev ? { ...prev, bonusCategory: bonus?.category } : prev));
+    }, wait);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastResult, rolling6]);
 
   function startWithCase() {
     if (tour.active) { tour.next(); return; } // this click is just the tour's spotlight beat — don't open a real session
@@ -323,18 +364,14 @@ export default function CaseFileFacilitator() {
     setArmedCategory(null);
   }
 
-  /** Optional 3rd step: click the d6 to tumble to the category already picked server-side for the bonus card. */
+  /** Optional 3rd step: click the d6 to actually roll it — this is the real reveal, resolved and drawn server-side only now. */
   function rollD6() {
     if (!pendingCategoryDie || rolling6) return;
     setRolling6(true);
+    roll6Start.current = Date.now();
     clearInterval(roll6Timer.current);
     roll6Timer.current = setInterval(() => setRollFace6(1 + Math.floor(Math.random() * 6)), 70);
-    const target = pendingCategoryDie.value;
-    setTimeout(() => {
-      clearInterval(roll6Timer.current);
-      setRollFace6(target);
-      setRolling6(false);
-    }, 500);
+    pendingRoll6RequestId.current = sendAction('roll_category_die', {});
   }
 
   if (!started || !state) {
@@ -492,7 +529,8 @@ export default function CaseFileFacilitator() {
                     <button
                       className="cf-deck-btn"
                       style={{ '--cat-color': meta.color }}
-                      disabled={state.consolidateRemaining <= 0 || state.gameOver}
+                      disabled={state.consolidateRemaining <= 0 || state.consolidateUsedThisRound || state.gameOver}
+                      title={state.consolidateUsedThisRound ? 'Already used this round — stands in for the round\'s action' : 'Recover 1 token here in place of Investigating/Developing this round (Command Pressure rises 1 level)'}
                       onClick={(e) => { e.stopPropagation(); sendAction('consolidate', { category: cat }); }}
                     >
                       Consolidate
@@ -572,9 +610,20 @@ export default function CaseFileFacilitator() {
                     const nextTier = NEXT_TIER[e.tier];
                     const ladderStep = nextTier ? LADDER[nextTier] : null;
                     const alreadyQueued = state.pendingReturns.some((p) => p.cardId === e.cardId);
-                    const canDevelop = routed && ladderStep && !alreadyQueued && !state.gameOver
-                      && state.caseStrength >= ladderStep.minCaseStrength
-                      && card && state.tokens[card.category] > 0;
+                    const meetsCaseStrength = ladderStep && state.caseStrength >= ladderStep.minCaseStrength;
+                    const hasTokens = card && state.tokens[card.category] > 0;
+                    const canDevelop = routed && ladderStep && !alreadyQueued && !state.gameOver && meetsCaseStrength && hasTokens;
+                    // The disabled button used to always say "Requires Case Strength X+"
+                    // regardless of which condition actually failed — e.g. it looked
+                    // like a Case Strength block even when the real blocker was an
+                    // exhausted token pool. Report the actual reason instead.
+                    const developBlockedReason = !routed
+                      ? 'Facilitator judgment call — not routed through the ladder'
+                      : !meetsCaseStrength
+                        ? `Requires Case Strength ${ladderStep?.minCaseStrength}+ (currently ${state.caseStrength})`
+                        : !hasTokens
+                          ? `No ${card ? CATEGORY_META[card.category].label : ''} tokens remaining`
+                          : '';
                     const flipped = revealedIds.has(e.cardId);
                     return (
                       <div
@@ -601,7 +650,7 @@ export default function CaseFileFacilitator() {
                               {!alreadyQueued && ladderStep && (
                                 <button
                                   disabled={!canDevelop}
-                                  title={!routed ? 'Facilitator judgment call — not routed through the ladder' : `Requires Case Strength ${ladderStep.minCaseStrength}+`}
+                                  title={developBlockedReason || `Advance to ${ladderStep.label}`}
                                   onClick={() => sendAction('develop', { category: card.category, cardId: e.cardId, targetTier: nextTier, delay: ladderStep.delay })}
                                 >
                                   → {ladderStep.label}
@@ -653,6 +702,49 @@ export default function CaseFileFacilitator() {
                 <div className="cf-pile-label">Defense Counterplay</div>
               </div>
             )}
+
+            {/* Pending Injects — drawn Positive/Negative cards awaiting a target before their mechanical effect applies. Lives here, right under the piles that drew them, instead of scrolled off at the bottom of the page. */}
+            {pendingInjects.length > 0 && (
+              <div className="cf-pending-injects" data-tour="pending-injects">
+                <div className="cf-pending-injects-head">Pending — Resolve to Apply</div>
+                {pendingInjects.map((pi) => (
+                  <div key={pi.uid} className={`cf-inject-card cf-inject-${pi.type}`}>
+                    <strong>{pi.title}</strong> {pi.band && <span className="cf-cat-tag">{pi.band}</span>}
+                    <div className="ttx-panel-hint" style={{ margin: '2px 0 6px' }}>{pi.flavor}</div>
+                    {pi.effect === 'defense_counterplay' && (
+                      <div className="ttx-panel-hint" style={{ margin: '0 0 6px', color: pi.immune ? 'var(--primary)' : 'var(--warning)' }}>
+                        {pi.immune ? 'Immune — corroborated by 2+ categories.' : `Applies — costs 1 Financial token unless corroborated.`}
+                      </div>
+                    )}
+                    {(pi.effect === 'recover_token' || pi.effect === 'lose_token' || pi.effect === 'bonus_card') && (
+                      <select className="cf-select" style={{ width: '100%' }} value={pi.category} onChange={(e) => updatePendingInject(pi.uid, { category: e.target.value })}>
+                        {CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_META[c].label}</option>)}
+                      </select>
+                    )}
+                    {(pi.effect === 'expedite_queue' || pi.effect === 'delay_queue') && (
+                      <select className="cf-select" style={{ width: '100%' }} value={pi.queueCardId} onChange={(e) => updatePendingInject(pi.uid, { queueCardId: e.target.value })}>
+                        <option value="">Select queued card…</option>
+                        {state.pendingReturns.map((p) => (
+                          <option key={p.cardId} value={p.cardId}>{findCard(p.cardId)?.name ?? p.cardId} ({CATEGORY_META[p.category].label})</option>
+                        ))}
+                      </select>
+                    )}
+                    {pi.effect === 'suppress_evidence' && (
+                      <select className="cf-select" style={{ width: '100%' }} value={pi.evidenceCardId} onChange={(e) => updatePendingInject(pi.uid, { evidenceCardId: e.target.value })}>
+                        <option value="">Select evidence card…</option>
+                        {dedupedEvidence.map((e) => (
+                          <option key={e.cardId} value={e.cardId}>{findCard(e.cardId)?.name ?? e.cardId} (value {e.evidenceValue ?? 1})</option>
+                        ))}
+                      </select>
+                    )}
+                    <div className="cf-btn-row" style={{ marginTop: 6 }}>
+                      <button className="btn-sm-primary" style={{ flex: 1 }} onClick={() => applyPendingInject(pi)}>Apply</button>
+                      <button className="btn-secondary" style={{ flex: 1 }} onClick={() => dismissPendingInject(pi.uid)}>Dismiss</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -681,6 +773,7 @@ export default function CaseFileFacilitator() {
                   <span key={i} className={`cf-pip${i < state.consolidateRemaining ? ' cf-pip-filled' : ''}`} style={{ '--cat-color': 'var(--primary)' }} />
                 ))}
               </div>
+              {state.consolidateUsedThisRound && <span className="cf-cat-tag">used this round</span>}
             </div>
             <div className="cf-bank-row">
               <span className="ttx-panel-hint" style={{ margin: 0, minWidth: 130 }}>Professional Judgment</span>
@@ -693,11 +786,24 @@ export default function CaseFileFacilitator() {
               <select className="cf-select" value={convertFrom} onChange={(e) => setConvertFrom(e.target.value)}>
                 {CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_META[c].label}</option>)}
               </select>
+              <span>+</span>
+              <select className="cf-select" value={convertFrom2} onChange={(e) => setConvertFrom2(e.target.value)}>
+                {CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_META[c].label}</option>)}
+              </select>
               <span>→</span>
               <select className="cf-select" value={convertTo} onChange={(e) => setConvertTo(e.target.value)}>
                 {CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_META[c].label}</option>)}
               </select>
-              <button className="btn-sm-primary" disabled={state.tokens[convertFrom] < 2 || state.gameOver} onClick={() => sendAction('convert_tokens', { from: convertFrom, to: convertTo })}>Convert</button>
+              <button
+                className="btn-sm-primary"
+                disabled={
+                  state.gameOver ||
+                  (convertFrom === convertFrom2 ? state.tokens[convertFrom] < 2 : state.tokens[convertFrom] < 1 || state.tokens[convertFrom2] < 1)
+                }
+                onClick={() => sendAction('convert_tokens', { from: [convertFrom, convertFrom2], to: convertTo })}
+              >
+                Convert
+              </button>
             </div>
           </div>
 
@@ -712,46 +818,6 @@ export default function CaseFileFacilitator() {
           </div>
         </div>
       </div>
-
-      {/* Pending Injects — drawn Positive/Negative cards awaiting a target before their mechanical effect applies */}
-      {pendingInjects.length > 0 && (
-        <section className="ttx-panel" style={{ marginTop: 16, borderColor: 'var(--warning)' }} data-tour="pending-injects">
-          <div className="ttx-panel-head"><span className="ttx-panel-label">Pending Injects — Resolve to Apply Effect</span></div>
-          {pendingInjects.map((pi) => (
-            <div key={pi.uid} className={`cf-inject-row cf-inject-${pi.type}`}>
-              <div>
-                <strong>{pi.title}</strong> <span className="cf-cat-tag">{pi.band}</span>
-                <div className="ttx-panel-hint" style={{ margin: '2px 0 6px' }}>{pi.flavor}</div>
-              </div>
-              <div className="cf-btn-row" style={{ marginTop: 0 }}>
-                {(pi.effect === 'recover_token' || pi.effect === 'lose_token' || pi.effect === 'bonus_card') && (
-                  <select className="cf-select" value={pi.category} onChange={(e) => updatePendingInject(pi.uid, { category: e.target.value })}>
-                    {CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_META[c].label}</option>)}
-                  </select>
-                )}
-                {(pi.effect === 'expedite_queue' || pi.effect === 'delay_queue') && (
-                  <select className="cf-select" value={pi.queueCardId} onChange={(e) => updatePendingInject(pi.uid, { queueCardId: e.target.value })}>
-                    <option value="">Select queued card…</option>
-                    {state.pendingReturns.map((p) => (
-                      <option key={p.cardId} value={p.cardId}>{findCard(p.cardId)?.name ?? p.cardId} ({CATEGORY_META[p.category].label})</option>
-                    ))}
-                  </select>
-                )}
-                {pi.effect === 'suppress_evidence' && (
-                  <select className="cf-select" value={pi.evidenceCardId} onChange={(e) => updatePendingInject(pi.uid, { evidenceCardId: e.target.value })}>
-                    <option value="">Select evidence card…</option>
-                    {dedupedEvidence.map((e) => (
-                      <option key={e.cardId} value={e.cardId}>{findCard(e.cardId)?.name ?? e.cardId} (value {e.evidenceValue ?? 1})</option>
-                    ))}
-                  </select>
-                )}
-                <button className="btn-sm-primary" onClick={() => applyPendingInject(pi)}>Apply</button>
-                <button className="btn-secondary" onClick={() => dismissPendingInject(pi.uid)}>Dismiss</button>
-              </div>
-            </div>
-          ))}
-        </section>
-      )}
 
       {/* Case Notes — narrative reveal text per central fact */}
       <section className="ttx-panel" style={{ marginTop: 16 }} data-tour="case-notes">

@@ -61,7 +61,7 @@ function classifyRoll(nat) {
 
 function freshTokens() {
   const t = {};
-  for (const c of CATEGORIES) t[c] = 1;
+  for (const c of CATEGORIES) t[c] = 2;
   return t;
 }
 
@@ -92,6 +92,7 @@ function createCaseFileCoordinator() {
       commandPressure: session.commandPressure,
       consolidateRemaining: session.consolidateRemaining,
       consolidateCap: session.consolidateCap,
+      consolidateUsedThisRound: session.consolidatedRound === session.round,
       professionalJudgmentUsed: session.professionalJudgmentUsed,
       tokens: session.tokens,
       resolvedEvidence: session.resolvedEvidence,
@@ -112,6 +113,10 @@ function createCaseFileCoordinator() {
       activePlayerId: session.playerRoster.length
         ? session.playerRoster[(session.round - 1) % session.playerRoster.length].userId
         : null,
+      // Category name only (never a card ID) — safe to broadcast, and lets a
+      // reconnecting client know a Category Die roll is still owed even
+      // without the transient investigate() action_result that triggered it.
+      pendingCategoryDie: session.pendingCategoryDie ? { category: session.pendingCategoryDie.category } : null,
     };
   }
 
@@ -171,6 +176,8 @@ function createCaseFileCoordinator() {
       log: [],
       lastRollWasProfessionalJudgment: false,
       playerRoster: [],
+      pendingCategoryDie: null,
+      consolidatedRound: 0,
     };
     sessions.set(code, session);
     pushLog(session, 'Investigation opened.');
@@ -214,6 +221,7 @@ function createCaseFileCoordinator() {
     if (session.gameOver) throw new Error('Investigation has ended');
     if (!CATEGORIES.includes(category)) throw new Error('Unknown evidence category');
     if (session.tokens[category] <= 0) throw new Error(`No ${category} tokens remaining`);
+    if (session.pendingCategoryDie) throw new Error('Resolve the pending Category Die roll before investigating again');
 
     session.tokens[category] -= 1;
     const nat = rollDie(20);
@@ -222,33 +230,32 @@ function createCaseFileCoordinator() {
 
     const drawn = [];
     const injects = [];
-    let categoryDieRoll = null;
 
     if (actionType === 'investigate') {
       if (outcome.extraCard) {
-        // Critical Success: the chosen category's card PLUS a Category Die bonus card.
+        // Critical Success: the chosen category's card resolves now — worth
+        // a flat +3 in place of the standard +1. The Category Die bonus
+        // card is a separate, later reveal (see rollCategoryDie()); nothing
+        // about it is known or drawn yet.
         const primary = drawCard(session, category);
-        if (primary) drawn.push({ cardId: primary, category });
-        categoryDieRoll = rollDie(6);
-        const dieCategory = CATEGORIES[categoryDieRoll - 1] ?? category;
-        const bonus = drawCard(session, dieCategory);
-        if (bonus) drawn.push({ cardId: bonus, category: dieCategory });
+        if (primary) {
+          drawn.push({ cardId: primary, category });
+          session.resolvedEvidence.push({ cardId: primary, category, tier: 'discovered', caseDefining: false, evidenceValue: 1 });
+          session.caseStrength += outcome.bonusCardStrength;
+        }
+        session.pendingCategoryDie = { category };
       } else if (outcome.categoryDie) {
-        // Partial Success: a single card from whichever category the Category
-        // Die lands on — it replaces the chosen category's draw, not adds to it.
-        categoryDieRoll = rollDie(6);
-        const dieCategory = CATEGORIES[categoryDieRoll - 1] ?? category;
-        const card = drawCard(session, dieCategory);
-        if (card) drawn.push({ cardId: card, category: dieCategory });
+        // Partial Success: the only card comes from the Category Die, so
+        // nothing is drawn or revealed until that separate roll happens.
+        session.pendingCategoryDie = { category };
       } else {
         const primary = drawCard(session, category);
-        if (primary) drawn.push({ cardId: primary, category });
+        if (primary) {
+          drawn.push({ cardId: primary, category });
+          session.resolvedEvidence.push({ cardId: primary, category, tier: 'discovered', caseDefining: false, evidenceValue: 1 });
+          session.caseStrength += 1;
+        }
       }
-      for (const d of drawn) {
-        session.resolvedEvidence.push({ cardId: d.cardId, category: d.category, tier: 'discovered', caseDefining: false, evidenceValue: 1 });
-        session.caseStrength += 1;
-      }
-      if (outcome.bonusCardStrength) session.caseStrength += outcome.bonusCardStrength - 1; // nat20: +3 total for the primary draw
     }
 
     if (outcome.positiveInject && session.positiveInjectDeck.length) {
@@ -269,7 +276,42 @@ function createCaseFileCoordinator() {
     checkGameOver(session);
     const state = publicState(session);
     publish(code, { type: 'state', state });
-    return { state, roll: { nat, modified, band: outcome.band, categoryDieRoll }, drawn, injects };
+    return {
+      state,
+      roll: { nat, modified, band: outcome.band, categoryDieRoll: null, categoryDiePending: !!session.pendingCategoryDie },
+      drawn,
+      injects,
+    };
+  }
+
+  /**
+   * The Category Die roll owed by a Partial or Critical Success — resolves
+   * the actual bonus/replacement card only now, not at investigate() time,
+   * so nothing about it is knowable (card identity, even which category)
+   * until this explicit second roll happens.
+   */
+  function rollCategoryDie({ code }) {
+    const session = requireSession(code);
+    if (session.gameOver) throw new Error('Investigation has ended');
+    if (!session.pendingCategoryDie) throw new Error('No Category Die roll is pending');
+
+    const { category } = session.pendingCategoryDie;
+    const categoryDieRoll = rollDie(6);
+    const dieCategory = CATEGORIES[categoryDieRoll - 1] ?? category;
+    const drawn = [];
+    const card = drawCard(session, dieCategory);
+    if (card) {
+      drawn.push({ cardId: card, category: dieCategory });
+      session.resolvedEvidence.push({ cardId: card, category: dieCategory, tier: 'discovered', caseDefining: false, evidenceValue: 1 });
+      session.caseStrength += 1;
+    }
+    session.pendingCategoryDie = null;
+
+    pushLog(session, `Category Die: ${categoryDieRoll} → ${dieCategory}`);
+    checkGameOver(session);
+    const state = publicState(session);
+    publish(code, { type: 'state', state });
+    return { state, categoryDieRoll, drawn };
   }
 
   function develop({ code, category, cardId, targetTier, delay }) {
@@ -326,14 +368,27 @@ function createCaseFileCoordinator() {
     return { state };
   }
 
+  /**
+   * Consolidate the Case — stands in for the round's action (per the
+   * Rulebook: "Instead of Investigating or Developing on their turn..."),
+   * so it's capped at once per round, not just 8 uses per game. It's the
+   * safe option (no roll, no Negative Inject risk), so the trade-off is a
+   * Command Pressure bump instead — recovering resources outside the normal
+   * channels draws scrutiny.
+   */
   function consolidate({ code, category }) {
     const session = requireSession(code);
     if (session.gameOver) throw new Error('Investigation has ended');
     if (!CATEGORIES.includes(category)) throw new Error('Unknown evidence category');
     if (session.consolidateRemaining <= 0) throw new Error('Consolidate the Case has been exhausted');
+    if (session.consolidatedRound === session.round) throw new Error('Consolidate the Case can only be used once per round');
     session.consolidateRemaining -= 1;
+    session.consolidatedRound = session.round;
     session.tokens[category] += 1;
-    pushLog(session, `Consolidated the Case — recovered 1 ${category} token (${session.consolidateRemaining} uses left).`);
+    const pressureIdx = PRESSURE_LEVELS.indexOf(session.commandPressure);
+    session.commandPressure = PRESSURE_LEVELS[Math.min(PRESSURE_LEVELS.length - 1, pressureIdx + 1)];
+    pushLog(session, `Consolidated the Case — recovered 1 ${category} token, Command Pressure rose to ${session.commandPressure} (${session.consolidateRemaining} uses left).`);
+    checkGameOver(session);
     const state = publicState(session);
     publish(code, { type: 'state', state });
     return { state };
@@ -350,14 +405,31 @@ function createCaseFileCoordinator() {
     return { state };
   }
 
+  /**
+   * Convert Tokens — always spends exactly 2 tokens for 1 in the target
+   * category, but the 2 no longer have to come from the same source: `from`
+   * is a 2-element array of categories (e.g. ['documents', 'documents'] for
+   * the original same-category trade, or ['documents', 'financial'] to
+   * combine one token from each of two different over-invested lanes).
+   */
   function convertTokens({ code, from, to }) {
     const session = requireSession(code);
     if (session.gameOver) throw new Error('Investigation has ended');
-    if (!CATEGORIES.includes(from) || !CATEGORIES.includes(to)) throw new Error('Unknown category');
-    if (session.tokens[from] < 2) throw new Error(`Not enough ${from} tokens to convert`);
-    session.tokens[from] -= 2;
+    if (!Array.isArray(from) || from.length !== 2) throw new Error('Convert Tokens combines exactly 2 source tokens');
+    if (!CATEGORIES.includes(to)) throw new Error('Unknown category');
+    const counts = {};
+    for (const cat of from) {
+      if (!CATEGORIES.includes(cat)) throw new Error('Unknown category');
+      counts[cat] = (counts[cat] ?? 0) + 1;
+    }
+    for (const [cat, need] of Object.entries(counts)) {
+      if (session.tokens[cat] < need) throw new Error(`Not enough ${cat} tokens to convert`);
+    }
+    for (const [cat, need] of Object.entries(counts)) {
+      session.tokens[cat] -= need;
+    }
     session.tokens[to] += 1;
-    pushLog(session, `Converted 2 ${from} → 1 ${to}.`);
+    pushLog(session, `Converted ${from.join(' + ')} → 1 ${to}.`);
     const state = publicState(session);
     publish(code, { type: 'state', state });
     return { state };
@@ -548,6 +620,7 @@ function createCaseFileCoordinator() {
     getState,
     joinPlayer,
     investigate,
+    rollCategoryDie,
     develop,
     markCaseDefining,
     consolidate,
