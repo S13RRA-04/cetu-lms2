@@ -123,7 +123,7 @@ export const FACILITATOR_TOUR_BEATS = [
     target: 'dice', type: 'action', started: true, state: cur,
     lastResult: { action: 'investigate', requestId: 9000, result: { roll: { nat: 8, modified: 8, band: 'partial_success', categoryDieRoll: null, categoryDiePending: true }, drawn: [], injects: [] } },
     title: 'The Category Die',
-    body: 'A d6 has appeared next to the d20 — click it to actually roll. This is the real reveal: nothing about the bonus card, not even which category it comes from, exists until this roll happens.',
+    body: 'A d6 has appeared next to the d20 — click it to actually roll. This is the real reveal: on a Partial Success, this is the only card the roll gets — not a bonus on top of Documents. Nothing about it, not even which category it comes from, exists until this roll happens.',
     result: { categoryDieRoll: 5, drawn: [{ cardId: 'fin-02', category: 'financial' }] },
     stateAfter: (() => {
       withDeckCounts({ financial: cur.deckCounts.financial - 1 });

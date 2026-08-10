@@ -25,7 +25,9 @@ export function Die20({ value, rolling, idle, color, onClick }) {
 
 const DIE6_PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
 // Face N corresponds to CATEGORIES[N-1] — the same mapping the coordinator
-// uses server-side to pick the bonus card's category from the die roll.
+// uses server-side to pick the Category Die card's category from the roll
+// (a bonus on top of the armed category for Critical Success, but the only
+// card — replacing the armed category entirely — for Partial Success).
 export function Die6({ value, rolling, onClick }) {
   const on = new Set(DIE6_PIPS[value] ?? []);
   const category = value ? CATEGORIES[value - 1] : null;

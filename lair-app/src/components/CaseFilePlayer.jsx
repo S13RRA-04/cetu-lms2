@@ -358,11 +358,15 @@ export default function CaseFilePlayer() {
                     <>
                       d20 = {lastResult.result.roll.nat}{lastResult.result.roll.modified !== lastResult.result.roll.nat ? ` (${lastResult.result.roll.modified} after pressure)` : ''} → <strong>{lastResult.result.roll.band?.replace('_', ' ')}</strong>
                       {pendingCategoryDie && !rollFace6 && (
-                        <div style={{ marginTop: 6, color: 'var(--warning)' }}>Bonus card! Click the d6 to see which category it comes from.</div>
+                        <div style={{ marginTop: 6, color: 'var(--warning)' }}>
+                          {lastResult.result.roll.band === 'critical_success'
+                            ? 'Bonus card! Click the d6 to see which category it comes from.'
+                            : "No card yet — click the d6. It decides the category (not necessarily the one you armed) and the card, together."}
+                        </div>
                       )}
                       {pendingCategoryDie && rollFace6 && (
                         <div style={{ marginTop: 6 }}>
-                          d6 = {rollFace6} → bonus card from <strong style={{ color: CATEGORY_META[pendingCategoryDie.bonusCategory]?.color }}>{CATEGORY_META[pendingCategoryDie.bonusCategory]?.label}</strong>
+                          d6 = {rollFace6} → {lastResult.result.roll.band === 'critical_success' ? 'bonus card from' : 'the card comes from'} <strong style={{ color: CATEGORY_META[pendingCategoryDie.bonusCategory]?.color }}>{CATEGORY_META[pendingCategoryDie.bonusCategory]?.label}</strong>
                         </div>
                       )}
                     </>
