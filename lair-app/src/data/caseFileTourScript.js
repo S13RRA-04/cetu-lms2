@@ -54,6 +54,8 @@ const BASE_STATE = {
   positiveInjectRemaining: POSITIVE_INJECTS.length,
   negativeInjectRemaining: NEGATIVE_INJECTS.length,
   defenseCounterplayRemaining: defenseCounterplayCards.length,
+  playerRoster: [],
+  activePlayerId: null,
 };
 
 // ---------------------------------------------------------------------------

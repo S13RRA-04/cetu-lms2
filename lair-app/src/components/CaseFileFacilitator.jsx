@@ -15,7 +15,7 @@ import {
 } from '../data/caseFileCaseUtils.js';
 import CaseFileGuide from './CaseFileGuide.jsx';
 import { INSTRUCTOR_GUIDE_SECTIONS } from '../data/caseFileGuideContent.js';
-import Die3D from './Die3D.jsx';
+import { Die20, Die6 } from './CaseFileDice.jsx';
 import CaseFileTourOverlay from './CaseFileTourOverlay.jsx';
 import useCaseFileTour from '../hooks/useCaseFileTour.js';
 import { FACILITATOR_TOUR_BEATS } from '../data/caseFileTourScript.js';
@@ -32,34 +32,6 @@ const ROLL_MIN_MS = 550;
 
 function tierLabel(tier) {
   return tier === 'discovered' ? 'Discovered' : (LADDER[tier]?.label ?? tier);
-}
-
-function Die20({ value, rolling, idle, color, onClick }) {
-  return (
-    <div
-      className={`cf-die20${idle ? ' cf-die20-idle' : ''}`}
-      style={{ '--cat-color': color ?? 'var(--primary)' }}
-      onClick={idle ? undefined : onClick}
-      role="button"
-      tabIndex={idle ? -1 : 0}
-    >
-      <Die3D variant="d20" rolling={rolling} color={color} />
-      <span className="cf-die-face-num">{idle ? '?' : (value ?? '20')}</span>
-    </div>
-  );
-}
-
-const DIE6_PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
-function Die6({ value, rolling, onClick }) {
-  const on = new Set(DIE6_PIPS[value] ?? []);
-  return (
-    <div className="cf-die6" onClick={onClick} role="button" tabIndex={0}>
-      <Die3D variant="d6" rolling={rolling} />
-      <div className="cf-die6-pips">
-        {Array.from({ length: 9 }, (_, i) => <span key={i} className={`cf-die6-pip${on.has(i) ? ' on' : ''}`} />)}
-      </div>
-    </div>
-  );
 }
 
 function CaseStrengthTrack({ caseStrength }) {
@@ -302,6 +274,11 @@ export default function CaseFileFacilitator() {
   function newSession() {
     setStarted(false);
     setSession(null);
+    setArmedCategory(null);
+    setRollFace(null);
+    setRollingCategory(null);
+    setPendingCategoryDie(null);
+    setRollFace6(null);
   }
 
   function flyCardFromDeck(cat) {
@@ -474,6 +451,15 @@ export default function CaseFileFacilitator() {
         </div>
       )}
 
+      {!state.gameOver && state.playerRoster?.length > 0 && (() => {
+        const active = state.playerRoster.find((p) => p.userId === state.activePlayerId);
+        return (
+          <p className="ttx-panel-hint" style={{ marginTop: -8, marginBottom: 12 }}>
+            Round {state.round} — Investigate is {active ? <>up to <strong>{active.name}</strong></> : 'unassigned'} this round ({state.playerRoster.length} player{state.playerRoster.length === 1 ? '' : 's'} in rotation). You can always roll for them if needed.
+          </p>
+        );
+      })()}
+
       <div className="cf-board">
         <CaseStrengthTrack caseStrength={state.caseStrength} />
 
@@ -524,7 +510,7 @@ export default function CaseFileFacilitator() {
                 <Die20
                   value={rollFace}
                   rolling={rolling}
-                  idle={!armedCategory && !rolling}
+                  idle={!armedCategory && !rolling && rollFace === null}
                   color={armedCategory ? CATEGORY_META[armedCategory].color : (rollingCategory ? CATEGORY_META[rollingCategory].color : undefined)}
                   onClick={armedCategory ? rollD20 : undefined}
                 />

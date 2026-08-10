@@ -10,8 +10,10 @@ const WS_PATH = '/ws/case-file';
 const AUTH_TIMEOUT_MS = 5000;
 const FACILITATOR_ROLES = new Set(['admin', 'instructor', 'superadmin']);
 
-// Actions only a facilitator connection may send; the coordinator method of
-// the same name is called with the parsed message (minus `type`/`action`).
+// Every action's handler, keyed by name. Most are facilitator-only; the
+// dispatcher below additionally lets a player socket call `investigate` on
+// their turn. The coordinator method of the same name is called with the
+// parsed message (minus `type`/`action`).
 const FACILITATOR_ACTIONS = {
   investigate: (c, msg) => c.investigate(msg),
   develop: (c, msg) => c.develop(msg),
@@ -113,8 +115,9 @@ async function attachCaseFileSocket(httpServer, options = {}) {
 
           if (msg.role === 'player') {
             const code = String(msg.code ?? '').trim().toUpperCase();
+            const name = `${ws.__user.first_name} ${ws.__user.last_name}`.trim();
             let state;
-            try { state = coordinator.getState(code); }
+            try { state = coordinator.joinPlayer({ code, userId: ws.__user.id, name }); }
             catch { return send(ws, { type: 'error', message: 'No active session with that code' }); }
             ws.__role = 'player';
             ws.__code = code;
@@ -131,9 +134,24 @@ async function attachCaseFileSocket(httpServer, options = {}) {
         if (msg.type === 'ping') return;
 
         if (msg.type === 'action') {
-          if (ws.__role !== 'facilitator') {
+          // Facilitator: full action set, always. Player: only Investigate,
+          // and only on their turn — Develop and everything else stays
+          // facilitator-only because they hinge on judgment calls or on
+          // card identities a player's client structurally never receives.
+          if (ws.__role === 'player') {
+            if (msg.action !== 'investigate') {
+              return send(ws, { type: 'error', message: 'Only the facilitator can take that action', action: msg.action, requestId: msg.requestId });
+            }
+            let current;
+            try { current = coordinator.getState(ws.__code); }
+            catch (error) { return send(ws, { type: 'error', message: error.message, action: msg.action, requestId: msg.requestId }); }
+            if (current.activePlayerId !== ws.__user.id) {
+              return send(ws, { type: 'error', message: 'Not your turn to investigate.', action: msg.action, requestId: msg.requestId });
+            }
+          } else if (ws.__role !== 'facilitator') {
             return send(ws, { type: 'error', message: 'Only the facilitator can take actions' });
           }
+
           const handler = FACILITATOR_ACTIONS[msg.action];
           if (!handler) return send(ws, { type: 'error', message: `Unknown action: ${msg.action}` });
           try {

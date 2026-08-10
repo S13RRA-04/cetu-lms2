@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import useCaseFileSession from '../hooks/useCaseFileSession.js';
+import useAuthStore from '../store/authStore.js';
 import { bandForCaseStrength, BAND_THRESHOLDS } from '../data/caseFileCaseUtils.js';
 import { CATEGORY_META, CATEGORIES, BAND_META, PRESSURE_META } from '../data/caseFileTheme.js';
 import CaseFileGuide from './CaseFileGuide.jsx';
@@ -7,6 +8,9 @@ import { PLAYER_GUIDE_SECTIONS } from '../data/caseFileGuideContent.js';
 import CaseFileTourOverlay from './CaseFileTourOverlay.jsx';
 import useCaseFileTour from '../hooks/useCaseFileTour.js';
 import { PLAYER_TOUR_BEATS } from '../data/caseFileTourScript.js';
+import { Die20, Die6 } from './CaseFileDice.jsx';
+
+const ROLL_MIN_MS = 550;
 
 function CaseStrengthTrack({ caseStrength }) {
   const cells = Array.from({ length: 31 }, (_, n) => n);
@@ -68,8 +72,90 @@ export default function CaseFilePlayer() {
   const connected = tour.active ? true : live.connected;
   const code = tour.active ? 'DEMO' : live.code;
   const state = tour.active ? tour.state : live.state;
+  const lastResult = tour.active ? tour.lastResult : live.lastResult;
   const error = tour.active ? null : live.error;
   const ended = tour.active ? false : live.ended;
+  const sendAction = tour.active ? tour.sendAction : live.sendAction;
+
+  const myUserId = useAuthStore((s) => s.user?.id);
+  const isMyTurn = !!state && state.activePlayerId === myUserId;
+  const activePlayer = state?.playerRoster?.find((p) => p.userId === state.activePlayerId) ?? null;
+
+  // Turn rotation: one connected player is the active roller each round
+  // (see caseFileCoordinator.js's activePlayerId). Everything below mirrors
+  // CaseFileFacilitator.jsx's arm/roll gesture, but scoped to Investigate
+  // only — Develop and every other action stay facilitator-only, and no
+  // card names ever reach this client (only IDs/categories/counts do), so
+  // the roll outcome here is numbers-only; the facilitator narrates.
+  const [armedCategory, setArmedCategory] = useState(null);
+  const [rolling, setRolling] = useState(false);
+  const [rollFace, setRollFace] = useState(null);
+  const [rollingCategory, setRollingCategory] = useState(null);
+  const rollTimer = useRef(null);
+  const rollStart = useRef(0);
+  const pendingRequestId = useRef(null);
+
+  const [pendingCategoryDie, setPendingCategoryDie] = useState(null); // { value, bonusCategory } | null
+  const [rollFace6, setRollFace6] = useState(null);
+  const [rolling6, setRolling6] = useState(false);
+  const roll6Timer = useRef(null);
+
+  useEffect(() => () => {
+    clearInterval(rollTimer.current);
+    clearInterval(roll6Timer.current);
+  }, []);
+
+  useEffect(() => {
+    if (!rolling || !lastResult || lastResult.requestId !== pendingRequestId.current) return;
+    const elapsed = Date.now() - rollStart.current;
+    const wait = Math.max(0, ROLL_MIN_MS - elapsed);
+    const t = setTimeout(() => {
+      clearInterval(rollTimer.current);
+      setRollFace(lastResult.result?.roll?.nat ?? null);
+      setRolling(false);
+      setRollingCategory(null);
+      const dieRoll = lastResult.result?.roll?.categoryDieRoll;
+      if (dieRoll) {
+        const bonus = lastResult.result.drawn?.[lastResult.result.drawn.length - 1];
+        setPendingCategoryDie({ value: dieRoll, bonusCategory: bonus?.category });
+      }
+    }, wait);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastResult, rolling]);
+
+  function armCategory(cat) {
+    if (!isMyTurn || rolling || !state || state.tokens[cat] <= 0 || state.gameOver) return;
+    setArmedCategory(cat);
+    setRollFace(null);
+    setPendingCategoryDie(null);
+    setRollFace6(null);
+  }
+
+  function rollD20() {
+    if (!armedCategory || rolling || !state) return;
+    const cat = armedCategory;
+    setRolling(true);
+    setRollingCategory(cat);
+    rollStart.current = Date.now();
+    clearInterval(rollTimer.current);
+    rollTimer.current = setInterval(() => setRollFace(1 + Math.floor(Math.random() * 20)), 70);
+    pendingRequestId.current = sendAction('investigate', { category: cat, actionType: 'investigate' });
+    setArmedCategory(null);
+  }
+
+  function rollD6() {
+    if (!pendingCategoryDie || rolling6) return;
+    setRolling6(true);
+    clearInterval(roll6Timer.current);
+    roll6Timer.current = setInterval(() => setRollFace6(1 + Math.floor(Math.random() * 6)), 70);
+    const target = pendingCategoryDie.value;
+    setTimeout(() => {
+      clearInterval(roll6Timer.current);
+      setRollFace6(target);
+      setRolling6(false);
+    }, 500);
+  }
 
   if ((!joinCode || ended) && !tour.active) {
     return (
@@ -147,16 +233,38 @@ export default function CaseFilePlayer() {
         <div className="cf-outcome-banner">Indictment secured — Defense Counterplay is now active.</div>
       )}
 
+      {!state.gameOver && (
+        <div className="ttx-panel-hint" style={isMyTurn ? { color: 'var(--primary)', fontWeight: 700 } : undefined}>
+          Round {state.round} — {
+            isMyTurn
+              ? "Your turn — arm a deck below and roll."
+              : activePlayer
+                ? `Waiting for ${activePlayer.name} to investigate.`
+                : 'Waiting for a player to join before the roll can rotate.'
+          }
+        </div>
+      )}
+
       <div className="cf-board" data-tour="board">
         <CaseStrengthTrack caseStrength={state.caseStrength} />
 
         <div className="cf-board-main">
-          {/* Evidence Decks (read-only — counts only, never card names) */}
+          {/* Evidence Decks — counts only, never card names. Clickable to
+              arm an Investigate roll only when it's this player's turn. */}
           <div className="cf-decks" data-tour="decks">
             {CATEGORIES.map((cat) => {
               const meta = CATEGORY_META[cat];
+              const interactive = isMyTurn && !rolling && state.tokens[cat] > 0 && !state.gameOver;
+              const disabled = !interactive;
               return (
-                <div key={cat} className="cf-deck cf-deck-disabled" style={{ '--cat-color': meta.color, cursor: 'default' }}>
+                <div
+                  key={cat}
+                  className={`cf-deck${disabled ? ' cf-deck-disabled' : ''}${rollingCategory === cat ? ' cf-deck-pulse' : ''}${armedCategory === cat ? ' cf-deck-armed' : ''}`}
+                  style={{ '--cat-color': meta.color, cursor: interactive ? 'pointer' : 'default' }}
+                  onClick={interactive ? () => armCategory(cat) : undefined}
+                  role={interactive ? 'button' : undefined}
+                  tabIndex={interactive ? 0 : undefined}
+                >
                   <span className="cf-deck-icon">{meta.icon}</span>
                   <div className="cf-deck-name">{meta.label}</div>
                   <div className="cf-deck-count">{state.deckCounts[cat]} left</div>
@@ -172,6 +280,49 @@ export default function CaseFilePlayer() {
           </div>
 
           <div className="cf-center">
+            {isMyTurn && (
+              <div className="cf-roll-widget" data-tour="dice">
+                <div className="cf-dice-area">
+                  <Die20
+                    value={rollFace}
+                    rolling={rolling}
+                    idle={!armedCategory && !rolling && rollFace === null}
+                    color={armedCategory ? CATEGORY_META[armedCategory].color : (rollingCategory ? CATEGORY_META[rollingCategory].color : undefined)}
+                    onClick={armedCategory ? rollD20 : undefined}
+                  />
+                  {pendingCategoryDie && (
+                    <Die6 value={rollFace6} rolling={rolling6} onClick={rollFace6 ? undefined : rollD6} />
+                  )}
+                </div>
+                <div className="cf-roll-outcome">
+                  {armedCategory && !rolling && (
+                    <div>
+                      Investigating <strong style={{ color: CATEGORY_META[armedCategory].color }}>{CATEGORY_META[armedCategory].label}</strong> — click the d20 to roll.
+                      <div className="cf-btn-row" style={{ marginTop: 6 }}>
+                        <button className="btn-secondary" onClick={() => setArmedCategory(null)}>Cancel</button>
+                      </div>
+                    </div>
+                  )}
+                  {!armedCategory && !rolling && !lastResult?.result?.roll && (
+                    <span className="ttx-panel-hint" style={{ margin: 0 }}>Click an Evidence Deck to arm an Investigation, then roll the d20.</span>
+                  )}
+                  {lastResult?.result?.roll && !armedCategory && !rolling && (
+                    <>
+                      d20 = {lastResult.result.roll.nat}{lastResult.result.roll.modified !== lastResult.result.roll.nat ? ` (${lastResult.result.roll.modified} after pressure)` : ''} → <strong>{lastResult.result.roll.band?.replace('_', ' ')}</strong>
+                      {pendingCategoryDie && !rollFace6 && (
+                        <div style={{ marginTop: 6, color: 'var(--warning)' }}>Bonus card! Click the d6 to see which category it comes from.</div>
+                      )}
+                      {pendingCategoryDie && rollFace6 && (
+                        <div style={{ marginTop: 6 }}>
+                          d6 = {rollFace6} → bonus card from <strong style={{ color: CATEGORY_META[pendingCategoryDie.bonusCategory]?.color }}>{CATEGORY_META[pendingCategoryDie.bonusCategory]?.label}</strong>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="cf-playarea-panel" data-tour="play-area">
               <div className="cf-track-title">Play Area</div>
               {state.resolvedEvidence.length === 0 ? (

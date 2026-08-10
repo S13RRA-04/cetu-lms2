@@ -104,6 +104,14 @@ function createCaseFileCoordinator() {
       negativeInjectRemaining: session.negativeInjectDeck.length,
       defenseCounterplayRemaining: session.defenseCounterplayDeck.length,
       log: session.log.slice(-20),
+      playerRoster: session.playerRoster,
+      // Whoever gets to arm a category and roll Investigate this round —
+      // rotates through joined players in join order, one per round. Null
+      // until at least one player has joined; the facilitator can always
+      // act regardless of whose turn it is (sole-authority backstop).
+      activePlayerId: session.playerRoster.length
+        ? session.playerRoster[(session.round - 1) % session.playerRoster.length].userId
+        : null,
     };
   }
 
@@ -162,6 +170,7 @@ function createCaseFileCoordinator() {
       outcome: null,
       log: [],
       lastRollWasProfessionalJudgment: false,
+      playerRoster: [],
     };
     sessions.set(code, session);
     pushLog(session, 'Investigation opened.');
@@ -175,6 +184,23 @@ function createCaseFileCoordinator() {
 
   function getState(code) {
     return publicState(requireSession(code));
+  }
+
+  /**
+   * A player joining a session — adds them to the turn-rotation roster (in
+   * join order) the first time they connect. Reconnects are idempotent: an
+   * already-known userId keeps its existing rotation slot rather than
+   * appending a duplicate.
+   */
+  function joinPlayer({ code, userId, name }) {
+    const session = requireSession(code);
+    if (!session.playerRoster.some((p) => p.userId === userId)) {
+      session.playerRoster.push({ userId, name });
+      pushLog(session, `${name} joined as a player.`);
+    }
+    const state = publicState(session);
+    publish(code, { type: 'state', state });
+    return state;
   }
 
   function drawCard(session, category) {
@@ -520,6 +546,7 @@ function createCaseFileCoordinator() {
     createSession,
     endSession,
     getState,
+    joinPlayer,
     investigate,
     develop,
     markCaseDefining,
