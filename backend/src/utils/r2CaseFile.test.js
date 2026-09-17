@@ -35,9 +35,28 @@ test('ignores objects outside a drop and folder markers', () => {
   assert.equal(parseDropCaseFile('other/Drop 1/file.pdf'), null);
 });
 
-test('ignores non-PDF source files, including the .md mirrored by a PDFs/ folder', () => {
+test('ignores non-case-file source docs, including the .md mirrored by a PDFs/ folder', () => {
   assert.equal(parseDropCaseFile('scenarios/PACKET HEIST/Drop 2/Role-Based Correlation Tasking.md'), null);
   assert.equal(parseDropCaseFile('scenarios/PACKET HEIST/Drop 1/Dogwood Hotel & Resort/Initial Evidence.docx'), null);
+  assert.equal(parseDropCaseFile('scenarios/PACKET HEIST V2/Drop 3/RolePlayer_Briefing_Sam_Smith.pptx'), null);
+  assert.equal(parseDropCaseFile('scenarios/PACKET HEIST V2/Drop 1/CyberDyne/_INSTRUCTOR_Packet1-Manifest.md'), null);
+});
+
+test('accepts device-native evidence formats alongside PDF', () => {
+  const csv = parseDropCaseFile('scenarios/PACKET HEIST V2/Drop 1/CyberDyne/fw_egress_report_jun2026.csv');
+  assert.equal(csv.dropNumber, 1);
+  assert.equal(csv.victimCode, 'CYBERDYNE');
+  assert.equal(csv.fileName, 'fw_egress_report_jun2026.csv');
+
+  const eml = parseDropCaseFile('scenarios/PACKET HEIST V2/Drop 1/Dogwood/invoice_payment_update.eml');
+  assert.equal(eml.victimCode, 'DOGWOOD');
+
+  const json = parseDropCaseFile('scenarios/PACKET HEIST V2/Drop 1/Redstone Memorial Hospital/edr_alert_export_0730.json');
+  assert.equal(json.victimCode, 'REDSTONE');
+
+  const txt = parseDropCaseFile('scenarios/PACKET HEIST V2/Drop 3/blackharbor_transaction_messages.txt');
+  assert.equal(txt.dropNumber, 3);
+  assert.equal(txt.victimCode, null);
 });
 
 test('unwraps a PDFs/ mirror folder so scoping matches the true folder level', () => {

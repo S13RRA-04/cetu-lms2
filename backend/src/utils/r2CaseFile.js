@@ -34,17 +34,26 @@ function scenarioSlugFromName(name) {
     .replace(/^-|-$/g, '');
 }
 
+// Device-native evidence formats a victim's or subject's own systems would
+// plausibly produce (the "all-digital rule"), plus PDF for rendered FBI/
+// instructor work product. Source docs (.md instructor manifests, .docx/.pptx
+// worksheets and role-player decks) are deliberately excluded even if they
+// end up under the scenarios/ prefix by mistake.
+const CASE_FILE_EXTENSIONS = new Set(['pdf', 'csv', 'txt', 'eml', 'json', 'html', 'log']);
+
 /**
  * Parse keys shaped like scenarios/<scenario>/Drop <number>/[<victim>/]<file>.
  * Objects outside a drop folder and folder-marker objects are intentionally ignored.
- * Every folder mirrors its source files into a nested PDFs/ subfolder — only the
- * PDF is treated as the distributable case file, and the PDFs/ segment is
- * unwrapped so scoping (victim vs. cohort-wide) is computed at the true folder
- * level instead of PDFs being mistaken for an unrecognized victim folder.
+ * Some drop folders mirror their source files into a nested PDFs/ subfolder — the
+ * PDFs/ segment is unwrapped so scoping (victim vs. cohort-wide) is computed at
+ * the true folder level instead of PDFs being mistaken for an unrecognized
+ * victim folder. Drops that ship device-native files directly (no PDFs/ mirror)
+ * are unaffected by the unwrap.
  */
 function parseDropCaseFile(key, scenariosPrefix = 'scenarios/') {
   if (!key.startsWith(scenariosPrefix) || key.endsWith('/')) return null;
-  if (!/\.pdf$/i.test(key)) return null;
+  const extensionMatch = key.match(/\.([a-z0-9]+)$/i);
+  if (!extensionMatch || !CASE_FILE_EXTENSIONS.has(extensionMatch[1].toLowerCase())) return null;
 
   const relative = key.slice(scenariosPrefix.length);
   let segments = relative.split('/').filter(Boolean);
