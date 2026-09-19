@@ -15,10 +15,18 @@ const CAMPAIGN_VICTIMS = Object.freeze({
   4: { code: 'PIXELPLAY', name: 'Pixel Play Arcade',          sector: 'Entertainment', color: '#8b5cf6' },
 });
 
+// Keep in sync with enum_users_professional_role (see migrations
+// 20240101000031, 20240101000058, 20240101000063),
+// backend/src/validators/user.validator.js, and
+// pact-app/src/constants/{professionalRoles,certifications}.js — this
+// codebase has no single shared source for these, so every copy is
+// maintained by hand. This copy had drifted (7/10 roles, 3/4 certs) until
+// this fix; if you touch the role/certification list, update all four.
 const CERTIFICATIONS = Object.freeze({
-  DEXT: 'DExT',
-  CART: 'CART',
-  DFE:  'DFE',
+  DEXT:             'DExT',
+  CART:             'CART',
+  DFE:              'DFE',
+  CRYPTO_FORENSICS: 'crypto_forensics',
 });
 
 const PROFESSIONAL_ROLES = Object.freeze({
@@ -29,6 +37,9 @@ const PROFESSIONAL_ROLES = Object.freeze({
   SUPERVISORY_SPECIAL_AGENT:       'supervisory_special_agent',
   SUPERVISORY_INTELLIGENCE_ANALYST:'supervisory_intelligence_analyst',
   TASK_FORCE_OFFICER:              'task_force_officer',
+  CYBER_ANALYST:                   'cyber_analyst',
+  DIGITAL_EVIDENCE_LEAD:           'digital_evidence_lead',
+  FORENSIC_ACCOUNTANT:             'forensic_accountant',
 });
 
 const COURSE_STATUS = Object.freeze({

@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { sequelize } = require('../config/database');
+const { Assignment, User, Enrollment, Grade, Submission } = require('../models');
 const gradeService = require('./grade.service');
 
 test('operator scoreboard ranks by the displayed total including assessments and puzzle points', async (t) => {
@@ -95,4 +96,51 @@ test('squad scoreboard denominator includes all assignments currently unlocked f
     graded: 7,
     available: 8,
   }]);
+});
+
+test('grading a shared role-tasking assignment fans the grade out to a squadmate who only qualifies via a certification', async (t) => {
+  const originalTransaction = sequelize.transaction;
+  const originalAssignmentFind = Assignment.findByPk;
+  const originalUserFind = User.findByPk;
+  const originalEnrollmentFindOne = Enrollment.findOne;
+  const originalEnrollmentFindAll = Enrollment.findAll;
+  const originalGradeFindOrCreate = Grade.findOrCreate;
+  const originalSubmissionUpdate = Submission.update;
+
+  const assignment = {
+    id: 'assignment-1', course_id: 'course-1', max_score: 100,
+    role_filters: ['forensic_accountant', 'crypto_forensics'], lineitem_url: null,
+  };
+  Assignment.findByPk = async () => assignment;
+  User.findByPk = async () => ({ id: 'user-graded' });
+  Enrollment.findOne = async () => ({ squad_id: 'squad-1' });
+  Enrollment.findAll = async () => ([
+    { user_id: 'user-graded', User: { id: 'user-graded', professional_role: 'forensic_accountant', certifications: [] } },
+    // Qualifies only via certification, not professional_role — the case
+    // grade.service.js used to drop before it was switched to the shared
+    // matchesRoleFilters() check.
+    { user_id: 'user-cert-only', User: { id: 'user-cert-only', professional_role: 'intelligence_analyst', certifications: ['crypto_forensics'] } },
+    { user_id: 'user-unrelated', User: { id: 'user-unrelated', professional_role: 'task_force_officer', certifications: [] } },
+  ]);
+  const gradedUserIds = [];
+  Grade.findOrCreate = async ({ where }) => {
+    gradedUserIds.push(where.user_id);
+    return [{ user_id: where.user_id, reload: async () => ({ user_id: where.user_id }) }, true];
+  };
+  Submission.update = async () => [0];
+  sequelize.transaction = async (callback) => callback({});
+
+  t.after(() => {
+    sequelize.transaction = originalTransaction;
+    Assignment.findByPk = originalAssignmentFind;
+    User.findByPk = originalUserFind;
+    Enrollment.findOne = originalEnrollmentFindOne;
+    Enrollment.findAll = originalEnrollmentFindAll;
+    Grade.findOrCreate = originalGradeFindOrCreate;
+    Submission.update = originalSubmissionUpdate;
+  });
+
+  await gradeService.upsertGrade('assignment-1', 'user-graded', { score: 90 }, 'grader-1');
+
+  assert.deepEqual(gradedUserIds.sort(), ['user-cert-only', 'user-graded']);
 });

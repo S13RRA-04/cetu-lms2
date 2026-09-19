@@ -5,6 +5,7 @@ const ltiService                                     = require('./lti.service');
 const logger                                         = require('../utils/logger');
 const { sequelize }                                  = require('../config/database');
 const TtlCache                                       = require('../utils/ttlCache');
+const { matchesRoleFilters }                         = require('../utils/campaignRelease');
 
 // Scoreboard changes only when grades are upserted — cache for 20 s to absorb
 // the thundering-herd of 35 students loading simultaneously.
@@ -50,8 +51,9 @@ async function upsertGrade(assignmentId, userId, data, graderId) {
   const targetUserIds = sharedRoleTasking
     ? (await Enrollment.findAll({
       where: { squad_id: enrollment.squad_id, course_id: assignment.course_id, status: 'active' },
-      include: [{ model: User, attributes: ['id', 'professional_role'] }],
-    })).filter((member) => assignment.role_filters.includes(member.User?.professional_role)).map((member) => member.user_id)
+      include: [{ model: User, attributes: ['id', 'professional_role', 'certifications'] }],
+    })).filter((member) => matchesRoleFilters(assignment.role_filters, member.User?.professional_role, member.User?.certifications ?? []))
+      .map((member) => member.user_id)
     : [userId];
 
   const grade = await sequelize.transaction(async (t) => {

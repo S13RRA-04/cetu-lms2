@@ -6,6 +6,7 @@ const { NotFoundError, AppError } = require('../utils/errors');
 const { paginate, paginatedResponse } = require('../utils/pagination');
 const TtlCache = require('../utils/ttlCache');
 const { getStudentLocationCodes, locationMatches } = require('../utils/dropLocation');
+const { matchesRoleFilters } = require('../utils/campaignRelease');
 const { codeToName } = require('../constants/victims');
 
 // Admin assignment list is the same for every instructor request.
@@ -111,9 +112,7 @@ async function _queryListForStudent(courseId, userId) {
   const visibleAssignments = assignments.filter((a) => {
     if (a.victim_name && a.victim_name !== squadVictimName) return false;
     if (!locationMatches(a, locationCodes)) return false;
-    const filters = a.role_filters;
-    if (!filters || filters.length === 0) return true;
-    return filters.includes(professionalRole) || studentCertifications.some((c) => filters.includes(c));
+    return matchesRoleFilters(a.role_filters, professionalRole, studentCertifications);
   });
 
   const squadId   = enrollment.squad?.id ?? null;

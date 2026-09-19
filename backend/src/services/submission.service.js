@@ -5,6 +5,7 @@ const logger      = require('../utils/logger');
 const gradeService = require('./grade.service');
 const { invalidateStudentCache } = require('./assignment.service');
 const { gradeQuizAnswers, isFullyAutoGradable } = require('../utils/quizGrading');
+const { matchesRoleFilters } = require('../utils/campaignRelease');
 
 async function listByAssignment(assignmentId) {
   const assignment = await Assignment.findByPk(assignmentId);
@@ -183,10 +184,10 @@ async function submit(assignmentId, userId, content) {
   if (sharedRoleTasking) {
     const members = await Enrollment.findAll({
       where: { squad_id: squadId, course_id: assignment.course_id, status: 'active' },
-      include: [{ model: User, attributes: ['id', 'professional_role'] }],
+      include: [{ model: User, attributes: ['id', 'professional_role', 'certifications'] }],
     });
     const eligibleIds = members
-      .filter((member) => assignment.role_filters.includes(member.User?.professional_role))
+      .filter((member) => matchesRoleFilters(assignment.role_filters, member.User?.professional_role, member.User?.certifications ?? []))
       .map((member) => member.user_id);
     await Promise.all(eligibleIds.filter((id) => id !== userId).map((id) => Submission.upsert({
       assignment_id: assignmentId, user_id: id, squad_id: squadId, content,
