@@ -1,5 +1,5 @@
 'use strict';
-const { Grade, Assignment, User, Enrollment, Squad, Submission } = require('../models');
+const { Grade, Assignment, User, Enrollment, Squad, Submission, Cohort } = require('../models');
 const { NotFoundError, AppError }                    = require('../utils/errors');
 const ltiService                                     = require('./lti.service');
 const logger                                         = require('../utils/logger');
@@ -207,11 +207,25 @@ async function autoGradeQuiz(assignment, userId, squadId, score, maxScore) {
   return grades;
 }
 
-async function getScoreboard(courseId) {
-  return scoreboardCache.get(`scoreboard:${courseId}`, () => _queryScoreboard(courseId));
+// Standings must be locked to the single currently-active cohort
+// (cohorts.is_active) — without this, every past cohort's enrollments and
+// grades for this course stay in the same pool forever, ranking a
+// long-finished cohort's students alongside whoever is currently running
+// the case. No active cohort means no standings, not "show everyone".
+async function _getActiveCohortId(courseId) {
+  const cohort = await Cohort.findOne({ where: { course_id: courseId, is_active: true }, attributes: ['id'] });
+  return cohort?.id ?? null;
 }
 
-async function _queryScoreboard(courseId) {
+async function getScoreboard(courseId) {
+  return scoreboardCache.get(`scoreboard:${courseId}`, async () => {
+    const cohortId = await _getActiveCohortId(courseId);
+    if (!cohortId) return [];
+    return _queryScoreboard(courseId, cohortId);
+  });
+}
+
+async function _queryScoreboard(courseId, cohortId) {
   // Individual ("Operators") standings must reflect personal performance only —
   // grades from squad-graded assignments belong to the Squad standings
   // (getSquadScoreboard below), not a student's own ranking. Without this
@@ -315,7 +329,7 @@ async function _queryScoreboard(courseId) {
      ) puzzle_points ON puzzle_points.first_solver_id = u.id
      LEFT JOIN assessment_scores ON assessment_scores.user_id = u.id
      LEFT JOIN assessment_improvement ON assessment_improvement.user_id = u.id
-     WHERE e.course_id = :courseId AND u.role = 'student'
+     WHERE e.cohort_id = :cohortId AND u.role = 'student'
      GROUP BY u.id, u.first_name, u.last_name, puzzle_points.points,
               assessment_improvement.points, assessment_scores.pretest_score,
               assessment_scores.posttest_score, assessment_scores.pretest_max,
@@ -326,7 +340,7 @@ async function _queryScoreboard(courseId) {
               u.last_name ASC,
               u.first_name ASC,
               u.id ASC`,
-    { replacements: { courseId } }
+    { replacements: { courseId, cohortId } }
   );
   return rows.map((r) => ({
     userId:     r.userId,
@@ -357,10 +371,14 @@ async function _queryScoreboard(courseId) {
 }
 
 async function getSquadScoreboard(courseId) {
-  return gradesCache.get(`squadScoreboard:${courseId}`, () => _querySquadScoreboard(courseId));
+  return gradesCache.get(`squadScoreboard:${courseId}`, async () => {
+    const cohortId = await _getActiveCohortId(courseId);
+    if (!cohortId) return [];
+    return _querySquadScoreboard(courseId, cohortId);
+  });
 }
 
-async function _querySquadScoreboard(courseId) {
+async function _querySquadScoreboard(courseId, cohortId) {
   // Pick one representative enrollment per squad (DISTINCT ON so grades are
   // counted once per squad, not per member). The possible-score denominator is
   // every squad assignment unlocked for that squad at this point in the game:
@@ -374,7 +392,7 @@ async function _querySquadScoreboard(courseId) {
        SELECT DISTINCT ON (e.squad_id) e.squad_id, e.user_id
        FROM enrollments e
        JOIN users u ON u.id = e.user_id AND u.role = 'student'
-       WHERE e.course_id = :courseId AND e.squad_id IS NOT NULL
+       WHERE e.course_id = :courseId AND e.cohort_id = :cohortId AND e.squad_id IS NOT NULL
        ORDER BY e.squad_id, e.user_id
      ), eligible AS (
        SELECT DISTINCT s.id AS squad_id, au.assignment_id
@@ -386,6 +404,7 @@ async function _querySquadScoreboard(courseId) {
          ON unlocked_assignment.id = au.assignment_id
         AND unlocked_assignment.course_id = :courseId
         AND unlocked_assignment.grading_mode = 'squad'
+       WHERE s.cohort_id = :cohortId
      )
      SELECT s.id           AS "squadId",
             s.number       AS "squadNumber",
@@ -399,9 +418,10 @@ async function _querySquadScoreboard(courseId) {
      JOIN eligible el ON el.squad_id = s.id
      JOIN assignments a ON a.id = el.assignment_id
      LEFT JOIN grades g ON g.assignment_id = a.id AND g.user_id = rep.user_id
+     WHERE s.cohort_id = :cohortId
      GROUP BY s.id, s.number, s.name
      ORDER BY "totalScore" DESC`,
-    { replacements: { courseId } }
+    { replacements: { courseId, cohortId } }
   );
   return rows.map((r) => ({
     squadId:     r.squadId,

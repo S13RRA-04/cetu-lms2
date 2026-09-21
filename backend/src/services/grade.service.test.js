@@ -3,11 +3,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { sequelize } = require('../config/database');
-const { Assignment, User, Enrollment, Grade, Submission } = require('../models');
+const { Assignment, User, Enrollment, Grade, Submission, Cohort } = require('../models');
 const gradeService = require('./grade.service');
 
 test('operator scoreboard ranks by the displayed total including assessments and puzzle points', async (t) => {
   const originalQuery = sequelize.query;
+  const originalCohortFindOne = Cohort.findOne;
+  Cohort.findOne = async () => ({ id: 'active-cohort-1' });
   let sql;
   sequelize.query = async (query) => {
     sql = query;
@@ -30,7 +32,7 @@ test('operator scoreboard ranks by the displayed total including assessments and
       graded: '4',
     }]];
   };
-  t.after(() => { sequelize.query = originalQuery; });
+  t.after(() => { sequelize.query = originalQuery; Cohort.findOne = originalCohortFindOne; });
 
   const result = await gradeService.getScoreboard('operator-ranking-puzzle-points-test-course');
 
@@ -48,6 +50,7 @@ test('operator scoreboard ranks by the displayed total including assessments and
   assert.match(sql, /COUNT\(g\.id\) >= CEIL\(MAX\(COUNT\(g\.id\)\) OVER \(\) \* 0\.5\)/);
   assert.match(sql, /ORDER BY "rankingEligible" DESC,\s+"performancePercent" DESC/);
   assert.match(sql, /u\.last_name ASC,\s+u\.first_name ASC,\s+u\.id ASC/);
+  assert.match(sql, /WHERE e\.cohort_id = :cohortId AND u\.role = 'student'/);
   assert.equal(result[0].assignmentPoints, 350);
   assert.equal(result[0].pretestPoints, 16);
   assert.equal(result[0].posttestPoints, 24);
@@ -63,6 +66,8 @@ test('operator scoreboard ranks by the displayed total including assessments and
 
 test('squad scoreboard denominator includes all assignments currently unlocked for that squad', async (t) => {
   const originalQuery = sequelize.query;
+  const originalCohortFindOne = Cohort.findOne;
+  Cohort.findOne = async () => ({ id: 'active-cohort-1' });
   let sql;
   sequelize.query = async (query) => {
     sql = query;
@@ -76,7 +81,7 @@ test('squad scoreboard denominator includes all assignments currently unlocked f
       available: '8',
     }]];
   };
-  t.after(() => { sequelize.query = originalQuery; });
+  t.after(() => { sequelize.query = originalQuery; Cohort.findOne = originalCohortFindOne; });
 
   const result = await gradeService.getSquadScoreboard('scoreboard-denominator-test-course');
 
@@ -85,6 +90,8 @@ test('squad scoreboard denominator includes all assignments currently unlocked f
   assert.match(sql, /SELECT DISTINCT s\.id AS squad_id, au\.assignment_id/);
   assert.match(sql, /SUM\(a\.max_score\)/);
   assert.match(sql, /COUNT\(a\.id\).*AS "available"/s);
+  assert.match(sql, /e\.cohort_id = :cohortId/);
+  assert.match(sql, /WHERE s\.cohort_id = :cohortId/);
   assert.deepEqual(result, [{
     squadId: 'squad-3',
     squadNumber: 3,
@@ -143,4 +150,20 @@ test('grading a shared role-tasking assignment fans the grade out to a squadmate
   await gradeService.upsertGrade('assignment-1', 'user-graded', { score: 90 }, 'grader-1');
 
   assert.deepEqual(gradedUserIds.sort(), ['user-cert-only', 'user-graded']);
+});
+
+test('standings are locked to the active cohort — no active cohort means no standings, not every past cohort mixed together', async (t) => {
+  const originalCohortFindOne = Cohort.findOne;
+  const originalQuery = sequelize.query;
+  Cohort.findOne = async () => null; // e.g. between cohorts, or none activated yet
+  let queried = false;
+  sequelize.query = async () => { queried = true; return [[]]; };
+  t.after(() => { Cohort.findOne = originalCohortFindOne; sequelize.query = originalQuery; });
+
+  const individual = await gradeService.getScoreboard('no-active-cohort-test-course');
+  const squad = await gradeService.getSquadScoreboard('no-active-cohort-test-course');
+
+  assert.deepEqual(individual, []);
+  assert.deepEqual(squad, []);
+  assert.equal(queried, false, 'should never run the standings query at all when no cohort is active');
 });
