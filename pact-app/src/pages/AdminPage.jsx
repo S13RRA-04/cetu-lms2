@@ -4245,8 +4245,16 @@ function formatBytes(n) {
 }
 
 
-function ScenarioIntelPanel({ scenarios, dropNumber }) {
-  const matched = scenarios.filter((s) => s.drop_number === dropNumber);
+function ScenarioIntelPanel({ scenarios, dropNumber, pairSubTab }) {
+  // Scoped to whichever pairing sub-tab is open — this panel sits directly
+  // below the Squad/Victim, Role, or Shared pairing UI, so showing every
+  // package linked to the drop regardless of tab made Shared look like it
+  // contained every squad's victim packet instead of just the cohort-wide
+  // ones (the packages themselves were already correctly victim-tagged;
+  // only this summary ignored that tagging).
+  const matched = scenarios
+    .filter((s) => s.drop_number === dropNumber)
+    .filter((s) => pairSubTab === 'shared' ? !s.victim_code : pairSubTab === 'squad' ? !!s.victim_code : true);
   const [expanded,    setExpanded]   = useState({});  // pkgId → bool
   const [r2Files,     setR2Files]    = useState({});  // pkgId → file[]
   const [r2Loading,   setR2Loading]  = useState({});  // pkgId → bool
@@ -5489,7 +5497,7 @@ function CampaignDropsPanel({ cohorts, assignments = [], contentItems = [], onAs
                       Folders in R2 that aren't a recognized victim (📁 results in the search fields) can be added in one click — every file inside is paired to whichever squad or Shared you add it under.
                     </p>
 
-                    <ScenarioIntelPanel scenarios={scenarios} dropNumber={drop.number} />
+                    <ScenarioIntelPanel scenarios={scenarios} dropNumber={drop.number} pairSubTab={pairSubTab} />
                   </div>
                 )}
                 {manageTab === 'puzzles' && drop && <DropPuzzleManager
