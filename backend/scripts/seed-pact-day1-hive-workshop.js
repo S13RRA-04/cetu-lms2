@@ -13,6 +13,15 @@
  * is_published + per-squad AssignmentUnlock like those, not by the campaign
  * release engine.
  *
+ * v2: replaces the first pass with the facilitator's more guided version —
+ * each step now asks named sub-questions (Q2a/Q2b/Q3/Q4a/Q4b/Q5/Q6/Q7) plus
+ * its own separate triad-role prompt, graded against the facilitator guide's
+ * verbatim "A complete squad answer must" lists (not the model answer's exact
+ * wording — the guide is explicit that the model answer is a reference for
+ * what a complete response looks like, not the only acceptable phrasing).
+ * Safe to rerun: deletes and reseeds by title, but only after confirming
+ * live that the prior row is unpublished with zero submissions/grades/unlocks.
+ *
  * Run: node backend/scripts/seed-pact-day1-hive-workshop.js
  */
 
@@ -24,136 +33,205 @@ const { v4: uuidv4 } = require('uuid');
 const COURSE_ID = 'ae2fbd25-2f41-45b1-b9f8-f4fefbad4b63';
 const TITLE = 'Day 1 Workshop — Process & Cooperation Mapping (The Hive Ransomware Disruption)';
 
-const CASE_NARRATIVE = `Below is the public record of a real, multinational ransomware disruption: the FBI's takedown of the Hive ransomware operation, announced January 26, 2023. Read it as a squad, then work the deliverables below.
+const CASE_NARRATIVE = `Below is the public record of a real, multinational ransomware disruption: the FBI's takedown of the Hive ransomware operation, announced January 26, 2023. Work through it as a squad, step by step. Each step asks you to draft something specific together — name the exact legal authority, not just "some kind of process," and write the actual sentence or line of reasoning you'd put in front of an AUSA or a magistrate. Talk it out before anyone writes; this is squad work, and the answers should reflect the squad's reasoning, not one person's guess.
 
-A note on certainty: real cases are not published with a stated the-agent-used-exactly-this-instrument breakdown — that level of detail is usually sealed. Some of your answers will be well-supported by the public record; others will be your best reasoning from the framework. Mark which is which.
+A note on certainty: real cases aren't published with a stated the-agent-used-exactly-this-instrument breakdown — that detail is usually sealed. Some steps have one clearly best-supported answer; at least one does not, and saying so specifically, with reasoning, is a legitimate answer when the case actually shows that. A confident wrong guess is worse than a well-argued "we don't think this fits cleanly, and here's why."
 
-STEP 1
-From mid-2021 onward, an actor group operating under the name "Hive" ran a ransomware-as-a-service scheme, ultimately compromising more than 1,500 victim organizations in over 80 countries, including hospitals, school districts, and critical-infrastructure operators. Affiliates carried out intrusions and encryption; the core group provided the ransomware, leak-site infrastructure, and negotiation portal, taking a share of each ransom.
+STEP 1 (background)
+From mid-2021 onward, an actor group operating under the name "Hive" ran a ransomware-as-a-service scheme. Per the DOJ's January 26, 2023 press release, Hive "has victimized over 1,500 companies in over 80 countries around the world, and received over $100 million in ransom payments." Affiliates carried out intrusions and encryption; the core group provided the ransomware, leak-site infrastructure, and negotiation portal, taking a 20% share of each ransom paid.
 
 STEP 2
-Beginning in July 2022, the FBI gained access to Hive's back-end computer network — including two dedicated servers and a virtual private server at a hosting provider in California — and covertly monitored the group's operations for roughly six months. The servers had been leased using email addresses belonging to Hive members.
+Beginning in July 2022, the FBI gained access to Hive's back-end computer network — specifically, per the unsealed warrant affidavit, "two dedicated servers and one virtual private server" at a hosting provider in California. Those servers "had been leased using email addresses belonging to Hive members." The FBI covertly monitored the group's operations through this access for roughly six months.
 
 STEP 3
-During the monitoring period, the FBI captured Hive's decryption keys and distributed more than 300 of them to victims who were actively under attack, plus over 1,000 more to earlier victims — preventing an estimated $130 million in ransom payments. Publicly reported examples include disrupted attacks on a Louisiana hospital and a Texas school district.
+During the monitoring period, the FBI captured Hive's decryption keys and distributed more than 300 of them to victims actively under attack, plus over 1,000 more to earlier victims. Deputy Attorney General Lisa Monaco: "Using lawful means we hacked the hackers." Publicly reported examples include a disrupted attack on a Louisiana hospital (avoiding a $3 million ransom) and a Texas school district.
 
 STEP 4
-The investigation traced Hive's back-end infrastructure to two servers physically located at a hosting provider in Los Angeles. On the evening of January 25, 2023, pursuant to a court order, federal agents seized those servers.
+The investigation traced Hive's back-end infrastructure to two servers physically located at a hosting provider in Los Angeles. Attorney General Merrick Garland, at the January 26, 2023 press conference: "Last night, pursuant to a court order, we seized those servers. We also received court authorization to wrest control of Hive's dark net sites and render its services unavailable."
 
 STEP 5
-In a coordinated action, the Netherlands' National High Tech Crime Unit gained access to two backup servers hosted in the Netherlands that mirrored Hive's main leak site, negotiation site, and other operational data. Germany's Federal Criminal Police (BKA) and the Reutlingen Police Headquarters also participated in the operation. Europol provided coordination support, including operational meetings and deployed experts.
+In a coordinated action, the Netherlands' National High Tech Crime Unit gained access to two backup servers hosted in the Netherlands that mirrored Hive's main leak site and negotiation site. Germany's Federal Criminal Police (BKA) and the Reutlingen Police Headquarters also participated. Europol stated it "provided coordination support," including deployed experts and operational meetings hosted in Portugal and the Netherlands.
 
 STEP 6
-The U.S., German, and Dutch seizure actions were executed in a coordinated, near-simultaneous window on the night of January 25–26, 2023. Hive's dark web leak site and negotiation portal were replaced with a law-enforcement seizure notice, displayed in English and Russian, crediting the U.S. Attorney's Office for the Middle District of Florida, the Department of Justice's Computer Crime and Intellectual Property Section, and "substantial assistance" from Europol.
+The U.S., German, and Dutch actions were executed in a coordinated, near-simultaneous window on the night of January 25–26, 2023. Hive's dark web leak site was replaced with a seizure notice reading, in part: "This action has been taken in coordination with the United States Attorney's Office for the Middle District of Florida and the Computer Crime and Intellectual Property Section of the Department of Justice with substantial assistance from Europol."
 
 STEP 7
-No arrests were announced at the time of the disruption. FBI Director Christopher Wray stated the investigation was ongoing and that the government would continue working to identify Hive developers, administrators, and affiliates.
+No arrests were announced at the time of the disruption. FBI Director Christopher Wray: "We'll continue gathering evidence; building out our map of Hive developers, administrators and affiliates; and using that knowledge to drive arrests, seizures and other operations, whether by the FBI or our partners here and abroad."
 
-Sources: U.S. Department of Justice press release, "U.S. Department of Justice Disrupts Hive Ransomware Variant" (Jan. 26, 2023); public reporting from Reuters, BleepingComputer, CyberScoop, Bank Info Security, and the unsealed warrant affidavit as reported by NBC News.`;
+Sources: U.S. Department of Justice press release, "U.S. Department of Justice Disrupts Hive Ransomware Variant" (Jan. 26, 2023); public reporting and direct quotations from Reuters, BleepingComputer, CyberScoop, Bank Info Security, TechCrunch, and the unsealed warrant affidavit as reported by NBC News and BleepingComputer. Every quotation above is thirty words or fewer and drawn from these public sources. Where the record does not specify the exact legal instrument used at a step, the model answer says so and gives the best-supported inference from the framework rather than presenting a guess as confirmed fact.`;
 
-const DESCRIPTION = 'Squad exercise following today’s Legal Framework lecture. Work through the real, public record of the FBI’s Hive ransomware disruption as a squad. For each of the 7 steps, identify the domestic legal authority you’d expect (SCA tier or Rule 41 provision) and why, any international-cooperation mechanism involved and why, the triad role most likely responsible, and whether your answer is clearly supported by the public record or your own reasoned inference — mark which. Then answer the squad synthesis questions together.';
+const DESCRIPTION = 'Squad exercise following today’s Legal Framework lecture. Work through the real, public record of the FBI’s Hive ransomware disruption as a squad, step by step. Each question asks you to draft something specific together — name the exact legal authority, not just “some kind of process,” and write the actual sentence or line of reasoning you’d put in front of an AUSA or a magistrate. Talk it out before anyone writes.';
 
-const STEP_FACTS = [
-  `From mid-2021 onward, an actor group operating under the name "Hive" ran a ransomware-as-a-service scheme, ultimately compromising more than 1,500 victim organizations in over 80 countries, including hospitals, school districts, and critical-infrastructure operators. Affiliates carried out intrusions and encryption; the core group provided the ransomware, leak-site infrastructure, and negotiation portal, taking a share of each ransom.`,
-  `Beginning in July 2022, the FBI gained access to Hive's back-end computer network — including two dedicated servers and a virtual private server at a hosting provider in California — and covertly monitored the group's operations for roughly six months. The servers had been leased using email addresses belonging to Hive members.`,
-  `During the monitoring period, the FBI captured Hive's decryption keys and distributed more than 300 of them to victims who were actively under attack, plus over 1,000 more to earlier victims — preventing an estimated $130 million in ransom payments. Publicly reported examples include disrupted attacks on a Louisiana hospital and a Texas school district.`,
-  `The investigation traced Hive's back-end infrastructure to two servers physically located at a hosting provider in Los Angeles. On the evening of January 25, 2023, pursuant to a court order, federal agents seized those servers.`,
-  `In a coordinated action, the Netherlands' National High Tech Crime Unit gained access to two backup servers hosted in the Netherlands that mirrored Hive's main leak site, negotiation site, and other operational data. Germany's Federal Criminal Police (BKA) and the Reutlingen Police Headquarters also participated in the operation. Europol provided coordination support, including operational meetings and deployed experts.`,
-  `The U.S., German, and Dutch seizure actions were executed in a coordinated, near-simultaneous window on the night of January 25–26, 2023. Hive's dark web leak site and negotiation portal were replaced with a law-enforcement seizure notice, displayed in English and Russian, crediting the U.S. Attorney's Office for the Middle District of Florida, the Department of Justice's Computer Crime and Intellectual Property Section, and "substantial assistance" from Europol.`,
-  `No arrests were announced at the time of the disruption. FBI Director Christopher Wray stated the investigation was ongoing and that the government would continue working to identify Hive developers, administrators, and affiliates.`,
-];
+// keyElements are the facilitator guide's verbatim "A complete squad answer
+// must" bullets — the actual grading criteria. The model answer is folded in
+// as an unscored reference note (via commonErrors, the only other rubric slot
+// the grading UI renders) so instructors can see what a complete response
+// looks like while grading, per the guide's own instruction not to grade
+// against the model answer's exact wording.
+function refNote(modelAnswer) {
+  return [`MODEL ANSWER (reference only — grade against the must-include list, not exact wording): ${modelAnswer}`];
+}
 
-const STEP_KEY_ELEMENTS = [
-  [
-    'Correctly identifies Step 1 as background only — no legal process has been used yet',
-    'Connects the fact pattern to CFAA §1030(a)(5)/(a)(7) and, if proceeds are traced, §§1956/1957',
-  ],
-  [
-    'Identifies Rule 41(b)(6) remote-access authority as the fit — infrastructure whose ownership/location were concealed through technological means',
-    'Distinguishes this from a routine premises warrant',
-    'Separately identifies the leasing email addresses as SCA Tier 1 subpoena material to the hosting provider or email provider',
-    'Notes that subpoena plausibly preceded or ran parallel to the technical-access application',
-  ],
-  [
-    'Recognizes an authorized technical collection has to stay inside the scope the warrant application described',
-    'Identifies decryption-key distribution to victims as a disruption/victim-assistance action running alongside the ongoing collection',
-    'Raises the coordination this requires with the U.S. Attorney’s Office and victims’ own counsel',
-  ],
-  [
-    'Separates the two-step domestic process: (1) SCA Tier 1/Tier 2 process to identify the LA hosting account’s subscriber/leaseholder information, then (2) a Rule 41 search/seizure warrant to take possession of the physical servers and their content',
-    'States that content of communications and stored data always requires a warrant',
-  ],
-  [
-    'Recognizes this does not map cleanly onto one of the four named international-cooperation mechanisms',
-    'Explains why it isn’t a classic bilateral MLAT (slow, document-heavy, OIA-routed) or simple Article 29 preservation',
-    'Reaches the defensible reading: the Dutch and German seizures were each executed under their own countries’ domestic legal authority, coordinated through direct agency relationships and Europol — the ‘foreign partner runs parallel domestic process’ triad pattern',
-  ],
-  [
-    'Identifies which triad role(s) carried the coordination and timing across agent, analyst, and foreign partner',
-    'Engages with why the operation’s integrity depended on the near-simultaneous timing of the U.S., German, and Dutch seizures',
-  ],
-  [
-    'Recognizes a disruption is not the end of the legal-process work',
-    'Identifies that the agent/analyst/foreign-partner triad keeps operating after the headline event, building toward eventual charges that may take years and may occur in more than one country’s courts',
-  ],
-];
-
-const COMMON_ERRORS = [
-  'Presenting an inferred legal instrument as a confirmed fact instead of flagging it as reasoning from the framework — several steps are not confirmed to that level of detail in the public record',
-  'Forcing Step 5 into one of the four named international-cooperation mechanisms instead of naming which it resembles and where it diverges',
-  'Treating Rule 41(b)(6) remote-access authority as if it were a routine premises warrant',
-  'Skipping the confidence column — every answer should mark whether it’s public-record-supported or your own inference',
-];
-
-const SYNTHESIS_QUESTIONS = [
+const PROMPTS = [
   {
-    text: 'SQUAD SYNTHESIS — Which domestic SCA tier would you expect was used to identify who leased the Los Angeles servers, before any seizure occurred? What in the case supports that?',
+    points: 8,
+    text: `STEP 2 — Q2a: Identifying the lease\n\nThe servers were leased using specific email addresses belonging to Hive members. As a squad, draft the specific legal-process request you'd send to identify the subscriber behind those email accounts — name the exact tier and, if you can, the statutory cite, then write the one-sentence relevance statement your request would need to include.`,
     keyElements: [
-      'Correctly identifies SCA Tier 1 (subpoena) — and Tier 2 (2703(d)) where applicable — as what would identify the LA hosting account’s leaseholder, before any seizure',
-      'Supports the answer with the specific case fact that the servers were physically located at an LA hosting provider and seized only after being identified',
+      "Names the specific tier (Tier 1) and, ideally, cites 18 U.S.C. §2703(c)(2)",
+      "States why Tier 1 doesn't require probable cause — only a relevant nexus — and writes a relevance sentence that would satisfy that standard",
+    ],
+    commonErrors: refNote(`"Tier 1 — subpoena under 18 U.S.C. §2703(c)(2). Relevance statement: these records will identify the account holder(s) who leased infrastructure used to operate and communicate with the Hive ransomware scheme under investigation."`),
+  },
+  {
+    points: 12,
+    text: `STEP 2 — Q2b: Accessing the network itself\n\nSeparate from identifying the lease, draft the specific authority you'd cite to support six months of covert access to Hive's own back-end network, where ownership and location were concealed — then write the "technological concealment" sentence Lecture Slide 14 says the application has to include.`,
+    keyElements: [
+      "Names Rule 41(b)(6) specifically, not just ‘a warrant’",
+      "Explains why a standard premises warrant doesn't fit — there's no single physical place to search up front",
+      "Drafts a concealment sentence describing how the infrastructure's ownership/location was hidden",
+    ],
+    commonErrors: refNote(`"Rule 41(b)(6). Technological concealment language: the media to be searched — Hive's back-end control infrastructure — was leased anonymously and operated using techniques that concealed the true identity and location of those controlling it."`),
+  },
+  {
+    points: 5,
+    text: `STEP 2 — Triad role\n\nWhich role(s) in the agent / analyst / foreign-partner triad carried this step, and what specifically did each contribute?`,
+    keyElements: [
+      "Identifies Agent as drafting the Rule 41(b)(6) application",
+      "Identifies Analyst as supplying the technical basis — how the infrastructure was identified, why its location is concealed, what the access technique will do — that the application has to describe in detail",
+    ],
+    commonErrors: refNote(`Agent drafts the Rule 41(b)(6) application; Analyst supplies the technical basis — how the infrastructure was identified, why its location is concealed, what the access technique will do — that the application has to describe in detail.`),
+  },
+  {
+    points: 8,
+    text: `STEP 3 — Q3: Staying inside the authority\n\nDistributing decryption keys to victims during an active covert-access operation is an action, not just collection. As a squad, draft the specific question the case agent should be putting to the AUSA at regular intervals throughout this six-month period — and explain in your own words why it has to be asked repeatedly, not just once at the start.`,
+    keyElements: [
+      "The drafted question specifically asks whether current activity still falls within what the original application described",
+      "The explanation recognizes the operation's actual conduct evolved over six months (passive monitoring → active victim assistance) in a way a one-time check wouldn't catch",
+    ],
+    commonErrors: refNote(`"Does what we're currently doing with this access still fall within what our warrant application described?" It has to be asked repeatedly because the operation's real activity can drift from the affidavit's original description as the case develops — monitoring today doesn't guarantee tomorrow's use stays inside the same authorized scope.`),
+  },
+  {
+    points: 5,
+    text: `STEP 3 — Triad role\n\nWhich role(s) carried this step?`,
+    keyElements: [
+      "Identifies Analyst as continuing to produce the technical basis that justifies continued operation",
+      "Identifies Agent as responsible for checking that back against the AUSA as the operation's scope evolves",
+    ],
+    commonErrors: refNote(`Analyst keeps producing the technical basis that justifies continued operation; Agent is responsible for checking that back against the AUSA as the operation's scope evolves.`),
+  },
+  {
+    points: 6,
+    text: `STEP 4 — Q4a: Finding out who controlled the LA account\n\nBefore seizing the servers, investigators needed to confirm the LA hosting account's subscriber details. Name the specific tier and draft the one-line basis for the request.`,
+    keyElements: [
+      "Names Tier 1 (subpoena) specifically",
+      "Draft basis is a subscriber-information request, not a content request",
+    ],
+    commonErrors: refNote(`Tier 1 — subpoena. "Request for the name, address, and payment information of the subscriber(s) associated with the account leasing servers at [provider], relevant to an ongoing criminal investigation."`),
+  },
+  {
+    points: 8,
+    text: `STEP 4 — Q4b: Taking the servers\n\nGarland says "pursuant to a court order, we seized those servers." Name the specific authority that supports physically taking possession of servers and their content, and explain why Tier 1 or Tier 2 process alone would not have been enough here.`,
+    keyElements: [
+      "Names a Rule 41 search/seizure warrant specifically",
+      "States, in the squad's own words, that content always requires a warrant — no tier below it reaches content",
+    ],
+    commonErrors: refNote(`A Rule 41 search and seizure warrant. Content always requires a warrant — there is no shortcut. Seizing the servers means seizing their content (communications, victim data, malware), which places this squarely at Tier 3, not Tier 1 or 2.`),
+  },
+  {
+    points: 5,
+    text: `STEP 4 — Triad role\n\nWhich role(s) carried this step?`,
+    keyElements: [
+      "Identifies Agent as drafting and executing the warrant",
+      "Identifies Analyst as establishing, in the supporting affidavit, why these two specific servers matter to the investigation",
+    ],
+    commonErrors: refNote(`Agent drafts and executes the warrant; Analyst establishes, in the supporting affidavit, why these two specific servers matter to the investigation.`),
+  },
+  {
+    points: 15,
+    text: `STEP 5 — Q5: Naming the mechanism (this is the hardest one)\n\nAs a squad, decide: does this fit one of the four international-cooperation mechanisms from Lecture Slide 17 (direct provider cooperation, Budapest Convention Article 29 preservation, MLAT, 24/7 Network)? If yes, name which one and defend it using the specific facts above. If none fit cleanly, say so specifically — name which named agencies (BKA, Reutlingen Police, Netherlands NHTCU, Europol) did what, and describe, in your own words, what kind of cooperation this actually looks like.`,
+    keyElements: [
+      "Explicitly tests MLAT against the facts and explains why it doesn't fit (MLAT is the U.S. formally requesting a foreign government act; here, Dutch and German police acted under their own domestic authority against servers already in their own countries)",
+      "Explicitly tests Article 29 preservation and explains why it doesn't fit (Article 29 freezes data pending a later MLAT; this was an executed access/seizure, not a preservation hold)",
+      "Names the actual pattern in their own words: parallel domestic action by each country's own police, coordinated through direct agency relationships and Europol",
+    ],
+    commonErrors: refNote(`None of the four cleanly fits. This wasn't the U.S. requesting foreign action (not MLAT) and it wasn't a preservation hold pending a later request (not Article 29). Dutch and German police used their own domestic legal authority against servers already inside their own borders, timed and coordinated with the U.S. action through direct agency relationships and Europol. It's parallel domestic action, not an import of U.S. process abroad.`),
+  },
+  {
+    points: 6,
+    text: `STEP 5 — Triad role\n\nWhich role(s) carried this step?`,
+    keyElements: [
+      "Identifies the foreign partner as running their own domestic legal process, not merely supporting the U.S. agent's request",
+    ],
+    commonErrors: refNote(`Foreign partner — running their own domestic legal process, not merely supporting the U.S. agent's request (Lecture Slide 21's third triad role in action).`),
+  },
+  {
+    points: 8,
+    text: `STEP 6 — Q6: What timing depended on\n\nName the specific triad failure mode from Lecture Slide 22 that, if it had occurred here, would have wrecked this simultaneous three-country action. Then draft the one sentence a foreign-partner liaison would need to hear from the case agent — and state when they'd need to hear it — to prevent that failure mode.`,
+    keyElements: [
+      "Names the specific failure mode from Slide 22: foreign partner briefed late or partially",
+      "The drafted sentence and timing show the briefing happening well before action night, not as a courtesy heads-up hours before",
+    ],
+    commonErrors: refNote(`Failure mode: 'foreign partner briefed late or partially → parallel process missed, or worse, runs at cross-purposes.' What they'd need to hear, well in advance of the operation: 'We're planning to execute on [date/window] — here's exactly what we need from your side and by when, so all three actions land together.'`),
+  },
+  {
+    points: 5,
+    text: `STEP 6 — Triad role\n\nWhich role(s) carried this step?`,
+    keyElements: [
+      "Identifies all three roles as synchronized — this step is about whether the triad's communication held under time pressure across three countries at once, not about any one role acting alone",
+    ],
+    commonErrors: refNote(`All three roles, synchronized — this step is about whether the triad's communication held under time pressure across three countries at once, not about any one role acting alone.`),
+  },
+  {
+    points: 6,
+    text: `STEP 7 — Q7: What's still open\n\nName the specific things Wray's quote tells you are still ongoing after this disruption, and identify which triad role owns each one.`,
+    keyElements: [
+      "Identifies at least two distinct ongoing threads (e.g., continued evidence-gathering, building the map of developers/administrators/affiliates, eventual arrests/seizures)",
+      "Assigns each to a specific role rather than a generic 'the team continues working'",
+    ],
+    commonErrors: refNote(`Continued evidence-gathering and mapping developers/administrators/affiliates — Analyst-led, Agent-directed. Eventual arrests or further seizures, potentially by FBI or by partner countries — Agent and Foreign partner jointly, depending on where a given actor is located.`),
+  },
+  {
+    points: 5,
+    text: `STEP 7 — Triad role\n\nWhich role(s) carried this step?`,
+    keyElements: [
+      "Identifies Agent, Analyst, and Foreign partner as all ongoing — forward-looking discussion rather than a single answer",
+    ],
+    commonErrors: refNote(`Agent, Analyst, and Foreign partner, ongoing — forward-looking discussion rather than a single answer.`),
+  },
+  {
+    points: 6,
+    text: `SQUAD SYNTHESIS — Which step's answer are you least confident in, and what additional fact (not in this packet) would resolve it?`,
+    keyElements: [
+      "Names one specific step, not the workshop generally",
+      "Identifies a concrete additional fact that would resolve the uncertainty, not a vague call for ‘more information’",
     ],
   },
   {
-    text: 'SQUAD SYNTHESIS — Is the international cooperation in this case best described by one of the four mechanisms from lecture (direct provider cooperation, Budapest Convention preservation, MLAT, 24/7 Network) — or does it suggest something the lecture didn’t name? Defend your answer either way.',
+    points: 6,
+    text: `SQUAD SYNTHESIS — Step 5 asked you to decide whether this fits one of the four named mechanisms. Whatever your squad concluded, state the strongest argument against your own answer — and why you still hold it (or don't).`,
     keyElements: [
-      'Directly engages the four named mechanisms and explains why Step 5 doesn’t cleanly fit one of them',
-      'Defends the answer with case-specific reasoning rather than simply asserting it',
+      "States a genuine counter-argument to the squad's own Q5 answer, not a restatement of it",
+      "Explains whether the squad still holds its position after considering that counter-argument, and why",
     ],
   },
   {
-    text: 'SQUAD SYNTHESIS — Find the moment where the "foreign partner" role in the triad ran its own parallel process, rather than just supporting the U.S. action. What would have broken if that hadn’t been timed with the U.S. action?',
+    points: 6,
+    text: `SQUAD SYNTHESIS — This case ended in a disruption — seized infrastructure, distributed decryption keys — without announced arrests. What's still left to do, and for which role in the triad?`,
     keyElements: [
-      'Correctly locates Step 5/6 as the moment the foreign partner ran its own domestic process rather than merely supporting the U.S. action',
-      'Explains what would have broken without the near-simultaneous timing (e.g., mirrored infrastructure could have been used to reconstitute the operation)',
-    ],
-  },
-  {
-    text: 'SQUAD SYNTHESIS — This case ended in a disruption — seized infrastructure, distributed decryption keys — without announced arrests. What does that mean is still left to do, and for which role in the triad?',
-    keyElements: [
-      'Identifies that no arrests were announced and the investigation continues toward identifying developers, administrators, and affiliates',
-      'Connects this to what each triad role does next (agent: continued investigation/coordination; analyst: continued assessment; foreign partners: continued cooperation toward eventual charges)',
+      "Identifies concrete remaining work (e.g., continued evidence-gathering, eventual arrests/seizures)",
+      "Assigns it to a specific triad role rather than a generic 'the team continues working'",
     ],
   },
 ];
 
 function buildQuestions() {
-  const stepPrompts = STEP_FACTS.map((fact, i) => ({
+  return PROMPTS.map((p) => ({
     id: uuidv4(),
     kind: 'prompt',
-    points: 8,
-    text: `STEP ${i + 1} — ${fact}\n\nFor this step, identify: the domestic legal authority you'd expect (SCA tier or Rule 41 provision) and why; any international-cooperation mechanism involved and why; the triad role (agent / analyst / foreign partner) most likely responsible; and whether your answer is clearly supported by the public record or is your own reasoned inference from the framework — mark which.`,
-    rubric: { keyElements: STEP_KEY_ELEMENTS[i], commonErrors: COMMON_ERRORS },
+    points: p.points,
+    text: p.text,
+    rubric: { keyElements: p.keyElements, ...(p.commonErrors ? { commonErrors: p.commonErrors } : {}) },
   }));
-
-  const synthesisPrompts = SYNTHESIS_QUESTIONS.map((q) => ({
-    id: uuidv4(),
-    kind: 'prompt',
-    points: 11,
-    text: q.text,
-    rubric: { keyElements: q.keyElements, commonErrors: COMMON_ERRORS },
-  }));
-
-  return [...stepPrompts, ...synthesisPrompts];
 }
 
 async function main() {
@@ -172,8 +250,14 @@ async function main() {
         { replacements: { courseId: COURSE_ID, title: TITLE }, transaction },
       );
       if (existing.length > 0) {
-        console.log(`Already seeded (id=${existing[0].id}) — skipping. Delete it first if you want to reseed.`);
-        return;
+        const id = existing[0].id;
+        const [[{ count: subCount }]] = await seq.query('SELECT count(*)::int AS count FROM submissions WHERE assignment_id = :id', { replacements: { id }, transaction });
+        const [[{ count: gradeCount }]] = await seq.query('SELECT count(*)::int AS count FROM grades WHERE assignment_id = :id', { replacements: { id }, transaction });
+        if (subCount > 0 || gradeCount > 0) {
+          throw new Error(`Refusing to replace "${TITLE}" (id=${id}) — it already has ${subCount} submission(s)/${gradeCount} grade(s). Reseed manually if you're sure.`);
+        }
+        await seq.query('DELETE FROM assignments WHERE id = :id', { replacements: { id }, transaction });
+        console.log(`Deleted prior untouched row (id=${id}) before reseeding.`);
       }
 
       const questions = buildQuestions();

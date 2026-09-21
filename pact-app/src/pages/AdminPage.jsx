@@ -1896,6 +1896,7 @@ function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignm
           cohorts={cohorts}
           contentItems={contentItems}
           onUnlocksChange={handleUnlocksChange}
+          onAssignmentsChange={onAssignmentsChange}
         />
       )}
 
@@ -1904,6 +1905,7 @@ function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignm
           assignments={assessmentItems}
           cohorts={cohorts}
           onUnlocksChange={(id, unlocks) => handleUnlocksChange(id, unlocks)}
+          onAssignmentsChange={onAssignmentsChange}
         />
       )}
 
@@ -2283,7 +2285,7 @@ function ReleasesManager({ onRefresh, scenarioFilter = null }) {
 }
 
 /* ── Modules Gating ── (cohort-wide; no scenario grouping) */
-function ModulesGating({ assignments, cohorts, contentItems = [], onUnlocksChange }) {
+function ModulesGating({ assignments, cohorts, contentItems = [], onUnlocksChange, onAssignmentsChange }) {
   const [selected,    setSelected]    = useState(null);
   const [localItems,  setLocalItems]  = useState(contentItems);
   const [showPicker,  setShowPicker]  = useState(false);
@@ -2347,6 +2349,14 @@ function ModulesGating({ assignments, cohorts, contentItems = [], onUnlocksChang
                 <div className="admin-right-sub">Module · cohort-wide</div>
               </div>
             </div>
+            <QuestionsEditor
+              key={selected.id}
+              assignment={selected}
+              onSaved={(patch) => {
+                setSelected((s) => ({ ...s, ...patch }));
+                onAssignmentsChange?.((prev) => prev.map((a) => a.id === selected.id ? { ...a, ...patch } : a));
+              }}
+            />
             <GatingPanel
               key={selected.id}
               unlocks={selected.unlocks ?? []}
@@ -2483,6 +2493,457 @@ function scenarioLabel(name) {
   return name.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/* ── Question authoring (prompts + quiz questions) ──────────────────────────
+   The only place assignment.questions gets edited from the app — previously
+   this JSONB array could only be authored via one-off backend seed scripts.
+   Mirrors the exact shapes ChallengeFlow/QuizFlow/ChallengeDeliverableReview
+   already read: kind:'prompt' deliverables (points/text/rubric) for squad
+   challenges, and payload-based auto-graded questions (multiple_choice,
+   true_false, drag_match, fill_blank) for challenge judgment-checks, module
+   quizzes, and assessments. */
+const QUESTION_KIND_LABELS = {
+  prompt: 'Prompt (free response)',
+  multiple_choice: 'Multiple Choice',
+  true_false: 'True / False',
+  drag_match: 'Drag & Match',
+  fill_blank: 'Fill in the Blank',
+};
+
+const smallInputStyle = { padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 12 };
+const textareaStyle = { ...smallInputStyle, width: '100%', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 };
+const fieldLabelStyle = { fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' };
+const iconBtnStyle = { background: 'none', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', color: 'var(--muted)', fontSize: 11, padding: '2px 6px' };
+const addBtnStyle = { alignSelf: 'flex-start', background: 'none', border: '1px dashed var(--border)', borderRadius: 4, cursor: 'pointer', color: 'var(--primary)', fontSize: 11, padding: '4px 10px' };
+const toggleBtnStyle = { padding: '4px 12px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontSize: 12, cursor: 'pointer' };
+const toggleBtnActiveStyle = { borderColor: '#10b981', color: '#10b981', background: 'rgba(16,185,129,.08)' };
+
+function genQuestionId() {
+  return 'q_' + Math.random().toString(36).slice(2, 10);
+}
+
+function nextOptionId(options) {
+  const letters = 'abcdefghijklmnopqrstuvwxyz';
+  for (const c of letters) if (!options.some((o) => o.id === c)) return c;
+  return genQuestionId();
+}
+
+function newQuestionOfKind(kind) {
+  const base = { id: genQuestionId() };
+  if (kind === 'prompt') {
+    return { ...base, kind: 'prompt', points: 10, text: '', rubric: { keyElements: [], commonErrors: [] } };
+  }
+  const shared = { ...base, stem: '', scoring: { points: 10, mustPass: false }, feedback: { correct: '', incorrect: '', reference: '' } };
+  if (kind === 'multiple_choice') {
+    return { ...shared, payload: { kind, selectionMode: 'single', shuffle: true, options: [{ id: 'a', text: '' }, { id: 'b', text: '' }], correct: [] } };
+  }
+  if (kind === 'true_false') {
+    return { ...shared, payload: { kind, correct: true } };
+  }
+  if (kind === 'drag_match') {
+    return { ...shared, payload: { kind, shuffle: true, sources: [{ id: 'src_1', text: '' }], targets: [{ id: 'tgt_1', text: '' }], matches: [] } };
+  }
+  if (kind === 'fill_blank') {
+    return { ...shared, payload: { kind, blanks: [{ accepted: [''], caseSensitive: false }] } };
+  }
+  return shared;
+}
+
+function questionKindOf(q) {
+  return q.kind === 'prompt' ? 'prompt' : (q.payload?.kind ?? 'multiple_choice');
+}
+
+function questionPoints(q) {
+  return q.kind === 'prompt' ? Number(q.points ?? 0) : Number(q.scoring?.points ?? 0);
+}
+
+function validateQuestions(questions, allowPrompts) {
+  const problems = [];
+  questions.forEach((q, i) => {
+    const n = i + 1;
+    const kind = questionKindOf(q);
+    if (kind === 'prompt') {
+      if (!allowPrompts) problems.push(`Q${n}: prompt questions aren't supported on this assignment type`);
+      if (!q.text?.trim()) problems.push(`Q${n}: prompt text is required`);
+      return;
+    }
+    if (!q.stem?.trim()) problems.push(`Q${n}: question text is required`);
+    if (kind === 'multiple_choice') {
+      const opts = q.payload.options ?? [];
+      if (opts.length < 2) problems.push(`Q${n}: needs at least 2 options`);
+      if (opts.some((o) => !o.text?.trim())) problems.push(`Q${n}: every option needs text`);
+      if (!q.payload.correct?.length) problems.push(`Q${n}: mark at least one correct option`);
+    } else if (kind === 'drag_match') {
+      const srcs = q.payload.sources ?? [], tgts = q.payload.targets ?? [];
+      if (srcs.length < 1 || tgts.length < 1) problems.push(`Q${n}: needs at least one item and one target`);
+      if (srcs.some((s) => !s.text?.trim()) || tgts.some((t) => !t.text?.trim())) problems.push(`Q${n}: every item/target needs text`);
+      const matched = new Set((q.payload.matches ?? []).map((m) => m.sourceId));
+      if (srcs.some((s) => !matched.has(s.id))) problems.push(`Q${n}: every item needs a matched target`);
+    } else if (kind === 'fill_blank') {
+      const accepted = (q.payload.blanks?.[0]?.accepted ?? []).filter((s) => s.trim());
+      if (accepted.length === 0) problems.push(`Q${n}: needs at least one accepted answer`);
+    }
+  });
+  return problems;
+}
+
+function RubricListEditor({ label, color, items, onChange, onAdd, onRemove }) {
+  return (
+    <div>
+      <div style={{ fontSize: 11, color, marginBottom: 4, fontFamily: 'var(--mono)', letterSpacing: '.05em' }}>{label}</div>
+      {items.map((item, i) => (
+        <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+          <input type="text" value={item} onChange={(e) => onChange(i, e.target.value)} style={{ ...smallInputStyle, flex: 1 }} />
+          <button type="button" onClick={() => onRemove(i)} style={iconBtnStyle}>✕</button>
+        </div>
+      ))}
+      <button type="button" onClick={onAdd} style={addBtnStyle}>+ Add</button>
+    </div>
+  );
+}
+
+function QuestionsEditor({ assignment, allowPrompts = false, onSaved }) {
+  const [draft,   setDraft]   = useState(() => (assignment.questions ?? []).map((q) => JSON.parse(JSON.stringify(q))));
+  const [dirty,   setDirty]   = useState(false);
+  const [syncMax, setSyncMax] = useState(true);
+  const [saving,  setSaving]  = useState(false);
+  const [saved,   setSaved]   = useState(false);
+  const [error,   setError]   = useState('');
+
+  const mutate = (updater) => {
+    setDraft((prev) => updater(prev));
+    setDirty(true);
+    setSaved(false);
+  };
+
+  const updateAt        = (i, patch) => mutate((prev) => prev.map((q, qi) => qi === i ? { ...q, ...patch } : q));
+  const updatePayloadAt = (i, patch) => mutate((prev) => prev.map((q, qi) => qi === i ? { ...q, payload: { ...q.payload, ...patch } } : q));
+
+  const addQuestion    = (kind) => mutate((prev) => [...prev, newQuestionOfKind(kind)]);
+  const removeQuestion = (i)    => mutate((prev) => prev.filter((_, qi) => qi !== i));
+  const moveQuestion   = (i, dir) => mutate((prev) => {
+    const j = i + dir;
+    if (j < 0 || j >= prev.length) return prev;
+    const next = [...prev];
+    [next[i], next[j]] = [next[j], next[i]];
+    return next;
+  });
+
+  const updateRubricList = (i, field, listIdx, value) => mutate((prev) => prev.map((q, qi) => {
+    if (qi !== i) return q;
+    const list = [...(q.rubric?.[field] ?? [])];
+    list[listIdx] = value;
+    return { ...q, rubric: { ...q.rubric, [field]: list } };
+  }));
+  const addRubricItem = (i, field) => mutate((prev) => prev.map((q, qi) => qi === i ? { ...q, rubric: { ...q.rubric, [field]: [...(q.rubric?.[field] ?? []), ''] } } : q));
+  const removeRubricItem = (i, field, listIdx) => mutate((prev) => prev.map((q, qi) => qi === i ? { ...q, rubric: { ...q.rubric, [field]: (q.rubric?.[field] ?? []).filter((_, li) => li !== listIdx) } } : q));
+
+  const updateOption = (i, optIdx, text) => mutate((prev) => prev.map((q, qi) => {
+    if (qi !== i) return q;
+    return { ...q, payload: { ...q.payload, options: q.payload.options.map((o, oi) => oi === optIdx ? { ...o, text } : o) } };
+  }));
+  const addOption = (i) => mutate((prev) => prev.map((q, qi) => {
+    if (qi !== i) return q;
+    const id = nextOptionId(q.payload.options);
+    return { ...q, payload: { ...q.payload, options: [...q.payload.options, { id, text: '' }] } };
+  }));
+  const removeOption = (i, optIdx) => mutate((prev) => prev.map((q, qi) => {
+    if (qi !== i) return q;
+    const removedId = q.payload.options[optIdx]?.id;
+    return { ...q, payload: {
+      ...q.payload,
+      options: q.payload.options.filter((_, oi) => oi !== optIdx),
+      correct: (q.payload.correct ?? []).filter((id) => id !== removedId),
+    } };
+  }));
+  const toggleCorrectOption = (i, optId) => mutate((prev) => prev.map((q, qi) => {
+    if (qi !== i) return q;
+    const multi = q.payload.selectionMode === 'multiple';
+    const current = q.payload.correct ?? [];
+    const next = multi
+      ? (current.includes(optId) ? current.filter((id) => id !== optId) : [...current, optId])
+      : [optId];
+    return { ...q, payload: { ...q.payload, correct: next } };
+  }));
+
+  const updateSource = (i, srcIdx, text) => mutate((prev) => prev.map((q, qi) => qi === i ? { ...q, payload: { ...q.payload, sources: q.payload.sources.map((s, si) => si === srcIdx ? { ...s, text } : s) } } : q));
+  const updateTarget = (i, tgtIdx, text) => mutate((prev) => prev.map((q, qi) => qi === i ? { ...q, payload: { ...q.payload, targets: q.payload.targets.map((t, ti) => ti === tgtIdx ? { ...t, text } : t) } } : q));
+  const addSource = (i) => mutate((prev) => prev.map((q, qi) => {
+    if (qi !== i) return q;
+    const id = `src_${Math.random().toString(36).slice(2, 8)}`;
+    return { ...q, payload: { ...q.payload, sources: [...q.payload.sources, { id, text: '' }] } };
+  }));
+  const addTarget = (i) => mutate((prev) => prev.map((q, qi) => {
+    if (qi !== i) return q;
+    const id = `tgt_${Math.random().toString(36).slice(2, 8)}`;
+    return { ...q, payload: { ...q.payload, targets: [...q.payload.targets, { id, text: '' }] } };
+  }));
+  const removeSource = (i, srcIdx) => mutate((prev) => prev.map((q, qi) => {
+    if (qi !== i) return q;
+    const removedId = q.payload.sources[srcIdx]?.id;
+    return { ...q, payload: {
+      ...q.payload,
+      sources: q.payload.sources.filter((_, si) => si !== srcIdx),
+      matches: (q.payload.matches ?? []).filter((m) => m.sourceId !== removedId),
+    } };
+  }));
+  const removeTarget = (i, tgtIdx) => mutate((prev) => prev.map((q, qi) => {
+    if (qi !== i) return q;
+    const removedId = q.payload.targets[tgtIdx]?.id;
+    return { ...q, payload: {
+      ...q.payload,
+      targets: q.payload.targets.filter((_, ti) => ti !== tgtIdx),
+      matches: (q.payload.matches ?? []).filter((m) => m.targetId !== removedId),
+    } };
+  }));
+  const setMatch = (i, sourceId, targetId) => mutate((prev) => prev.map((q, qi) => {
+    if (qi !== i) return q;
+    const matches = (q.payload.matches ?? []).filter((m) => m.sourceId !== sourceId);
+    if (targetId) matches.push({ sourceId, targetId });
+    return { ...q, payload: { ...q.payload, matches } };
+  }));
+
+  const setAccepted = (i, text) => mutate((prev) => prev.map((q, qi) => {
+    if (qi !== i) return q;
+    const accepted = text.split(',').map((s) => s.trim()).filter(Boolean);
+    return { ...q, payload: { ...q.payload, blanks: [{ ...(q.payload.blanks?.[0] ?? {}), accepted }] } };
+  }));
+  const setCaseSensitive = (i, val) => mutate((prev) => prev.map((q, qi) => {
+    if (qi !== i) return q;
+    return { ...q, payload: { ...q.payload, blanks: [{ ...(q.payload.blanks?.[0] ?? { accepted: [] }), caseSensitive: val }] } };
+  }));
+
+  const totalPoints = draft.reduce((sum, q) => sum + questionPoints(q), 0);
+  const problems = validateQuestions(draft, allowPrompts);
+
+  const handleSave = async () => {
+    if (problems.length) { setError(problems[0]); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const patch = { questions: draft, ...(syncMax ? { max_score: totalPoints } : {}) };
+      await updateAssignment(assignment.id, patch);
+      setDirty(false);
+      setSaved(true);
+      onSaved?.(patch);
+    } catch (e) {
+      setError(e.response?.data?.error?.message ?? 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)' }}>
+          QUESTIONS ({draft.length})
+        </div>
+        <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--mono)' }}>
+          {totalPoints} pts total{Number(assignment.max_score) !== totalPoints ? ` · assignment max: ${assignment.max_score}` : ''}
+        </span>
+      </div>
+
+      {draft.length === 0 && (
+        <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>No questions yet — add one below.</p>
+      )}
+
+      {draft.map((q, i) => {
+        const kind = questionKindOf(q);
+        return (
+          <div key={q.id} style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--surface-2, var(--surface))' }}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--primary)', letterSpacing: '.1em' }}>Q{i + 1}</span>
+              <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.08em' }}>
+                {QUESTION_KIND_LABELS[kind] ?? kind}
+              </span>
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+                <button type="button" onClick={() => moveQuestion(i, -1)} disabled={i === 0} title="Move up" style={iconBtnStyle}>↑</button>
+                <button type="button" onClick={() => moveQuestion(i, 1)} disabled={i === draft.length - 1} title="Move down" style={iconBtnStyle}>↓</button>
+                <button type="button" onClick={() => removeQuestion(i)} title="Delete question" style={{ ...iconBtnStyle, color: '#ef4444' }}>✕</button>
+              </div>
+            </div>
+
+            <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {kind === 'prompt' ? (
+                <>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <label style={fieldLabelStyle}>Points</label>
+                    <input type="number" min={0} value={q.points ?? 0} onChange={(e) => updateAt(i, { points: Number(e.target.value) || 0 })} style={{ ...smallInputStyle, width: 70 }} />
+                  </div>
+                  <textarea value={q.text ?? ''} onChange={(e) => updateAt(i, { text: e.target.value })} placeholder="Prompt text shown to the squad…" rows={3} style={textareaStyle} />
+                  <RubricListEditor
+                    label="Must-include elements (scored checklist)" color="#10b981"
+                    items={q.rubric?.keyElements ?? []}
+                    onChange={(li, val) => updateRubricList(i, 'keyElements', li, val)}
+                    onAdd={() => addRubricItem(i, 'keyElements')}
+                    onRemove={(li) => removeRubricItem(i, 'keyElements', li)}
+                  />
+                  <RubricListEditor
+                    label="Reference notes (instructor-only, unscored)" color="var(--muted)"
+                    items={q.rubric?.commonErrors ?? []}
+                    onChange={(li, val) => updateRubricList(i, 'commonErrors', li, val)}
+                    onAdd={() => addRubricItem(i, 'commonErrors')}
+                    onRemove={(li) => removeRubricItem(i, 'commonErrors', li)}
+                  />
+                </>
+              ) : (
+                <>
+                  <textarea value={q.stem ?? ''} onChange={(e) => updateAt(i, { stem: e.target.value })} placeholder="Question text…" rows={2} style={textareaStyle} />
+                  <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <label style={fieldLabelStyle}>Points</label>
+                      <input type="number" min={0} value={q.scoring?.points ?? 0} onChange={(e) => updateAt(i, { scoring: { ...q.scoring, points: Number(e.target.value) || 0 } })} style={{ ...smallInputStyle, width: 70 }} />
+                    </div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={!!q.scoring?.mustPass} onChange={(e) => updateAt(i, { scoring: { ...q.scoring, mustPass: e.target.checked } })} />
+                      Must Pass
+                    </label>
+                  </div>
+
+                  {kind === 'multiple_choice' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <label style={fieldLabelStyle}>Selection</label>
+                          <select value={q.payload.selectionMode} onChange={(e) => updatePayloadAt(i, { selectionMode: e.target.value, correct: [] })} style={smallInputStyle}>
+                            <option value="single">Single answer</option>
+                            <option value="multiple">Multiple answers</option>
+                          </select>
+                        </div>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer' }}>
+                          <input type="checkbox" checked={q.payload.shuffle !== false} onChange={(e) => updatePayloadAt(i, { shuffle: e.target.checked })} />
+                          Shuffle options
+                        </label>
+                      </div>
+                      {q.payload.options.map((opt, oi) => (
+                        <div key={opt.id} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <input
+                            type={q.payload.selectionMode === 'multiple' ? 'checkbox' : 'radio'}
+                            checked={(q.payload.correct ?? []).includes(opt.id)}
+                            onChange={() => toggleCorrectOption(i, opt.id)}
+                            title="Mark correct"
+                          />
+                          <input type="text" value={opt.text} onChange={(e) => updateOption(i, oi, e.target.value)} placeholder={`Option ${opt.id}`} style={{ ...smallInputStyle, flex: 1 }} />
+                          <button type="button" onClick={() => removeOption(i, oi)} disabled={q.payload.options.length <= 2} title="Remove option" style={iconBtnStyle}>✕</button>
+                        </div>
+                      ))}
+                      <button type="button" onClick={() => addOption(i)} style={addBtnStyle}>+ Add option</button>
+                    </div>
+                  )}
+
+                  {kind === 'true_false' && (
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <label style={fieldLabelStyle}>Correct answer</label>
+                      {[true, false].map((val) => (
+                        <button
+                          key={String(val)} type="button" onClick={() => updatePayloadAt(i, { correct: val })}
+                          style={{ ...toggleBtnStyle, ...(q.payload.correct === val ? toggleBtnActiveStyle : {}) }}
+                        >
+                          {val ? 'True' : 'False'}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {kind === 'drag_match' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={q.payload.shuffle !== false} onChange={(e) => updatePayloadAt(i, { shuffle: e.target.checked })} />
+                        Shuffle target order
+                      </label>
+                      <div>
+                        <div style={fieldLabelStyle}>Items (left column)</div>
+                        {q.payload.sources.map((src, si) => (
+                          <div key={src.id} style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
+                            <input type="text" value={src.text} onChange={(e) => updateSource(i, si, e.target.value)} placeholder="Item text…" style={{ ...smallInputStyle, flex: 1 }} />
+                            <button type="button" onClick={() => removeSource(i, si)} disabled={q.payload.sources.length <= 1} style={iconBtnStyle}>✕</button>
+                          </div>
+                        ))}
+                        <button type="button" onClick={() => addSource(i)} style={addBtnStyle}>+ Add item</button>
+                      </div>
+                      <div>
+                        <div style={fieldLabelStyle}>Targets (right column)</div>
+                        {q.payload.targets.map((tgt, ti) => (
+                          <div key={tgt.id} style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
+                            <input type="text" value={tgt.text} onChange={(e) => updateTarget(i, ti, e.target.value)} placeholder="Target text…" style={{ ...smallInputStyle, flex: 1 }} />
+                            <button type="button" onClick={() => removeTarget(i, ti)} disabled={q.payload.targets.length <= 1} style={iconBtnStyle}>✕</button>
+                          </div>
+                        ))}
+                        <button type="button" onClick={() => addTarget(i)} style={addBtnStyle}>+ Add target</button>
+                      </div>
+                      <div>
+                        <div style={fieldLabelStyle}>Correct matches</div>
+                        {q.payload.sources.map((src) => {
+                          const current = (q.payload.matches ?? []).find((m) => m.sourceId === src.id)?.targetId ?? '';
+                          return (
+                            <div key={src.id} style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4, fontSize: 12 }}>
+                              <span style={{ flex: 1, color: 'var(--text)' }}>{src.text || '(untitled item)'}</span>
+                              <span style={{ color: 'var(--muted)' }}>→</span>
+                              <select value={current} onChange={(e) => setMatch(i, src.id, e.target.value)} style={smallInputStyle}>
+                                <option value="">— choose target —</option>
+                                {q.payload.targets.map((tgt) => (
+                                  <option key={tgt.id} value={tgt.id}>{tgt.text || '(untitled target)'}</option>
+                                ))}
+                              </select>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {kind === 'fill_blank' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <label style={fieldLabelStyle}>Accepted answers (comma-separated)</label>
+                      <input type="text" value={(q.payload.blanks?.[0]?.accepted ?? []).join(', ')} onChange={(e) => setAccepted(i, e.target.value)} placeholder="e.g. Rule 41(b)(6), 41(b)(6)" style={smallInputStyle} />
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={!!q.payload.blanks?.[0]?.caseSensitive} onChange={(e) => setCaseSensitive(i, e.target.checked)} />
+                        Case sensitive
+                      </label>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <input type="text" value={q.feedback?.correct ?? ''} onChange={(e) => updateAt(i, { feedback: { ...q.feedback, correct: e.target.value } })} placeholder="Feedback shown on a correct answer…" style={smallInputStyle} />
+                    <input type="text" value={q.feedback?.incorrect ?? ''} onChange={(e) => updateAt(i, { feedback: { ...q.feedback, incorrect: e.target.value } })} placeholder="Feedback shown when out of attempts…" style={smallInputStyle} />
+                    <input type="text" value={q.feedback?.reference ?? ''} onChange={(e) => updateAt(i, { feedback: { ...q.feedback, reference: e.target.value } })} placeholder="Hint / reference shown on request (optional)…" style={smallInputStyle} />
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })}
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {allowPrompts && <button type="button" onClick={() => addQuestion('prompt')} style={addBtnStyle}>+ Prompt</button>}
+        <button type="button" onClick={() => addQuestion('multiple_choice')} style={addBtnStyle}>+ Multiple Choice</button>
+        <button type="button" onClick={() => addQuestion('true_false')} style={addBtnStyle}>+ True/False</button>
+        <button type="button" onClick={() => addQuestion('drag_match')} style={addBtnStyle}>+ Drag & Match</button>
+        <button type="button" onClick={() => addQuestion('fill_blank')} style={addBtnStyle}>+ Fill in the Blank</button>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingTop: 8, borderTop: '1px solid var(--border)', flexWrap: 'wrap' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer' }}>
+          <input type="checkbox" checked={syncMax} onChange={(e) => setSyncMax(e.target.checked)} />
+          Keep assignment max score in sync ({totalPoints} pts)
+        </label>
+        <button type="button" className="btn-submit" style={{ width: 'auto' }} onClick={handleSave} disabled={saving || !dirty || problems.length > 0}>
+          {saving ? 'Saving…' : 'Save Questions'}
+        </button>
+        {saved && !dirty && <span style={{ fontSize: 11, color: '#10b981' }}>Saved</span>}
+        {dirty && !saving && <span style={{ fontSize: 11, color: '#f59e0b' }}>Unsaved changes</span>}
+      </div>
+      {problems.length > 0 && (
+        <div style={{ fontSize: 11, color: '#ef4444', display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {problems.map((p, pi) => <div key={pi}>{p}</div>)}
+        </div>
+      )}
+      {error && <div className="err-msg">{error}</div>}
+    </div>
+  );
+}
+
 /* ── Challenges Gating ── (grouped by scenario_name) */
 const KNOWN_SCENARIOS = [
   { value: 'packet-heist',  label: 'Packet Heist'  },
@@ -2576,10 +3037,17 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
   const handleFieldChange = async (assignmentId, patch) => {
     try {
       await updateAssignment(assignmentId, patch);
-      setLocalItems((prev) => prev.map((a) => a.id === assignmentId ? { ...a, ...patch } : a));
-      setSelected((s) => s?.id === assignmentId ? { ...s, ...patch } : s);
-      onAssignmentsChange?.((prev) => prev.map((a) => a.id === assignmentId ? { ...a, ...patch } : a));
+      applyLocalPatch(assignmentId, patch);
     } catch { /* ignore */ }
+  };
+
+  // Same local-state update as handleFieldChange, without re-issuing the PATCH
+  // — for callers (like QuestionsEditor) that already persisted the change
+  // themselves and just need the cached list/selection to catch up.
+  const applyLocalPatch = (assignmentId, patch) => {
+    setLocalItems((prev) => prev.map((a) => a.id === assignmentId ? { ...a, ...patch } : a));
+    setSelected((s) => s?.id === assignmentId ? { ...s, ...patch } : s);
+    onAssignmentsChange?.((prev) => prev.map((a) => a.id === assignmentId ? { ...a, ...patch } : a));
   };
 
   const toggleRole = (assignment, role) => {
@@ -2769,6 +3237,13 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
               />
             </div>
 
+            <QuestionsEditor
+              key={selected.id}
+              assignment={selected}
+              allowPrompts
+              onSaved={(patch) => applyLocalPatch(selected.id, patch)}
+            />
+
             <GatingPanel
               key={selected.id}
               unlocks={selected.unlocks ?? []}
@@ -2788,7 +3263,7 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
   );
 }
 
-function AssessmentSurveyGating({ assignments, cohorts, onUnlocksChange }) {
+function AssessmentSurveyGating({ assignments, cohorts, onUnlocksChange, onAssignmentsChange }) {
   const [selected, setSelected] = useState(null);
 
   return (
@@ -2827,6 +3302,16 @@ function AssessmentSurveyGating({ assignments, cohorts, onUnlocksChange }) {
               </div>
             </div>
             {selected.type === 'survey' && <SurveyResultsPanel assignmentId={selected.id} />}
+            {selected.type !== 'survey' && (
+              <QuestionsEditor
+                key={selected.id}
+                assignment={selected}
+                onSaved={(patch) => {
+                  setSelected((s) => ({ ...s, ...patch }));
+                  onAssignmentsChange?.((prev) => prev.map((a) => a.id === selected.id ? { ...a, ...patch } : a));
+                }}
+              />
+            )}
             <GatingPanel
               key={selected.id}
               unlocks={selected.unlocks ?? []}
