@@ -3064,6 +3064,62 @@ body {
   opacity: 0.7;
 }
 
+.challenge-instructions {
+  margin: -6px 0 4px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+/* ── Question card: clear separation of prompt/instructions from the answer box ── */
+.challenge-question-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.15);
+}
+.challenge-question-header {
+  display: flex;
+  align-items: center;
+  padding: 8px 14px;
+  background: var(--surface-2, rgba(0, 0, 0, 0.2));
+  border-bottom: 1px solid var(--border);
+}
+.challenge-question-header .challenge-prompt-num { opacity: 1; }
+.challenge-question-body {
+  padding: 14px 14px 2px;
+}
+.challenge-question-body .formatted-text p {
+  margin: 0 0 10px;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--text);
+}
+.challenge-question-body .formatted-text p:first-child:not(:last-child) {
+  font-size: 11.5px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--bright);
+}
+.challenge-question-body .formatted-text p:first-child:not(:last-child) strong {
+  color: var(--primary);
+}
+.challenge-question-body .formatted-text p:last-child { margin-bottom: 0; }
+
+.challenge-answer-wrap {
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.challenge-answer-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 .challenge-textarea {
   width: 100%;
   padding: 12px 14px;

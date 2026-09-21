@@ -224,12 +224,31 @@ const PROMPTS = [
   },
 ];
 
+// The student-facing renderer (FormattedText) turns a **bold** run and a
+// blank-line-separated paragraph into a visually distinct heading above the
+// instructions/question body. Every prompt here is authored as "TITLE —
+// rest", either already followed by \n\n (the 7 step questions) or as one
+// run (the triad-role/synthesis questions) — this normalizes both into
+// "**TITLE**\n\nbody" so every prompt gets the same bolded-heading treatment
+// without hand-formatting each string above.
+function formatPromptText(text) {
+  const paraIdx = text.indexOf('\n\n');
+  const dashIdx = text.indexOf(' — ');
+  if (paraIdx !== -1 && (dashIdx === -1 || dashIdx < paraIdx)) {
+    return `**${text.slice(0, paraIdx)}**${text.slice(paraIdx)}`;
+  }
+  if (dashIdx !== -1) {
+    return `**${text.slice(0, dashIdx)}**\n\n${text.slice(dashIdx + 3)}`;
+  }
+  return text;
+}
+
 function buildQuestions() {
   return PROMPTS.map((p) => ({
     id: uuidv4(),
     kind: 'prompt',
     points: p.points,
-    text: p.text,
+    text: formatPromptText(p.text),
     rubric: { keyElements: p.keyElements, ...(p.commonErrors ? { commonErrors: p.commonErrors } : {}) },
   }));
 }

@@ -361,6 +361,7 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
               <span className="section-label">JUDGMENT CHECKS</span>
               <span className="challenge-prompts-count">{checkQuestions.length} ITEMS</span>
             </div>
+            <p className="challenge-instructions">Quick check questions — pick an answer for each before moving on to the squad deliverables below.</p>
             {checkQuestions.map((q, i) => {
               const raw = checkAnswers[q.id];
               const answered = raw !== undefined;
@@ -368,31 +369,35 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
               return (
                 <motion.div
                   key={q.id}
-                  className="challenge-prompt-item"
+                  className="challenge-question-card"
                   initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.2, delay: i * 0.06 }}
                 >
-                  <label className="challenge-prompt-label">
-                    <span className="challenge-prompt-num">{String(i + 1).padStart(2, '0')}</span>
-                    {q.stem}
-                  </label>
-                  {q.payload.kind === 'multiple_choice' && (
-                    <MultipleChoice
-                      q={q}
-                      shuffledOpts={q.payload.options}
-                      selected={raw}
-                      onToggle={(optId) => setAnswer(q.payload.selectionMode === 'single' ? [optId] : (
-                        (raw ?? []).includes(optId) ? raw.filter((id) => id !== optId) : [...(raw ?? []), optId]
-                      ))}
-                      revealed={false}
-                      forced={false}
-                    />
-                  )}
-                  {q.payload.kind === 'true_false' && (
-                    <TrueFalse q={q} selected={raw} onSelect={setAnswer} revealed={false} forced={false} />
-                  )}
-                  {!answered && <div style={{ marginTop: 4, fontSize: 10, color: 'var(--muted)' }}>Select an answer to continue.</div>}
+                  <div className="challenge-question-header">
+                    <span className="challenge-prompt-num">{String(i + 1).padStart(2, '0')} / {String(checkQuestions.length).padStart(2, '0')}</span>
+                  </div>
+                  <div className="challenge-question-body">
+                    <FormattedText value={q.stem} />
+                  </div>
+                  <div className="challenge-answer-wrap">
+                    {q.payload.kind === 'multiple_choice' && (
+                      <MultipleChoice
+                        q={q}
+                        shuffledOpts={q.payload.options}
+                        selected={raw}
+                        onToggle={(optId) => setAnswer(q.payload.selectionMode === 'single' ? [optId] : (
+                          (raw ?? []).includes(optId) ? raw.filter((id) => id !== optId) : [...(raw ?? []), optId]
+                        ))}
+                        revealed={false}
+                        forced={false}
+                      />
+                    )}
+                    {q.payload.kind === 'true_false' && (
+                      <TrueFalse q={q} selected={raw} onSelect={setAnswer} revealed={false} forced={false} />
+                    )}
+                    {!answered && <div style={{ marginTop: 4, fontSize: 10, color: 'var(--muted)' }}>Select an answer to continue.</div>}
+                  </div>
                 </motion.div>
               );
             })}
@@ -404,50 +409,63 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
               <span className="section-label">SQUAD DELIVERABLES</span>
               <span className="challenge-prompts-count">{deliverables.length} ITEMS</span>
             </div>
+            <p className="challenge-instructions">
+              Work through each question below as a squad — talk it out before anyone writes. Answers save automatically as you type; nothing is submitted until you review and transmit at the end.
+            </p>
             {deliverables.map((prompt, i) => (
               <motion.div
                 key={i}
-                className="challenge-prompt-item"
+                className="challenge-question-card"
                 initial={{ opacity: 0, x: 10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.2, delay: i * 0.06 }}
               >
-                <label className="challenge-prompt-label">
-                  <span className="challenge-prompt-num">{String(i + 1).padStart(2, '0')}</span>
-                  {prompt}
-                </label>
-                <FormattedTextEditor
-                  value={isFieldMine(String(i)) ? (answers[i] ?? '') : (liveValues[String(i)] ?? answers[i] ?? '')}
-                  onChange={(value) => updateSharedAnswer(String(i), value)}
-                  onFocus={() => { focusField(String(i)); sharedChallenge && syncField(String(i), answers[i] ?? '', true); }}
-                  onBlur={() => { blurField(String(i)); stopTyping(String(i), answers[i] ?? ''); }}
-                  placeholder={`Squad response for: ${prompt}…`}
-                  rows={5}
-                  required
-                  readOnly={sharedChallenge && !isFieldMine(String(i))}
-                />
-                {lockBanner(String(i))}
-                {sharedChallenge && typingLabel(String(i)) && <div style={{ marginTop: 5, fontSize: 11, color: 'var(--primary)' }}>{typingLabel(String(i))}</div>}
-                {sharedChallenge && editLabel(String(i)) && <div style={{ marginTop: 4, fontSize: 10, color: 'var(--muted)' }}>{editLabel(String(i))}</div>}
+                <div className="challenge-question-header">
+                  <span className="challenge-prompt-num">QUESTION {String(i + 1).padStart(2, '0')} / {String(deliverables.length).padStart(2, '0')}</span>
+                </div>
+                <div className="challenge-question-body">
+                  <FormattedText value={prompt} />
+                </div>
+                <div className="challenge-answer-wrap">
+                  <div className="challenge-answer-label">Your squad's answer</div>
+                  <FormattedTextEditor
+                    value={isFieldMine(String(i)) ? (answers[i] ?? '') : (liveValues[String(i)] ?? answers[i] ?? '')}
+                    onChange={(value) => updateSharedAnswer(String(i), value)}
+                    onFocus={() => { focusField(String(i)); sharedChallenge && syncField(String(i), answers[i] ?? '', true); }}
+                    onBlur={() => { blurField(String(i)); stopTyping(String(i), answers[i] ?? ''); }}
+                    placeholder="Type your squad's answer here…"
+                    rows={5}
+                    required
+                    readOnly={sharedChallenge && !isFieldMine(String(i))}
+                  />
+                  {lockBanner(String(i))}
+                  {sharedChallenge && typingLabel(String(i)) && <div style={{ marginTop: 5, fontSize: 11, color: 'var(--primary)' }}>{typingLabel(String(i))}</div>}
+                  {sharedChallenge && editLabel(String(i)) && <div style={{ marginTop: 4, fontSize: 10, color: 'var(--muted)' }}>{editLabel(String(i))}</div>}
+                </div>
               </motion.div>
             ))}
           </div>
         ) : (
-          <div className="challenge-freeform">
-            <div className="section-label" style={{ marginBottom: 10 }}>SQUAD FIELD REPORT</div>
-            <FormattedTextEditor
-              value={isFieldMine('__report__') ? freetext : (liveValues.__report__ ?? freetext)}
-              onChange={(value) => updateSharedAnswer('__report__', value)}
-              onFocus={() => { focusField('__report__'); sharedChallenge && syncField('__report__', freetext, true); }}
-              onBlur={() => { blurField('__report__'); stopTyping('__report__', freetext); }}
-              placeholder="Enter your squad's field report…"
-              rows={8}
-              required
-              readOnly={sharedChallenge && !isFieldMine('__report__')}
-            />
-            {lockBanner('__report__')}
-            {sharedChallenge && typingLabel('__report__') && <div style={{ marginTop: 5, fontSize: 11, color: 'var(--primary)' }}>{typingLabel('__report__')}</div>}
-            {sharedChallenge && editLabel('__report__') && <div style={{ marginTop: 4, fontSize: 10, color: 'var(--muted)' }}>{editLabel('__report__')}</div>}
+          <div className="challenge-question-card">
+            <div className="challenge-question-header">
+              <span className="challenge-prompt-num">SQUAD FIELD REPORT</span>
+            </div>
+            <div className="challenge-answer-wrap">
+              <div className="challenge-answer-label">Your squad's report</div>
+              <FormattedTextEditor
+                value={isFieldMine('__report__') ? freetext : (liveValues.__report__ ?? freetext)}
+                onChange={(value) => updateSharedAnswer('__report__', value)}
+                onFocus={() => { focusField('__report__'); sharedChallenge && syncField('__report__', freetext, true); }}
+                onBlur={() => { blurField('__report__'); stopTyping('__report__', freetext); }}
+                placeholder="Enter your squad's field report…"
+                rows={8}
+                required
+                readOnly={sharedChallenge && !isFieldMine('__report__')}
+              />
+              {lockBanner('__report__')}
+              {sharedChallenge && typingLabel('__report__') && <div style={{ marginTop: 5, fontSize: 11, color: 'var(--primary)' }}>{typingLabel('__report__')}</div>}
+              {sharedChallenge && editLabel('__report__') && <div style={{ marginTop: 4, fontSize: 10, color: 'var(--muted)' }}>{editLabel('__report__')}</div>}
+            </div>
           </div>
         )}
 
