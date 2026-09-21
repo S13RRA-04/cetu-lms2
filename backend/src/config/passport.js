@@ -3,6 +3,7 @@ const passport                              = require('passport');
 const { Strategy: LocalStrategy }           = require('passport-local');
 const { Strategy: JwtStrategy, ExtractJwt } = require('passport-jwt');
 const bcrypt                                = require('bcryptjs');
+const { fn, col, where: sequelizeWhere }    = require('sequelize');
 
 passport.use(
   new LocalStrategy(
@@ -10,7 +11,11 @@ passport.use(
     async (email, password, done) => {
       try {
         const { User } = require('../models');
-        const user = await User.scope('withPassword').findOne({ where: { email } });
+        // Case-insensitive — mirrors auth.service.js's login(); see its
+        // comment for why (a real duplicate-account incident from this).
+        const user = await User.scope('withPassword').findOne({
+          where: sequelizeWhere(fn('lower', col('email')), (email ?? '').trim().toLowerCase()),
+        });
         if (!user || !user.password_hash) {
           return done(null, false, { message: 'Invalid credentials' });
         }

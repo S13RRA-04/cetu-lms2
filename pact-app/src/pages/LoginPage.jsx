@@ -153,7 +153,7 @@ export default function LoginPage() {
                 />
               </div>
               <div className="auth-field">
-                <label className="auth-label">ACCESS CODE</label>
+                <label className="auth-label">PASSWORD</label>
                 <input
                   type="password"
                   value={password}

@@ -2,6 +2,7 @@
 const jwt    = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const { fn, col, where: sequelizeWhere } = require('sequelize');
 const { User, RefreshToken, PasswordResetToken } = require('../models');
 const { AppError }           = require('../utils/errors');
 const logger                 = require('../utils/logger');
@@ -9,6 +10,15 @@ const logger                 = require('../utils/logger');
 const ACCESS_EXPIRY         = '15m';
 const REFRESH_EXPIRY_MS     = 7 * 24 * 60 * 60 * 1000;
 const RESET_TOKEN_TTL_MS    = 30 * 60 * 1000; // 30 minutes
+
+// Login must never be foiled by casing (autocapitalize, copy-paste from an
+// invite email, etc.) — this also has to work for the handful of legacy
+// rows stored with mixed-case email before User.js's set() hook started
+// normalizing on write, so it compares lower(column) rather than relying
+// on stored data already being clean.
+function emailWhereClause(email) {
+  return sequelizeWhere(fn('lower', col('email')), (email ?? '').trim().toLowerCase());
+}
 
 function generateAccessToken(user) {
   return jwt.sign(
@@ -58,7 +68,7 @@ async function rotateRefreshToken(raw) {
 }
 
 async function login(email, password) {
-  const user = await User.unscoped().findOne({ where: { email } });
+  const user = await User.unscoped().findOne({ where: emailWhereClause(email) });
   if (!user || !user.password_hash) throw new AppError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
 
   const valid = await bcrypt.compare(password, user.password_hash);
@@ -111,7 +121,7 @@ async function adminResetPassword(userId, newPassword) {
    the email matches a user — the controller must not be able to tell the
    difference, or this becomes a user-enumeration vector. */
 async function requestPasswordReset(email) {
-  const user = await User.unscoped().findOne({ where: { email } });
+  const user = await User.unscoped().findOne({ where: emailWhereClause(email) });
   if (!user || !user.is_active) return;
 
   const raw  = crypto.randomBytes(32).toString('hex');

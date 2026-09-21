@@ -11,6 +11,14 @@ module.exports = (sequelize) => {
         allowNull: false,
         unique:   true,
         validate: { isEmail: true },
+        // Normalized on every write so login/lookup can never be foiled by
+        // casing — without this, "User@x.com" and "user@x.com" pass the
+        // unique constraint as two different rows (this actually happened:
+        // a student's autocapitalized email on a second login attempt
+        // silently created a duplicate account instead of matching theirs).
+        set(value) {
+          this.setDataValue('email', typeof value === 'string' ? value.trim().toLowerCase() : value);
+        },
       },
       username:      { type: DataTypes.STRING(100), allowNull: false, unique: true },
       password_hash: { type: DataTypes.STRING(255), allowNull: true },
