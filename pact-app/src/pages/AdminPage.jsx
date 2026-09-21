@@ -43,6 +43,7 @@ import {
   getAssignmentProgress,
   getUsers,
   updateUser,
+  COURSE_ID,
 } from '../api/pact.js';
 import { VICTIMS } from '../constants/victims.js';
 import { activeLearnerCount, defaultReleaseCohortId } from '../lib/releaseCohorts.js';
@@ -567,7 +568,7 @@ export default function AdminPage() {
       {adminPanel === 'live' ? (
         <LiveProgressPanel cohorts={cohorts} />
       ) : adminPanel === 'users' ? (
-        <UsersPanel />
+        <UsersPanel cohorts={cohorts} />
       ) : adminPanel === 'library' ? (
         <ContentGatingPanel
           assignments={assignments}
@@ -888,17 +889,21 @@ const ACCOUNT_ROLE_LABELS = {
    USERS PANEL — check account status, edit professional role,
    unlock/deactivate accounts from Command
 ═══════════════════════════════════════════════════════════ */
-function UsersPanel() {
+function UsersPanel({ cohorts = [] }) {
   const [users,     setUsers]     = useState(null); // null = loading
   const [search,    setSearch]    = useState('');
   const [roleFilter,setRoleFilter]= useState('');
   const [statusFilter, setStatusFilter] = useState(''); // '' | 'locked' | 'active' | 'never_logged_in'
   const [accountTypeFilter, setAccountTypeFilter] = useState(''); // '' | student | instructor | admin | superadmin
+  const [cohortFilter, setCohortFilter] = useState(''); // '' | '__none__' | a cohort id
   const [saving,    setSaving]    = useState({}); // userId -> bool
   const [flash,     setFlash]     = useState({}); // userId -> 'saved' | 'error'
 
   useEffect(() => {
-    getUsers({ limit: 500 })
+    // course_id scopes each user's `cohort` field to this course (null for
+    // staff/unenrolled accounts, who still appear) — see user.service.js's
+    // listUsers. getUsers() itself stays course-agnostic for other callers.
+    getUsers({ limit: 500, course_id: COURSE_ID })
       .then((data) => setUsers(Array.isArray(data) ? data : []))
       .catch(() => setUsers([]));
   }, []);
@@ -969,6 +974,8 @@ function UsersPanel() {
     if (statusFilter === 'locked' && u.is_active) return false;
     if (statusFilter === 'active' && !u.is_active) return false;
     if (statusFilter === 'never_logged_in' && u.last_login) return false;
+    if (cohortFilter === '__none__' && u.cohort) return false;
+    if (cohortFilter && cohortFilter !== '__none__' && u.cohort?.id !== cohortFilter) return false;
     if (!q) return true;
     return (
       u.first_name?.toLowerCase().includes(q) ||
@@ -1041,6 +1048,20 @@ function UsersPanel() {
           <option value="active">Active only</option>
           <option value="never_logged_in">Never logged in</option>
         </select>
+        <select
+          value={cohortFilter}
+          onChange={(e) => setCohortFilter(e.target.value)}
+          style={{
+            padding: '7px 10px', borderRadius: 4, border: '1px solid var(--border)',
+            background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--mono)',
+          }}
+        >
+          <option value="">All cohorts</option>
+          <option value="__none__">No cohort (staff/unenrolled)</option>
+          {[...cohorts].sort((a, b) => a.name.localeCompare(b.name)).map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
       </div>
 
       {visible.length === 0 ? (
@@ -1074,6 +1095,15 @@ function UsersPanel() {
                   }}>
                     {(ACCOUNT_ROLE_LABELS[u.role] ?? u.role ?? '').toUpperCase()}
                   </span>
+                  {u.cohort && (
+                    <span style={{
+                      fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.08em', color: 'var(--primary)',
+                      background: 'rgba(0,176,255,0.1)', border: '1px solid var(--border)',
+                      padding: '2px 6px', borderRadius: 10,
+                    }}>
+                      {u.cohort.name.toUpperCase()}
+                    </span>
+                  )}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--mono)' }}>
                   {u.email} · {u.last_login ? `last login ${relativeTime(u.last_login)}` : 'never logged in'}
