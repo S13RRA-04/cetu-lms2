@@ -10,7 +10,7 @@ const { partitionDropMaterials, unpublishedIds, buildReleasePreview } = require(
 const { invalidateCourseContentLists } = require('./courseContent.service');
 const { invalidateAssignmentLists, invalidateStudentCache } = require('./assignment.service');
 const { invalidatePackageLists } = require('./scenario.service');
-const { listPuzzlesForDrops } = require('./campaignPuzzle.service');
+const { listPuzzlesForDrops, resolveVictimCodeForUser } = require('./campaignPuzzle.service');
 const { scenarioSlugFromName } = require('../utils/r2CaseFile');
 
 async function listDrops(courseId, cohortId, includePin = false, userId = null) {
@@ -28,9 +28,13 @@ async function listDrops(courseId, cohortId, includePin = false, userId = null) 
   });
 
   // Same staff/non-staff visibility flag vault_pin already uses — puzzle
-  // answers must never reach a student client either.
+  // answers must never reach a student client either. A student's own
+  // squad/victim is resolved once here so a vault_lock puzzle with
+  // per-squad overrides (config.perSquad) can show their squad's own prompt
+  // — listPuzzlesForDrops still strips every squad's answers regardless.
+  const victimCode = !includePin && userId ? await resolveVictimCodeForUser(courseId, userId) : null;
   const [puzzlesByDrop, selections] = await Promise.all([
-    listPuzzlesForDrops(drops.map((d) => d.id), { includeAnswers: includePin }),
+    listPuzzlesForDrops(drops.map((d) => d.id), { includeAnswers: includePin, victimCode }),
     // Only students need their own location choice surfaced — staff never
     // self-report, they configure location_options instead.
     !includePin && userId

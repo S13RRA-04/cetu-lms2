@@ -44,7 +44,7 @@ async function reorderPuzzles(req, res, next) {
 
 async function verifyPuzzle(req, res, next) {
   try {
-    const { valid } = await campaignPuzzleService.verifyPuzzleAnswer(req.params.did, req.params.puzzleId, req.body.answer ?? '');
+    const { valid } = await campaignPuzzleService.verifyPuzzleAnswer(req.params.did, req.params.puzzleId, req.body.answer ?? '', req.user.id);
     const completion = valid && req.user.role === 'student'
       ? await campaignPuzzleService.completeForSquad(req.params.did, req.params.puzzleId, req.user.id)
       : null;

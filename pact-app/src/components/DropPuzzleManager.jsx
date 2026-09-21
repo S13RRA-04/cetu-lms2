@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createDropPuzzle, deleteDropPuzzle, getDropPuzzles, getPuzzlePresets, reorderDropPuzzles, updateDropPuzzle } from '../api/pact.js';
 import { applyPuzzlePreset, filterOptionsForPresets, filterPresets, presetsForOption, searchPresets } from '../lib/dropPuzzlePresets.js';
+import { VICTIMS } from '../constants/victims.js';
 
 const EMPTY = { puzzle_type: 'cipher_wheel', enabled: true, prompt: '', answer: '', config: { method: 'caesar', shift: 13, cipherText: '' } };
 const NAMES = { cipher_wheel: 'Cipher Wheel', log_grep: 'Log Grep', hash_match: 'Hash Match' };
@@ -185,7 +186,25 @@ function PuzzleEditor({ value, onChange, onSave, onCancel, busy, presetCatalog }
       <label className="admin-grade-label">Algorithm</label><select value={value.config.algorithm} onChange={(e) => config('algorithm', e.target.value)}><option value="md5">MD5</option><option value="sha1">SHA-1</option><option value="sha256">SHA-256</option></select>
       <label className="admin-grade-label">Evidence text *</label><textarea rows="5" value={value.config.inputText ?? ''} onChange={(e) => config('inputText', e.target.value)} />
     </>}
-    {value.puzzle_type !== 'hash_match' && value.puzzle_type !== 'signal_hunt' && <><label className="admin-grade-label">Expected answer (server-only) *</label><input autoComplete="off" maxLength="255" value={value.answer ?? ''} onChange={(e) => set('answer', e.target.value)} /></>}
+    {value.puzzle_type !== 'hash_match' && value.puzzle_type !== 'signal_hunt' && <><label className="admin-grade-label">Expected answer (server-only) *{value.puzzle_type === 'vault_lock' ? ' — used for any squad without its own override below' : ''}</label><input autoComplete="off" maxLength="255" value={value.answer ?? ''} onChange={(e) => set('answer', e.target.value)} /></>}
+    {value.puzzle_type === 'vault_lock' && <>
+      <label className="admin-grade-label" style={{ marginTop: 14 }}>Per-squad overrides (optional)</label>
+      <p style={{ fontSize: 11, color: 'var(--muted)', margin: '0 0 8px' }}>
+        A squad whose assigned victim has an override here sees that prompt and must enter that answer instead of the shared ones above. Leave a victim blank to use the shared prompt/answer. Other squads never see these answers.
+      </p>
+      {Object.values(VICTIMS).map((victim) => {
+        const entry = value.config?.perSquad?.[victim.code] ?? {};
+        const setEntry = (field, next) => config('perSquad', {
+          ...(value.config?.perSquad ?? {}),
+          [victim.code]: { ...entry, [field]: next },
+        });
+        return <div key={victim.code} style={{ border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <strong style={{ fontSize: 12, color: victim.color }}>{victim.name}</strong>
+          <textarea rows="2" placeholder="Prompt for this squad (blank = shared prompt)" value={entry.prompt ?? ''} onChange={(e) => setEntry('prompt', e.target.value)} />
+          <input autoComplete="off" maxLength="255" placeholder="Answer for this squad (blank = shared answer)" value={entry.answer ?? ''} onChange={(e) => setEntry('answer', e.target.value)} />
+        </div>;
+      })}
+    </>}
     <div style={{ display: 'flex', gap: 8, marginTop: 12 }}><button className="btn-submit" style={{ width: 'auto' }} disabled={busy} onClick={onSave}>{busy ? 'Saving...' : 'Save Puzzle'}</button><button className="btn-secondary" onClick={onCancel}>Cancel</button></div>
   </div>;
 }

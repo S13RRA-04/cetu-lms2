@@ -7,7 +7,15 @@ import useSquadFieldSync from '../hooks/useSquadFieldSync.js';
 import useAuthStore from '../store/authStore.js';
 import SubmitSequence from './SubmitSequence.jsx';
 import { FormattedText, FormattedTextEditor } from './FormattedText.jsx';
-import { MultipleChoice, TrueFalse } from './QuizFlow.jsx';
+import { MultipleChoice, TrueFalse, FillBlank } from './QuizFlow.jsx';
+
+// A fill_blank answer is a string, so "answered" means non-empty text — an
+// input the student typed into then cleared must not count as answered (the
+// multiple-choice/true-false answers are only ever undefined or a value).
+function isCheckAnswered(q, raw) {
+  if (q.payload?.kind === 'fill_blank') return typeof raw === 'string' && raw.trim().length > 0;
+  return raw !== undefined;
+}
 
 // Mirrors the multiple_choice/true_false branches of QuizFlow's isAnswerCorrect
 // (not exported from there) — used for the self-check "judgment check"
@@ -22,6 +30,12 @@ function isCheckCorrect(q, raw) {
     return [...correct].every((id) => selected.has(id)) && [...selected].every((id) => correct.has(id));
   }
   if (p.kind === 'true_false') return raw === p.correct;
+  if (p.kind === 'fill_blank') {
+    const blank = p.blanks?.[0];
+    if (!blank) return false;
+    const norm = (s) => (blank.caseSensitive ? String(s).trim() : String(s).trim().toLowerCase());
+    return (blank.accepted ?? []).some((a) => norm(a) === norm(raw ?? ''));
+  }
   return false;
 }
 
@@ -198,7 +212,7 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
         ? deliverables.filter((_, i) => (answers[i] ?? '').trim().length > 0).length
         : (freetext.trim().length > 0 ? 1 : 0);
       const totalCount = deliverables ? deliverables.length : 1;
-      const checkedCount = checkQuestions.filter((q) => checkAnswers[q.id] !== undefined).length;
+      const checkedCount = checkQuestions.filter((q) => isCheckAnswered(q, checkAnswers[q.id])).length;
       const pct = Math.round(((answeredCount + checkedCount) / (totalCount + checkQuestions.length)) * 100);
       updateProgress(assignment.id, pct)
         .then(() => setSaveError(false))
@@ -319,7 +333,7 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
   const canSubmit = (deliverables
     ? deliverables.every((_, i) => (answers[i] ?? '').trim().length > 0)
     : freetext.trim().length > 0)
-    && checkQuestions.every((q) => checkAnswers[q.id] !== undefined);
+    && checkQuestions.every((q) => isCheckAnswered(q, checkAnswers[q.id]));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -394,7 +408,7 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
             <p className="challenge-instructions">Quick check questions — pick an answer for each before moving on to the squad deliverables below.</p>
             {checkQuestions.map((q, i) => {
               const raw = checkAnswers[q.id];
-              const answered = raw !== undefined;
+              const answered = isCheckAnswered(q, raw);
               const setAnswer = (value) => setCheckAnswers((prev) => ({ ...prev, [q.id]: value }));
               return (
                 <motion.div
@@ -426,7 +440,10 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
                     {q.payload.kind === 'true_false' && (
                       <TrueFalse q={q} selected={raw} onSelect={setAnswer} revealed={false} forced={false} />
                     )}
-                    {!answered && <div style={{ marginTop: 4, fontSize: 10, color: 'var(--muted)' }}>Select an answer to continue.</div>}
+                    {q.payload.kind === 'fill_blank' && (
+                      <FillBlank q={q} value={raw} onChange={setAnswer} revealed={false} forced={false} />
+                    )}
+                    {!answered && <div style={{ marginTop: 4, fontSize: 10, color: 'var(--muted)' }}>{q.payload.kind === 'fill_blank' ? 'Type your answer to continue.' : 'Select an answer to continue.'}</div>}
                   </div>
                 </motion.div>
               );
@@ -626,6 +643,9 @@ function ChallengeReview({ assignment, color, existingContent, grade }) {
                     )}
                     {q.payload.kind === 'true_false' && (
                       <TrueFalse q={q} selected={raw} onSelect={() => {}} revealed={correct} forced={!correct} />
+                    )}
+                    {q.payload.kind === 'fill_blank' && (
+                      <FillBlank q={q} value={raw} onChange={() => {}} revealed={correct} forced={!correct} />
                     )}
                     <div style={{ marginTop: 5, fontSize: 12, color: correct ? '#10b981' : '#ef4444' }}>
                       {correct ? (q.feedback?.correct ?? 'Correct.') : (q.feedback?.incorrect ?? 'Incorrect.')}

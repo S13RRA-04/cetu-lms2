@@ -3,7 +3,88 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
-const { normalizePuzzleConfig, assertCompletePuzzleConfig } = require('./campaignPuzzle.service');
+const { normalizePuzzleConfig, assertCompletePuzzleConfig, listPuzzlesForDrops, verifyPuzzleAnswer } = require('./campaignPuzzle.service');
+const { CampaignDropPuzzle, CampaignDrop, Enrollment, Squad } = require('../models');
+
+const PER_SQUAD_PUZZLE = {
+  id: 'puzzle-1', drop_id: 'drop-1', puzzle_type: 'vault_lock', enabled: true, order_index: 0,
+  prompt: 'Shared fallback prompt', answer: 'SHARED ANSWER',
+  config: {
+    perSquad: {
+      REDSTONE: { prompt: 'Redstone prompt', answer: 'INC-9902' },
+      CYBERDYNE: { prompt: 'CyberDyne prompt', answer: 'INC-2026-0620' },
+    },
+  },
+};
+
+function stubPuzzle(t, row) {
+  const original = CampaignDropPuzzle.findAll;
+  const originalOne = CampaignDropPuzzle.findOne;
+  CampaignDropPuzzle.findAll = async () => [{ toJSON: () => structuredClone(row) }];
+  CampaignDropPuzzle.findOne = async () => ({ ...structuredClone(row), toJSON: () => structuredClone(row) });
+  t.after(() => { CampaignDropPuzzle.findAll = original; CampaignDropPuzzle.findOne = originalOne; });
+}
+
+function stubSquadOf(t, victimCode) {
+  const originals = { drop: CampaignDrop.findByPk, enrollment: Enrollment.findOne, squad: Squad.findByPk };
+  CampaignDrop.findByPk = async () => ({ course_id: 'course-1' });
+  Enrollment.findOne = async () => (victimCode === undefined ? null : { squad_id: 'squad-1' });
+  Squad.findByPk = async () => ({ victim_code: victimCode ?? null });
+  t.after(() => { CampaignDrop.findByPk = originals.drop; Enrollment.findOne = originals.enrollment; Squad.findByPk = originals.squad; });
+}
+
+test('normalizePuzzleConfig keeps only known victim codes for vault_lock perSquad, trimming and dropping empties', () => {
+  const config = normalizePuzzleConfig('vault_lock', {
+    perSquad: {
+      REDSTONE: { prompt: '  p  ', answer: ' a ' },
+      NOTAVICTIM: { prompt: 'x', answer: 'y' },
+      DOGWOOD: { prompt: '', answer: '' },
+    },
+  });
+  assert.deepEqual(config, { perSquad: { REDSTONE: { prompt: 'p', answer: 'a' } } });
+});
+
+test('a student sees their own squad\'s prompt but never any perSquad answer map or the shared answer', async (t) => {
+  stubPuzzle(t, PER_SQUAD_PUZZLE);
+  const byDrop = await listPuzzlesForDrops(['drop-1'], { includeAnswers: false, victimCode: 'REDSTONE' });
+  const [puzzle] = byDrop.get('drop-1');
+  assert.equal(puzzle.prompt, 'Redstone prompt');
+  assert.equal(puzzle.answer, undefined);
+  assert.equal(puzzle.config.perSquad, undefined);
+  assert.doesNotMatch(JSON.stringify(puzzle), /INC-9902|INC-2026-0620|SHARED ANSWER/);
+});
+
+test('a student with no victim (or one without an override) keeps the shared prompt and still gets no answers', async (t) => {
+  stubPuzzle(t, PER_SQUAD_PUZZLE);
+  for (const victimCode of [null, 'PIXELPLAY']) {
+    const [puzzle] = (await listPuzzlesForDrops(['drop-1'], { includeAnswers: false, victimCode })).get('drop-1');
+    assert.equal(puzzle.prompt, 'Shared fallback prompt');
+    assert.doesNotMatch(JSON.stringify(puzzle), /INC-9902|INC-2026-0620|SHARED ANSWER/);
+  }
+});
+
+test('the admin editor (includeAnswers) still receives the full perSquad config and shared answer', async (t) => {
+  stubPuzzle(t, PER_SQUAD_PUZZLE);
+  const [puzzle] = (await listPuzzlesForDrops(['drop-1'], { includeAnswers: true })).get('drop-1');
+  assert.equal(puzzle.answer, 'SHARED ANSWER');
+  assert.equal(puzzle.config.perSquad.REDSTONE.answer, 'INC-9902');
+  assert.equal(puzzle.prompt, 'Shared fallback prompt');
+});
+
+test('verifyPuzzleAnswer checks a squad against its own perSquad answer, not another squad\'s or the shared one', async (t) => {
+  stubPuzzle(t, PER_SQUAD_PUZZLE);
+  stubSquadOf(t, 'REDSTONE');
+  assert.equal((await verifyPuzzleAnswer('drop-1', 'puzzle-1', 'inc-9902', 'user-1')).valid, true);
+  assert.equal((await verifyPuzzleAnswer('drop-1', 'puzzle-1', 'INC-2026-0620', 'user-1')).valid, false);
+  assert.equal((await verifyPuzzleAnswer('drop-1', 'puzzle-1', 'SHARED ANSWER', 'user-1')).valid, false);
+});
+
+test('verifyPuzzleAnswer falls back to the shared answer when the squad has no victim/override or the caller is unknown', async (t) => {
+  stubPuzzle(t, PER_SQUAD_PUZZLE);
+  stubSquadOf(t, 'PIXELPLAY');
+  assert.equal((await verifyPuzzleAnswer('drop-1', 'puzzle-1', 'shared answer', 'user-1')).valid, true);
+  assert.equal((await verifyPuzzleAnswer('drop-1', 'puzzle-1', 'shared answer')).valid, true);
+});
 
 test('normalizePuzzleConfig defaults cipher_wheel to caesar shift 13 and strips unknown keys', () => {
   const config = normalizePuzzleConfig('cipher_wheel', { cipherText: 'uryyb', stray: 'nope' });

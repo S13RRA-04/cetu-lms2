@@ -1,18 +1,46 @@
 'use strict';
 const crypto = require('node:crypto');
 const { Op } = require('sequelize');
-const { CampaignDrop, CampaignDropPuzzle, Enrollment, SquadPuzzleCompletion } = require('../models');
+const { CampaignDrop, CampaignDropPuzzle, Enrollment, Squad, SquadPuzzleCompletion } = require('../models');
 const { sequelize } = require('../config/database');
 const { NotFoundError, AppError } = require('../utils/errors');
+const { VICTIMS } = require('../constants/victims');
 
 const CAESAR_DEFAULT_SHIFT = 13;
 const HASH_ALGORITHMS = ['md5', 'sha1', 'sha256'];
+const VICTIM_CODES = Object.values(VICTIMS).map((v) => v.code);
+
+// A student's squad and its assigned victim — vault_lock puzzles use this to
+// pick a per-squad prompt/answer override (see config.perSquad) instead of
+// the drop-wide default. Returns null for staff, unenrolled users, or a
+// squad with no victim assigned yet — all of which fall back to the
+// drop-wide prompt/answer.
+async function resolveVictimCodeForUser(courseId, userId) {
+  if (!userId) return null;
+  const enrollment = await Enrollment.findOne({
+    where: { user_id: userId, course_id: courseId, status: 'active' },
+    attributes: ['squad_id'],
+  });
+  if (!enrollment?.squad_id) return null;
+  const squad = await Squad.findByPk(enrollment.squad_id, { attributes: ['victim_code'] });
+  return squad?.victim_code ?? null;
+}
 
 // Pure, per-type config shaping — strips unknown keys, applies type defaults.
 function normalizePuzzleConfig(puzzleType, config = {}) {
   const raw = config && typeof config === 'object' ? config : {};
   if (puzzleType === 'signal_hunt') return { signalCode: String(raw.signalCode ?? '') };
-  if (puzzleType === 'vault_lock') return {};
+  if (puzzleType === 'vault_lock') {
+    const rawPerSquad = raw.perSquad && typeof raw.perSquad === 'object' ? raw.perSquad : {};
+    const perSquad = {};
+    for (const code of VICTIM_CODES) {
+      const entry = rawPerSquad[code];
+      const prompt = typeof entry?.prompt === 'string' ? entry.prompt.trim() : '';
+      const answer = typeof entry?.answer === 'string' ? entry.answer.trim() : '';
+      if (prompt || answer) perSquad[code] = { prompt, answer };
+    }
+    return Object.keys(perSquad).length > 0 ? { perSquad } : {};
+  }
   if (puzzleType === 'cipher_wheel') {
     const method = ['caesar', 'rot13', 'atbash'].includes(raw.method) ? raw.method : 'caesar';
     const rawShift = Math.trunc(Number(raw.shift));
@@ -83,7 +111,15 @@ function assertCompletePuzzleConfig(puzzleType, data) {
 }
 
 // Batched fetch to avoid N+1 when listDrops attaches puzzles to every drop.
-async function listPuzzlesForDrops(dropIds, { includeAnswers = false } = {}) {
+// victimCode (a specific student's squad's victim) selects that squad's
+// config.perSquad override for a vault_lock puzzle's displayed prompt.
+// Regardless of victimCode, config.perSquad itself — which holds every
+// squad's plaintext answer, not just the requester's — is stripped from
+// every non-admin (includeAnswers: false) response so one squad's client
+// can never read another squad's (or its own) expected answer directly out
+// of the API payload; only the admin puzzle editor (includeAnswers: true)
+// ever receives it whole.
+async function listPuzzlesForDrops(dropIds, { includeAnswers = false, victimCode = null } = {}) {
   const byDrop = new Map(dropIds.map((id) => [id, []]));
   if (dropIds.length === 0) return byDrop;
 
@@ -93,6 +129,14 @@ async function listPuzzlesForDrops(dropIds, { includeAnswers = false } = {}) {
   });
   for (const puzzle of puzzles) {
     const json = puzzle.toJSON();
+    if (json.puzzle_type === 'vault_lock' && json.config?.perSquad) {
+      const override = victimCode ? json.config.perSquad[victimCode] : null;
+      if (override?.prompt) json.prompt = override.prompt;
+      if (!includeAnswers) {
+        const { perSquad, ...restConfig } = json.config;
+        json.config = restConfig;
+      }
+    }
     if (!includeAnswers) delete json.answer;
     byDrop.get(json.drop_id)?.push(json);
   }
@@ -169,7 +213,7 @@ async function reorderPuzzles(dropId, orderedIds) {
   return listPuzzlesForDrop(dropId, { includeAnswers: true });
 }
 
-async function verifyPuzzleAnswer(dropId, puzzleId, submitted) {
+async function verifyPuzzleAnswer(dropId, puzzleId, submitted, userId = null) {
   const puzzle = await findPuzzleForDrop(dropId, puzzleId);
   if (!puzzle.enabled) return { valid: false };
 
@@ -179,6 +223,13 @@ async function verifyPuzzleAnswer(dropId, puzzleId, submitted) {
     const { inputText, algorithm } = puzzle.config ?? {};
     const digest = crypto.createHash(algorithm).update(String(inputText ?? ''), 'utf8').digest('hex');
     return { valid: digest.toLowerCase() === entered };
+  }
+
+  if (puzzle.puzzle_type === 'vault_lock' && puzzle.config?.perSquad) {
+    const drop = await CampaignDrop.findByPk(dropId, { attributes: ['course_id'] });
+    const victimCode = drop ? await resolveVictimCodeForUser(drop.course_id, userId) : null;
+    const override = victimCode ? puzzle.config.perSquad[victimCode] : null;
+    if (override?.answer) return { valid: override.answer.trim().toLowerCase() === entered };
   }
 
   if (!puzzle.answer) return { valid: false };
@@ -240,4 +291,5 @@ module.exports = {
   verifyPuzzleAnswer,
   completeForSquad,
   getSquadCompletion,
+  resolveVictimCodeForUser,
 };

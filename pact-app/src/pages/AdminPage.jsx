@@ -54,7 +54,7 @@ import VaultKeypad from './VaultKeypad.jsx';
 import { guessContentType } from '../lib/contentType.js';
 import SignalEntry from './SignalEntry.jsx';
 import { FormattedText } from '../components/FormattedText.jsx';
-import { MultipleChoice, TrueFalse } from '../components/QuizFlow.jsx';
+import { MultipleChoice, TrueFalse, FillBlank } from '../components/QuizFlow.jsx';
 import DropPuzzleManager from '../components/DropPuzzleManager.jsx';
 import DropPuzzleGate from './DropPuzzleGate.jsx';
 import { getNextStage } from '../lib/dropPuzzles.js';
@@ -317,6 +317,9 @@ function ChallengeDeliverableReview({ delivData, questions = [], maxScore, assig
               )}
               {q.payload.kind === 'true_false' && (
                 <TrueFalse q={q} selected={record?.answer} onSelect={() => {}} revealed={!!record?.correct} forced={!record?.correct} />
+              )}
+              {q.payload.kind === 'fill_blank' && (
+                <FillBlank q={q} value={record?.answer} onChange={() => {}} revealed={!!record?.correct} forced={!record?.correct} />
               )}
               <div style={{ marginTop: 6, fontSize: 11, color: record?.correct ? '#10b981' : '#ef4444' }}>
                 Student answered {record?.correct ? 'correctly' : 'incorrectly'} — suggested score pre-filled, adjust if needed.
