@@ -459,7 +459,15 @@ export default function AdminPage() {
 
   const switchToLibrary = useCallback(() => setAdminPanel('library'), []);
 
+  // Guards against out-of-order responses: clicking a second assignment
+  // before the first one's fetch resolves must not let the first assignment's
+  // late-arriving submissions/grades overwrite the second one's correct
+  // state (silently blending mismatched score/max_score across two different
+  // assignments — the "10/ (10%)" symptom this caused).
+  const openAssignmentRequestId = useRef(0);
+
   const openAssignment = useCallback(async (a) => {
+    const requestId = ++openAssignmentRequestId.current;
     setSelectedAssignment(a);
     setSelectedSub(null);
     setSubmissions([]);
@@ -470,14 +478,17 @@ export default function AdminPage() {
         getSubmissions(a.id),
         getGradesForAssignment(a.id),
       ]);
+      if (openAssignmentRequestId.current !== requestId) return; // superseded by a newer click
       setSubmissions(Array.isArray(subs) ? subs : []);
       const gradeMap = {};
       (Array.isArray(gradeList) ? gradeList : []).forEach((g) => {
         gradeMap[g.user_id] = g;
       });
       setGrades(gradeMap);
-    } catch {}
-    setLoadingSubs(false);
+    } catch {
+      if (openAssignmentRequestId.current !== requestId) return;
+    }
+    if (openAssignmentRequestId.current === requestId) setLoadingSubs(false);
   }, []);
 
   const handleGradeSaved = useCallback((sub, result) => {
@@ -791,7 +802,9 @@ function IndividualSubmissions({ submissions, grades, savedGrades, onSelect }) {
       {submissions.map((s) => {
         const grade   = savedGrades[s.id] ?? grades[s.user_id];
         const graded  = grade != null;
-        const pct     = graded ? Math.round((grade.score / (grade.max_score ?? 100)) * 100) : null;
+        // No invented denominator: a missing max_score shows the raw score
+        // rather than a fabricated (and misleading) out-of-100 percentage.
+        const pct     = graded && grade.max_score ? Math.round((grade.score / grade.max_score) * 100) : null;
         return (
           <button key={s.id} className="admin-sub-row" onClick={() => onSelect(s)}>
             <div className="admin-sub-avatar">
@@ -807,8 +820,8 @@ function IndividualSubmissions({ submissions, grades, savedGrades, onSelect }) {
             </div>
             <div className="admin-sub-grade">
               {graded ? (
-                <span className="admin-grade-chip" style={{ color: pct >= 70 ? '#10b981' : '#f59e0b' }}>
-                  {grade.score}/{grade.max_score} ({pct}%)
+                <span className="admin-grade-chip" style={{ color: pct == null ? 'var(--muted)' : pct >= 70 ? '#10b981' : '#f59e0b' }}>
+                  {pct != null ? `${grade.score}/${grade.max_score} (${pct}%)` : `${grade.score} pts`}
                 </span>
               ) : (
                 <span className="admin-grade-chip ungraded">Not graded</span>
@@ -843,7 +856,8 @@ function SquadSubmissions({ groups, grades, savedGrades, onSelect }) {
         // Grade: check in-session savedGrades first, then grades keyed by user_id
         const grade  = savedGrades[canonical.id] ?? grades[canonical.user_id];
         const graded = grade != null;
-        const pct    = graded ? Math.round((grade.score / (grade.max_score ?? 100)) * 100) : null;
+        // No invented denominator — see IndividualSubmissions above.
+        const pct    = graded && grade.max_score ? Math.round((grade.score / grade.max_score) * 100) : null;
         const memberCount = group.subs.length;
 
         return (
@@ -864,8 +878,8 @@ function SquadSubmissions({ groups, grades, savedGrades, onSelect }) {
             </div>
             <div className="admin-sub-grade">
               {graded ? (
-                <span className="admin-grade-chip" style={{ color: pct >= 70 ? '#10b981' : '#f59e0b' }}>
-                  {grade.score}/{grade.max_score} ({pct}%)
+                <span className="admin-grade-chip" style={{ color: pct == null ? 'var(--muted)' : pct >= 70 ? '#10b981' : '#f59e0b' }}>
+                  {pct != null ? `${grade.score}/${grade.max_score} (${pct}%)` : `${grade.score} pts`}
                 </span>
               ) : (
                 <span className="admin-grade-chip ungraded">Not graded</span>
