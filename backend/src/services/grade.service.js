@@ -420,7 +420,7 @@ async function _querySquadScoreboard(courseId, cohortId) {
      LEFT JOIN grades g ON g.assignment_id = a.id AND g.user_id = rep.user_id
      WHERE s.cohort_id = :cohortId
      GROUP BY s.id, s.number, s.name
-     ORDER BY "totalScore" DESC`,
+     ORDER BY "totalScore" DESC, s.number ASC`,
     { replacements: { courseId, cohortId } }
   );
   return rows.map((r) => ({

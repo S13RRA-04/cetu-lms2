@@ -92,6 +92,11 @@ test('squad scoreboard denominator includes all assignments currently unlocked f
   assert.match(sql, /COUNT\(a\.id\).*AS "available"/s);
   assert.match(sql, /e\.cohort_id = :cohortId/);
   assert.match(sql, /WHERE s\.cohort_id = :cohortId/);
+  // Tied squads (equal totalScore) must resolve deterministically by squad
+  // number — without this, Postgres returns ties in arbitrary/unstable
+  // order, so two squads with the same score could swap places on every
+  // reload (a real symptom a squad reported seeing).
+  assert.match(sql, /ORDER BY "totalScore" DESC, s\.number ASC/);
   assert.deepEqual(result, [{
     squadId: 'squad-3',
     squadNumber: 3,
