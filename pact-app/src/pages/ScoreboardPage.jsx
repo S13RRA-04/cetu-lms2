@@ -38,15 +38,26 @@ function StandingsEntry({ entry, rank, tab, isMe, leaderScore, delay = 0 }) {
     : tab === 'individual'
       ? Number(entry.performancePercent ?? 0)
       : Number(entry.totalScore ?? 0);
+  // "% of the leader" only makes sense for most_improved, where a raw
+  // percentage-point gain has no natural 0-100 ceiling to measure against.
+  // For squads, entry.maxScore *is* that ceiling (points possible from
+  // whatever's currently unlocked for them) — showing "% of leader" there
+  // instead reads as an absolute grade and lies: a squad that matched the
+  // leader's 8/10 showed as "100%" (a perfect score) when they'd actually
+  // earned 80%. Score-of-possible is honest and, since it's what each squad
+  // actually earned rather than a moving target, doesn't reshuffle every
+  // number on the board each time the leader's own total changes.
   const normalizedScore = leaderScore > 0
     ? Math.round((rankingScore / leaderScore) * 100)
     : 0;
-  const barPercent = tab === 'individual' ? rankingScore : normalizedScore;
+  const squadMaxScore = Number(entry.maxScore ?? 0);
+  const squadPercent  = squadMaxScore > 0 ? Math.round((rankingScore / squadMaxScore) * 100) : 0;
+  const barPercent = tab === 'individual' ? rankingScore : tab === 'squad' ? squadPercent : normalizedScore;
   const displayedScore = tab === 'individual'
     ? `${rankingScore.toFixed(1)}%`
     : tab === 'most_improved'
       ? `+${rankingScore.toFixed(1)} pp`
-      : `${normalizedScore}%`;
+      : `${squadPercent}%`;
   const barColor = RANK_COLORS[rank] ?? 'var(--primary)';
   const label = tab === 'squad'
     ? `Squad ${entry.squadNumber}${entry.squadName ? ` · ${entry.squadName}` : ''}`
@@ -117,6 +128,10 @@ function StandingsEntry({ entry, rank, tab, isMe, leaderScore, delay = 0 }) {
                 <span>Raw ranking total</span>
                 <strong>{entry.totalScore ?? 0} pts</strong>
               </div>
+              {tab === 'squad' && <div>
+                <span>Points possible</span>
+                <strong>{squadMaxScore} pts</strong>
+              </div>}
             </>
           )}
           {tab !== 'most_improved' && <div>
@@ -126,7 +141,10 @@ function StandingsEntry({ entry, rank, tab, isMe, leaderScore, delay = 0 }) {
           <p>
             {tab === 'individual'
               ? `Ranked by normalized performance after completing at least half of the current evaluation count (${Math.ceil((entry.maxGradedInCourse ?? 0) / 2)} required).`
-              : `Displayed standing: ${normalizedScore}% of the current leader's ${leaderScore}${tab === 'most_improved' ? ' percentage-point improvement.' : ' raw points.'}`}
+              : tab === 'most_improved'
+                ? `Displayed standing: ${normalizedScore}% of the current leader's ${leaderScore} percentage-point improvement.`
+                : `Displayed standing: ${rankingScore} of ${squadMaxScore} possible points (${squadPercent}%).`
+                  + (rankingScore < leaderScore ? ` ${leaderScore - rankingScore} point${leaderScore - rankingScore === 1 ? '' : 's'} behind the current leader.` : ' Current leader.')}
           </p>
         </div>
       )}
