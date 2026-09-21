@@ -3035,6 +3035,39 @@ body {
 }
 .challenge-squad-icon { font-size: 14px; }
 
+.challenge-briefing-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.challenge-briefing-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  background: var(--surface-2, rgba(0, 0, 0, 0.2));
+  border: none;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .12em;
+  color: var(--primary);
+  text-transform: uppercase;
+}
+.challenge-briefing-toggle-icon { font-family: inherit; opacity: 0.7; }
+.challenge-briefing-hint { margin-left: auto; color: var(--muted); text-transform: none; letter-spacing: normal; font-size: 11px; }
+.challenge-briefing-body {
+  padding: 14px 16px;
+  max-height: 360px;
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.1);
+}
+.challenge-briefing-body .formatted-text p { font-size: 13px; line-height: 1.7; color: var(--text); margin: 0 0 10px; }
+.challenge-briefing-body .formatted-text p:last-child { margin-bottom: 0; }
+
 .challenge-prompts { display: flex; flex-direction: column; gap: 18px; }
 .challenge-prompts-header {
   display: flex;

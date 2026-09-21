@@ -82,6 +82,35 @@ function parseDeliverables(description = '') {
   return null;
 }
 
+// Lets a squad re-open the case narrative shown on the pre-challenge
+// transmission screen without leaving the questions — that screen is a
+// one-time animated acknowledgement gate, not something students can flip
+// back to once they're working, so this is the only way back to it short of
+// re-answering from scratch.
+function CaseBriefingPanel({ narrative }) {
+  const [open, setOpen] = useState(false);
+  if (!narrative) return null;
+  return (
+    <div className="challenge-briefing-panel">
+      <button
+        type="button"
+        className="challenge-briefing-toggle"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+      >
+        <span className="challenge-briefing-toggle-icon">{open ? '▾' : '▸'}</span>
+        <span>CASE BRIEFING</span>
+        <span className="challenge-briefing-hint">{open ? 'Hide' : 'Reference the case narrative'}</span>
+      </button>
+      {open && (
+        <div className="challenge-briefing-body">
+          <FormattedText value={narrative} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 const IcUsers = () => (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
@@ -329,6 +358,7 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
 
   return (
     <div className="challenge-flow">
+      <CaseBriefingPanel narrative={assignment.launch_briefing} />
       {isSquad && (
         <div className="challenge-squad-notice" style={{ borderColor: color, color }}>
           <span className="challenge-squad-icon"><IcUsers /></span>
@@ -521,6 +551,7 @@ function ChallengeReview({ assignment, color, existingContent, grade }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <CaseBriefingPanel narrative={assignment.launch_briefing} />
 
       {/* Status bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 6, border: `1px solid ${isGraded ? 'rgba(16,185,129,.3)' : 'rgba(245,158,11,.25)'}`, background: isGraded ? 'rgba(16,185,129,.06)' : 'rgba(245,158,11,.05)', marginBottom: 4 }}>
