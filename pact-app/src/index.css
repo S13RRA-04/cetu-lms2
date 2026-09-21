@@ -4478,21 +4478,30 @@ body {
   position: fixed;
   inset: 0;
   background: #070a0d;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   z-index: 1000;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
+/* min-height:100% + its own centering (rather than align-items:center on the
+   scrollable .tx-root) so short briefings still center vertically, but a long
+   one (e.g. a multi-step case narrative) grows past the viewport and scrolls
+   in full instead of being clipped by the parent's overflow — flex
+   align-items:center on the scroll container itself clips whichever end
+   overflows first, which was cutting off the bottom of long narratives
+   (Acknowledge button included). */
 .tx-body {
   position: relative;
   z-index: 2;
   width: 100%;
   max-width: 620px;
+  margin: 0 auto;
+  min-height: 100%;
   padding: 56px 64px;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 0;
 }
 @media (max-width: 680px) {
@@ -4735,10 +4744,15 @@ body {
   83%  { opacity: 0.7; }
   83.5%{ opacity: 1; }
 }
-.ind-root,
-.tx-root {
+.ind-root {
   animation: screen-flicker 4s infinite;
 }
+/* tx-root intentionally does NOT get screen-flicker: it dims the whole
+   fixed overlay (background included) in a rapid multi-step burst, which
+   briefly let the page underneath show through — and stacked with the
+   radar-sweep/interference bands below, read as a flashing/strobing screen
+   rather than a subtle transmission effect, especially over the longer
+   reading time a full case narrative takes versus a short drop briefing. */
 
 /* ── Horizontal interference bands on TX ── */
 @keyframes interference {
