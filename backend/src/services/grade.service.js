@@ -5,7 +5,6 @@ const ltiService                                     = require('./lti.service');
 const logger                                         = require('../utils/logger');
 const { sequelize }                                  = require('../config/database');
 const TtlCache                                       = require('../utils/ttlCache');
-const { matchesRoleFilters }                         = require('../utils/campaignRelease');
 
 // Scoreboard changes only when grades are upserted — cache for 20 s to absorb
 // the thundering-herd of 35 students loading simultaneously.
@@ -46,15 +45,10 @@ async function upsertGrade(assignmentId, userId, data, graderId) {
   const student = await User.findByPk(userId);
   if (!student) throw new NotFoundError('User');
 
-  const enrollment = await Enrollment.findOne({ where: { user_id: userId, course_id: assignment.course_id } });
-  const sharedRoleTasking = Array.isArray(assignment.role_filters) && assignment.role_filters.length > 0 && enrollment?.squad_id;
-  const targetUserIds = sharedRoleTasking
-    ? (await Enrollment.findAll({
-      where: { squad_id: enrollment.squad_id, course_id: assignment.course_id, status: 'active' },
-      include: [{ model: User, attributes: ['id', 'professional_role', 'certifications'] }],
-    })).filter((member) => matchesRoleFilters(assignment.role_filters, member.User?.professional_role, member.User?.certifications ?? []))
-      .map((member) => member.user_id)
-    : [userId];
+  // A grade belongs to the student it was written for. Squad-graded work is
+  // fanned out by gradeSquad(); role_filters only control who can see an
+  // assignment, so they never widen an individual grade to squadmates.
+  const targetUserIds = [userId];
 
   const grade = await sequelize.transaction(async (t) => {
     const writeGrade = async (targetUserId) => {

@@ -5,7 +5,6 @@ const logger      = require('../utils/logger');
 const gradeService = require('./grade.service');
 const { invalidateStudentCache } = require('./assignment.service');
 const { gradeQuizAnswers, isFullyAutoGradable } = require('../utils/quizGrading');
-const { matchesRoleFilters } = require('../utils/campaignRelease');
 
 async function listByAssignment(assignmentId) {
   const assignment = await Assignment.findByPk(assignmentId);
@@ -25,10 +24,23 @@ async function listByAssignment(assignmentId) {
 }
 
 async function getMySubmission(assignmentId, userId) {
-  return Submission.findOne({
+  const own = await Submission.findOne({
     where:   { assignment_id: assignmentId, user_id: userId },
     include: [{ model: Squad, as: 'squad', attributes: ['id', 'number', 'name'] }],
   });
+  if (own && ['submitted', 'graded', 'returned'].includes(own.status)) return own;
+
+  // A squad assignment is one submission for the whole squad — a squadmate
+  // opening it after someone else submitted must see it as already submitted,
+  // not as an empty attempt they could submit again.
+  const assignment = await Assignment.findByPk(assignmentId, { attributes: ['id', 'course_id', 'grading_mode'] });
+  if (assignment?.grading_mode !== 'squad') return own;
+  const enrollment = await Enrollment.findOne({
+    where: { user_id: userId, course_id: assignment.course_id, status: 'active' },
+    attributes: ['squad_id'],
+  });
+  if (!enrollment?.squad_id) return own;
+  return (await getSquadSubmission(assignmentId, enrollment.squad_id)) ?? own;
 }
 
 async function getSquadSubmission(assignmentId, squadId) {
@@ -159,9 +171,11 @@ async function submit(assignmentId, userId, content) {
   const enrollment = await _checkUnlocked(assignment, userId);
   const squadId = enrollment.squad_id ?? null;
 
-  const sharedRoleTasking = Array.isArray(assignment.role_filters) && assignment.role_filters.length > 0;
-  const sharedSubmission = assignment.grading_mode === 'squad' || sharedRoleTasking;
-  if (sharedSubmission && !squadId) {
+  // grading_mode is the only thing that makes a submission shared: a squad
+  // assignment is submitted once for the whole squad, an individual one only
+  // ever for the person submitting it — role_filters only control who can see
+  // an assignment, never who its submission or grade belongs to.
+  if (assignment.grading_mode === 'squad' && !squadId) {
     throw new AppError('You must be assigned to a squad to submit this assignment', 400, 'NO_SQUAD');
   }
 
@@ -180,20 +194,6 @@ async function submit(assignmentId, userId, content) {
     },
     { conflictFields: ['assignment_id', 'user_id'] }
   );
-
-  if (sharedRoleTasking) {
-    const members = await Enrollment.findAll({
-      where: { squad_id: squadId, course_id: assignment.course_id, status: 'active' },
-      include: [{ model: User, attributes: ['id', 'professional_role', 'certifications'] }],
-    });
-    const eligibleIds = members
-      .filter((member) => matchesRoleFilters(assignment.role_filters, member.User?.professional_role, member.User?.certifications ?? []))
-      .map((member) => member.user_id);
-    await Promise.all(eligibleIds.filter((id) => id !== userId).map((id) => Submission.upsert({
-      assignment_id: assignmentId, user_id: id, squad_id: squadId, content,
-      submitted_at: new Date(), status: 'submitted', progress: 100,
-    }, { conflictFields: ['assignment_id', 'user_id'] })));
-  }
 
   invalidateStudentCache(assignment.course_id, userId);
 

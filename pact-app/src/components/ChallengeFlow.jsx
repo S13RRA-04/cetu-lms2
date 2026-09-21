@@ -169,7 +169,7 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
   const [saveError, setSaveError] = useState(false);
   const [typing, setTyping] = useState({});
   const [fieldMeta, setFieldMeta] = useState({});
-  const sharedChallenge = assignment.grading_mode === 'squad' || (assignment.role_filters?.length ?? 0) > 0;
+  const sharedChallenge = assignment.grading_mode === 'squad';
   const sharedTimers = useRef({});
   // Guards against the poll loop below clobbering in-progress local edits:
   // a field the user currently has focused, or one with a debounced/in-flight

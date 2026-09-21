@@ -36,7 +36,7 @@ async function defaultAuthorizeJoin(user, { courseId, assignmentId }) {
   if (!assignment) throw new Error('Assignment not found');
   if (String(assignment.course_id) !== String(courseId)) throw new Error('Assignment does not belong to this course');
   if (!assignment.is_published) throw new Error('Assignment is not published');
-  if (assignment.grading_mode !== 'squad' && !(assignment.role_filters?.length > 0)) {
+  if (assignment.grading_mode !== 'squad') {
     throw new Error('Assignment is not a shared challenge');
   }
 

@@ -110,7 +110,7 @@ test('squad scoreboard denominator includes all assignments currently unlocked f
   }]);
 });
 
-test('grading a shared role-tasking assignment fans the grade out to a squadmate who only qualifies via a certification', async (t) => {
+test('grading a role-scoped individual assignment grades only that student, not same-role squadmates', async (t) => {
   const originalTransaction = sequelize.transaction;
   const originalAssignmentFind = Assignment.findByPk;
   const originalUserFind = User.findByPk;
@@ -154,7 +154,7 @@ test('grading a shared role-tasking assignment fans the grade out to a squadmate
 
   await gradeService.upsertGrade('assignment-1', 'user-graded', { score: 90 }, 'grader-1');
 
-  assert.deepEqual(gradedUserIds.sort(), ['user-cert-only', 'user-graded']);
+  assert.deepEqual(gradedUserIds, ['user-graded']);
 });
 
 test('standings are locked to the active cohort — no active cohort means no standings, not every past cohort mixed together', async (t) => {
@@ -171,4 +171,15 @@ test('standings are locked to the active cohort — no active cohort means no st
   assert.deepEqual(individual, []);
   assert.deepEqual(squad, []);
   assert.equal(queried, false, 'should never run the standings query at all when no cohort is active');
+});
+
+test('squad grading is refused for an individual assignment, so individual work can never be graded squad-wide', async (t) => {
+  const original = Assignment.findByPk;
+  Assignment.findByPk = async () => ({ id: 'a-ind', course_id: 'c1', grading_mode: 'individual', max_score: 80 });
+  t.after(() => { Assignment.findByPk = original; });
+
+  await assert.rejects(
+    gradeService.gradeSquad('a-ind', 'squad-1', { score: 50 }, 'grader-1'),
+    (e) => e.statusCode === 400,
+  );
 });

@@ -53,7 +53,7 @@ test('instructor progress roster refuses to identify anonymous survey respondent
   assert.equal(queriedSubmissions, false);
 });
 
-test('shared role-tasking submission fans out to a squadmate who only qualifies via a certification', async (t) => {
+test('a role-scoped individual assignment is submitted only for the person submitting it, never fanned out to squadmates', async (t) => {
   const originalAssignmentFind = Assignment.findByPk;
   const originalEnrollmentFindOne = Enrollment.findOne;
   const originalEnrollmentFindAll = Enrollment.findAll;
@@ -92,6 +92,50 @@ test('shared role-tasking submission fans out to a squadmate who only qualifies 
 
   await submissionService.submit('assignment-1', 'user-submitter', '{}');
 
-  const fannedOutTo = upsertCalls.map((v) => v.user_id).sort();
-  assert.deepEqual(fannedOutTo, ['user-cert-only', 'user-submitter']);
+  assert.deepEqual(upsertCalls.map((v) => v.user_id), ['user-submitter']);
+});
+
+test('a squadmate opening a squad assignment sees the squad\'s submission; an individual assignment only ever shows their own', async (t) => {
+  const orig = { find: Submission.findOne, asg: Assignment.findByPk, enr: Enrollment.findOne };
+  const squadSubmission = { id: 'squad-sub', status: 'submitted', user_id: 'someone-else' };
+  let grading = 'squad';
+  Assignment.findByPk = async () => ({ id: 'a1', course_id: 'c1', grading_mode: grading });
+  Enrollment.findOne = async () => ({ squad_id: 'squad-1' });
+  Submission.findOne = async ({ where }) => (where.squad_id ? squadSubmission : null);
+  t.after(() => { Submission.findOne = orig.find; Assignment.findByPk = orig.asg; Enrollment.findOne = orig.enr; });
+
+  assert.equal((await submissionService.getMySubmission('a1', 'me')).id, 'squad-sub');
+  grading = 'individual';
+  assert.equal(await submissionService.getMySubmission('a1', 'me'), null);
+});
+
+function stubSubmitEnv(t, assignment, squadId) {
+  const orig = { asg: Assignment.findByPk, enr: Enrollment.findOne, unl: AssignmentUnlock.findOne, ups: Submission.upsert };
+  const upserts = [];
+  Assignment.findByPk = async () => assignment;
+  Enrollment.findOne = async () => ({ course_id: 'course-1', cohort_id: 'cohort-1', squad_id: squadId });
+  AssignmentUnlock.findOne = async () => null;
+  Submission.upsert = async (values) => { upserts.push(values); return [{ id: 'sub', update: async () => {} }, true]; };
+  t.after(() => { Assignment.findByPk = orig.asg; Enrollment.findOne = orig.enr; AssignmentUnlock.findOne = orig.unl; Submission.upsert = orig.ups; });
+  return upserts;
+}
+
+test('an individual role assignment is submittable without a squad and records only the submitter', async (t) => {
+  const upserts = stubSubmitEnv(t, {
+    id: 'a-ind', course_id: 'course-1', grading_mode: 'individual', role_filters: ['special_agent'], is_published: true, questions: [],
+  }, null);
+  await submissionService.submit('a-ind', 'user-1', '{}');
+  assert.deepEqual(upserts.map((u) => u.user_id), ['user-1']);
+});
+
+test('a squad assignment requires a squad, then records one submission attributed to that squad', async (t) => {
+  const squadAssignment = { id: 'a-squad', course_id: 'course-1', grading_mode: 'squad', role_filters: [], is_published: true, questions: [] };
+
+  stubSubmitEnv(t, squadAssignment, null);
+  await assert.rejects(submissionService.submit('a-squad', 'user-1', '{}'), (e) => e.code === 'NO_SQUAD');
+
+  const upserts = stubSubmitEnv(t, squadAssignment, 'squad-9');
+  await submissionService.submit('a-squad', 'user-1', '{}');
+  assert.equal(upserts.length, 1);
+  assert.equal(upserts[0].squad_id, 'squad-9');
 });
