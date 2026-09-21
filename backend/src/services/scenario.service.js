@@ -183,11 +183,27 @@ async function listForStudent(courseId, userId) {
   return unlocked.map((p) => ({ ...p.toJSON(), is_unlocked: true }));
 }
 
+/* Staff browsing the operator-facing Case File (pact-app's ScenariosPage,
+   not Command's manage=1 view) need a real is_unlocked signal — otherwise
+   every published package silently reads as available and there is no way
+   to tell what a student would actually see right now. "Available right
+   now" is scoped to the single currently-active cohort (cohorts.is_active)
+   and, when that cohort has a scenario_name set, further scoped to packages
+   matching it — the same pairing rule releaseDrop()/listForStudent() use —
+   so a different scenario's historical unlocks never read as live.
+   The `unlocks` array itself stays unfiltered (every cohort, not just the
+   active one) — Command's manage=1 view uses the full per-cohort unlock
+   history to release/lock packages, so this only adds is_unlocked rather
+   than narrowing what's already returned. */
 async function listForAdmin(courseId, { includeUnpublished = false } = {}) {
   await r2SyncCache.get(`sync:${courseId}`, () => syncFromR2(courseId));
   const where = { course_id: courseId };
   if (!includeUnpublished) where.is_published = true;
-  return ScenarioPackage.findAll({
+
+  const activeCohort = await Cohort.findOne({ where: { course_id: courseId, is_active: true } });
+  const activeCohortScenario = activeCohort ? normalizeScenarioName(activeCohort.scenario_name) : null;
+
+  const packages = await ScenarioPackage.findAll({
     where,
     include: [{
       model: ScenarioPackageUnlock,
@@ -195,6 +211,16 @@ async function listForAdmin(courseId, { includeUnpublished = false } = {}) {
       include: [{ model: Cohort, attributes: ['id', 'name'] }],
     }],
     order: [['release_number', 'ASC']],
+  });
+
+  return packages.map((p) => {
+    const json = p.toJSON();
+    const matchesActiveScenario = activeCohortScenario == null || normalizeScenarioName(p.scenario_name) === activeCohortScenario;
+    const unlockedForActiveCohort = Boolean(activeCohort) && json.unlocks.some((u) => u.cohort_id === activeCohort.id);
+    return {
+      ...json,
+      is_unlocked: matchesActiveScenario && unlockedForActiveCohort,
+    };
   });
 }
 

@@ -47,7 +47,7 @@ export default function CourseContentPage() {
   );
 
   // Scenario-drop artifacts belong to Case File and the Evidence drawer.
-  const unlocked  = items.filter((i) => i.is_unlocked !== false && !isScenarioDropContent(i));
+  const unlocked  = items.filter((i) => i.is_unlocked === true && !isScenarioDropContent(i));
   const typesUsed = [...new Set(unlocked.map((i) => i.content_type))];
 
   const visible = filter === 'all'

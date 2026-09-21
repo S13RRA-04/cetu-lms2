@@ -108,7 +108,7 @@ export default function ScenariosPage() {
         setPackages(Array.isArray(scenarioData) ? scenarioData : []);
         setDropFiles(
           (Array.isArray(contentData) ? contentData : [])
-            .filter((item) => item.is_unlocked !== false && isScenarioDropContent(item)),
+            .filter((item) => item.is_unlocked === true && isScenarioDropContent(item)),
         );
       })
       .catch(() => {})
@@ -169,9 +169,11 @@ export default function ScenariosPage() {
     </div>
   );
 
-  // Publish state is enforced server-side (published-only, even for admins);
-  // no client-side bypass here. `is_unlocked`-based gating below still lets
-  // admins preview locked-but-published content, which is intentional.
+  // Publish state is enforced server-side (published-only, even for admins).
+  // is_unlocked is also real for every caller now — scoped server-side to
+  // the currently-active cohort (scenario.service.js's listForAdmin) — so
+  // staff browsing this operator-facing view see exactly what a student in
+  // the live cohort would see, not a preview of locked-but-published content.
   const visible = packages;
 
   // Group by scenario_name, then by search location, then by drop number.
@@ -247,7 +249,7 @@ export default function ScenariosPage() {
           {scenarios.map(([scenarioName, scenarioGroup], si) => {
             const locationEntries = [...scenarioGroup.locations.entries()].sort(sortLocationEntries);
             const totalPackages = locationEntries.reduce((sum, [, drops]) =>
-              sum + [...drops.values()].reduce((s, d) => s + d.packages.filter((p) => isAdmin || p.is_unlocked).length, 0), 0);
+              sum + [...drops.values()].reduce((s, d) => s + d.packages.filter((p) => p.is_unlocked).length, 0), 0);
             const totalFiles = locationEntries.reduce((sum, [, drops]) =>
               sum + [...drops.values()].reduce((s, d) => s + d.files.length, 0), 0);
 
@@ -274,7 +276,7 @@ export default function ScenariosPage() {
 
                 {locationEntries.map(([locationCode, dropsMap]) => {
                   const dropEntries = [...dropsMap.entries()].sort(sortDropEntries);
-                  const locationPackageCount = dropEntries.reduce((s, [, d]) => s + d.packages.filter((p) => isAdmin || p.is_unlocked).length, 0);
+                  const locationPackageCount = dropEntries.reduce((s, [, d]) => s + d.packages.filter((p) => p.is_unlocked).length, 0);
                   const locationFileCount = dropEntries.reduce((s, [, d]) => s + d.files.length, 0);
 
                   return (
@@ -357,7 +359,7 @@ export default function ScenariosPage() {
                 {/* Release cards */}
                 <div className="ep-releases">
                   {dropPackages.map((pkg) => {
-                    const unlocked    = isAdmin || pkg.is_unlocked;
+                    const unlocked    = pkg.is_unlocked;
                     const files       = fileMap[pkg.id];
                     const expanded    = files !== undefined;
                     const isExtracting = extracting[pkg.id];

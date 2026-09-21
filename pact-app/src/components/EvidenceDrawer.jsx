@@ -39,7 +39,7 @@ export default function EvidenceDrawer() {
       setPackages((Array.isArray(scenarios) ? scenarios : []).filter((p) => p.is_unlocked));
       setIntelItems(
         (Array.isArray(content) ? content : [])
-          .filter((i) => i.is_unlocked !== false && isScenarioDropContent(i))
+          .filter((i) => i.is_unlocked === true && isScenarioDropContent(i))
       );
     }).finally(() => setLoading(false));
   }, [loading]);
