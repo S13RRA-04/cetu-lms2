@@ -133,7 +133,20 @@ function ChallengeDeliverableReview({ delivData, questions = [], maxScore, assig
     const ps = existingGrade?.promptScores ?? existingGrade?.prompt_scores;
     if (ps) return ps;
     return {
-      ...Object.fromEntries(prompts.map((_, i) => [i, ''])),
+      // Rubric (checkbox) prompts start at an explicit 0/no-elements-checked
+      // rather than blank — unlike the plain number-input prompts, they have
+      // no "0" quick-pick button, so with no boxes checked there was no way
+      // to register a score at all. That left allScored permanently false
+      // (and Save Grade permanently disabled) for any squad response too
+      // thin/blank to legitimately earn any rubric element, which is exactly
+      // when an instructor most needs to save a zero and move on.
+      ...Object.fromEntries(prompts.map((q, i) => {
+        if (q.rubric?.keyElements?.length) {
+          const pts = q.points ?? perPromptMax;
+          return [i, { score: 0, maxScore: pts, criteria: Array(q.rubric.keyElements.length).fill(false) }];
+        }
+        return [i, ''];
+      })),
       // Auto-suggest full/zero credit for each check question from the
       // student's submitted answer — the instructor can still override it.
       ...Object.fromEntries(checkQuestions.map((q) => [q.id, String(submittedChecks[q.id]?.correct ? (q.scoring?.points ?? 0) : 0)])),
