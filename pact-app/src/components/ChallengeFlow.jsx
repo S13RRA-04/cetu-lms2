@@ -7,13 +7,17 @@ import useSquadFieldSync from '../hooks/useSquadFieldSync.js';
 import useAuthStore from '../store/authStore.js';
 import SubmitSequence from './SubmitSequence.jsx';
 import { FormattedText, FormattedTextEditor } from './FormattedText.jsx';
-import { MultipleChoice, TrueFalse, FillBlank } from './QuizFlow.jsx';
+import { MultipleChoice, TrueFalse, FillBlank, DragMatch } from './QuizFlow.jsx';
 
 // A fill_blank answer is a string, so "answered" means non-empty text — an
 // input the student typed into then cleared must not count as answered (the
 // multiple-choice/true-false answers are only ever undefined or a value).
+// A drag_match answer is a {sourceId: targetId} map that grows one entry at
+// a time as items are placed — "answered" means every source has been
+// placed, not just that the map exists.
 function isCheckAnswered(q, raw) {
   if (q.payload?.kind === 'fill_blank') return typeof raw === 'string' && raw.trim().length > 0;
+  if (q.payload?.kind === 'drag_match') return Object.keys(raw ?? {}).length === (q.payload.sources?.length ?? 0);
   return raw !== undefined;
 }
 
@@ -35,6 +39,11 @@ function isCheckCorrect(q, raw) {
     if (!blank) return false;
     const norm = (s) => (blank.caseSensitive ? String(s).trim() : String(s).trim().toLowerCase());
     return (blank.accepted ?? []).some((a) => norm(a) === norm(raw ?? ''));
+  }
+  if (p.kind === 'drag_match') {
+    const matchMap = Object.fromEntries((p.matches ?? []).map((m) => [m.sourceId, m.targetId]));
+    const entries = Object.entries(raw ?? {});
+    return entries.length === (p.matches?.length ?? 0) && entries.every(([src, tgt]) => matchMap[src] === tgt);
   }
   return false;
 }
@@ -443,7 +452,16 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
                     {q.payload.kind === 'fill_blank' && (
                       <FillBlank q={q} value={raw} onChange={setAnswer} revealed={false} forced={false} />
                     )}
-                    {!answered && <div style={{ marginTop: 4, fontSize: 10, color: 'var(--muted)' }}>{q.payload.kind === 'fill_blank' ? 'Type your answer to continue.' : 'Select an answer to continue.'}</div>}
+                    {q.payload.kind === 'drag_match' && (
+                      <DragMatch q={q} matchState={raw} onMatch={setAnswer} revealed={false} forced={false} />
+                    )}
+                    {!answered && (
+                      <div style={{ marginTop: 4, fontSize: 10, color: 'var(--muted)' }}>
+                        {q.payload.kind === 'fill_blank' ? 'Type your answer to continue.'
+                          : q.payload.kind === 'drag_match' ? 'Match every item to continue.'
+                          : 'Select an answer to continue.'}
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               );
@@ -646,6 +664,9 @@ function ChallengeReview({ assignment, color, existingContent, grade }) {
                     )}
                     {q.payload.kind === 'fill_blank' && (
                       <FillBlank q={q} value={raw} onChange={() => {}} revealed={correct} forced={!correct} />
+                    )}
+                    {q.payload.kind === 'drag_match' && (
+                      <DragMatch q={q} matchState={raw} onMatch={() => {}} revealed={correct} forced={!correct} />
                     )}
                     <div style={{ marginTop: 5, fontSize: 12, color: correct ? '#10b981' : '#ef4444' }}>
                       {correct ? (q.feedback?.correct ?? 'Correct.') : (q.feedback?.incorrect ?? 'Incorrect.')}
