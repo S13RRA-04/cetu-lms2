@@ -35,8 +35,27 @@ function invalidateAssignmentLists() {
   studentListCache.flush();
 }
 
+// Command's manage=1 view (ContentGatingPanel/ChallengesGating et al.) has no
+// pagination UI at all — it renders one flat scenario/victim/role tree of
+// every assignment in the course for authoring, and always requests
+// limit=200 expecting literally everything back. paginate()'s shared
+// Math.min(100, ...) ceiling (sized for public/student-facing paged lists)
+// was silently clamping that down to 100 — invisible as long as the course
+// had under 100 assignments, but once it grew past that, any freshly-seeded
+// batch (appended with the highest order_index, so sorted last) fell past
+// the cutoff and just didn't come back, with nothing anywhere to signal a
+// truncation happened. Give the manage view its own much higher ceiling
+// instead of raising the shared public one (used by student-facing and
+// other unrelated list endpoints) to accommodate one unpaginated screen.
+function paginateForManage(query) {
+  const page  = Math.max(1, parseInt(query.page, 10) || 1);
+  const limit = Math.min(2000, Math.max(1, parseInt(query.limit, 10) || 200));
+  const offset = (page - 1) * limit;
+  return { limit, offset, page };
+}
+
 async function listByCourse(courseId, query, { includeUnpublished = false } = {}) {
-  const { limit, offset, page } = paginate(query);
+  const { limit, offset, page } = includeUnpublished ? paginateForManage(query) : paginate(query);
   const cacheKey = `listByCourse:${includeUnpublished ? 'all' : 'published'}:${courseId}:${limit}:${offset}`;
   return listCache.get(cacheKey, () => _queryListByCourse(courseId, { limit, offset, page, includeUnpublished }));
 }
