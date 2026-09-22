@@ -1,5 +1,6 @@
 'use strict';
-const { Submission, Assignment, AssignmentUnlock, Enrollment, Squad, User } = require('../models');
+const { Op } = require('sequelize');
+const { Submission, Assignment, AssignmentUnlock, Enrollment, Squad, User, Grade } = require('../models');
 const { NotFoundError, AppError, ForbiddenError } = require('../utils/errors');
 const logger      = require('../utils/logger');
 const gradeService = require('./grade.service');
@@ -236,4 +237,59 @@ async function updateStatus(submissionId, status) {
   return sub;
 }
 
-module.exports = { listByAssignment, getMySubmission, getSquadSubmission, getProgressForAssignment, updateProgress, submit, updateStatus };
+/* Let an instructor reopen a graded/submitted individual assignment for
+   another attempt. Content and quiz_state are left as-is on purpose — the
+   student/squad revises their existing answers rather than starting blank
+   (ChallengeFlow already prefills from existingContent; QuizFlow's own
+   per-question qStates never round-trip through the server for an
+   individual attempt in the first place). The prior grade is deleted since
+   there is no versioning on Grade — once reopened, the old score no longer
+   reflects the assignment's current state and must not linger as if still
+   valid. */
+async function reopenSubmission(assignmentId, userId) {
+  const assignment = await Assignment.findByPk(assignmentId);
+  if (!assignment) throw new NotFoundError('Assignment');
+  if (assignment.grading_mode === 'squad') {
+    throw new AppError('This is a squad-graded assignment — reopen it for the whole squad instead', 400, 'BAD_REQUEST');
+  }
+
+  const submission = await Submission.findOne({ where: { assignment_id: assignmentId, user_id: userId } });
+  if (!submission) throw new NotFoundError('Submission');
+
+  await Grade.destroy({ where: { assignment_id: assignmentId, user_id: userId } });
+  if (submission.status !== 'in_progress') await submission.update({ status: 'in_progress' });
+  invalidateStudentCache(assignment.course_id, userId);
+  return submission;
+}
+
+/* Same, for a squad-graded assignment — there is exactly one Submission row
+   per squad (owned by whoever clicked submit) but a Grade row per squad
+   member (gradeSquad fans out), so every current member's grade is cleared,
+   not just the submitter's. */
+async function reopenSquadAttempt(assignmentId, squadId) {
+  const assignment = await Assignment.findByPk(assignmentId);
+  if (!assignment) throw new NotFoundError('Assignment');
+  if (assignment.grading_mode !== 'squad') {
+    throw new AppError('This assignment is not squad-graded', 400, 'BAD_REQUEST');
+  }
+
+  const submission = await Submission.findOne({
+    where: { assignment_id: assignmentId, squad_id: squadId, status: { [Op.in]: ['submitted', 'graded', 'returned'] } },
+    order: [['submitted_at', 'DESC']],
+  });
+  if (!submission) throw new NotFoundError('Submission');
+
+  const members = await Enrollment.findAll({
+    where: { squad_id: squadId, course_id: assignment.course_id, status: 'active' },
+    attributes: ['user_id'],
+  });
+  const memberIds = members.map((m) => m.user_id);
+  if (memberIds.length > 0) {
+    await Grade.destroy({ where: { assignment_id: assignmentId, user_id: { [Op.in]: memberIds } } });
+  }
+  await submission.update({ status: 'in_progress' });
+  invalidateStudentCache(assignment.course_id, submission.user_id);
+  return submission;
+}
+
+module.exports = { listByAssignment, getMySubmission, getSquadSubmission, getProgressForAssignment, updateProgress, submit, updateStatus, reopenSubmission, reopenSquadAttempt };

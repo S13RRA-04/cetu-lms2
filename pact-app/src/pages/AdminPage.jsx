@@ -6,6 +6,8 @@ import {
   getSurveyResults,
   submitGrade,
   submitSquadGrade,
+  reopenSubmission,
+  reopenSquadSubmission,
   getCohorts,
   unlockAssignment,
   lockAssignment,
@@ -507,6 +509,30 @@ export default function AdminPage() {
     if (openAssignmentRequestId.current === requestId) setLoadingSubs(false);
   }, []);
 
+  const handleReopened = useCallback((sub, wasGraded) => {
+    if (wasGraded) {
+      setSavedGrades((prev) => {
+        const next = { ...prev };
+        delete next[sub.id];
+        return next;
+      });
+      setAssignments((as) => as.map((a) =>
+        a.id === sub.assignment_id
+          ? { ...a, pending_count: (a.pending_count ?? 0) + 1, graded_count: Math.max(0, (a.graded_count ?? 1) - 1) }
+          : a
+      ));
+    }
+    setSubmissions((prev) => prev.map((s) => {
+      const matches = sub.squad_id ? s.squad_id === sub.squad_id : s.id === sub.id;
+      return matches ? { ...s, status: 'in_progress' } : s;
+    }));
+    setSelectedSub((s) => {
+      if (!s) return s;
+      const matches = sub.squad_id ? s.squad_id === sub.squad_id : s.id === sub.id;
+      return matches ? { ...s, status: 'in_progress' } : s;
+    });
+  }, []);
+
   const handleGradeSaved = useCallback((sub, result) => {
     setSavedGrades((prev) => {
       const isNew = prev[sub.id] == null && grades[sub.user_id] == null;
@@ -793,6 +819,7 @@ export default function AdminPage() {
                   assignment={selectedAssignment}
                   existingGrade={savedGrades[selectedSub.id] ?? grades[selectedSub.user_id]}
                   onGradeSaved={(result) => handleGradeSaved(selectedSub, result)}
+                  onReopened={(wasGraded) => handleReopened(selectedSub, wasGraded)}
                 />
               ) : selectedAssignment.grading_mode === 'squad' ? (
                 /* ── Squad submissions grouped by squad ── */
@@ -4283,15 +4310,38 @@ function GatingPanel({ unlocks = [], cohorts, onUnlocksChange, onLock, onUnlock,
   );
 }
 
-function SubmissionDetail({ sub, assignment, existingGrade, onGradeSaved }) {
+function SubmissionDetail({ sub, assignment, existingGrade, onGradeSaved, onReopened }) {
   const [savedGrade, setSavedGrade] = useState(existingGrade);
+  const [status,     setStatus]     = useState(sub.status);
+  const [reopening,  setReopening]  = useState(false);
+  const [reopenErr,  setReopenErr]  = useState('');
+  const [confirmReopen, setConfirmReopen] = useState(false);
   const parsed    = parseContent(sub.content);
   const isSquad   = assignment.grading_mode === 'squad';
   const maxScore  = parseFloat(assignment.max_score ?? 100);
 
   const handleSaved = (result) => {
     setSavedGrade(result);
+    setStatus('graded');
     onGradeSaved(result);
+  };
+
+  const handleReopen = async () => {
+    setReopening(true);
+    setReopenErr('');
+    try {
+      if (isSquad) await reopenSquadSubmission(assignment.id, sub.squad_id);
+      else         await reopenSubmission(assignment.id, sub.user_id);
+      const wasGraded = savedGrade != null;
+      setSavedGrade(null);
+      setStatus('in_progress');
+      setConfirmReopen(false);
+      onReopened?.(wasGraded);
+    } catch (e) {
+      setReopenErr(e.response?.data?.error?.message ?? 'Could not reopen this submission.');
+    } finally {
+      setReopening(false);
+    }
   };
 
   const isDeliverable = parsed.type === 'deliverable';
@@ -4306,7 +4356,7 @@ function SubmissionDetail({ sub, assignment, existingGrade, onGradeSaved }) {
         <div>
           <div className="admin-detail-name">{sub.student?.first_name} {sub.student?.last_name}</div>
           <div className="admin-sub-meta">
-            {sub.status} · submitted {sub.submitted_at ? new Date(sub.submitted_at).toLocaleString() : '—'}
+            {status} · submitted {sub.submitted_at ? new Date(sub.submitted_at).toLocaleString() : '—'}
             {sub.squad && ` · Squad ${sub.squad.number}${sub.squad.name ? ` (${sub.squad.name})` : ''}`}
           </div>
         </div>
@@ -4315,7 +4365,32 @@ function SubmissionDetail({ sub, assignment, existingGrade, onGradeSaved }) {
             {savedGrade.score}/{maxScore}
           </div>
         )}
+        {status !== 'in_progress' && (
+          confirmReopen ? (
+            <div style={{ marginLeft: savedGrade != null ? 12 : 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                {isSquad ? 'Reopen for the whole squad?' : 'Reopen for this student?'} {savedGrade != null && 'Clears the current grade.'}
+              </span>
+              <button className="btn-submit" style={{ width: 'auto', padding: '4px 10px', fontSize: 11 }} onClick={handleReopen} disabled={reopening}>
+                {reopening ? 'Reopening…' : 'Confirm'}
+              </button>
+              <button className="btn-secondary" style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setConfirmReopen(false)} disabled={reopening}>
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              className="btn-secondary"
+              style={{ marginLeft: savedGrade != null ? 12 : 'auto', padding: '4px 10px', fontSize: 11 }}
+              onClick={() => setConfirmReopen(true)}
+              title={isSquad ? 'Let the whole squad attempt this again' : 'Let this student attempt this again'}
+            >
+              Reopen for another attempt
+            </button>
+          )
+        )}
       </div>
+      {reopenErr && <div className="err-msg" style={{ margin: '0 0 12px' }}>{reopenErr}</div>}
 
       {/* Quiz auto-grade review (no separate grade form needed) */}
       {parsed.type === 'quiz' && (

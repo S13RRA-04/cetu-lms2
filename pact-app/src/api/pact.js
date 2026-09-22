@@ -71,6 +71,15 @@ export const submitGrade = (assignmentId, userId, data) =>
 export const submitSquadGrade = (assignmentId, squadId, data) =>
   client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/grades/squad/${squadId}`, data).then((r) => r.data);
 
+// Reopen a graded/submitted assignment for another attempt — clears the
+// existing grade and flips the submission back to in_progress so the
+// student (or squad) can revise and resubmit.
+export const reopenSubmission = (assignmentId, userId) =>
+  client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/submissions/${userId}/reopen`).then((r) => r.data);
+
+export const reopenSquadSubmission = (assignmentId, squadId) =>
+  client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/submissions/squad/${squadId}/reopen`).then((r) => r.data);
+
 /* ── Squad-shared challenge state ── */
 export const getSquadChallengeState = (assignmentId) =>
   client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/squad-state`).then((r) => r.data);

@@ -2,7 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { Assignment, Submission, Enrollment, AssignmentUnlock } = require('../models');
+const { Assignment, Submission, Enrollment, AssignmentUnlock, Grade } = require('../models');
+const { Op } = require('sequelize');
 const submissionService = require('./submission.service');
 
 test('instructor submission listing refuses to identify anonymous survey respondents', async (t) => {
@@ -138,4 +139,47 @@ test('a squad assignment requires a squad, then records one submission attribute
   await submissionService.submit('a-squad', 'user-1', '{}');
   assert.equal(upserts.length, 1);
   assert.equal(upserts[0].squad_id, 'squad-9');
+});
+
+test('reopenSubmission clears the grade and flips status back to in_progress for an individual assignment', async (t) => {
+  const orig = { asg: Assignment.findByPk, find: Submission.findOne, destroy: Grade.destroy };
+  const updates = [];
+  Assignment.findByPk = async () => ({ id: 'a1', course_id: 'c1', grading_mode: 'individual' });
+  Submission.findOne = async () => ({ status: 'graded', update: async (v) => updates.push(v) });
+  const destroyed = [];
+  Grade.destroy = async (opts) => { destroyed.push(opts); return 1; };
+  t.after(() => { Assignment.findByPk = orig.asg; Submission.findOne = orig.find; Grade.destroy = orig.destroy; });
+
+  await submissionService.reopenSubmission('a1', 'user-1');
+  assert.deepEqual(destroyed[0].where, { assignment_id: 'a1', user_id: 'user-1' });
+  assert.deepEqual(updates, [{ status: 'in_progress' }]);
+});
+
+test('reopenSubmission refuses a squad-graded assignment — that path is reopenSquadAttempt instead', async (t) => {
+  const original = Assignment.findByPk;
+  Assignment.findByPk = async () => ({ id: 'a1', course_id: 'c1', grading_mode: 'squad' });
+  t.after(() => { Assignment.findByPk = original; });
+  await assert.rejects(submissionService.reopenSubmission('a1', 'user-1'), (e) => e.statusCode === 400);
+});
+
+test('reopenSquadAttempt clears every current squad member\'s grade, not just the submitter\'s', async (t) => {
+  const orig = { asg: Assignment.findByPk, find: Submission.findOne, enr: Enrollment.findAll, destroy: Grade.destroy };
+  const updates = [];
+  Assignment.findByPk = async () => ({ id: 'a-squad', course_id: 'c1', grading_mode: 'squad' });
+  Submission.findOne = async () => ({ user_id: 'submitter', status: 'graded', update: async (v) => updates.push(v) });
+  Enrollment.findAll = async () => ([{ user_id: 'submitter' }, { user_id: 'teammate-1' }, { user_id: 'teammate-2' }]);
+  const destroyed = [];
+  Grade.destroy = async (opts) => { destroyed.push(opts); return 3; };
+  t.after(() => { Assignment.findByPk = orig.asg; Submission.findOne = orig.find; Enrollment.findAll = orig.enr; Grade.destroy = orig.destroy; });
+
+  await submissionService.reopenSquadAttempt('a-squad', 'squad-1');
+  assert.deepEqual(destroyed[0].where.user_id[Op.in].sort(), ['submitter', 'teammate-1', 'teammate-2']);
+  assert.deepEqual(updates, [{ status: 'in_progress' }]);
+});
+
+test('reopenSquadAttempt refuses an individual assignment', async (t) => {
+  const original = Assignment.findByPk;
+  Assignment.findByPk = async () => ({ id: 'a1', course_id: 'c1', grading_mode: 'individual' });
+  t.after(() => { Assignment.findByPk = original; });
+  await assert.rejects(submissionService.reopenSquadAttempt('a1', 'squad-1'), (e) => e.statusCode === 400);
 });

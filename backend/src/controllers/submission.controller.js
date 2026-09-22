@@ -34,4 +34,18 @@ async function updateProgress(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { listByAssignment, getMine, submit, updateStatus, updateProgress };
+async function reopen(req, res, next) {
+  try {
+    const result = await submissionService.reopenSubmission(req.params.aid, req.params.uid);
+    return res.json(result);
+  } catch (err) { return next(err); }
+}
+
+async function reopenSquad(req, res, next) {
+  try {
+    const result = await submissionService.reopenSquadAttempt(req.params.aid, req.params.squadId);
+    return res.json(result);
+  } catch (err) { return next(err); }
+}
+
+module.exports = { listByAssignment, getMine, submit, updateStatus, updateProgress, reopen, reopenSquad };

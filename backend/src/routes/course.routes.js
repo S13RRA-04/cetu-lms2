@@ -90,6 +90,8 @@ router.get('/:id/assignments/:aid/submissions',            requireAuth, requireI
 router.get('/:id/assignments/:aid/submissions/mine',       requireAuth,                    subCtrl.getMine);
 router.post('/:id/assignments/:aid/submit',                requireAuth,                    subCtrl.submit);
 router.put('/:id/assignments/:aid/submissions/:sid',       requireAuth, requireInstructor, subCtrl.updateStatus);
+router.post('/:id/assignments/:aid/submissions/:uid/reopen',        requireAuth, requireInstructor, auditLog('reopen', 'submission'), subCtrl.reopen);
+router.post('/:id/assignments/:aid/submissions/squad/:squadId/reopen', requireAuth, requireInstructor, auditLog('reopen', 'submission'), subCtrl.reopenSquad);
 router.put('/:id/assignments/:aid/progress',               requireAuth,                    subCtrl.updateProgress);
 router.get('/:id/assignments/:aid/progress',               requireAuth, requireInstructor, assignCtrl.getProgress);
 router.get('/:id/live-progress',                            requireAuth, requireInstructor, assignCtrl.getLiveOverview);

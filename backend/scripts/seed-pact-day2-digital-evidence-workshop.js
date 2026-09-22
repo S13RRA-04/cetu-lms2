@@ -1,17 +1,19 @@
 'use strict';
 /**
- * Seed the Day 3 "Digital Evidence Workshop" — standalone reinforcement for
- * the four Day 3 assessment topics (forensics_host, forensics_network,
- * timeline_construction, scene_management). Explicitly NOT tied to the
- * Wednesday PM live-action block or any PACT scenario — a self-contained
- * fictional case (Sable Ridge Financial Advisors) the facilitator guide
- * says is safe to run "wherever it fits your schedule."
+ * Seed the Day 2 "Digital Evidence Workshop" — standalone reinforcement for
+ * the four forensics/timeline/scene-management assessment topics
+ * (forensics_host, forensics_network, timeline_construction,
+ * scene_management). The source facilitator guide labels this "Day 3"
+ * content, but it slots into Day 2 of this course's actual schedule —
+ * explicitly NOT tied to the Wednesday PM live-action block or any PACT
+ * scenario, a self-contained fictional case (Sable Ridge Financial
+ * Advisors) the guide itself says is safe to run "wherever it fits."
  *
  * Not part of packet-heist/packet-heist-v2 (no drop_number/scenario_name),
  * same pattern as the Day 1 Hive workshop — gated purely by is_published +
  * per-squad AssignmentUnlock, not the campaign release engine.
  *
- * Run: node backend/scripts/seed-pact-day3-digital-evidence-workshop.js
+ * Run: node backend/scripts/seed-pact-day2-digital-evidence-workshop.js
  */
 
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
@@ -20,7 +22,7 @@ const { Sequelize } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
 
 const COURSE_ID = 'ae2fbd25-2f41-45b1-b9f8-f4fefbad4b63';
-const TITLE = 'Day 3 Workshop — Digital Evidence (Sable Ridge Financial Advisors)';
+const TITLE = 'Day 2 Workshop — Digital Evidence (Sable Ridge Financial Advisors)';
 
 const CASE_NARRATIVE = `This is squad work. Talk through each part together before anyone writes an answer. Nothing in this packet is multiple choice — every answer is something your squad drafts and defends.
 
@@ -68,7 +70,7 @@ PART 3 — SCENE MANAGEMENT
 
 Sable Ridge Financial Advisors, a wealth-management firm, reported anomalous activity on its file server. Your squad arrives on scene at the firm's office suite. The file server, SRV-DATA1, is powered on and its console shows an active remote session already logged in. Two people are present: the office manager, and a part-time IT contractor who was called in an hour ago. The office manager says the server room was locked when she left last night and locked again this morning. The contractor says he found the server room door unlocked when he arrived.`;
 
-const DESCRIPTION = 'Squad exercise reinforcing Day 3’s forensics/timeline/scene-management lecture, using a self-contained fictional intrusion (Sable Ridge Financial Advisors) unrelated to the range scenario. Work through Part 1 (source and limits), Part 2 (build the timeline), and Part 3 (scene management) together as a squad — talk it out before anyone writes.';
+const DESCRIPTION = 'Squad exercise reinforcing Day 2’s forensics/timeline/scene-management lecture, using a self-contained fictional intrusion (Sable Ridge Financial Advisors) unrelated to the range scenario. Work through Part 1 (source and limits), Part 2 (build the timeline), and Part 3 (scene management) together as a squad — talk it out before anyone writes.';
 
 const FRAGMENT_FACTS = [
   `Badge access log (facilities system): Badge holder J. Kim, Main Entrance, "Access granted," 2024-11-04, 07:52 AM (Eastern, UTC-5).`,
@@ -311,7 +313,7 @@ async function main() {
             is_published, type, grading_mode, scenario_name, drop_number, questions, role_filters,
             created_at, updated_at)
          VALUES
-           (:id, :courseId, :title, :description, :launchBriefing, :maxScore, 13,
+           (:id, :courseId, :title, :description, :launchBriefing, :maxScore, 10,
             false, 'challenge', 'squad', NULL, NULL, :questions, ARRAY[]::text[],
             NOW(), NOW())`,
         {
@@ -328,7 +330,7 @@ async function main() {
         },
       );
 
-      console.log(`Seeded unpublished: "${TITLE}" (${questions.length} items, ${totalPoints} pts, order_index 13)`);
+      console.log(`Seeded unpublished: "${TITLE}" (${questions.length} items, ${totalPoints} pts, order_index 10)`);
     });
   } finally {
     await seq.close();
