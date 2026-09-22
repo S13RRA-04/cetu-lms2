@@ -506,6 +506,17 @@ export default function AdminPage() {
       }
       return { ...prev, [sub.id]: result };
     });
+    // Mirror what gradeSquad()/upsertGrade() just did server-side (marking
+    // the submitted row(s) 'graded') into local state — without this the
+    // status text in the list stays stale as "submitted" until the
+    // assignment is closed and reopened, even though the score chip (driven
+    // by savedGrades above) already shows correctly. A squad grade updates
+    // every squadmate's submission row, not just the canonical one shown in
+    // the list, so match on squad_id when present.
+    setSubmissions((prev) => prev.map((s) => {
+      const matches = sub.squad_id ? s.squad_id === sub.squad_id : s.id === sub.id;
+      return matches && s.status === 'submitted' ? { ...s, status: 'graded' } : s;
+    }));
   }, [grades]);
 
   if (loading) return <div className="loading-screen"><div className="spinner" /></div>;
