@@ -681,6 +681,13 @@ function ChallengeReview({ assignment, color, existingContent, grade }) {
         const psValue  = typeof ps === 'object' ? ps.score : ps;
         const psPct    = psValue !== undefined && pts > 0 ? psValue / pts : null;
         const psColor  = psPct === null ? 'var(--muted)' : psPct >= 0.8 ? '#10b981' : psPct >= 0.5 ? '#f59e0b' : '#ef4444';
+        // keyElements only ever reaches this component once the backend has
+        // confirmed a grade exists for this student (see assignment.service.js's
+        // sanitizeQuestionsForStudent) — the model-answer notes instructors see
+        // while grading (rubric.commonErrors) never reach a student's browser
+        // at all, graded or not.
+        const keyElements = prompts[i]?.rubric?.keyElements ?? [];
+        const criteria     = typeof ps === 'object' ? ps.criteria : null;
 
         return (
           <div key={i} style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
@@ -705,6 +712,28 @@ function ChallengeReview({ assignment, color, existingContent, grade }) {
               <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: 'var(--muted)', marginBottom: 6 }}>YOUR RESPONSE</div>
               <FormattedText value={response} />
             </div>
+            {keyElements.length > 0 && (
+              <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)', background: 'rgba(16,185,129,.04)' }}>
+                <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: '#10b981', marginBottom: 8 }}>GRADED AGAINST</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {keyElements.map((el, j) => {
+                    // A rubric graded with the checkbox tool tells us exactly
+                    // which elements were credited; one graded with a plain
+                    // score doesn't — show the checklist either way, just
+                    // without a per-item mark when that detail isn't available.
+                    const credited = Array.isArray(criteria) ? Boolean(criteria[j]) : null;
+                    return (
+                      <div key={j} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12, lineHeight: 1.5 }}>
+                        <span style={{ flexShrink: 0, width: 14, textAlign: 'center', color: credited === null ? 'var(--muted)' : credited ? '#10b981' : '#ef4444' }}>
+                          {credited === null ? '•' : credited ? '✓' : '✗'}
+                        </span>
+                        <span style={{ color: credited === false ? 'var(--muted)' : 'var(--text)' }}>{el}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         );
       })}

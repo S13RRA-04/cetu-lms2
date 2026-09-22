@@ -1,7 +1,7 @@
 'use strict';
 const { Op }             = require('sequelize');
 const { sequelize }      = require('../config/database');
-const { Assignment, AssignmentUnlock, Course, Cohort, Enrollment, User, Submission, CourseContentItem, CourseContentUnlock, Squad } = require('../models');
+const { Assignment, AssignmentUnlock, Course, Cohort, Enrollment, User, Submission, CourseContentItem, CourseContentUnlock, Squad, Grade } = require('../models');
 const { NotFoundError, AppError } = require('../utils/errors');
 const { paginate, paginatedResponse } = require('../utils/pagination');
 const TtlCache = require('../utils/ttlCache');
@@ -92,6 +92,30 @@ async function _queryListByCourse(courseId, { limit, offset, page, includeUnpubl
   return paginatedResponse(rows, count, { page, limit });
 }
 
+// A prompt question's rubric carries two very different audiences: keyElements
+// is the scored checklist ("release the rubric once the grade is released" —
+// this request), and commonErrors is instructor-only reference material that,
+// for every rubric-graded challenge built this session, literally contains
+// the worked model answer ("MODEL ANSWER (reference only — grade against the
+// must-include list, not exact wording): ..."). Before this fix, getById and
+// listForStudent both returned assignment.toJSON() unfiltered — every
+// student's browser received the full rubric, model answers included, for
+// every prompt, at all times, regardless of whether they'd been graded yet.
+// commonErrors is never sent to a student, period. keyElements is only sent
+// once a Grade exists for that student on that assignment.
+function sanitizeQuestionsForStudent(questions, isGraded) {
+  if (!Array.isArray(questions)) return questions;
+  return questions.map((q) => {
+    if (!q.rubric) return q;
+    if (!isGraded) {
+      const { rubric, ...rest } = q;
+      return rest;
+    }
+    const { commonErrors, ...safeRubric } = q.rubric;
+    return { ...q, rubric: safeRubric };
+  });
+}
+
 async function listForStudent(courseId, userId) {
   return studentListCache.get(`listForStudent:${courseId}:${userId}`, () => _queryListForStudent(courseId, userId));
 }
@@ -140,18 +164,23 @@ async function _queryListForStudent(courseId, userId) {
 
   // Round-trip 2: unlocks (needs enrollment) + submissions (needs assignment IDs) — run in parallel
   const assignmentIds = visibleAssignments.map((a) => a.id);
-  const [unlocks, submissions] = await Promise.all([
+  const [unlocks, submissions, grades] = await Promise.all([
     AssignmentUnlock.findAll({ where: { [Op.or]: orClauses } }),
     assignmentIds.length
       ? Submission.findAll({ where: { assignment_id: assignmentIds, user_id: userId }, attributes: ['assignment_id', 'progress', 'status'] })
+      : [],
+    assignmentIds.length
+      ? Grade.findAll({ where: { assignment_id: assignmentIds, user_id: userId }, attributes: ['assignment_id'] })
       : [],
   ]);
 
   const unlockedIds = new Set(unlocks.map((u) => u.assignment_id));
   const progressMap = Object.fromEntries(submissions.map((s) => [s.assignment_id, s.progress ?? 0]));
+  const gradedIds    = new Set(grades.map((g) => g.assignment_id));
 
   return visibleAssignments.map((a) => ({
     ...a.toJSON(),
+    questions:   sanitizeQuestionsForStudent(a.questions, gradedIds.has(a.id)),
     is_unlocked: unlockedIds.has(a.id),
     progress:    progressMap[a.id] ?? 0,
   }));
@@ -309,18 +338,24 @@ async function getById(id, userId = null) {
   if (!assignment) throw new NotFoundError('Assignment');
 
   if (userId) {
-    const enrollment = await Enrollment.findOne({
-      where: { user_id: userId, course_id: assignment.course_id },
-      include: [{ association: 'squad', attributes: ['id'] }],
-    });
+    const [enrollment, grade] = await Promise.all([
+      Enrollment.findOne({
+        where: { user_id: userId, course_id: assignment.course_id },
+        include: [{ association: 'squad', attributes: ['id'] }],
+      }),
+      Grade.findOne({ where: { assignment_id: id, user_id: userId }, attributes: ['id'] }),
+    ]);
+    const json = assignment.toJSON();
+    json.questions = sanitizeQuestionsForStudent(json.questions, !!grade);
+
     if (enrollment?.cohort_id) {
       const squadId = enrollment.squad?.id ?? null;
       const orClauses = [{ assignment_id: id, cohort_id: enrollment.cohort_id, squad_id: null }];
       if (squadId) orClauses.push({ assignment_id: id, squad_id: squadId });
       const unlock = await AssignmentUnlock.findOne({ where: { [Op.or]: orClauses } });
-      return { ...assignment.toJSON(), is_unlocked: !!unlock };
+      return { ...json, is_unlocked: !!unlock };
     }
-    return { ...assignment.toJSON(), is_unlocked: false };
+    return { ...json, is_unlocked: false };
   }
 
   return assignment;
@@ -344,4 +379,4 @@ async function remove(id) {
   await assignment.destroy();
 }
 
-module.exports = { listByCourse, listForStudent, getById, create, update, remove, unlockForCohort, lockForCohort, releaseVictimScopedAssignments, getUnlockStatus, getLiveOverview, invalidateStudentCache, invalidateAssignmentLists };
+module.exports = { listByCourse, listForStudent, getById, create, update, remove, unlockForCohort, lockForCohort, releaseVictimScopedAssignments, getUnlockStatus, getLiveOverview, invalidateStudentCache, invalidateAssignmentLists, sanitizeQuestionsForStudent };

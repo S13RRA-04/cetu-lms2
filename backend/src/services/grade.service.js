@@ -5,6 +5,7 @@ const ltiService                                     = require('./lti.service');
 const logger                                         = require('../utils/logger');
 const { sequelize }                                  = require('../config/database');
 const TtlCache                                       = require('../utils/ttlCache');
+const { invalidateStudentCache }                     = require('./assignment.service');
 
 // Scoreboard changes only when grades are upserted — cache for 20 s to absorb
 // the thundering-herd of 35 students loading simultaneously.
@@ -86,6 +87,9 @@ async function upsertGrade(assignmentId, userId, data, graderId) {
 
   // Invalidate scoreboard cache so the next fetch reflects this grade
   scoreboardCache.invalidate(`scoreboard:${assignment.course_id}`);
+  // ...and this student's own assignment-list cache, so a just-graded
+  // prompt's rubric shows up immediately instead of within the next 10s.
+  invalidateStudentCache(assignment.course_id, userId);
 
   // Fire-and-forget AGS passback (outside transaction — non-critical)
   if (assignment.lineitem_url) {
@@ -135,6 +139,12 @@ async function gradeSquad(assignmentId, squadId, data, graderId) {
     );
     return gs;
   });
+
+  // Every current squad member's grade (and rubric visibility) changed —
+  // invalidate each of their assignment-list caches, not just the submitter's.
+  for (const e of enrollments) {
+    invalidateStudentCache(assignment.course_id, e.user_id);
+  }
 
   // Fire-and-forget AGS passback (outside transaction — non-critical)
   if (assignment.lineitem_url) {
@@ -189,6 +199,9 @@ async function autoGradeQuiz(assignment, userId, squadId, score, maxScore) {
   });
 
   scoreboardCache.invalidate(`scoreboard:${assignment.course_id}`);
+  for (const uid of targetUserIds) {
+    invalidateStudentCache(assignment.course_id, uid);
+  }
 
   if (assignment.lineitem_url) {
     for (const uid of targetUserIds) {

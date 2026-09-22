@@ -183,3 +183,110 @@ test('squad grading is refused for an individual assignment, so individual work 
     (e) => e.statusCode === 400,
   );
 });
+
+test('upsertGrade invalidates that student’s assignment-list cache, so a just-graded rubric shows up without waiting for the 10s TTL', async (t) => {
+  const assignmentService = require('./assignment.service');
+  const { DropLocationSelection, AssignmentUnlock } = require('../models');
+  const original = {
+    transaction: sequelize.transaction,
+    asgFindByPk: Assignment.findByPk, asgFindAll: Assignment.findAll,
+    userFindByPk: User.findByPk, enrollmentFindOne: Enrollment.findOne,
+    unlockFindAll: AssignmentUnlock.findAll, subFindAll: Submission.findAll,
+    gradeFindOrCreate: Grade.findOrCreate, gradeFindAll: Grade.findAll,
+    subUpdate: Submission.update, dropLocationFindAll: DropLocationSelection.findAll,
+  };
+
+  const assignment = { id: 'a-cache-test', course_id: 'course-cache-test', max_score: 100, grading_mode: 'individual', role_filters: [], lineitem_url: null };
+  let findAllCalls = 0;
+  Assignment.findByPk = async () => assignment;
+  Assignment.findAll = async () => { findAllCalls += 1; return [{ id: 'a-cache-test', toJSON: () => ({ id: 'a-cache-test' }), role_filters: [], victim_name: null, questions: [] }]; };
+  User.findByPk = async () => ({ id: 'student-cache-test' });
+  Enrollment.findOne = async () => ({ cohort_id: 'cohort-cache-test', squad: null });
+  AssignmentUnlock.findAll = async () => [];
+  Submission.findAll = async () => [];
+  Grade.findAll = async () => [];
+  Grade.findOrCreate = async ({ where }) => [{ user_id: where.user_id, reload: async () => ({ user_id: where.user_id }) }, true];
+  Submission.update = async () => [0];
+  DropLocationSelection.findAll = async () => [];
+  sequelize.transaction = async (callback) => callback({});
+
+  t.after(() => {
+    sequelize.transaction = original.transaction;
+    Assignment.findByPk = original.asgFindByPk; Assignment.findAll = original.asgFindAll;
+    User.findByPk = original.userFindByPk; Enrollment.findOne = original.enrollmentFindOne;
+    AssignmentUnlock.findAll = original.unlockFindAll; Submission.findAll = original.subFindAll;
+    Grade.findOrCreate = original.gradeFindOrCreate; Grade.findAll = original.gradeFindAll;
+    Submission.update = original.subUpdate; DropLocationSelection.findAll = original.dropLocationFindAll;
+  });
+
+  await assignmentService.listForStudent('course-cache-test', 'student-cache-test');
+  assert.equal(findAllCalls, 1, 'sanity: first call queries the database');
+
+  await assignmentService.listForStudent('course-cache-test', 'student-cache-test');
+  assert.equal(findAllCalls, 1, 'sanity: second call within 10s hits the cache, not the database');
+
+  await gradeService.upsertGrade('a-cache-test', 'student-cache-test', { score: 90 }, 'grader-1');
+
+  await assignmentService.listForStudent('course-cache-test', 'student-cache-test');
+  assert.equal(findAllCalls, 2, 'grading invalidated the cache — this call re-queried instead of returning the stale (pre-grade) list');
+});
+
+test('gradeSquad invalidates every current squad member’s cache, not just the submitter’s', async (t) => {
+  const assignmentService = require('./assignment.service');
+  const { DropLocationSelection, AssignmentUnlock, Squad } = require('../models');
+  const original = {
+    transaction: sequelize.transaction,
+    asgFindByPk: Assignment.findByPk, asgFindAll: Assignment.findAll,
+    squadFindByPk: Squad.findByPk, enrollmentFindAll: Enrollment.findAll, enrollmentFindOne: Enrollment.findOne,
+    userFindByPk: User.findByPk, unlockFindAll: AssignmentUnlock.findAll, subFindAll: Submission.findAll,
+    gradeFindOrCreate: Grade.findOrCreate, gradeFindAll: Grade.findAll,
+    subUpdate: Submission.update, dropLocationFindAll: DropLocationSelection.findAll,
+  };
+
+  const assignment = { id: 'a-squad-cache-test', course_id: 'course-squad-cache-test', max_score: 100, grading_mode: 'squad', lineitem_url: null };
+  const members = [{ user_id: 'member-a' }, { user_id: 'member-b' }];
+  let findAllCalls = 0;
+  Assignment.findByPk = async () => assignment;
+  Squad.findByPk = async () => ({ id: 'squad-cache-test' });
+  Enrollment.findAll = async () => members;
+  Assignment.findAll = async () => { findAllCalls += 1; return [{ id: 'a-squad-cache-test', toJSON: () => ({ id: 'a-squad-cache-test' }), role_filters: [], victim_name: null, questions: [] }]; };
+  User.findByPk = async () => ({ professional_role: null, certifications: [] });
+  Enrollment.findOne = async () => ({ cohort_id: 'cohort-squad-cache-test', squad: null });
+  AssignmentUnlock.findAll = async () => [];
+  Submission.findAll = async () => [];
+  Grade.findAll = async () => [];
+  Grade.findOrCreate = async ({ where }) => [{ user_id: where.user_id }, true];
+  Submission.update = async () => [0];
+  DropLocationSelection.findAll = async () => [];
+  sequelize.transaction = async (callback) => callback({});
+
+  t.after(() => {
+    sequelize.transaction = original.transaction;
+    Assignment.findByPk = original.asgFindByPk; Assignment.findAll = original.asgFindAll;
+    Squad.findByPk = original.squadFindByPk; Enrollment.findAll = original.enrollmentFindAll; Enrollment.findOne = original.enrollmentFindOne;
+    User.findByPk = original.userFindByPk; AssignmentUnlock.findAll = original.unlockFindAll; Submission.findAll = original.subFindAll;
+    Grade.findOrCreate = original.gradeFindOrCreate; Grade.findAll = original.gradeFindAll;
+    Submission.update = original.subUpdate; DropLocationSelection.findAll = original.dropLocationFindAll;
+  });
+
+  // Prime both members' caches so we can prove each one gets invalidated,
+  // not just whichever user happens to be "the" grade recipient.
+  await assignmentService.listForStudent('course-squad-cache-test', 'member-a');
+  await assignmentService.listForStudent('course-squad-cache-test', 'member-b');
+  assert.equal(findAllCalls, 2, 'sanity: two distinct users, two distinct cache entries, two queries');
+
+  // Re-fetching both again right away should still hit the cache — proves
+  // the baseline (pre-grade) TTL caching itself is working before we lean on
+  // "the count went up" to mean "grading invalidated it".
+  await assignmentService.listForStudent('course-squad-cache-test', 'member-a');
+  await assignmentService.listForStudent('course-squad-cache-test', 'member-b');
+  assert.equal(findAllCalls, 2, 'sanity: still cached, no new queries yet');
+
+  await gradeService.gradeSquad('a-squad-cache-test', 'squad-cache-test', { score: 80 }, 'grader-1');
+
+  await assignmentService.listForStudent('course-squad-cache-test', 'member-a');
+  assert.equal(findAllCalls, 3, 'member-a’s cache was invalidated by the squad grade');
+
+  await assignmentService.listForStudent('course-squad-cache-test', 'member-b');
+  assert.equal(findAllCalls, 4, 'member-b’s cache was invalidated too, not just member-a’s');
+});
