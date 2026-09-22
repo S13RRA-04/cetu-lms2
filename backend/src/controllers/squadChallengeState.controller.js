@@ -15,4 +15,11 @@ async function saveState(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { getState, saveState };
+async function getStateForSquad(req, res, next) {
+  try {
+    const state = await svc.getStateForSquad(req.params.aid, req.params.squadId);
+    return res.json(state);
+  } catch (err) { return next(err); }
+}
+
+module.exports = { getState, saveState, getStateForSquad };

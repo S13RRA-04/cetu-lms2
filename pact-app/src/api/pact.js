@@ -87,6 +87,11 @@ export const getSquadChallengeState = (assignmentId) =>
 export const saveSquadChallengeState = (assignmentId, state) =>
   client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/squad-state`, state).then((r) => r.data);
 
+// Admin/instructor-only — Live Progress's "peek at a specific squad's live
+// draft" view, not the requester's own squad.
+export const getSquadChallengeStateForSquad = (assignmentId, squadId) =>
+  client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/squad-state/${squadId}`).then((r) => r.data);
+
 /* ── Live progress ── */
 export const getLiveOverview = (params = {}) =>
   client.get(`/courses/${COURSE_ID}/live-progress`, { params }).then((r) => r.data);

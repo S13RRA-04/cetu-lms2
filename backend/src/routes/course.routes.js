@@ -109,6 +109,9 @@ router.post('/:id/assignments/:aid/training-chat', requireAuth, trainingAgentCtr
 // Squad-shared challenge state (question progress/answers/hints shared across a squad)
 router.get('/:id/assignments/:aid/squad-state', requireAuth, squadStateCtrl.getState);
 router.put('/:id/assignments/:aid/squad-state', requireAuth, squadStateCtrl.saveState);
+// Admin/instructor variant — Command's Live Progress view inspecting a specific
+// squad's live draft, not the requester's own (see getStateForSquad's comment).
+router.get('/:id/assignments/:aid/squad-state/:squadId', requireAuth, requireInstructor, squadStateCtrl.getStateForSquad);
 
 // Investigation simulation engine (type: 'investigation' assignments)
 router.get('/:id/assignments/:aid/case',            requireAuth, caseSimCtrl.getCase);

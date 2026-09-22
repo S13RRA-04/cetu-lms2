@@ -3153,6 +3153,44 @@ body {
   color: var(--muted);
 }
 
+.challenge-consensus-wrap {
+  padding: 12px 14px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(0, 176, 255, 0.04);
+  border-top: 1px dashed var(--border);
+  border-bottom: 1px dashed var(--border);
+}
+.challenge-consensus-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+.challenge-consensus-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-hi);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--bright);
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.5;
+  resize: vertical;
+}
+.challenge-consensus-input::placeholder { color: rgba(100, 140, 180, 0.4); font-style: italic; }
+.challenge-consensus-input:focus { outline: none; border-color: var(--primary); background: rgba(0, 0, 0, 0.4); }
+.challenge-consensus-hint {
+  margin-bottom: 12px;
+  font-size: 11px;
+  color: #f59e0b;
+}
+
 .challenge-textarea {
   width: 100%;
   padding: 12px 14px;

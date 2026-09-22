@@ -15,6 +15,18 @@ import { MultipleChoice, TrueFalse, FillBlank, DragMatch } from './QuizFlow.jsx'
 // A drag_match answer is a {sourceId: targetId} map that grows one entry at
 // a time as items are placed — "answered" means every source has been
 // placed, not just that the map exists.
+// Squads were splitting deliverables up one-question-per-person to go
+// faster, which works but skips the actual point of squad work — arguing out
+// an answer together. Each deliverable gets its own "squad consensus" field
+// that has to be filled in (past a trivial length, so a one-word placeholder
+// doesn't count) before that question's real answer box unlocks — a soft
+// nudge toward discussing first, not a hard block (a squad can still write a
+// token line and split up the real answer; that's a known, accepted gap, not
+// a bug). Only applies to genuine squad-graded challenges — an individual
+// role-tasking assignment has no one to brainstorm with.
+const CONSENSUS_MIN_LENGTH = 15;
+const consensusKey = (i) => `consensus-${i}`;
+
 function isCheckAnswered(q, raw) {
   if (q.payload?.kind === 'fill_blank') return typeof raw === 'string' && raw.trim().length > 0;
   if (q.payload?.kind === 'drag_match') return Object.keys(raw ?? {}).length === (q.payload.sources?.length ?? 0);
@@ -157,20 +169,43 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
   const draft    = loadDraftSync(assignment.id);
   const useDraft = draft && (!existingContent || (draft._ts ?? 0) > 0);
 
+  // Deliverables, squad-consensus notes, AND judgment-check answers (MC/TF/
+  // fill-blank/drag-match) all live in this one field-keyed bag, synced to
+  // the squad's shared server-side state the same way regardless of which
+  // kind of field they are — see updateSharedAnswer below. Judgment checks
+  // used to be split into their own local-only `checkAnswers` state that
+  // never synced past this one browser's localStorage draft: a squad member
+  // could fill in the drag-match exercise and have it vanish the moment
+  // anyone else opened the assignment, or even on their own reload from a
+  // different device. Folding them in here fixes that for free.
   const [answers,   setAnswers]   = useState(() => {
-    if (useDraft && draft.answers) return draft.answers;
+    if (useDraft && draft.answers) {
+      // A pre-fix draft may still have judgment-check answers filed
+      // separately under draft.checkAnswers — merge them in once so nobody
+      // loses in-progress work from before this change shipped.
+      return draft.checkAnswers ? { ...draft.checkAnswers, ...draft.answers } : draft.answers;
+    }
     if (!existingContent) return {};
-    try { return JSON.parse(existingContent)?.responses ?? {}; } catch { return {}; }
+    // responses/consensus/checks were split apart for submission (see
+    // handleSubmit below) but live together as one field-keyed object while
+    // editing — re-merge so a reopened attempt (see the admin "reopen for
+    // another attempt" action) restores all three, instead of them coming
+    // back empty and re-locking fields that already have real answers.
+    try {
+      const parsed = JSON.parse(existingContent);
+      const consensusEntries = Object.fromEntries(
+        Object.entries(parsed?.consensus ?? {}).map(([i, value]) => [consensusKey(i), value])
+      );
+      const checkEntries = Object.fromEntries(
+        Object.entries(parsed?.checks ?? {}).map(([id, record]) => [id, record?.answer])
+      );
+      return { ...checkEntries, ...(parsed?.responses ?? {}), ...consensusEntries };
+    } catch { return {}; }
   });
   const [freetext,  setFreetext]  = useState(() => {
     if (useDraft && draft.freetext !== undefined) return draft.freetext;
     if (!existingContent) return '';
     try { const p = JSON.parse(existingContent); return p?.response ?? existingContent; } catch { return existingContent; }
-  });
-  const [checkAnswers, setCheckAnswers] = useState(() => {
-    if (useDraft && draft.checkAnswers) return draft.checkAnswers;
-    if (!existingContent) return {};
-    try { return JSON.parse(existingContent)?.checks ?? {}; } catch { return {}; }
   });
   const [saving,    setSaving]    = useState(false);
   const [error,     setError]     = useState('');
@@ -209,7 +244,7 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
       try {
         localStorage.setItem(
           `pact_draft_${assignment.id}`,
-          JSON.stringify({ answers, freetext, checkAnswers, _ts: Date.now() }),
+          JSON.stringify({ answers, freetext, _ts: Date.now() }),
         );
       } catch {}
 
@@ -221,13 +256,13 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
         ? deliverables.filter((_, i) => (answers[i] ?? '').trim().length > 0).length
         : (freetext.trim().length > 0 ? 1 : 0);
       const totalCount = deliverables ? deliverables.length : 1;
-      const checkedCount = checkQuestions.filter((q) => isCheckAnswered(q, checkAnswers[q.id])).length;
+      const checkedCount = checkQuestions.filter((q) => isCheckAnswered(q, answers[q.id])).length;
       const pct = Math.round(((answeredCount + checkedCount) / (totalCount + checkQuestions.length)) * 100);
       updateProgress(assignment.id, pct)
         .then(() => setSaveError(false))
         .catch(() => setSaveError(true));
     }, 700);
-  }, [answers, freetext, checkAnswers, assignment.id, submitted]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [answers, freetext, assignment.id, submitted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isSquad = sharedChallenge;
 
@@ -285,8 +320,11 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
   };
 
   const updateSharedAnswer = (field, value) => {
-    if (deliverables) setAnswers((previous) => ({ ...previous, [field]: value }));
-    else setFreetext(value);
+    // '__report__' is the one field that lives outside the shared answers
+    // bag (see freetext state above) — everything else, deliverables,
+    // consensus notes, and judgment-check answers alike, is keyed into it.
+    if (field === '__report__') setFreetext(value);
+    else setAnswers((previous) => ({ ...previous, [field]: value }));
     if (sharedChallenge) {
       syncField(field, value, true);
       sendInput(field, value);
@@ -339,10 +377,12 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
     );
   };
 
+  const deliverableConsensusReady = (i) => !isSquad || (answers[consensusKey(i)] ?? '').trim().length >= CONSENSUS_MIN_LENGTH;
+
   const canSubmit = (deliverables
-    ? deliverables.every((_, i) => (answers[i] ?? '').trim().length > 0)
+    ? deliverables.every((_, i) => deliverableConsensusReady(i) && (answers[i] ?? '').trim().length > 0)
     : freetext.trim().length > 0)
-    && checkQuestions.every((q) => isCheckAnswered(q, checkAnswers[q.id]));
+    && checkQuestions.every((q) => isCheckAnswered(q, answers[q.id]));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -351,10 +391,14 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
     setError('');
     try {
       const checks = Object.fromEntries(checkQuestions.map((q) => [
-        q.id, { answer: checkAnswers[q.id], correct: isCheckCorrect(q, checkAnswers[q.id]), points: q.scoring?.points ?? 0 },
+        q.id, { answer: answers[q.id], correct: isCheckCorrect(q, answers[q.id]), points: q.scoring?.points ?? 0 },
       ]));
+      const responses = deliverables ? Object.fromEntries(deliverables.map((_, i) => [i, answers[i] ?? ''])) : null;
+      const consensus = deliverables && isSquad
+        ? Object.fromEntries(deliverables.map((_, i) => [i, answers[consensusKey(i)] ?? '']))
+        : null;
       const payload = deliverables
-        ? JSON.stringify({ responses: answers, deliverables, checks })
+        ? JSON.stringify({ responses, ...(consensus ? { consensus } : {}), deliverables, checks })
         : JSON.stringify({ response: freetext, checks });
       clearDraftSync(assignment.id);
       await onComplete(payload);
@@ -416,9 +460,9 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
             </div>
             <p className="challenge-instructions">Quick check questions — pick an answer for each before moving on to the squad deliverables below.</p>
             {checkQuestions.map((q, i) => {
-              const raw = checkAnswers[q.id];
+              const raw = answers[q.id];
               const answered = isCheckAnswered(q, raw);
-              const setAnswer = (value) => setCheckAnswers((prev) => ({ ...prev, [q.id]: value }));
+              const setAnswer = (value) => updateSharedAnswer(q.id, value);
               return (
                 <motion.div
                   key={q.id}
@@ -491,6 +535,28 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
                 <div className="challenge-question-body">
                   <FormattedText value={prompt} />
                 </div>
+                {isSquad && (() => {
+                  const cKey = consensusKey(i);
+                  const ready = deliverableConsensusReady(i);
+                  return (
+                    <div className="challenge-consensus-wrap">
+                      <div className="challenge-consensus-label">Squad consensus — agree on this together first</div>
+                      <textarea
+                        className="challenge-consensus-input"
+                        value={isFieldMine(cKey) ? (answers[cKey] ?? '') : (liveValues[cKey] ?? answers[cKey] ?? '')}
+                        onChange={(e) => updateSharedAnswer(cKey, e.target.value)}
+                        onFocus={() => { focusField(cKey); syncField(cKey, answers[cKey] ?? '', true); }}
+                        onBlur={() => { blurField(cKey); stopTyping(cKey, answers[cKey] ?? ''); }}
+                        placeholder="A sentence or two: what does your squad agree on here, before anyone drafts the answer?"
+                        rows={2}
+                        readOnly={!isFieldMine(cKey)}
+                      />
+                      {lockBanner(cKey)}
+                      {typingLabel(cKey) && <div style={{ marginTop: 5, fontSize: 11, color: 'var(--primary)' }}>{typingLabel(cKey)}</div>}
+                      {!ready && <div className="challenge-consensus-hint">Write your squad's shared take above to unlock the answer box below.</div>}
+                    </div>
+                  );
+                })()}
                 <div className="challenge-answer-wrap">
                   <div className="challenge-answer-label">Your squad's answer</div>
                   <FormattedTextEditor
@@ -498,10 +564,10 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
                     onChange={(value) => updateSharedAnswer(String(i), value)}
                     onFocus={() => { focusField(String(i)); sharedChallenge && syncField(String(i), answers[i] ?? '', true); }}
                     onBlur={() => { blurField(String(i)); stopTyping(String(i), answers[i] ?? ''); }}
-                    placeholder="Type your squad's answer here…"
+                    placeholder={deliverableConsensusReady(i) ? "Type your squad's answer here…" : 'Write your squad\'s consensus above first…'}
                     rows={5}
                     required
-                    readOnly={sharedChallenge && !isFieldMine(String(i))}
+                    readOnly={(sharedChallenge && !isFieldMine(String(i))) || !deliverableConsensusReady(i)}
                   />
                   {lockBanner(String(i))}
                   {sharedChallenge && typingLabel(String(i)) && <div style={{ marginTop: 5, fontSize: 11, color: 'var(--primary)' }}>{typingLabel(String(i))}</div>}
@@ -579,6 +645,7 @@ function ChallengeReview({ assignment, color, existingContent, grade }) {
     : (parsed?.deliverables ?? []);
 
   const responses     = parsed?.responses ?? {};
+  const consensus     = parsed?.consensus ?? null;
   const isGraded      = grade != null;
   const promptScores  = grade?.prompt_scores ?? {};
   const pct           = isGraded ? Math.round((grade.score / (grade.max_score ?? 100)) * 100) : null;
@@ -628,6 +695,12 @@ function ChallengeReview({ assignment, color, existingContent, grade }) {
                 </span>
               )}
             </div>
+            {consensus?.[i] && (
+              <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)', background: 'rgba(0,0,0,0.1)' }}>
+                <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: 'var(--muted)', marginBottom: 6 }}>SQUAD CONSENSUS</div>
+                <FormattedText value={consensus[i]} />
+              </div>
+            )}
             <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
               <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: 'var(--muted)', marginBottom: 6 }}>YOUR RESPONSE</div>
               <FormattedText value={response} />

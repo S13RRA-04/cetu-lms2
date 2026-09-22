@@ -43,6 +43,7 @@ import {
   updateAssignment,
   getLiveOverview,
   getAssignmentProgress,
+  getSquadChallengeStateForSquad,
   getUsers,
   updateUser,
   COURSE_ID,
@@ -101,28 +102,63 @@ function parseContent(content) {
 
 /* ── subcomponents ── */
 
+// `resolved` defaults to true (a finally-submitted quiz's answers are all
+// resolved) — only quizStateToReviewData's live in-progress conversion ever
+// sets it false, for a question the student hasn't reached/answered yet.
 function QuizAnswerReview({ quizData, questions = [] }) {
   if (!quizData?.answers?.length) return null;
   return (
     <div className="admin-quiz-review">
       <div className="admin-quiz-score">
         Score: <strong>{quizData.totalScore}</strong> / {quizData.maxScore}
-        {' '}({Math.round((quizData.totalScore / quizData.maxScore) * 100)}%)
+        {quizData.maxScore > 0 && ` (${Math.round((quizData.totalScore / quizData.maxScore) * 100)}%)`}
       </div>
       {quizData.answers.map((a, i) => {
         const q = questions.find((qi) => qi.id === a.questionId);
+        const resolved = a.resolved !== false;
         return (
-          <div key={a.questionId} className={`admin-qa-row ${a.isCorrect ? 'qa-ok' : 'qa-no'}`}>
+          <div key={a.questionId} className={`admin-qa-row ${!resolved ? '' : a.isCorrect ? 'qa-ok' : 'qa-no'}`}>
             <div className="admin-qa-num">Q{i + 1}</div>
             <div className="admin-qa-body">
               <div className="admin-qa-stem">{q?.stem ?? q?.stem?.en ?? a.questionId}</div>
-              <div className="admin-qa-pts">{a.isCorrect ? '✓' : '✗'} {a.points}/{q?.scoring?.points ?? '?'} pts</div>
+              <div className="admin-qa-pts" style={!resolved ? { color: 'var(--muted)' } : undefined}>
+                {!resolved ? '— not yet answered' : `${a.isCorrect ? '✓' : '✗'} ${a.points}/${q?.scoring?.points ?? '?'} pts`}
+              </div>
             </div>
           </div>
         );
       })}
     </div>
   );
+}
+
+// Converts a live in-progress quiz_state blob ({qIdx, answers, qStates} —
+// see QuizFlow.jsx) into the same {answers, totalScore, maxScore} shape a
+// finally-submitted quiz's content JSON has, so QuizAnswerReview can render
+// both without a second code path. Only covers payload-bearing (auto-graded)
+// questions — prompt/deliverable questions never live in quiz_state (see
+// LiveAnswerDetail's own comment on why those need the squad-state fetch
+// instead).
+function quizStateToReviewData(quizState, questions) {
+  const qStates     = quizState?.qStates ?? {};
+  const rawAnswers  = quizState?.answers ?? {};
+  const checkQuestions = questions.filter((q) => q.payload != null);
+  const answers = checkQuestions.map((q) => {
+    const st       = qStates[q.id];
+    const resolved = !!(st && (st.revealed || st.forced));
+    return {
+      questionId: q.id,
+      raw:        rawAnswers[q.id],
+      isCorrect:  !!st?.revealed,
+      points:     resolved ? (st.available ?? 0) : 0,
+      resolved,
+    };
+  });
+  return {
+    answers,
+    totalScore: answers.reduce((sum, a) => sum + (a.resolved ? a.points : 0), 0),
+    maxScore:   checkQuestions.reduce((sum, q) => sum + (q.scoring?.points ?? 0), 0),
+  };
 }
 
 function ChallengeDeliverableReview({ delivData, questions = [], maxScore, assignmentId, userId, squadId, isSquad, existingGrade, onGradeSaved }) {
@@ -199,6 +235,7 @@ function ChallengeDeliverableReview({ delivData, questions = [], maxScore, assig
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {prompts.map((q, i) => {
         const response  = delivData.responses?.[i] ?? '';
+        const consensus = delivData.consensus?.[i] ?? '';
         const rubric    = q.rubric;
         const pts       = q.points ?? perPromptMax;
         const scoreVal  = promptScores[i];
@@ -261,6 +298,12 @@ function ChallengeDeliverableReview({ delivData, questions = [], maxScore, assig
 
               {/* Response */}
               <div style={{ padding: '10px 14px' }}>
+                {consensus && (
+                  <div style={{ marginBottom: 10, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: 'var(--muted)', marginBottom: 6 }}>SQUAD CONSENSUS</div>
+                    <div style={{ maxHeight: 120, overflowY: 'auto' }}><FormattedText value={consensus} /></div>
+                  </div>
+                )}
                 <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: 'var(--muted)', marginBottom: 6 }}>SQUAD RESPONSE</div>
                 <div style={{ maxHeight: 240, overflowY: 'auto' }}><FormattedText value={response} emptyText="No response submitted" /></div>
               </div>
@@ -3407,11 +3450,19 @@ function relativeTime(iso) {
   return `${Math.round(diffHr / 24)}d ago`;
 }
 
-function LiveRosterRow({ sub }) {
+function LiveRosterRow({ sub, onSelect }) {
   const meta = LIVE_STATUS_META[sub.status] ?? { label: sub.status, color: 'var(--muted)' };
   const name = sub.student ? `${sub.student.first_name} ${sub.student.last_name}`.trim() : 'Unknown';
   return (
-    <div className="live-roster-row">
+    <div
+      className="live-roster-row"
+      role="button"
+      tabIndex={0}
+      style={{ cursor: 'pointer' }}
+      onClick={() => onSelect(sub)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(sub); } }}
+      title="View this student's answers"
+    >
       <div className="live-roster-name">
         {name}
         {sub.squad && <span className="live-roster-squad">Squad {sub.squad.number}</span>}
@@ -3439,6 +3490,150 @@ function LiveRosterRow({ sub }) {
   );
 }
 
+/* Live Progress's "click a roster row" detail view. A finished submission
+   (submitted/graded/returned) just reuses SubmissionDetail wholesale — same
+   Q&A rendering Grade Center uses, plus it gets grading/reopen for free. An
+   in-progress one has no submission content yet, so it's built from
+   whatever IS live: quiz_state for auto-graded questions (see
+   quizStateToReviewData), and — for a squad-graded challenge's free-text
+   deliverables specifically — the squad's shared SquadChallengeState draft,
+   fetched via the admin-only getStateForSquad endpoint. An individually-
+   graded challenge's deliverables have no live counterpart at all (ChallengeFlow
+   only syncs a coarse progress percentage for those, never per-field drafts,
+   until final submit) — that case gets an honest explanation instead of a
+   fabricated view. */
+function LiveAnswerDetail({ sub, assignment, onClose, onChanged }) {
+  const [grade, setGrade] = useState(null);
+  const [squadState, setSquadState] = useState(null);
+  const [squadStateLoading, setSquadStateLoading] = useState(false);
+
+  const isSubmitted = sub.status !== 'in_progress';
+  const isSquad = assignment.grading_mode === 'squad';
+  const questions = assignment.questions ?? [];
+  const hasPayloadQuestions = questions.some((q) => q.payload != null);
+  const prompts = questions.filter((q) => q.kind === 'prompt');
+  const hasPromptQuestions = prompts.length > 0;
+  const parsed = isSubmitted ? parseContent(sub.content) : null;
+
+  useEffect(() => {
+    if (!isSubmitted) return;
+    let cancelled = false;
+    getGradesForAssignment(assignment.id)
+      .then((grades) => {
+        if (cancelled) return;
+        const g = (Array.isArray(grades) ? grades : []).find((x) => x.user_id === sub.user_id);
+        setGrade(g ?? null);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [assignment.id, sub.user_id, isSubmitted]);
+
+  useEffect(() => {
+    if (isSubmitted || !isSquad || !hasPromptQuestions || !sub.squad_id) { setSquadState(null); return; }
+    let cancelled = false;
+    setSquadStateLoading(true);
+    getSquadChallengeStateForSquad(assignment.id, sub.squad_id)
+      .then((state) => { if (!cancelled) setSquadState(state); })
+      .catch(() => { if (!cancelled) setSquadState(null); })
+      .finally(() => { if (!cancelled) setSquadStateLoading(false); });
+    return () => { cancelled = true; };
+  }, [assignment.id, sub.squad_id, isSubmitted, isSquad, hasPromptQuestions]);
+
+  const name = sub.student ? `${sub.student.first_name} ${sub.student.last_name}`.trim() : 'Unknown';
+  const meta = LIVE_STATUS_META[sub.status] ?? { label: sub.status, color: 'var(--muted)' };
+
+  const fieldBox = (value) => (
+    <div style={{ fontSize: 13, color: 'var(--text)', padding: '8px 10px', background: 'var(--surface-2, var(--surface))', borderRadius: 5, border: '1px solid var(--border)' }}>
+      <FormattedText value={value} emptyText="No response yet" />
+    </div>
+  );
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(3,7,18,.75)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '40px 20px', overflowY: 'auto' }}
+      onClick={onClose}
+    >
+      <div
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, maxWidth: 720, width: '100%', padding: 24 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 4 }}>
+          <div className="admin-sub-avatar" style={{ width: 40, height: 40, fontSize: 15, flexShrink: 0 }}>
+            {sub.student?.first_name?.[0]}{sub.student?.last_name?.[0]}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--bright)' }}>{name}</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
+              {assignment.title}
+              {sub.squad && ` · Squad ${sub.squad.number}${sub.squad.name ? ` (${sub.squad.name})` : ''}`}
+            </div>
+          </div>
+          <span className="live-roster-status" style={{ color: meta.color, borderColor: meta.color, flexShrink: 0 }}>
+            {sub.status === 'in_progress' && <span className="live-dot" style={{ background: meta.color }} />}
+            {meta.label}
+          </span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: '2px 4px', flexShrink: 0 }}>✕</button>
+        </div>
+
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 18 }}>
+          {sub.progress ?? 0}% complete · last activity {relativeTime(sub.updated_at)}
+        </div>
+
+        {isSubmitted ? (
+          <SubmissionDetail
+            sub={sub}
+            assignment={assignment}
+            existingGrade={grade}
+            onGradeSaved={(result) => { setGrade(result); onChanged?.(); }}
+            onReopened={() => onChanged?.()}
+          />
+        ) : (
+          <>
+            {hasPayloadQuestions && (
+              <div style={{ marginBottom: hasPromptQuestions ? 20 : 0 }}>
+                <div className="section-label" style={{ marginBottom: 8 }}>Answers so far</div>
+                {sub.quiz_state ? (
+                  <QuizAnswerReview quizData={quizStateToReviewData(sub.quiz_state, questions)} questions={questions} />
+                ) : (
+                  <p style={{ fontSize: 12, color: 'var(--muted)' }}>Not started yet.</p>
+                )}
+              </div>
+            )}
+            {hasPromptQuestions && (
+              <div>
+                <div className="section-label" style={{ marginBottom: 8 }}>
+                  {isSquad ? "Squad's draft so far" : 'Deliverable'}
+                </div>
+                {!isSquad ? (
+                  <p style={{ fontSize: 12, color: 'var(--muted)' }}>
+                    This is an individually-graded challenge — draft deliverable text isn't synced to Command until {sub.student?.first_name ?? 'the student'} submits. Only the completion percentage above updates live.
+                  </p>
+                ) : squadStateLoading ? (
+                  <p style={{ fontSize: 12, color: 'var(--muted)' }}>Loading squad's live draft…</p>
+                ) : squadState?.manual?.answers ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {prompts.map((q, i) => (
+                      <div key={q.id}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--bright)', marginBottom: 4 }}>{q.text}</div>
+                        {fieldBox(squadState.manual.answers[String(i)])}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ fontSize: 12, color: 'var(--muted)' }}>No draft yet — the squad hasn't started writing.</p>
+                )}
+              </div>
+            )}
+            {!hasPayloadQuestions && !hasPromptQuestions && (
+              <p style={{ fontSize: 12, color: 'var(--muted)' }}>This assignment type has no structured answers to review here.</p>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const LIVE_POLL_MS = 10_000;
 
 function LiveProgressPanel({ cohorts }) {
@@ -3453,6 +3648,11 @@ function LiveProgressPanel({ cohorts }) {
   const [squadId,       setSquadId]       = useState('');
   const [assignmentType, setAssignmentType] = useState('');
   const [squads,        setSquads]        = useState([]);
+  // Just the id, not the row itself — re-derived from `roster` below every
+  // render so the open detail view stays live-updated by the same poll that
+  // refreshes the roster list, instead of freezing on whatever was true the
+  // moment it was clicked (e.g. a student submitting mid-view).
+  const [detailSubId,   setDetailSubId]   = useState(null);
 
   useEffect(() => {
     setSquadId('');
@@ -3512,7 +3712,13 @@ function LiveProgressPanel({ cohorts }) {
     return () => clearInterval(t);
   }, [selected, loadRoster]);
 
+  // A student switching activities (or Command changing the assignment/filter
+  // selection) invalidates whatever detail was open on the previous roster.
+  useEffect(() => { setDetailSubId(null); }, [selected]);
+
   if (loading) return <div className="loading-screen"><div className="spinner" /></div>;
+
+  const detailSub = detailSubId ? roster.find((s) => s.id === detailSubId) ?? null : null;
 
   const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
   const assignmentGroups = Array.from(
@@ -3650,7 +3856,7 @@ function LiveProgressPanel({ cohorts }) {
                       ACTIVELY WORKING ({inProgressRoster.length})
                     </button>
                     {!collapsedRosterGroups.active && <div className="live-roster">
-                      {inProgressRoster.map((s) => <LiveRosterRow key={s.id} sub={s} />)}
+                      {inProgressRoster.map((s) => <LiveRosterRow key={s.id} sub={s} onSelect={(row) => setDetailSubId(row.id)} />)}
                     </div>}
                   </>
                 )}
@@ -3661,7 +3867,7 @@ function LiveProgressPanel({ cohorts }) {
                       COMPLETED ({completedRoster.length})
                     </button>
                     {!collapsedRosterGroups.completed && <div className="live-roster">
-                      {completedRoster.map((s) => <LiveRosterRow key={s.id} sub={s} />)}
+                      {completedRoster.map((s) => <LiveRosterRow key={s.id} sub={s} onSelect={(row) => setDetailSubId(row.id)} />)}
                     </div>}
                   </>
                 )}
@@ -3671,6 +3877,14 @@ function LiveProgressPanel({ cohorts }) {
         )}
       </div>
       </div>
+      {detailSub && (
+        <LiveAnswerDetail
+          sub={detailSub}
+          assignment={selected}
+          onClose={() => setDetailSubId(null)}
+          onChanged={() => { loadRoster(selected.id); loadOverview(); }}
+        />
+      )}
     </>
   );
 }

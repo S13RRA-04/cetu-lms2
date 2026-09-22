@@ -113,6 +113,26 @@ async function getState(courseId, assignmentId, userId) {
   return state;
 }
 
+// Admin/instructor variant of getState() — takes squadId directly instead of
+// resolving it from the requesting user's own enrollment, so Command's Live
+// Progress view can inspect any squad's shared in-progress draft (e.g. a
+// squad-graded challenge's free-text deliverables), not just the caller's
+// own. No self-scoping to bypass: the route this backs is requireInstructor-
+// gated, unlike getState()'s student-facing route.
+async function getStateForSquad(assignmentId, squadId) {
+  const assignment = await Assignment.findByPk(assignmentId);
+  if (!assignment) throw new NotFoundError('Assignment');
+  if (assignment.grading_mode !== 'squad') return null;
+
+  const row = await SquadChallengeState.findOne({ where: { assignment_id: assignmentId, squad_id: squadId } });
+  if (!row) return null;
+  const state = row.quiz_state ?? {};
+  if (state.manual?.typing) {
+    return mergeManualState(state, { manual: {} }, { id: '', first_name: '', last_name: '' });
+  }
+  return state;
+}
+
 async function saveState(courseId, assignmentId, userId, incomingState) {
   const assignment = await Assignment.findByPk(assignmentId);
   if (!assignment) throw new NotFoundError('Assignment');
@@ -138,4 +158,4 @@ async function saveState(courseId, assignmentId, userId, incomingState) {
   return merged;
 }
 
-module.exports = { getState, saveState, mergeManualState };
+module.exports = { getState, getStateForSquad, saveState, mergeManualState };
