@@ -160,14 +160,29 @@ export default function Globe({
 
         let renderer;
         try {
-          renderer = new THREE.WebGLRenderer({
-            alpha: true, antialias: true, canvas,
-            preserveDrawingBuffer: true,
-          });
+          renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, canvas });
         } catch {
           host.dataset.globeFallback = 'true';
           return;
         }
+
+        // A software (non-GPU) WebGL context — SwiftShader, llvmpipe, "Microsoft
+        // Basic Render Driver", etc. — happens whenever the browser can't get
+        // real hardware acceleration: locked-down training laptops, RDP/VDI
+        // sessions, GPU driver blocklisting, older integrated graphics. This
+        // scene reruns per-satellite distance checks, rebuilds a latitude ring,
+        // and updates ~10 trail layers every single frame, uncapped, forever,
+        // on every page in the app (mounted persistently in AppLayout) — under
+        // software rendering that pins a CPU core at 100% for the whole
+        // session, which is exactly what was overheating/freezing laptops.
+        // Bail out to the plain CSS fallback before paying for any of the
+        // geometry below rather than trying to render it slowly.
+        if (isSoftwareRenderer(renderer)) {
+          renderer.dispose();
+          host.dataset.globeFallback = 'true';
+          return;
+        }
+
         renderer.setClearColor(0x000000, 0);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 
@@ -418,7 +433,23 @@ export default function Globe({
         resizeObserver.observe(host);
         resize();
 
-        const render = () => {
+        // Capped well below "as fast as the browser will let us" — this is a
+        // decorative background, not something that needs 60/144Hz. Halving
+        // (or more) the frame rate directly halves the per-second cost of
+        // every recomputation below, which matters on real hardware too, not
+        // just the software-renderer case already filtered out above.
+        const TARGET_FRAME_MS = 1000 / 30;
+        let lastRenderTime = 0;
+
+        const render = (now = 0) => {
+          animationFrame = window.requestAnimationFrame(render);
+          // requestAnimationFrame already throttles heavily in a backgrounded
+          // tab, but explicitly skipping avoids a burst of catch-up work the
+          // instant the tab regains focus after sitting hidden for a while.
+          if (document.hidden) return;
+          if (now - lastRenderTime < TARGET_FRAME_MS) return;
+          lastRenderTime = now;
+
           frame += 1;
           if (shouldAutoRotate && !pointer.active) {
             globe.rotation.y += 0.0035;
@@ -493,8 +524,6 @@ export default function Globe({
               overlayCtx.fillText(p.char, p.x, p.y);
             }
           }
-
-          animationFrame = window.requestAnimationFrame(render);
         };
 
         const onPointerDown  = (e) => { pointer.active = true;  pointer.x = e.clientX; pointer.y = e.clientY; host.setPointerCapture(e.pointerId); host.dataset.dragging = 'true'; };
@@ -739,3 +768,23 @@ function normalize3(point) {
 
 function degToRad(value) { return (value * Math.PI) / 180; }
 function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+
+/* True when WebGL is being rasterized in software rather than on the GPU —
+   SwiftShader (Chrome's fallback), llvmpipe (Mesa/Linux), "Microsoft Basic
+   Render Driver" (Windows with no real driver, common in VMs/RDP), or a
+   renderer string that literally says "software". WEBGL_debug_renderer_info
+   is the standard, widely-supported way to read the real (unmasked) renderer
+   string instead of the browser's generic one. */
+function isSoftwareRenderer(renderer) {
+  try {
+    const gl = renderer.getContext();
+    const info = gl.getExtension('WEBGL_debug_renderer_info');
+    const raw = info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+    return /swiftshader|llvmpipe|software|basic render|microsoft basic|cpu/i.test(String(raw || ''));
+  } catch {
+    // If we can't even ask, don't assume — proceed and let normal rendering
+    // (and the frame-rate cap) handle it rather than disabling the globe for
+    // everyone whenever this introspection itself is unsupported/blocked.
+    return false;
+  }
+}
