@@ -12,6 +12,7 @@ const campaignPuzzleCtrl = require('../controllers/campaignPuzzle.controller');
 const scenarioCtrl     = require('../controllers/scenario.controller');
 const courseContentCtrl = require('../controllers/courseContent.controller');
 const intelCtrl        = require('../controllers/intel.controller');
+const caseTimelineCtrl = require('../controllers/caseTimeline.controller');
 const chatCtrl         = require('../controllers/chat.controller');
 const squadStateCtrl   = require('../controllers/squadChallengeState.controller');
 const preRangeBriefingCtrl = require('../controllers/preRangeBriefing.controller');
@@ -218,5 +219,10 @@ router.post('/:id/campaign/drops/:did/puzzles/:puzzleId/verify', requireAuth, va
 router.get('/:id/intel',                requireAuth,                    intelCtrl.getBoard);
 router.put('/:id/intel',                requireAuth,                    intelCtrl.saveBoard);
 router.get('/:id/intel/squad/:squadId', requireAuth, requireInstructor, intelCtrl.getSquadBoard);
+
+// Case timeline (per-squad chronological case-building tool)
+router.get('/:id/case-timeline',                requireAuth,                    caseTimelineCtrl.getTimeline);
+router.put('/:id/case-timeline',                requireAuth,                    caseTimelineCtrl.saveTimeline);
+router.get('/:id/case-timeline/squad/:squadId', requireAuth, requireInstructor, caseTimelineCtrl.getSquadTimeline);
 
 module.exports = router;

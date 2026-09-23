@@ -356,3 +356,13 @@ export const getIntelBoard = () =>
 
 export const saveIntelBoard = (board) =>
   client.put(`/courses/${COURSE_ID}/intel`, board).then((r) => r.data);
+
+/* ── Case Timeline ── */
+export const getCaseTimeline = () =>
+  client.get(`/courses/${COURSE_ID}/case-timeline`).then((r) => r.data).catch((err) => {
+    if (err.response?.status === 404) return { noSquad: true };
+    throw err;
+  });
+
+export const saveCaseTimeline = (state) =>
+  client.put(`/courses/${COURSE_ID}/case-timeline`, state).then((r) => r.data);

@@ -2,16 +2,24 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import useAuthStore from '../store/authStore.js';
 
 /*
-  useSquadFieldSync — live view + take-control locking for shared
-  (squad) challenge fields, layered on top of the existing REST
-  persistence path (ChallengeFlow.jsx still saves via
-  saveSquadChallengeState independently; this hook never touches
+  useSquadFieldSync — live view + take-control locking for any shared
+  (squad) named field, layered on top of a caller-owned REST persistence
+  path (ChallengeFlow.jsx saves via saveSquadChallengeState, CaseTimelinePage
+  via saveCaseTimeline — each independently; this hook never touches
   storage, only live broadcast + lock arbitration).
 
+  Generic over which backend WebSocket it talks to (`wsPath`) — originally
+  built only for challenge deliverables (assignmentId-scoped), generalized
+  once the case timeline needed the identical mechanics scoped by
+  course+squad alone, with no assignment involved. `assignmentId` is
+  optional: passing it reproduces the original behavior exactly (same
+  default wsPath, same join payload shape); omitting it (the timeline's
+  case) sends a join message with courseId only.
+
   If the socket is unavailable/drops, callers should keep working off
-  local state — ChallengeFlow's existing (poll-based) fallback covers
-  that case, so nothing here is required for correctness, only for the
-  live-typing/take-control experience.
+  local state — a poll-based REST fallback covers that case, so nothing
+  here is required for correctness, only for the live-typing/take-control
+  experience.
 */
 
 const PING_INTERVAL_MS = 4000;
@@ -20,7 +28,7 @@ const RECONNECT_MIN_MS = 1000;
 const RECONNECT_MAX_MS = 10000;
 const TAKEOVER_NOTICE_MS = 4000;
 
-export default function useSquadFieldSync({ courseId, assignmentId, enabled }) {
+export default function useSquadFieldSync({ courseId, assignmentId = null, wsPath = '/ws/squad-challenge', enabled }) {
   const user = useAuthStore((s) => s.user);
   const [fieldLocks, setFieldLocks] = useState({});
   const [liveValues, setLiveValues] = useState({});
@@ -35,14 +43,14 @@ export default function useSquadFieldSync({ courseId, assignmentId, enabled }) {
   const inputThrottle = useRef({}); // field -> { timer, pendingValue }
 
   useEffect(() => {
-    if (!enabled || !assignmentId || !courseId) return undefined;
+    if (!enabled || !courseId) return undefined;
     let cancelled = false;
     setFieldLocks({});
     setLiveValues({});
 
     const connect = () => {
       const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ws = new WebSocket(`${proto}//${window.location.host}/ws/squad-challenge`);
+      const ws = new WebSocket(`${proto}//${window.location.host}${wsPath}`);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -58,7 +66,7 @@ export default function useSquadFieldSync({ courseId, assignmentId, enabled }) {
         switch (msg.type) {
           case 'authed':
             reconnectDelay.current = RECONNECT_MIN_MS;
-            ws.send(JSON.stringify({ type: 'join', courseId, assignmentId }));
+            ws.send(JSON.stringify({ type: 'join', courseId, ...(assignmentId ? { assignmentId } : {}) }));
             break;
           case 'joined':
             setConnected(true);
@@ -117,7 +125,7 @@ export default function useSquadFieldSync({ courseId, assignmentId, enabled }) {
       wsRef.current?.close();
       wsRef.current = null;
     };
-  }, [enabled, assignmentId, courseId, user?.id]);
+  }, [enabled, assignmentId, courseId, wsPath, user?.id]);
 
   const sendRaw = useCallback((payload) => {
     const ws = wsRef.current;

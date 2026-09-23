@@ -26,6 +26,7 @@ const kcrRoutes         = require('./routes/kcr.routes');
 const wopiRoutes        = require('./routes/wopi.routes');
 const ltiService        = require('./services/lti.service');
 const { attachSquadChallengeSocket } = require('./realtime/squadChallengeSocket');
+const { attachSquadTimelineSocket } = require('./realtime/squadTimelineSocket');
 const { attachGrandJuryWheelSocket } = require('./realtime/grandJuryWheelSocket');
 const { attachCaseFileSocket } = require('./realtime/caseFileSocket');
 
@@ -181,6 +182,7 @@ async function bootstrap() {
 
     const httpServer = http.createServer(app);
     await attachSquadChallengeSocket(httpServer);
+    await attachSquadTimelineSocket(httpServer);
     await attachGrandJuryWheelSocket(httpServer);
     await attachCaseFileSocket(httpServer);
     httpServer.listen(PORT, () => {

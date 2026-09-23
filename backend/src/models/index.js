@@ -29,6 +29,7 @@ const KcrRoom               = require('./KcrRoom')(sequelize);
 const KcrArtifact           = require('./KcrArtifact')(sequelize);
 const KcrPlacement          = require('./KcrPlacement')(sequelize);
 const IntelBoard            = require('./IntelBoard')(sequelize);
+const CaseTimeline          = require('./CaseTimeline')(sequelize);
 const SquadChallengeState   = require('./SquadChallengeState')(sequelize);
 const SquadPuzzleCompletion = require('./SquadPuzzleCompletion')(sequelize);
 const DropLocationSelection = require('./DropLocationSelection')(sequelize);
@@ -171,6 +172,10 @@ CourseContentUnlock.belongsTo(User, { as: 'unlocker', foreignKey: 'unlocked_by' 
 IntelBoard.belongsTo(Squad,  { foreignKey: 'squad_id',  as: 'squad'  });
 IntelBoard.belongsTo(Course, { foreignKey: 'course_id', as: 'course' });
 
+// ── CaseTimeline associations ─────────────────────────────────────────────────
+CaseTimeline.belongsTo(Squad,  { foreignKey: 'squad_id',  as: 'squad'  });
+CaseTimeline.belongsTo(Course, { foreignKey: 'course_id', as: 'course' });
+
 // ── SquadChallengeState associations ──────────────────────────────────────────
 SquadChallengeState.belongsTo(Assignment, { foreignKey: 'assignment_id', as: 'assignment' });
 SquadChallengeState.belongsTo(Squad,      { foreignKey: 'squad_id',      as: 'squad'      });
@@ -264,6 +269,7 @@ module.exports = {
   KcrArtifact,
   KcrPlacement,
   IntelBoard,
+  CaseTimeline,
   SquadChallengeState,
   SquadPuzzleCompletion,
   DropLocationSelection,
