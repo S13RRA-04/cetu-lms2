@@ -58,6 +58,16 @@ function sortEvents(events) {
 
 function fieldKey(eventId, field) { return `event:${eventId}:${field}`; }
 
+function formatEventDate(event) {
+  if (!event.date) return 'Undated';
+  // new Date('YYYY-MM-DD') parses as UTC midnight — format the parts
+  // directly instead, so the displayed date can't drift a day depending on
+  // the viewer's own timezone.
+  const [y, m, d] = event.date.split('-');
+  const label = `${m}/${d}/${y}`;
+  return event.time ? `${label} · ${event.time}` : label;
+}
+
 export default function CaseTimelinePage() {
   const user = useAuthStore((s) => s.user);
 
@@ -72,6 +82,8 @@ export default function CaseTimelinePage() {
   const sharedTimers = useRef({});
   const pendingFieldsRef = useRef(new Set());
   const focusedFieldRef = useRef(null);
+  const eventCardRefs = useRef({});
+  const scrollToEvent = (id) => eventCardRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
   const {
     fieldLocks: liveLocks, liveValues, connected: liveConnected, takeoverNotice,
@@ -302,11 +314,53 @@ export default function CaseTimelinePage() {
           <div className="ops-empty-sub">Add the first event your squad has established from the evidence so far.</div>
         </div>
       ) : (
-        <div className="timeline-events">
+        <>
+          {/* Graph is a direct render of `events` (already chronologically
+              sorted above) — it has no state of its own, so it extends
+              itself automatically the instant a squadmate adds, edits, or
+              deletes an event, live or via the poll fallback, with no
+              separate sync path to keep in step. Ordinal spacing (one tick
+              per event, evenly spaced) rather than true date-proportional
+              spacing — real elapsed time can range from minutes to weeks
+              between events in this case, and proportional placement would
+              crush most markers together; the date labels still carry the
+              actual gap. */}
+          <div className="timeline-graph">
+            <div className="timeline-graph-rail">
+              <div className="timeline-graph-line" />
+              {events.map((event, i) => {
+                const victim = VICTIM_OPTIONS.find((v) => v.code === event.victim);
+                const above = i % 2 === 0;
+                return (
+                  <button
+                    type="button"
+                    key={event.id}
+                    className={`timeline-graph-tick${above ? ' timeline-graph-tick--above' : ' timeline-graph-tick--below'}`}
+                    onClick={() => scrollToEvent(event.id)}
+                    title={event.action || 'Untitled event'}
+                  >
+                    <span className="timeline-graph-label">
+                      <span className="timeline-graph-date">{formatEventDate(event)}</span>
+                      <span className="timeline-graph-action">{event.action || 'Untitled event'}</span>
+                    </span>
+                    <span className="timeline-graph-stub" />
+                    <span className="timeline-graph-dot" style={victim ? { background: victim.color, boxShadow: `0 0 0 3px ${victim.colorDim}` } : undefined} />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="timeline-events">
           {events.map((event, i) => {
             const victim = VICTIM_OPTIONS.find((v) => v.code === event.victim);
             return (
-              <div key={event.id} className="timeline-event-card" style={victim ? { borderLeftColor: victim.color } : undefined}>
+              <div
+                key={event.id}
+                ref={(el) => { eventCardRefs.current[event.id] = el; }}
+                className="timeline-event-card"
+                style={victim ? { borderLeftColor: victim.color } : undefined}
+              >
                 <div className="timeline-event-num">EVENT {String(i + 1).padStart(2, '0')}</div>
 
                 {/* ── Row 1: chronology + confidence ── */}
@@ -473,7 +527,8 @@ export default function CaseTimelinePage() {
               </div>
             );
           })}
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

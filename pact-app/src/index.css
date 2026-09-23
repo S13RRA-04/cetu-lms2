@@ -8482,6 +8482,91 @@ body {
   font-size: 12px;
 }
 
+/* ── Auto-built chronological graph ── */
+.timeline-graph {
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  padding: 22px 0;
+  flex-shrink: 0;
+}
+.timeline-graph-rail {
+  position: relative;
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+  padding: 0 28px;
+}
+.timeline-graph-line {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--border);
+}
+.timeline-graph-tick {
+  position: relative;
+  flex: 0 0 110px;
+  height: 116px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.timeline-graph-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--primary, #00b0ff);
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  transition: transform 0.15s;
+}
+.timeline-graph-tick:hover .timeline-graph-dot { transform: translate(-50%, -50%) scale(1.4); }
+.timeline-graph-stub {
+  position: absolute;
+  left: 50%;
+  width: 1px;
+  background: var(--border);
+  transform: translateX(-50%);
+}
+.timeline-graph-tick--above .timeline-graph-stub { bottom: 50%; top: 22px; }
+.timeline-graph-tick--below .timeline-graph-stub { top: 50%; bottom: 22px; }
+.timeline-graph-label {
+  position: absolute;
+  left: 50%;
+  width: 104px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: center;
+  pointer-events: none;
+}
+.timeline-graph-tick--above .timeline-graph-label { bottom: calc(50% + 18px); }
+.timeline-graph-tick--below .timeline-graph-label { top: calc(50% + 18px); }
+.timeline-graph-date {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .06em;
+  color: var(--primary, #00b0ff);
+  opacity: 0.85;
+}
+.timeline-graph-action {
+  font-size: 10px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.timeline-graph-tick:hover .timeline-graph-date,
+.timeline-graph-tick:hover .timeline-graph-action { color: var(--bright); }
+
 .timeline-events {
   display: flex;
   flex-direction: column;
