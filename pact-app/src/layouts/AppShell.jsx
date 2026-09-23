@@ -10,6 +10,7 @@ import VaultKeypad        from '../pages/VaultKeypad.jsx';
 import SignalEntry        from '../pages/SignalEntry.jsx';
 import DropPuzzleGate     from '../pages/DropPuzzleGate.jsx';
 import LocationChoiceInterceptor from '../pages/LocationChoiceInterceptor.jsx';
+import DecryptionSuccessScreen from '../pages/DecryptionSuccessScreen.jsx';
 import { getNextStage, getCompletedPuzzleIds, markPuzzleCompleted } from '../lib/dropPuzzles.js';
 import SessionTimeoutWarning from '../components/SessionTimeoutWarning.jsx';
 import DropAlert          from '../components/DropAlert.jsx';
@@ -80,6 +81,10 @@ export default function AppShell() {
   const [assignments,   setAssignments]   = useState([]);
   const [enrollment,    setEnrollment]    = useState(null);
   const [pendingDrop,   setPendingDrop]   = useState(null);
+  // The drop just finished (gate chain fully cleared) — set the instant
+  // pendingDrop is cleared for that reason, so DecryptionSuccessScreen has
+  // something to display; the two are otherwise mutually exclusive.
+  const [decryptedDrop, setDecryptedDrop] = useState(null);
   const [alertDrop,      setAlertDrop]      = useState(null); // in-app polling alert
   const [alertScenario,  setAlertScenario]  = useState(null); // scenario floating alert
   const [pendingScenario,setPendingScenario] = useState(null); // scenario full-screen interceptor
@@ -194,6 +199,7 @@ export default function AppShell() {
       return;
     }
     if (user?.id && pendingDrop) markDropSeen(user.id, pendingDrop);
+    setDecryptedDrop(pendingDrop);
     setPendingDrop(null);
     setVaultUnlocked(false);
     setSignalVerified(false);
@@ -205,11 +211,17 @@ export default function AppShell() {
     await setDropLocationSelection(pendingDrop.id, locationCode);
     if (user?.id) markDropSeen(user.id, pendingDrop);
     setAwaitingLocationChoice(false);
+    setDecryptedDrop(pendingDrop);
     setPendingDrop(null);
     setVaultUnlocked(false);
     setSignalVerified(false);
     setPuzzleRevision(0);
   }, [user?.id, pendingDrop]);
+
+  const handleEnterCaseFile = useCallback(() => {
+    setDecryptedDrop(null);
+    navigate('/scenarios');
+  }, [navigate]);
 
   const handleVaultUnlock = useCallback(() => {
     if (user?.id && pendingDrop) markVaultUnlocked(user.id, pendingDrop.id);
@@ -414,6 +426,14 @@ export default function AppShell() {
       />;
     }
     return <TransmissionInterceptor drop={pendingDrop} onAcknowledge={handleTransmissionAck} />;
+  }
+
+  // Gate chain just finished (handleTransmissionAck/handleLocationChoice
+  // set this the instant pendingDrop is cleared for that reason) — confirm
+  // the decryption and give the student a clear next action instead of
+  // silently dropping them back wherever they were.
+  if (isStudent && decryptedDrop) {
+    return <DecryptionSuccessScreen drop={decryptedDrop} onEnterCaseFile={handleEnterCaseFile} />;
   }
 
   return (

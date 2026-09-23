@@ -4633,6 +4633,7 @@ body {
   color: #00b0ff;
   text-transform: uppercase;
 }
+.tx-signal-label--success { color: #22c55e; }
 
 /* Horizontal noise line */
 .tx-noise-line {
