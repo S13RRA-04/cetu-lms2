@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { getCaseTimeline, saveCaseTimeline, COURSE_ID } from '../api/pact.js';
+import { getCaseTimeline, saveCaseTimeline, getCourseContent, COURSE_ID } from '../api/pact.js';
 import useAuthStore from '../store/authStore.js';
 import useSquadFieldSync from '../hooks/useSquadFieldSync.js';
 import DecryptText from '../components/DecryptText.jsx';
@@ -67,6 +67,7 @@ export default function CaseTimelinePage() {
   const [loading,    setLoading]    = useState(true);
   const [noSquad,    setNoSquad]    = useState(false);
   const [saveError,  setSaveError]  = useState(false);
+  const [evidenceSources, setEvidenceSources] = useState([]);
 
   const sharedTimers = useRef({});
   const pendingFieldsRef = useRef(new Set());
@@ -88,6 +89,22 @@ export default function CaseTimelinePage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+  }, []);
+
+  /* Evidence sources for the "Source Document / Artifact" field's
+     autocomplete — only items actually unlocked for this squad right now
+     (is_unlocked), never the full published catalog, so the suggestion list
+     can't leak the existence/titles of evidence a drop hasn't released yet. */
+  useEffect(() => {
+    getCourseContent()
+      .then((items) => {
+        const titles = (Array.isArray(items) ? items : [])
+          .filter((item) => item.is_unlocked)
+          .map((item) => item.title)
+          .filter(Boolean);
+        setEvidenceSources([...new Set(titles)].sort((a, b) => a.localeCompare(b)));
+      })
+      .catch(() => {});
   }, []);
 
   /* REST poll — durability/reconnect fallback, same role as ChallengeFlow's
@@ -247,6 +264,13 @@ export default function CaseTimelinePage() {
 
   return (
     <div className="timeline-root">
+      {/* Shared by every event's Source Document/Artifact field below —
+          suggestions only, the input stays free text so a citation can
+          still add detail (a page number, a specific line) beyond the
+          evidence item's title. */}
+      <datalist id="timeline-evidence-sources">
+        {evidenceSources.map((title) => <option key={title} value={title} />)}
+      </datalist>
       <div className="timeline-header">
         <span className="timeline-header-eyebrow">
           <DecryptText text="CASE TIMELINE // CHRONOLOGICAL BUILD" speed={18} hold={3} />
@@ -432,6 +456,7 @@ export default function CaseTimelinePage() {
                   <span>Source Document / Artifact</span>
                   <input
                     type="text"
+                    list="timeline-evidence-sources"
                     placeholder="Which evidence file this comes from"
                     value={displayValue(fieldKey(event.id, 'source'))}
                     disabled={!isFieldMine(fieldKey(event.id, 'source'))}
