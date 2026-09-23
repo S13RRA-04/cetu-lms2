@@ -337,6 +337,11 @@ async function _queryScoreboard(courseId, cohortId) {
      LEFT JOIN assessment_scores ON assessment_scores.user_id = u.id
      LEFT JOIN assessment_improvement ON assessment_improvement.user_id = u.id
      WHERE e.cohort_id = :cohortId AND u.role = 'student'
+       -- A deactivated duplicate account (e.g. a re-registration manually
+       -- flagged and deactivated, see users.email's "duplicate+..." pattern)
+       -- or a withdrawn enrollment must not resurface as a phantom low-score
+       -- row next to the student's real one.
+       AND u.is_active = true AND e.status = 'active'
      GROUP BY u.id, u.first_name, u.last_name, puzzle_points.points,
               assessment_improvement.points, assessment_scores.pretest_score,
               assessment_scores.posttest_score, assessment_scores.pretest_max,
@@ -399,7 +404,10 @@ async function _querySquadScoreboard(courseId, cohortId) {
        SELECT DISTINCT ON (e.squad_id) e.squad_id, e.user_id
        FROM enrollments e
        JOIN users u ON u.id = e.user_id AND u.role = 'student'
+       -- Same reasoning as _queryScoreboard's filter above: a deactivated
+       -- duplicate account must never be picked as the squad's representative.
        WHERE e.course_id = :courseId AND e.cohort_id = :cohortId AND e.squad_id IS NOT NULL
+         AND u.is_active = true AND e.status = 'active'
        ORDER BY e.squad_id, e.user_id
      ), eligible AS (
        SELECT DISTINCT s.id AS squad_id, au.assignment_id
