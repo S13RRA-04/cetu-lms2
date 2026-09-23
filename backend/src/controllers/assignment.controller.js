@@ -46,14 +46,17 @@ async function getCourseEffectiveness(req, res, next) {
 async function listByCourse(req, res, next) {
   try {
     const isStudent = req.user.role === 'student';
-    // Operations/Case File/Intel Library are operator-facing views — even
-    // admins/instructors browsing them see published-only content, same as
-    // students. Only the Command page's management view (explicit `manage=1`)
-    // sees unpublished/draft items, for authoring purposes.
-    const includeUnpublished = !isStudent && req.query.manage === '1';
-    const data = isStudent
-      ? await assignmentService.listForStudent(req.params.id, req.user.id)
-      : await assignmentService.listByCourse(req.params.id, req.query, { includeUnpublished });
+    // Operations/Case File/Intel Library/AppShell nav are "what would I see"
+    // views for whoever is looking, including instructors/admins/superadmins
+    // browsing their own dashboard — scoped to the viewer's own enrollment
+    // (cohort/squad) and professional_role, exactly like a student's list.
+    // Only the Command page's explicit management view (`manage=1`, itself
+    // restricted to non-students) is meant to return every assignment in the
+    // course regardless of who's looking, for authoring purposes.
+    const manage = !isStudent && req.query.manage === '1';
+    const data = manage
+      ? await assignmentService.listByCourse(req.params.id, req.query, { includeUnpublished: true })
+      : await assignmentService.listForStudent(req.params.id, req.user.id);
     return res.json(data);
   }
   catch (err) { return next(err); }
@@ -61,8 +64,11 @@ async function listByCourse(req, res, next) {
 
 async function getOne(req, res, next) {
   try {
-    const userId = req.user.role === 'student' ? req.user.id : null;
-    return res.json(await assignmentService.getById(req.params.aid, userId));
+    // Same "what would I see" scoping as listByCourse above — every viewer
+    // gets their own enrollment/grade-gated view, not just students. The
+    // Command console's rubric/model-answer editing UI reads assignment data
+    // from the separate manage=1 list (already unfiltered), never from here.
+    return res.json(await assignmentService.getById(req.params.aid, req.user.id));
   }
   catch (err) { return next(err); }
 }

@@ -116,6 +116,11 @@ function sanitizeQuestionsForStudent(questions, isGraded) {
   });
 }
 
+// Despite the name (kept for the cache key / existing callers), this is the
+// generic "what does this viewer see" query — the controller now calls it
+// for every role, not only students, so an instructor/admin/superadmin
+// browsing their own Operations dashboard gets exactly their own
+// enrollment/squad/role-scoped view instead of the whole course.
 async function listForStudent(courseId, userId) {
   return studentListCache.get(`listForStudent:${courseId}:${userId}`, () => _queryListForStudent(courseId, userId));
 }
