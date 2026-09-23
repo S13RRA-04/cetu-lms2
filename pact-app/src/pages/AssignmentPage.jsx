@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import useAuthStore from '../store/authStore.js';
 import { motion, AnimatePresence } from 'motion/react';
 import { getAssignment, getMySubmission, getMyGrades, submitAssignment, updateProgress, getSquadChallengeState } from '../api/pact.js';
 import DecryptText      from '../components/DecryptText.jsx';
@@ -58,6 +59,7 @@ function AccessingScreen({ assignment }) {
 /* ── Main assignment page ─────────────────────────────────────────────────── */
 export default function AssignmentPage() {
   const { id } = useParams();
+  const user = useAuthStore((s) => s.user);
 
   const [assignment,   setAssignment]   = useState(null);
   const [submission,   setSubmission]   = useState(null);
@@ -75,7 +77,7 @@ export default function AssignmentPage() {
   const [progressSaveError, setProgressSaveError] = useState(false);
   const [squadState,   setSquadState]   = useState(null);
 
-  const { saveDebounced, load: loadDraft, clear: clearDraft } = useDraft(id);
+  const { saveDebounced, load: loadDraft, clear: clearDraft } = useDraft(id, user?.id);
 
   useEffect(() => {
     setAssignment(null);
@@ -137,7 +139,7 @@ export default function AssignmentPage() {
       setLoading(false);
       setAccessPhase('accessing');
     });
-  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [id, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Drive the access phase timer
   useEffect(() => {

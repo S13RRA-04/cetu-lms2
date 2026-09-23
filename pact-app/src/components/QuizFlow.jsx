@@ -1,7 +1,8 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { updateProgress, getSquadChallengeState, saveSquadChallengeState } from '../api/pact.js';
-import { loadDraftSync, clearDraftSync } from '../hooks/useDraft.js';
+import { loadDraftSync, clearDraftSync, draftKey } from '../hooks/useDraft.js';
+import useAuthStore from '../store/authStore.js';
 
 /* ── helpers ── */
 
@@ -319,6 +320,11 @@ export function FillBlank({ q, value, onChange, revealed, forced }) {
 /* ── main component ── */
 
 export default function QuizFlow({ questions, assignmentId, color, onComplete, submitting = false, squadShared = false, initialSquadState = null }) {
+  // Namespaced by user (see useDraft.js) — a cohort-wide assignment (one
+  // shared assignment id across every squad) must not let one student's
+  // leftover draft load into a different student's answer box on a shared
+  // lab machine.
+  const currentUser = useAuthStore((s) => s.user);
   /* Randomize presentation order so the correct answer's position can't be
      guessed from the option/target list alone (e.g. "always A", dropdowns
      always in correct order). Shuffle is opt-out, not opt-in — a question
@@ -349,7 +355,7 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete, s
       const ids = Object.keys(initialSquadState.qStates).sort().join(',');
       return ids === currentIds ? initialSquadState : null;
     }
-    const d = loadDraftSync(assignmentId);
+    const d = loadDraftSync(assignmentId, currentUser?.id);
     if (!d?.qStates) return null;
     /* Discard draft if question set has changed */
     const draftIds = Object.keys(d.qStates).sort().join(',');
@@ -379,9 +385,9 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete, s
   useEffect(() => {
     try {
       const data = JSON.stringify({ qIdx, answers, qStates, _ts: Date.now() });
-      localStorage.setItem(`pact_draft_${assignmentId}`, data);
+      localStorage.setItem(draftKey(assignmentId, currentUser?.id), data);
     } catch {}
-  }, [qIdx, answers, qStates, assignmentId]);
+  }, [qIdx, answers, qStates, assignmentId, currentUser?.id]);
 
   /* Sync progress to the backend only at meaningful transitions (a question
      resolving, a hint spent, an attempt consumed) — deliberately NOT on every
@@ -548,7 +554,7 @@ export default function QuizFlow({ questions, assignmentId, color, onComplete, s
   /* ── advance to next / complete ── */
   const handleNext = useCallback(() => {
     if (qIdx >= questions.length - 1) {
-      clearDraftSync(assignmentId);
+      clearDraftSync(assignmentId, currentUser?.id);
       const total    = questions.reduce((s, qi) => {
         const st = qStates[qi.id];
         return s + (st?.revealed ? st.available : 0);

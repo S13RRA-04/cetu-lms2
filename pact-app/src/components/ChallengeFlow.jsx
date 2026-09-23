@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { loadDraftSync, clearDraftSync } from '../hooks/useDraft.js';
+import { loadDraftSync, clearDraftSync, draftKey } from '../hooks/useDraft.js';
 import { updateProgress, getSquadChallengeState, saveSquadChallengeState, COURSE_ID } from '../api/pact.js';
 import useSquadFieldSync from '../hooks/useSquadFieldSync.js';
 import useAuthStore from '../store/authStore.js';
@@ -165,8 +165,14 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
     : parseDeliverables(assignment.description);
   const checkQuestions = (assignment.questions ?? []).filter((q) => q.payload != null);
   const saveTimer = useRef(null);
+  // Namespaced by user (see useDraft.js) — a cohort-wide assignment (one
+  // role's row shared by every squad, e.g. Drop 3/4) has the SAME assignment
+  // id for every squad, so on a shared lab machine an un-namespaced draft key
+  // let one student's leftover draft silently load into a different
+  // student's (different squad, same role) answer box.
+  const currentUser = useAuthStore((s) => s.user);
 
-  const draft    = loadDraftSync(assignment.id);
+  const draft    = loadDraftSync(assignment.id, currentUser?.id);
   const useDraft = draft && (!existingContent || (draft._ts ?? 0) > 0);
 
   // Deliverables, squad-consensus notes, AND judgment-check answers (MC/TF/
@@ -221,7 +227,6 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
   // that can easily reflect a pre-edit snapshot of that same field.
   const focusedFieldRef = useRef(null);
   const pendingFieldsRef = useRef(new Set());
-  const currentUser = useAuthStore((s) => s.user);
 
   // Live view + take-control locking. This is layered on top of the REST
   // save/poll below, not a replacement for it — if the socket is down,
@@ -243,7 +248,7 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
     saveTimer.current = setTimeout(() => {
       try {
         localStorage.setItem(
-          `pact_draft_${assignment.id}`,
+          draftKey(assignment.id, currentUser?.id),
           JSON.stringify({ answers, freetext, _ts: Date.now() }),
         );
       } catch {}
@@ -400,7 +405,7 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
       const payload = deliverables
         ? JSON.stringify({ responses, ...(consensus ? { consensus } : {}), deliverables, checks })
         : JSON.stringify({ response: freetext, checks });
-      clearDraftSync(assignment.id);
+      clearDraftSync(assignment.id, currentUser?.id);
       await onComplete(payload);
     } catch (err) {
       setError(err?.message ?? 'Submission failed');
