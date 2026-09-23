@@ -2212,6 +2212,7 @@ body {
 /* ── Live Progress ── */
 .live-filter-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: end;
   gap: 12px;
   padding: 14px 18px;
@@ -2233,7 +2234,8 @@ body {
   letter-spacing: .1em;
   text-transform: uppercase;
 }
-.live-filter-bar select {
+.live-filter-bar select,
+.live-filter-bar input[type="text"] {
   width: 100%;
   min-height: 36px;
   padding: 7px 10px;
@@ -2247,6 +2249,33 @@ body {
   cursor: not-allowed;
   opacity: .55;
 }
+.grade-filter-search { flex: 1 1 200px; }
+.grade-sort-dir-btn {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--bright);
+  font-size: 14px;
+  cursor: pointer;
+}
+.grade-sort-dir-btn:hover { background: var(--card-hi); }
+.grade-filter-clear {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.grade-filter-clear:hover { background: var(--primary-lt); }
 @media (max-width: 760px) {
   .live-filter-bar { align-items: stretch; flex-direction: column; }
   .live-filter-bar label { flex-basis: auto; }

@@ -90,6 +90,51 @@ const ROLE_LABELS = {
 };
 const ROLE_ORDER = Object.keys(ROLE_LABELS);
 
+/* ── Grade Center: shared sort/group helpers ── */
+const NAME_COLLATOR = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+function uniqById(items) {
+  const seen = new Map();
+  for (const item of items) if (item && !seen.has(item.id)) seen.set(item.id, item);
+  return [...seen.values()];
+}
+
+function submissionStudentName(s) {
+  return `${s.student?.first_name ?? ''} ${s.student?.last_name ?? ''}`.trim() || 'Unknown';
+}
+
+function submissionGradePct(sub, grades, savedGrades) {
+  const grade = savedGrades[sub.id] ?? grades[sub.user_id];
+  if (grade == null) return null;
+  return grade.max_score ? (grade.score / grade.max_score) * 100 : null;
+}
+
+const GRADE_SORT_OPTIONS = [
+  { value: 'name',   label: 'Name' },
+  { value: 'status', label: 'Status' },
+  { value: 'grade',  label: 'Grade' },
+  { value: 'date',   label: 'Submitted' },
+];
+
+function sortSubmissionsBy(list, sortBy, sortDir, { grades, savedGrades }) {
+  const dir = sortDir === 'desc' ? -1 : 1;
+  return [...list].sort((a, b) => {
+    switch (sortBy) {
+      case 'status':
+        return dir * a.status.localeCompare(b.status);
+      case 'grade': {
+        const pa = submissionGradePct(a, grades, savedGrades) ?? -1;
+        const pb = submissionGradePct(b, grades, savedGrades) ?? -1;
+        return dir * (pa - pb);
+      }
+      case 'date':
+        return dir * (new Date(a.submitted_at ?? 0) - new Date(b.submitted_at ?? 0));
+      default:
+        return dir * NAME_COLLATOR.compare(submissionStudentName(a), submissionStudentName(b));
+    }
+  });
+}
+
 /* ── helpers ── */
 function parseContent(content) {
   try {
@@ -502,6 +547,20 @@ export default function AdminPage() {
   const [modeFilter,    setModeFilter]    = useState('individual');
   const [pendingOnly,   setPendingOnly]   = useState(false);
 
+  // Grade Center: filter/sort/collapse state for the submissions panel
+  const [gradeCohortFilter,     setGradeCohortFilter]     = useState('');
+  const [gradeSquadFilter,      setGradeSquadFilter]      = useState('');
+  const [gradeRoleFilter,       setGradeRoleFilter]       = useState('');
+  const [gradeUserQuery,        setGradeUserQuery]        = useState('');
+  const [gradeSortBy,           setGradeSortBy]           = useState('name');
+  const [gradeSortDir,          setGradeSortDir]          = useState('asc');
+  const [collapsedGradeCohorts, setCollapsedGradeCohorts] = useState({});
+
+  // A squad filter selected under one cohort is meaningless (and potentially
+  // wrong) once a different cohort is chosen — clear it so stale selections
+  // can't silently filter out everything.
+  useEffect(() => { setGradeSquadFilter(''); }, [gradeCohortFilter]);
+
   useEffect(() => {
     Promise.all([
       getAdminAssignments().catch(() => []),
@@ -626,6 +685,42 @@ export default function AdminPage() {
       groups[key].subs.push(s);
     });
     return Object.values(groups).sort((a, b) => (a.squad?.number ?? 999) - (b.squad?.number ?? 999));
+  }
+
+  /* Grade Center filter options — derived from the currently loaded
+     submissions themselves (not a separate fetch), so a dropdown only ever
+     offers cohorts/squads/roles that actually have records here. */
+  const gradeFilterCohorts = uniqById(submissions.map((s) => s.cohort).filter(Boolean))
+    .sort((a, b) => NAME_COLLATOR.compare(a.name ?? '', b.name ?? ''));
+  const gradeFilterSquads = uniqById(
+    submissions
+      .filter((s) => !gradeCohortFilter || s.cohort?.id === gradeCohortFilter)
+      .map((s) => s.squad)
+      .filter(Boolean)
+  ).sort((a, b) => (a.number ?? 999) - (b.number ?? 999));
+  const gradeFilterRoles = [...new Set(submissions.map((s) => s.student?.professional_role).filter(Boolean))]
+    .sort((a, b) => ROLE_ORDER.indexOf(a) - ROLE_ORDER.indexOf(b));
+
+  const gradeFiltersActive = !!(gradeCohortFilter || gradeSquadFilter || gradeRoleFilter || gradeUserQuery.trim());
+
+  function matchesGradeFilters(s) {
+    if (gradeCohortFilter && s.cohort?.id !== gradeCohortFilter) return false;
+    if (gradeSquadFilter && s.squad?.id !== gradeSquadFilter) return false;
+    if (gradeRoleFilter && s.student?.professional_role !== gradeRoleFilter) return false;
+    const q = gradeUserQuery.trim().toLowerCase();
+    if (q) {
+      const hay = `${s.student?.first_name ?? ''} ${s.student?.last_name ?? ''} ${s.student?.email ?? ''}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }
+  const visibleSubmissions = submissions.filter(matchesGradeFilters);
+
+  function toggleGradeCohort(key) {
+    setCollapsedGradeCohorts((cur) => ({ ...cur, [key]: !cur[key] }));
+  }
+  function clearGradeFilters() {
+    setGradeCohortFilter(''); setGradeSquadFilter(''); setGradeRoleFilter(''); setGradeUserQuery('');
   }
 
   return (
@@ -856,6 +951,62 @@ export default function AdminPage() {
                 )}
               </div>
 
+              {!loadingSubs && !selectedSub && submissions.length > 0 && (
+                <div className="live-filter-bar grade-filter-bar">
+                  <label>
+                    <span>Cohort</span>
+                    <select value={gradeCohortFilter} onChange={(e) => setGradeCohortFilter(e.target.value)}>
+                      <option value="">All cohorts</option>
+                      {gradeFilterCohorts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Squad</span>
+                    <select value={gradeSquadFilter} onChange={(e) => setGradeSquadFilter(e.target.value)} disabled={gradeFilterSquads.length === 0}>
+                      <option value="">All squads</option>
+                      {gradeFilterSquads.map((sq) => (
+                        <option key={sq.id} value={sq.id}>Squad {sq.number}{sq.name ? ` · ${sq.name}` : ''}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Role</span>
+                    <select value={gradeRoleFilter} onChange={(e) => setGradeRoleFilter(e.target.value)} disabled={gradeFilterRoles.length === 0}>
+                      <option value="">All roles</option>
+                      {gradeFilterRoles.map((r) => <option key={r} value={r}>{ROLE_LABELS[r] ?? r}</option>)}
+                    </select>
+                  </label>
+                  <label className="grade-filter-search">
+                    <span>User</span>
+                    <input
+                      type="text"
+                      value={gradeUserQuery}
+                      onChange={(e) => setGradeUserQuery(e.target.value)}
+                      placeholder="Search name or email…"
+                    />
+                  </label>
+                  <label>
+                    <span>Sort by</span>
+                    <select value={gradeSortBy} onChange={(e) => setGradeSortBy(e.target.value)}>
+                      {GRADE_SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    className="grade-sort-dir-btn"
+                    onClick={() => setGradeSortDir((d) => d === 'asc' ? 'desc' : 'asc')}
+                    title={gradeSortDir === 'asc' ? 'Ascending' : 'Descending'}
+                  >
+                    {gradeSortDir === 'asc' ? '↑' : '↓'}
+                  </button>
+                  {gradeFiltersActive && (
+                    <button type="button" className="grade-filter-clear" onClick={clearGradeFilters}>
+                      Clear filters
+                    </button>
+                  )}
+                </div>
+              )}
+
               {loadingSubs ? (
                 <div style={{ padding: 32, textAlign: 'center' }}><div className="spinner" /></div>
               ) : selectedSub ? (
@@ -867,21 +1018,22 @@ export default function AdminPage() {
                   onGradeSaved={(result) => handleGradeSaved(selectedSub, result)}
                   onReopened={(wasGraded) => handleReopened(selectedSub, wasGraded)}
                 />
-              ) : selectedAssignment.grading_mode === 'squad' ? (
-                /* ── Squad submissions grouped by squad ── */
-                <SquadSubmissions
-                  groups={groupBySquad(submissions)}
-                  grades={grades}
-                  savedGrades={savedGrades}
-                  onSelect={setSelectedSub}
-                />
               ) : (
-                /* ── Individual submissions list ── */
-                <IndividualSubmissions
-                  submissions={submissions}
+                /* ── Submissions, grouped by cohort (collapsible when more
+                     than one is present) then by squad or individually,
+                     filtered/sorted per the bar above ── */
+                <GradeSubmissionsList
+                  submissions={visibleSubmissions}
+                  totalCount={submissions.length}
+                  gradingMode={selectedAssignment.grading_mode}
                   grades={grades}
                   savedGrades={savedGrades}
                   onSelect={setSelectedSub}
+                  groupBySquad={groupBySquad}
+                  sortBy={gradeSortBy}
+                  sortDir={gradeSortDir}
+                  collapsedCohorts={collapsedGradeCohorts}
+                  onToggleCohort={toggleGradeCohort}
                 />
               )}
             </>
@@ -893,13 +1045,67 @@ export default function AdminPage() {
   );
 }
 
-function IndividualSubmissions({ submissions, grades, savedGrades, onSelect }) {
+function GradeSubmissionsList({
+  submissions, totalCount, gradingMode, grades, savedGrades, onSelect,
+  groupBySquad, sortBy, sortDir, collapsedCohorts, onToggleCohort,
+}) {
+  if (submissions.length === 0) {
+    return (
+      <div className="admin-empty">
+        <p>{totalCount === 0 ? 'No submissions yet.' : 'No submissions match the current filters.'}</p>
+      </div>
+    );
+  }
+
+  const cohortGroups = new Map();
+  for (const s of submissions) {
+    const key = s.cohort?.id ?? '__no_cohort__';
+    if (!cohortGroups.has(key)) cohortGroups.set(key, { cohort: s.cohort ?? null, subs: [] });
+    cohortGroups.get(key).subs.push(s);
+  }
+  const sortedGroups = [...cohortGroups.values()].sort((a, b) => {
+    if (!a.cohort) return 1;
+    if (!b.cohort) return -1;
+    return NAME_COLLATOR.compare(a.cohort.name ?? '', b.cohort.name ?? '');
+  });
+
+  const renderLeaf = (subs) => gradingMode === 'squad'
+    ? <SquadSubmissions groups={groupBySquad(subs)} grades={grades} savedGrades={savedGrades} onSelect={onSelect} sortBy={sortBy} sortDir={sortDir} />
+    : <IndividualSubmissions submissions={subs} grades={grades} savedGrades={savedGrades} onSelect={onSelect} sortBy={sortBy} sortDir={sortDir} />;
+
+  // Skip the cohort-grouping chrome when every visible submission belongs to
+  // one cohort — the common case while a single cohort is mid-course, with
+  // nothing to disambiguate by collapsing.
+  if (sortedGroups.length <= 1) return renderLeaf(submissions);
+
+  return (
+    <div className="admin-sub-list">
+      {sortedGroups.map((group) => {
+        const key = group.cohort?.id ?? '__no_cohort__';
+        const isOpen = !collapsedCohorts[key];
+        return (
+          <section key={key}>
+            <button type="button" className="admin-group-header" onClick={() => onToggleCohort(key)} aria-expanded={isOpen}>
+              <span className="admin-group-chevron" aria-hidden="true">▾</span>
+              <span className="admin-group-label">{group.cohort?.name ?? 'No Cohort'}</span>
+              <span className="admin-group-badge">{group.subs.length}</span>
+            </button>
+            {isOpen && renderLeaf(group.subs)}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function IndividualSubmissions({ submissions, grades, savedGrades, onSelect, sortBy = 'name', sortDir = 'asc' }) {
   if (submissions.length === 0) {
     return <div className="admin-empty"><p>No submissions yet.</p></div>;
   }
+  const sorted = sortSubmissionsBy(submissions, sortBy, sortDir, { grades, savedGrades });
   return (
     <div className="admin-sub-list">
-      {submissions.map((s) => {
+      {sorted.map((s) => {
         const grade   = savedGrades[s.id] ?? grades[s.user_id];
         const graded  = grade != null;
         // No invented denominator: a missing max_score shows the raw score
@@ -934,30 +1140,46 @@ function IndividualSubmissions({ submissions, grades, savedGrades, onSelect }) {
   );
 }
 
-function SquadSubmissions({ groups, grades, savedGrades, onSelect }) {
+function SquadSubmissions({ groups, grades, savedGrades, onSelect, sortBy = 'name', sortDir = 'asc' }) {
   if (groups.length === 0) {
     return <div className="admin-empty"><p>No submissions yet.</p></div>;
   }
 
+  // Canonical submission per squad: most recent submitted/graded one, else
+  // most recent overall — computed up front so it can drive both display
+  // and the group-level sort below.
+  const enriched = groups.map((group) => {
+    const canonical = [...group.subs]
+      .sort((a, b) => new Date(b.submitted_at ?? 0) - new Date(a.submitted_at ?? 0))
+      .find((s) => ['submitted', 'graded', 'returned'].includes(s.status))
+      ?? group.subs[0];
+    if (!canonical) return null;
+    const grade = savedGrades[canonical.id] ?? grades[canonical.user_id];
+    const pct   = grade != null && grade.max_score ? (grade.score / grade.max_score) * 100 : null;
+    return { group, canonical, grade, pct };
+  }).filter(Boolean);
+
+  const dir = sortDir === 'desc' ? -1 : 1;
+  enriched.sort((a, b) => {
+    switch (sortBy) {
+      case 'status': return dir * a.canonical.status.localeCompare(b.canonical.status);
+      case 'grade':  return dir * ((a.pct ?? -1) - (b.pct ?? -1));
+      case 'date':   return dir * (new Date(a.canonical.submitted_at ?? 0) - new Date(b.canonical.submitted_at ?? 0));
+      // 'name' has no single meaning for a squad — its closest analog is
+      // squad number, the group's own identity (also groupBySquad's default).
+      default:       return dir * ((a.group.squad?.number ?? 999) - (b.group.squad?.number ?? 999));
+    }
+  });
+
   return (
     <div className="admin-sub-list">
-      {groups.map((group) => {
+      {enriched.map(({ group, canonical, grade, pct: rawPct }) => {
         const squadNum  = group.squad?.number ?? '?';
         const squadName = group.squad?.name;
-
-        // Canonical submission: most recent submitted/graded one, else most recent overall
-        const canonical = [...group.subs]
-          .sort((a, b) => new Date(b.submitted_at ?? 0) - new Date(a.submitted_at ?? 0))
-          .find((s) => ['submitted', 'graded', 'returned'].includes(s.status))
-          ?? group.subs[0];
-
-        if (!canonical) return null;
-
-        // Grade: check in-session savedGrades first, then grades keyed by user_id
-        const grade  = savedGrades[canonical.id] ?? grades[canonical.user_id];
-        const graded = grade != null;
-        // No invented denominator — see IndividualSubmissions above.
-        const pct    = graded && grade.max_score ? Math.round((grade.score / grade.max_score) * 100) : null;
+        const graded    = grade != null;
+        // No invented denominator: a missing max_score shows the raw score
+        // rather than a fabricated (and misleading) out-of-100 percentage.
+        const pct = rawPct != null ? Math.round(rawPct) : null;
         const memberCount = group.subs.length;
 
         return (

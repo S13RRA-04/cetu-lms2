@@ -1,6 +1,6 @@
 'use strict';
 const { Op } = require('sequelize');
-const { Submission, Assignment, AssignmentUnlock, Enrollment, Squad, User, Grade } = require('../models');
+const { Submission, Assignment, AssignmentUnlock, Enrollment, Squad, User, Grade, Cohort } = require('../models');
 const { NotFoundError, AppError, ForbiddenError } = require('../utils/errors');
 const logger      = require('../utils/logger');
 const gradeService = require('./grade.service');
@@ -14,14 +14,28 @@ async function listByAssignment(assignmentId) {
     throw new ForbiddenError('Individual survey submissions are anonymous; use aggregate survey results');
   }
 
-  return Submission.findAll({
+  const submissions = await Submission.findAll({
     where:   { assignment_id: assignmentId },
     include: [
-      { model: User,  as: 'student', attributes: ['id', 'first_name', 'last_name', 'email'] },
+      { model: User,  as: 'student', attributes: ['id', 'first_name', 'last_name', 'email', 'professional_role'] },
       { model: Squad, as: 'squad',   attributes: ['id', 'number', 'name'] },
     ],
     order: [['submitted_at', 'DESC']],
   });
+  if (submissions.length === 0) return submissions;
+
+  // Grade Center filters/groups by cohort — derived from each submitter's own
+  // Enrollment (not Squad.cohort_id) so it's still correct for a submission
+  // recorded before the student had a squad, or if they never got one.
+  const userIds = [...new Set(submissions.map((s) => s.user_id))];
+  const enrollments = await Enrollment.findAll({
+    where:      { course_id: assignment.course_id, user_id: userIds },
+    include:    [{ model: Cohort, as: 'cohort', attributes: ['id', 'name'] }],
+    attributes: ['user_id'],
+  });
+  const cohortByUser = Object.fromEntries(enrollments.map((e) => [e.user_id, e.cohort ?? null]));
+
+  return submissions.map((s) => ({ ...s.toJSON(), cohort: cohortByUser[s.user_id] ?? null }));
 }
 
 async function getMySubmission(assignmentId, userId) {

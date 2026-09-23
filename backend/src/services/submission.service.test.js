@@ -27,6 +27,69 @@ test('instructor submission listing refuses to identify anonymous survey respond
   assert.equal(queriedSubmissions, false);
 });
 
+test('listByAssignment enriches each submission with the submitter\'s own cohort (via Enrollment, not Squad) and professional_role, for Grade Center filtering', async (t) => {
+  const original = { assignmentFind: Assignment.findByPk, subFind: Submission.findAll, enrollmentFind: Enrollment.findAll };
+  Assignment.findByPk = async () => ({ id: 'a1', course_id: 'course-1', type: 'challenge' });
+  Submission.findAll = async () => ([
+    {
+      id: 'sub-1', user_id: 'user-1', status: 'submitted',
+      student: { id: 'user-1', first_name: 'Ada', last_name: 'Lovelace', professional_role: 'special_agent' },
+      squad:   { id: 'squad-1', number: 1, name: 'Alpha' },
+      toJSON() { return { id: this.id, user_id: this.user_id, status: this.status, student: this.student, squad: this.squad }; },
+    },
+    {
+      // No squad yet — cohort must still resolve via Enrollment, not Squad.cohort_id.
+      id: 'sub-2', user_id: 'user-2', status: 'in_progress',
+      student: { id: 'user-2', first_name: 'Grace', last_name: 'Hopper', professional_role: 'cyber_analyst' },
+      squad:   null,
+      toJSON() { return { id: this.id, user_id: this.user_id, status: this.status, student: this.student, squad: this.squad }; },
+    },
+  ]);
+  let enrollmentQueryArgs = null;
+  Enrollment.findAll = async (opts) => {
+    enrollmentQueryArgs = opts;
+    return [
+      { user_id: 'user-1', cohort: { id: 'cohort-1', name: 'Fall 2026' } },
+      { user_id: 'user-2', cohort: { id: 'cohort-1', name: 'Fall 2026' } },
+    ];
+  };
+  t.after(() => {
+    Assignment.findByPk = original.assignmentFind;
+    Submission.findAll = original.subFind;
+    Enrollment.findAll = original.enrollmentFind;
+  });
+
+  const result = await submissionService.listByAssignment('a1');
+
+  assert.deepEqual(enrollmentQueryArgs.where, { course_id: 'course-1', user_id: ['user-1', 'user-2'] });
+  assert.equal(result[0].cohort.name, 'Fall 2026');
+  assert.equal(result[0].student.professional_role, 'special_agent');
+  assert.equal(result[1].cohort.name, 'Fall 2026', 'submission with no squad still resolves cohort via Enrollment');
+  assert.equal(result[1].student.professional_role, 'cyber_analyst');
+});
+
+test('listByAssignment leaves a submitter\'s cohort null (not throwing) when they have no matching Enrollment row', async (t) => {
+  const original = { assignmentFind: Assignment.findByPk, subFind: Submission.findAll, enrollmentFind: Enrollment.findAll };
+  Assignment.findByPk = async () => ({ id: 'a1', course_id: 'course-1', type: 'challenge' });
+  Submission.findAll = async () => ([
+    {
+      id: 'sub-1', user_id: 'orphan-user', status: 'submitted',
+      student: { id: 'orphan-user', first_name: 'No', last_name: 'Enrollment', professional_role: null },
+      squad:   null,
+      toJSON() { return { id: this.id, user_id: this.user_id, status: this.status, student: this.student, squad: this.squad }; },
+    },
+  ]);
+  Enrollment.findAll = async () => [];
+  t.after(() => {
+    Assignment.findByPk = original.assignmentFind;
+    Submission.findAll = original.subFind;
+    Enrollment.findAll = original.enrollmentFind;
+  });
+
+  const result = await submissionService.listByAssignment('a1');
+  assert.equal(result[0].cohort, null);
+});
+
 test('instructor progress roster refuses to identify anonymous survey respondents', async (t) => {
   const originalAssignmentFind = Assignment.findByPk;
   const originalSubmissionFind = Submission.findAll;
