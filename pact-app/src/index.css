@@ -8524,7 +8524,9 @@ body {
   min-width: 0;
 }
 .timeline-field-date  { flex: 0 1 160px; }
-.timeline-field-time  { flex: 0 1 180px; }
+.timeline-field-time  { flex: 0 1 150px; }
+.timeline-field-narrow { flex: 0 1 130px; }
+.timeline-field-attck  { flex: 0 1 200px; }
 .timeline-field-victim { flex: 0 1 220px; }
 
 .timeline-field > span {

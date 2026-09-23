@@ -8,12 +8,30 @@ import { VICTIMS } from '../constants/victims.js';
 const VICTIM_OPTIONS = Object.values(VICTIMS);
 const uid = () => Math.random().toString(36).slice(2, 10);
 
+// Standard MITRE ATT&CK Enterprise tactic (lifecycle phase) list — not every
+// timeline event is a technical intrusion step (a wire transfer, a search
+// warrant, a witness statement aren't ATT&CK phases), hence the leading
+// non-technical option.
+const ATTCK_PHASES = [
+  'N/A — Non-Technical',
+  'Reconnaissance', 'Resource Development', 'Initial Access', 'Execution',
+  'Persistence', 'Privilege Escalation', 'Defense Evasion', 'Credential Access',
+  'Discovery', 'Lateral Movement', 'Collection', 'Command and Control',
+  'Exfiltration', 'Impact',
+];
+const CONFIDENCE_LEVELS = ['Low', 'Medium', 'High'];
+// What kind of clock the Date/Time reflects — a raw timestamp pulled from a
+// log is meaningless without knowing whether it's already normalized to UTC,
+// still in a system's local time, or just an approximate time a witness
+// reported observing something.
+const TIME_REFERENCES = ['UTC', 'Local', 'Observed'];
+
 // A timeline event is stored as a set of `event:<id>:<field>` keys inside the
 // squad's shared manual-field state (same shape/merge machinery as
 // ChallengeFlow's consensus fields — see caseTimeline.service.js). There is
 // no separate "list of events" record: an event is simply whichever ids have
 // at least one non-deleted field, discovered by scanning the flat map.
-const FIELD_KEY_RE = /^event:([^:]+):(date|time|title|desc|victim|source|deleted)$/;
+const FIELD_KEY_RE = /^event:([^:]+):(date|time|timeRef|action|origin|confidence|attckPhase|persona|victim|desc|source|deleted)$/;
 
 function parseEvents(answers = {}) {
   const byId = new Map();
@@ -31,7 +49,7 @@ function sortEvents(events) {
   return [...events].sort((a, b) => {
     const ad = a.date || '';
     const bd = b.date || '';
-    if (!ad && !bd) return (a.title ?? '').localeCompare(b.title ?? '');
+    if (!ad && !bd) return (a.action ?? '').localeCompare(b.action ?? '');
     if (!ad) return 1;
     if (!bd) return -1;
     return ad === bd ? (a.time ?? '').localeCompare(b.time ?? '') : ad.localeCompare(bd);
@@ -126,6 +144,17 @@ export default function CaseTimelinePage() {
     releaseLiveField(field);
   };
 
+  // A <select> has no meaningful "typing" — pick, commit immediately, and
+  // broadcast it live the same fire-and-forget-in-order way structural
+  // changes do below (claim just long enough to get one input through).
+  const commitSelect = (field, value) => {
+    setAnswers((prev) => ({ ...prev, [field]: value }));
+    claimField(field);
+    sendInput(field, value);
+    releaseLiveField(field);
+    commitField(field, value);
+  };
+
   const lockFor = (field) => liveLocks[field];
   const isFieldMine = (field) => {
     const lock = lockFor(field);
@@ -154,9 +183,10 @@ export default function CaseTimelinePage() {
 
   const addEvent = () => {
     const id = uid();
-    // Title is the natural anchor field: parseEvents discovers an event by
-    // scanning for any `event:<id>:*` key, so this alone makes the card exist.
-    const field = fieldKey(id, 'title');
+    // Action/Event is the natural anchor field: parseEvents discovers an
+    // event by scanning for any `event:<id>:*` key, so this alone makes the
+    // card exist.
+    const field = fieldKey(id, 'action');
     setAnswers((prev) => ({ ...prev, [field]: '' }));
     claimField(field);
     sendInput(field, '');
@@ -255,6 +285,7 @@ export default function CaseTimelinePage() {
               <div key={event.id} className="timeline-event-card" style={victim ? { borderLeftColor: victim.color } : undefined}>
                 <div className="timeline-event-num">EVENT {String(i + 1).padStart(2, '0')}</div>
 
+                {/* ── Row 1: chronology + confidence ── */}
                 <div className="timeline-event-row">
                   <label className="timeline-field timeline-field-date">
                     <span>Date</span>
@@ -269,7 +300,7 @@ export default function CaseTimelinePage() {
                     {lockBanner(fieldKey(event.id, 'date'))}
                   </label>
                   <label className="timeline-field timeline-field-time">
-                    <span>Time / notes</span>
+                    <span>Time</span>
                     <input
                       type="text"
                       placeholder="e.g. 03:12 or overnight"
@@ -281,6 +312,91 @@ export default function CaseTimelinePage() {
                     />
                     {lockBanner(fieldKey(event.id, 'time'))}
                   </label>
+                  <label className="timeline-field timeline-field-narrow">
+                    <span>Time Ref.</span>
+                    <select
+                      value={displayValue(fieldKey(event.id, 'timeRef'))}
+                      disabled={!isFieldMine(fieldKey(event.id, 'timeRef'))}
+                      onFocus={() => focusField(fieldKey(event.id, 'timeRef'))}
+                      onBlur={() => blurField(fieldKey(event.id, 'timeRef'))}
+                      onChange={(e) => commitSelect(fieldKey(event.id, 'timeRef'), e.target.value)}
+                    >
+                      <option value="">—</option>
+                      {TIME_REFERENCES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </label>
+                  <label className="timeline-field timeline-field-narrow">
+                    <span>Confidence</span>
+                    <select
+                      value={displayValue(fieldKey(event.id, 'confidence'))}
+                      disabled={!isFieldMine(fieldKey(event.id, 'confidence'))}
+                      onFocus={() => focusField(fieldKey(event.id, 'confidence'))}
+                      onBlur={() => blurField(fieldKey(event.id, 'confidence'))}
+                      onChange={(e) => commitSelect(fieldKey(event.id, 'confidence'), e.target.value)}
+                    >
+                      <option value="">—</option>
+                      {CONFIDENCE_LEVELS.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </label>
+                  <button type="button" className="timeline-delete-btn" onClick={() => deleteEvent(event.id)} title="Remove event">✕</button>
+                </div>
+
+                {/* ── Row 2: headline ── */}
+                <label className="timeline-field">
+                  <span>Action / Event</span>
+                  <input
+                    type="text"
+                    placeholder="What happened"
+                    value={displayValue(fieldKey(event.id, 'action'))}
+                    disabled={!isFieldMine(fieldKey(event.id, 'action'))}
+                    onFocus={() => focusField(fieldKey(event.id, 'action'))}
+                    onBlur={(e) => { blurField(fieldKey(event.id, 'action')); commitField(fieldKey(event.id, 'action'), e.target.value); }}
+                    onChange={(e) => updateField(fieldKey(event.id, 'action'), e.target.value)}
+                  />
+                  {lockBanner(fieldKey(event.id, 'action'))}
+                </label>
+
+                {/* ── Row 3: attribution ── */}
+                <div className="timeline-event-row">
+                  <label className="timeline-field">
+                    <span>Origin</span>
+                    <input
+                      type="text"
+                      placeholder="IP, host, account, actor…"
+                      value={displayValue(fieldKey(event.id, 'origin'))}
+                      disabled={!isFieldMine(fieldKey(event.id, 'origin'))}
+                      onFocus={() => focusField(fieldKey(event.id, 'origin'))}
+                      onBlur={(e) => { blurField(fieldKey(event.id, 'origin')); commitField(fieldKey(event.id, 'origin'), e.target.value); }}
+                      onChange={(e) => updateField(fieldKey(event.id, 'origin'), e.target.value)}
+                    />
+                    {lockBanner(fieldKey(event.id, 'origin'))}
+                  </label>
+                  <label className="timeline-field">
+                    <span>Persona</span>
+                    <input
+                      type="text"
+                      placeholder="Who this centers on"
+                      value={displayValue(fieldKey(event.id, 'persona'))}
+                      disabled={!isFieldMine(fieldKey(event.id, 'persona'))}
+                      onFocus={() => focusField(fieldKey(event.id, 'persona'))}
+                      onBlur={(e) => { blurField(fieldKey(event.id, 'persona')); commitField(fieldKey(event.id, 'persona'), e.target.value); }}
+                      onChange={(e) => updateField(fieldKey(event.id, 'persona'), e.target.value)}
+                    />
+                    {lockBanner(fieldKey(event.id, 'persona'))}
+                  </label>
+                  <label className="timeline-field timeline-field-attck">
+                    <span>ATT&amp;CK Phase</span>
+                    <select
+                      value={displayValue(fieldKey(event.id, 'attckPhase'))}
+                      disabled={!isFieldMine(fieldKey(event.id, 'attckPhase'))}
+                      onFocus={() => focusField(fieldKey(event.id, 'attckPhase'))}
+                      onBlur={() => blurField(fieldKey(event.id, 'attckPhase'))}
+                      onChange={(e) => commitSelect(fieldKey(event.id, 'attckPhase'), e.target.value)}
+                    >
+                      <option value="">—</option>
+                      {ATTCK_PHASES.map((p) => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </label>
                   <label className="timeline-field timeline-field-victim">
                     <span>Victim</span>
                     <select
@@ -288,33 +404,15 @@ export default function CaseTimelinePage() {
                       disabled={!isFieldMine(fieldKey(event.id, 'victim'))}
                       onFocus={() => focusField(fieldKey(event.id, 'victim'))}
                       onBlur={() => blurField(fieldKey(event.id, 'victim'))}
-                      onChange={(e) => {
-                        setAnswers((prev) => ({ ...prev, [fieldKey(event.id, 'victim')]: e.target.value }));
-                        commitField(fieldKey(event.id, 'victim'), e.target.value);
-                        sendInput(fieldKey(event.id, 'victim'), e.target.value);
-                      }}
+                      onChange={(e) => commitSelect(fieldKey(event.id, 'victim'), e.target.value)}
                     >
                       <option value="">— Unassigned —</option>
                       {VICTIM_OPTIONS.map((v) => <option key={v.code} value={v.code}>{v.name}</option>)}
                     </select>
                   </label>
-                  <button type="button" className="timeline-delete-btn" onClick={() => deleteEvent(event.id)} title="Remove event">✕</button>
                 </div>
 
-                <label className="timeline-field">
-                  <span>Title</span>
-                  <input
-                    type="text"
-                    placeholder="What happened"
-                    value={displayValue(fieldKey(event.id, 'title'))}
-                    disabled={!isFieldMine(fieldKey(event.id, 'title'))}
-                    onFocus={() => focusField(fieldKey(event.id, 'title'))}
-                    onBlur={(e) => { blurField(fieldKey(event.id, 'title')); commitField(fieldKey(event.id, 'title'), e.target.value); }}
-                    onChange={(e) => updateField(fieldKey(event.id, 'title'), e.target.value)}
-                  />
-                  {lockBanner(fieldKey(event.id, 'title'))}
-                </label>
-
+                {/* ── Row 4: detail ── */}
                 <label className="timeline-field">
                   <span>Description</span>
                   <textarea
@@ -329,8 +427,9 @@ export default function CaseTimelinePage() {
                   {lockBanner(fieldKey(event.id, 'desc'))}
                 </label>
 
+                {/* ── Row 5: citation ── */}
                 <label className="timeline-field">
-                  <span>Source</span>
+                  <span>Source Document / Artifact</span>
                   <input
                     type="text"
                     placeholder="Which evidence file this comes from"
@@ -343,8 +442,8 @@ export default function CaseTimelinePage() {
                   {lockBanner(fieldKey(event.id, 'source'))}
                 </label>
 
-                {editLabel(fieldKey(event.id, 'title')) && (
-                  <div className="timeline-event-meta">Last edited by {editLabel(fieldKey(event.id, 'title'))}</div>
+                {editLabel(fieldKey(event.id, 'action')) && (
+                  <div className="timeline-event-meta">Last edited by {editLabel(fieldKey(event.id, 'action'))}</div>
                 )}
               </div>
             );
