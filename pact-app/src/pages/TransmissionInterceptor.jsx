@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import DecryptText from '../components/DecryptText.jsx';
 import DataStream  from '../components/DataStream.jsx';
 import { dropSeenId } from '../lib/dropSeen.js';
+import { FormattedText } from '../components/FormattedText.jsx';
 
 export { dropSeenId } from '../lib/dropSeen.js';
 
@@ -157,7 +158,16 @@ export default function TransmissionInterceptor({ drop, onAcknowledge, idLine = 
               transition={{ duration: 0.6 }}
             >
               <div className="tx-narrative-label">{narrativeLabel}</div>
-              <p className="tx-narrative-body">{drop.narrative_intro}</p>
+              {/* A <div>, not a <p> — FormattedText can emit block elements
+                  (tables, paragraphs) that aren't valid inside a <p>, and
+                  this is the only place narrative_intro/launch_briefing ever
+                  rendered as a raw, unparsed string — every other place this
+                  same text shows (e.g. ChallengeFlow's CaseBriefingPanel)
+                  already went through FormattedText, so **bold** and pipe
+                  tables authors write (this app's supported markdown, per
+                  FormattedTextEditor's own toolbar) rendered fine everywhere
+                  except a student's very first look at it. */}
+              <div className="tx-narrative-body"><FormattedText value={drop.narrative_intro} /></div>
             </motion.div>
           )}
         </AnimatePresence>
