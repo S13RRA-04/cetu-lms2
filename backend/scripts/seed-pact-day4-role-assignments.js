@@ -20,16 +20,16 @@ const { v4: uuidv4 } = require('uuid');
 const COURSE_ID = 'ae2fbd25-2f41-45b1-b9f8-f4fefbad4b63';
 const { SCENARIO, DROP, buildAssignmentSpecs } = require('./lib/day4RoleSpecs');
 
-async function insertAssignment(seq, transaction, { title, description, victimName, roleFilters, gradingMode, questions, orderIndex }) {
+async function insertAssignment(seq, transaction, { title, description, victimName, roleFilters, gradingMode, launchBriefing, questions, orderIndex }) {
   const maxScore = questions.reduce((sum, q) => sum + (q.kind === 'prompt' ? q.points : q.scoring.points), 0);
   await seq.query(
     `INSERT INTO assignments
        (id, course_id, title, description, type, grading_mode, max_score, order_index,
-        is_published, scenario_name, drop_number, victim_name, questions, role_filters,
+        is_published, scenario_name, drop_number, victim_name, launch_briefing, questions, role_filters,
         created_at, updated_at)
      VALUES
        (:id, :courseId, :title, :description, 'challenge', :gradingMode, :maxScore, :orderIndex,
-        false, :scenario, :drop, :victimName, :questions, ARRAY[:roleFilters]::text[],
+        false, :scenario, :drop, :victimName, :launchBriefing, :questions, ARRAY[:roleFilters]::text[],
         NOW(), NOW())`,
     {
       replacements: {
@@ -43,6 +43,7 @@ async function insertAssignment(seq, transaction, { title, description, victimNa
         scenario: SCENARIO,
         drop: DROP,
         victimName,
+        launchBriefing: launchBriefing ?? null,
         questions: JSON.stringify(questions),
         roleFilters,
       },

@@ -451,11 +451,11 @@ async function _querySquadScoreboard(courseId, cohortId) {
   }));
 }
 
-async function getCourseGrades(courseId, cohortId) {
-  return gradesCache.get(`courseGrades:${courseId}:${cohortId ?? 'all'}`, () => _queryCourseGrades(courseId, cohortId));
+async function getCourseGrades(courseId, cohortId, userId = null) {
+  return gradesCache.get(`courseGrades:${courseId}:${cohortId ?? 'all'}:${userId ?? 'all'}`, () => _queryCourseGrades(courseId, cohortId, userId));
 }
 
-async function _queryCourseGrades(courseId, cohortId) {
+async function _queryCourseGrades(courseId, cohortId, userId = null) {
   const [rows] = await sequelize.query(
     `SELECT
        u.id           AS "userId",
@@ -464,6 +464,9 @@ async function _queryCourseGrades(courseId, cohortId) {
        u.email,
        e.cohort_id    AS "cohortId",
        co.name        AS "cohortName",
+       sq.id          AS "squadId",
+       sq.number      AS "squadNumber",
+       sq.name        AS "squadName",
        a.id           AS "assignmentId",
        a.title        AS "assignmentTitle",
        a.max_score    AS "assignmentMax",
@@ -478,12 +481,21 @@ async function _queryCourseGrades(courseId, cohortId) {
      JOIN users u ON u.id = e.user_id AND u.role = 'student'
      JOIN assignments a ON a.course_id = :courseId AND a.is_published = true
      LEFT JOIN cohorts co ON co.id = e.cohort_id
+     LEFT JOIN squads sq ON sq.id = e.squad_id
      LEFT JOIN grades g ON g.user_id = e.user_id AND g.assignment_id = a.id
      LEFT JOIN submissions s ON s.user_id = e.user_id AND s.assignment_id = a.id
      WHERE e.course_id = :courseId
        AND (:cohortId IS NULL OR e.cohort_id = :cohortId::uuid)
+       AND (:userId IS NULL OR e.user_id = :userId::uuid)
+       -- With no userId, this stays the full gradebook matrix (every enrolled
+       -- student x every published assignment, including untouched cells —
+       -- LEFT JOINs leave those NULL on purpose). Scoped to one user, though,
+       -- it's "their submitted assignments" specifically per the Users tab's
+       -- grade-lookup feature, so rows they never actually turned in are
+       -- dropped rather than showing a wall of blank/N-A rows.
+       AND (:userId IS NULL OR s.status IN ('submitted', 'graded', 'returned'))
      ORDER BY co.name NULLS LAST, u.last_name, u.first_name, a.order_index, a.created_at`,
-    { replacements: { courseId, cohortId: cohortId ?? null } }
+    { replacements: { courseId, cohortId: cohortId ?? null, userId: userId ?? null } }
   );
   return rows;
 }

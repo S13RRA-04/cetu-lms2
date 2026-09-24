@@ -62,6 +62,12 @@ export const getSubmissions = (assignmentId) =>
 export const getGradesForAssignment = (assignmentId) =>
   client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/grades`).then((r) => r.data);
 
+// Users tab's "view this student's grades" lookup — the same course-grades
+// endpoint the (unwired) full gradebook uses, scoped to one user_id, which
+// the backend also uses to drop assignments they never actually submitted.
+export const getUserGrades = (userId) =>
+  client.get(`/courses/${COURSE_ID}/grades`, { params: { user_id: userId } }).then((r) => r.data);
+
 export const getSurveyResults = (assignmentId) =>
   client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/survey-results`).then((r) => r.data);
 

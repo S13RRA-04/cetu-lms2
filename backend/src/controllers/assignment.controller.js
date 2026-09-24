@@ -29,7 +29,7 @@ async function getSquadScoreboard(req, res, next) {
 }
 
 async function getCourseGrades(req, res, next) {
-  try { return res.json(await gradeService.getCourseGrades(req.params.id, req.query.cohort_id ?? null)); }
+  try { return res.json(await gradeService.getCourseGrades(req.params.id, req.query.cohort_id ?? null, req.query.user_id ?? null)); }
   catch (err) { return next(err); }
 }
 

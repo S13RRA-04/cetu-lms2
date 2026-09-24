@@ -46,6 +46,7 @@ import {
   getSquadChallengeStateForSquad,
   getUsers,
   updateUser,
+  getUserGrades,
   COURSE_ID,
 } from '../api/pact.js';
 import { VICTIMS } from '../constants/victims.js';
@@ -1351,6 +1352,7 @@ function UsersPanel({ cohorts = [] }) {
   const [cohortFilter, setCohortFilter] = useState(''); // '' | '__none__' | a cohort id
   const [saving,    setSaving]    = useState({}); // userId -> bool
   const [flash,     setFlash]     = useState({}); // userId -> 'saved' | 'error'
+  const [gradesUser, setGradesUser] = useState(null); // the user whose grade detail is open, or null
 
   useEffect(() => {
     // course_id scopes each user's `cohort` field to this course (null for
@@ -1612,6 +1614,16 @@ function UsersPanel({ cohorts = [] }) {
                   </div>
                 </details>
               )}
+              {u.role === 'student' && (
+                <button
+                  className="btn-secondary"
+                  style={{ fontSize: 11, padding: '5px 10px', flexShrink: 0 }}
+                  onClick={() => setGradesUser(u)}
+                  title="View this student's grades for everything they've submitted"
+                >
+                  View Grades
+                </button>
+              )}
               <button
                 className={u.is_active ? 'btn-secondary' : 'btn-primary'}
                 style={{ fontSize: 11, padding: '5px 10px', flexShrink: 0 }}
@@ -1628,6 +1640,94 @@ function UsersPanel({ cohorts = [] }) {
           ))}
         </div>
       )}
+      {gradesUser && (
+        <UserGradesModal user={gradesUser} onClose={() => setGradesUser(null)} />
+      )}
+    </div>
+  );
+}
+
+/* Users tab's "View Grades" detail — every assignment this specific student
+   has actually submitted (in_progress/untouched work is deliberately
+   excluded server-side; see getCourseGrades's userId branch), with score,
+   status, and grade date. Mirrors LiveAnswerDetail's overlay chrome. */
+function UserGradesModal({ user, onClose }) {
+  const [rows,    setRows]    = useState(null); // null = loading
+  const [error,   setError]   = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setRows(null);
+    setError('');
+    getUserGrades(user.id)
+      .then((data) => { if (!cancelled) setRows(Array.isArray(data) ? data : []); })
+      .catch(() => { if (!cancelled) setError("Couldn't load this student's grades."); })
+      .finally(() => {});
+    return () => { cancelled = true; };
+  }, [user.id]);
+
+  const totalEarned = (rows ?? []).reduce((sum, r) => sum + (r.score != null ? parseFloat(r.score) : 0), 0);
+  const totalMax     = (rows ?? []).reduce((sum, r) => sum + (r.score != null ? parseFloat(r.gradeMax ?? r.assignmentMax ?? 0) : 0), 0);
+  const overallPct    = totalMax > 0 ? Math.round((totalEarned / totalMax) * 100) : null;
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(3,7,18,.75)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '40px 20px', overflowY: 'auto' }}
+      onClick={onClose}
+    >
+      <div
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, maxWidth: 640, width: '100%', padding: 24 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--bright)' }}>{user.first_name} {user.last_name}</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
+              {user.email}
+              {user.cohort && ` · ${user.cohort.name}`}
+            </div>
+          </div>
+          {overallPct != null && (
+            <span className="admin-grade-chip" style={{ color: overallPct >= 70 ? '#10b981' : '#f59e0b', flexShrink: 0 }}>
+              {Math.round(totalEarned)}/{Math.round(totalMax)} ({overallPct}%)
+            </span>
+          )}
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: '2px 4px', flexShrink: 0 }}>✕</button>
+        </div>
+
+        {rows === null ? (
+          <p style={{ fontSize: 13, color: 'var(--muted)' }}>Loading…</p>
+        ) : error ? (
+          <p style={{ fontSize: 13, color: '#ef4444' }}>{error}</p>
+        ) : rows.length === 0 ? (
+          <p style={{ fontSize: 13, color: 'var(--muted)' }}>No submitted assignments yet.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {rows.map((r) => {
+              const graded  = r.score != null;
+              const pct     = graded && r.gradeMax > 0 ? Math.round((parseFloat(r.score) / parseFloat(r.gradeMax)) * 100) : null;
+              const statusLabel = r.submissionStatus === 'graded' ? 'Graded'
+                : r.submissionStatus === 'returned' ? 'Returned'
+                : 'Submitted, not yet graded';
+              return (
+                <div key={r.assignmentId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface-2, var(--surface))' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--bright)' }}>{r.assignmentTitle}</div>
+                    <div style={{ fontSize: 10.5, color: 'var(--muted)', fontFamily: 'var(--mono)' }}>
+                      {statusLabel}
+                      {r.squadNumber != null && ` · Squad ${r.squadNumber}`}
+                      {r.gradedAt && ` · graded ${new Date(r.gradedAt).toLocaleDateString()}`}
+                    </div>
+                  </div>
+                  <span className="admin-grade-chip" style={{ flexShrink: 0, color: !graded ? 'var(--muted)' : pct == null ? 'var(--text)' : pct >= 70 ? '#10b981' : '#f59e0b' }}>
+                    {graded ? `${r.score}/${r.gradeMax}${pct != null ? ` (${pct}%)` : ''}` : 'Not graded'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -172,6 +172,32 @@ const ROLES = [
   },
 ];
 
+// SA's task explicitly says "own the final attribution memo AND charging
+// outline," and IA's own question tests the distinction between the two
+// ("confidence language belongs in intelligence products, not the charging
+// document, which sticks to facts") — but nothing anywhere in this drop ever
+// showed a squad what a charging outline actually looks like. This is a
+// STRUCTURAL/FORMAT reference only, not a worked example for this case: a
+// filled-in outline would hand SA the answer to their own graded prompt
+// ("state your attribution conclusion..."), and naming a specific U.S. Code
+// section would assert a legal conclusion this training exercise never
+// establishes elsewhere. Shown on every role's launch screen (not just SA's)
+// since IA, TFO, and SOS all reason about what does/doesn't belong in one.
+const CHARGING_OUTLINE_REFERENCE = `**Charging Outline — Reference Format**
+
+A charging outline is a different document from your attribution memo. The attribution memo states your conclusion and a confidence level. The charging outline states only what the evidence directly establishes, element by element — no confidence language, no "we believe."
+
+A charging outline typically includes:
+
+1. **Subject.** The individual(s) it addresses, by full legal name — not by alias/handle alone.
+2. **Proposed offense(s).** The conduct the facts appear to support, in plain terms (e.g. "unauthorized computer access and sale of access," "wire fraud," "money laundering"). You are not expected to cite a specific U.S. Code section today.
+3. **Elements of the offense.** Each legal element the government would need to prove, listed separately — not folded into one paragraph.
+4. **Evidence supporting each element.** Under each element, the specific artifact(s) that support it — e.g. "Element: unauthorized access — Evidence: client_access_matrix.csv, PGP keyring export." An element with nothing listed under it is a gap to flag, not to paper over.
+5. **Venue.** Why this case belongs in this district — where the conduct, the victim, or the subject is located.
+6. **Anticipated weaknesses.** Gaps, alternative explanations, or custody issues the defense would raise — stated honestly, not minimized.
+
+Nothing in a charging outline should read like the attribution memo's "high confidence" language — it states what the evidence shows, full stop.`;
+
 const SQUAD_QUIZ = [
   mc('What forensic item conclusively ties Reston\'s residence laptop to the BRKR_AL marketplace identity?', ['Browser history alone', 'A recovered PGP private key matching the BRKR_AL public key', 'The personal financial records', 'The evidence photo log'], 1, 'the residence laptop extraction report'),
   mc('What does the client_access_matrix.csv reveal about SaturnV Mart?', ['It was sold under reference BH-0314', 'It is listed but unsold, with a still-live provisioned account', 'It never appears in the matrix', 'It was the first client ever provisioned'], 1, 'the client access matrix'),
@@ -202,6 +228,7 @@ function buildAssignmentSpecs() {
       victimName: null,
       roleFilters: [role.roleFilter],
       gradingMode: 'individual',
+      launchBriefing: CHARGING_OUTLINE_REFERENCE,
       questions: buildRoleQuestions(role),
     });
   }
@@ -212,9 +239,10 @@ function buildAssignmentSpecs() {
     victimName: null,
     roleFilters: [],
     gradingMode: 'squad',
+    launchBriefing: CHARGING_OUTLINE_REFERENCE,
     questions: SQUAD_QUIZ,
   });
   return specs;
 }
 
-module.exports = { SCENARIO, DROP, TITLE_PREFIX, ROLES, SQUAD_QUIZ, buildRoleQuestions, buildAssignmentSpecs };
+module.exports = { SCENARIO, DROP, TITLE_PREFIX, ROLES, SQUAD_QUIZ, CHARGING_OUTLINE_REFERENCE, buildRoleQuestions, buildAssignmentSpecs };
