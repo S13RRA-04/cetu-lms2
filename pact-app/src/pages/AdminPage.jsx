@@ -3400,6 +3400,15 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
   const [previewAssignment, setPreviewAssignment] = useState(null);
 
   useEffect(() => { setLocalItems(assignments); }, [assignments]);
+  // These three drafts load from `selected` only once, when the id changes —
+  // not on every render — so typing isn't clobbered by unrelated re-fetches
+  // while the panel stays open. That means each one goes stale the moment
+  // the underlying value changes elsewhere (another tab, a script, a direct
+  // DB fix) while this same assignment stays selected. Their onBlur handlers
+  // below must dirty-check against `selected`'s current value before saving
+  // — without that check, merely clicking into and back out of an untouched
+  // field re-PATCHes the stale draft over whatever just changed underneath
+  // it, silently reverting the fix.
   useEffect(() => { setVictimDraft(selected?.victim_name ?? ''); }, [selected?.id]);
   useEffect(() => { setDebriefDraft(selected?.debrief ?? ''); }, [selected?.id]);
   useEffect(() => { setLaunchBriefingDraft(selected?.launch_briefing ?? ''); }, [selected?.id]);
@@ -3620,8 +3629,8 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
                   type="text"
                   value={victimDraft}
                   onChange={(e) => setVictimDraft(e.target.value)}
-                  onBlur={() => handleFieldChange(selected.id, { victim_name: victimDraft.trim() || null })}
-                  onKeyDown={(e) => e.key === 'Enter' && handleFieldChange(selected.id, { victim_name: victimDraft.trim() || null })}
+                  onBlur={() => { if (victimDraft.trim() !== (selected.victim_name ?? '')) handleFieldChange(selected.id, { victim_name: victimDraft.trim() || null }); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && victimDraft.trim() !== (selected.victim_name ?? '')) handleFieldChange(selected.id, { victim_name: victimDraft.trim() || null }); }}
                   placeholder="e.g. Redstone Memorial Hospital"
                   style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, flex: 1 }}
                 />
@@ -3654,7 +3663,7 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
               <textarea
                 value={launchBriefingDraft}
                 onChange={(e) => setLaunchBriefingDraft(e.target.value)}
-                onBlur={() => handleFieldChange(selected.id, { launch_briefing: launchBriefingDraft.trim() || null })}
+                onBlur={() => { if (launchBriefingDraft.trim() !== (selected.launch_briefing ?? '')) handleFieldChange(selected.id, { launch_briefing: launchBriefingDraft.trim() || null }); }}
                 placeholder="Optional Command Post guidance shown when a user launches this challenge."
                 rows={6}
                 style={{ padding: '8px 10px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
@@ -3669,7 +3678,7 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
               <textarea
                 value={debriefDraft}
                 onChange={(e) => setDebriefDraft(e.target.value)}
-                onBlur={() => handleFieldChange(selected.id, { debrief: debriefDraft.trim() || null })}
+                onBlur={() => { if (debriefDraft.trim() !== (selected.debrief ?? '')) handleFieldChange(selected.id, { debrief: debriefDraft.trim() || null }); }}
                 placeholder="Optional note shown on the results screen after submission — e.g. why this skill matters in the field."
                 rows={4}
                 style={{ padding: '8px 10px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
