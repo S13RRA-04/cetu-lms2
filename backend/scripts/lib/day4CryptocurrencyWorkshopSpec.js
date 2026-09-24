@@ -65,9 +65,38 @@ function prompt(text, keyElements, points, commonErrors = null) {
   };
 }
 
+// The trace data itself (TX1's victim report, the TX2–TX5 table, and the
+// per-step given facts) has to live entirely in this one field — unlike a
+// packet-heist-v2 drop, this workshop is standalone/not tied to any drop, so
+// there's no R2 evidence packet or course_content_items backing it. It was
+// previously just the framing paragraph with everything from "Below is the
+// trace record..." onward silently missing — every question below assumes
+// the student has this data, but nothing before this fix ever gave it to
+// them. Transcribed verbatim from "PACT Challenges"/
+// Cryptocurrency_Workshop_Squad_Packet.docx (the per-step "given" facts,
+// not the instructor-only rubric notes in this file's prompt() calls above).
 const LAUNCH_BRIEFING = `Harlow Dental Group, a small dental practice, paid a 0.85 BTC ransom demand after a ransomware incident. The victim's own exchange account shows the outbound payment. Below is the trace record as your squad has assembled it so far — work through it exactly as the checklist from this afternoon's lecture says to: capture, classify, trace, identify the exchange and match legal process, document provenance, and know when to escalate.
 
 Each step opens with a quick comprehension check, then a task your squad drafts together.
+
+**Step 1 — Victim report.** Harlow Dental Group's practice manager confirms the ransom payment was sent from the practice's Coinbase account on Day 0 at 14:02 UTC. Sending address (victim, Coinbase-controlled): known and already in the case file. Receiving address logged by the victim's exchange: Address A. Transaction hash: 9f2c…a41d. Amount: 0.85 BTC.
+
+**Step 2 — Classify.** The ransom was paid in Bitcoin.
+
+**Step 3 — The trace, as assembled so far:**
+
+| Txn | What happened | Amount | Txid | Timestamp |
+| --- | --- | --- | --- | --- |
+| TX2 | Address A splits the funds — 0.03 BTC moves to Address P, 0.82 BTC moves to Address B | 0.03 BTC + 0.82 BTC | 7b88…e213 | Day 0, 22:47 UTC |
+| TX3 | Address B sends funds to a cluster your office's licensed platform flags as "TumbleCore" — a known mixing service | 0.82 BTC | c410…9a02 | Day 1, 03:15 UTC |
+| TX4 | Address C receives funds from TumbleCore's output cluster | 0.79 BTC | 5e77…b190 | Day 2, 09:00 UTC |
+| TX5 | Address C deposits funds into a hot-wallet address cluster your platform identifies, by deposit/withdrawal pattern, as belonging to "Vantex," a U.S.-incorporated exchange | 0.79 BTC | 22f0…d5c8 | Day 2, 09:41 UTC |
+
+**Step 4 — Identify the exchange and match legal process.** Vantex is identified as a U.S.-incorporated, licensed VASP. Your squad needs three different categories of information from Vantex about the account controlling the receiving hot-wallet cluster.
+
+**Step 5 — Provenance.** Your squad pulled TX5's data from your office's licensed blockchain analysis platform today.
+
+**Step 6 — Escalate.** The trail passed through a known mixing service (TumbleCore) at TX3–TX4.
 
 This scenario (Harlow Dental Group, TumbleCore, Vantex, and all addresses/hashes) is fictional, built to exercise every stage of this lecture's workflow with clean, internally consistent data. It is not based on a real case and does not reference your case file.`;
 
