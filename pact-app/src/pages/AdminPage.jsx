@@ -139,8 +139,9 @@ function sortSubmissionsBy(list, sortBy, sortDir, { grades, savedGrades }) {
 function parseContent(content) {
   try {
     const p = JSON.parse(content ?? 'null');
-    if (p?.answers)    return { type: 'quiz',        data: p };
-    if (p?.responses)  return { type: 'deliverable', data: p };
+    if (p?.answers)             return { type: 'quiz',         data: p };
+    if (p?.responses)           return { type: 'deliverable',  data: p };
+    if (p?.rangeObserverRubric) return { type: 'range_rubric', data: p };
   } catch {}
   return { type: 'text', data: content };
 }
@@ -450,6 +451,122 @@ function ChallengeDeliverableReview({ delivData, questions = [], maxScore, assig
             onChange={(e) => setFeedback(e.target.value)}
             placeholder="Overall feedback for the squad…"
             rows={3}
+            style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, resize: 'vertical' }}
+          />
+        </div>
+        {err && <div className="err-msg">{err}</div>}
+        <button className="btn-submit" style={{ width: 'auto', alignSelf: 'flex-start' }} onClick={handleSave} disabled={saving || !allScored}>
+          {saving ? 'Saving…' : existingGrade ? 'Update Grade' : 'Save Grade'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Grading UI for a squad-lead performance rubric (currently: the Day 3 PM
+// range practical) — an observer scored the squad live, on paper, with no
+// digital submission of any kind. This never reads a submitted response;
+// it's a pure instructor-facing scoring form keyed off the assignment's own
+// `questions` (13 { id, title, text, weight, points, bands } criteria — see
+// day3RangeObserverRubricSpec.js). Each criterion is a single 0-3 band pick,
+// not the additive keyElements checklist ChallengeDeliverableReview uses —
+// those are different rubric shapes and don't share a grading widget.
+function RangeObserverRubricGrading({ questions = [], maxScore, assignmentId, squadId, existingGrade, onGradeSaved }) {
+  const initBandScores = () => {
+    const ps = existingGrade?.promptScores ?? existingGrade?.prompt_scores;
+    if (!ps) return Object.fromEntries(questions.map((q) => [q.id, null]));
+    // Stored promptScores are each criterion's weighted contribution
+    // (raw band x weight) — recover the raw 0-3 band by dividing back out.
+    return Object.fromEntries(questions.map((q) => {
+      const weighted = ps[q.id];
+      return [q.id, weighted == null ? null : Math.round(Number(weighted) / q.weight)];
+    }));
+  };
+
+  const [bandScores, setBandScores] = useState(initBandScores);
+  const [feedback,   setFeedback]   = useState(existingGrade?.feedback ?? '');
+  const [saving,     setSaving]     = useState(false);
+  const [err,        setErr]        = useState('');
+
+  const allScored    = questions.every((q) => bandScores[q.id] != null);
+  const weightedFor  = (q) => bandScores[q.id] == null ? 0 : Number((bandScores[q.id] * q.weight).toFixed(2));
+  const total        = Number(questions.reduce((sum, q) => sum + weightedFor(q), 0).toFixed(2));
+
+  const handleSave = async () => {
+    if (!allScored) { setErr('Score every criterion before saving.'); return; }
+    setSaving(true);
+    setErr('');
+    try {
+      const promptScores = Object.fromEntries(questions.map((q) => [q.id, weightedFor(q)]));
+      const gradeData = { score: total, feedback, promptScores };
+      await submitSquadGrade(assignmentId, squadId, gradeData);
+      onGradeSaved(gradeData);
+    } catch (e) {
+      setErr(e.response?.data?.error?.message ?? 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {questions.map((q) => {
+        const selected = bandScores[q.id];
+        return (
+          <div key={q.id} style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 14px', background: 'var(--surface-2, var(--surface))' }}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--primary)', letterSpacing: '.14em', paddingTop: 2, flexShrink: 0 }}>
+                {String(q.number).padStart(2, '0')} / {String(questions.length).padStart(2, '0')}
+              </span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--bright)' }}>
+                  {q.title}
+                  {q.weight !== 1 && <span style={{ marginLeft: 8, fontFamily: 'var(--mono)', fontSize: 10, color: '#f59e0b' }}>×{q.weight}</span>}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4, lineHeight: 1.5 }}>{q.text}</div>
+              </div>
+              <div style={{ flexShrink: 0, textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: selected == null ? 'var(--muted)' : '#10b981' }}>
+                {selected == null ? '—' : weightedFor(q)} <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>/ {q.points}</span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
+              {q.bands.map((band) => {
+                const active = selected === band.score;
+                return (
+                  <button
+                    key={band.score}
+                    onClick={() => setBandScores((prev) => ({ ...prev, [q.id]: band.score }))}
+                    title={band.description}
+                    style={{
+                      flex: 1, padding: '8px 6px', borderRadius: 4, cursor: 'pointer', textAlign: 'left',
+                      border: `1.5px solid ${active ? 'var(--primary)' : 'var(--border-hi)'}`,
+                      background: active ? 'var(--primary)' : 'transparent',
+                      color: active ? '#fff' : 'var(--text)',
+                    }}
+                  >
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 11, fontWeight: 700 }}>{band.score} — {band.label}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '12px 14px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface-2, var(--surface))' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)' }}>WEIGHTED TOTAL</span>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 20, fontWeight: 700, color: allScored ? '#10b981' : 'var(--muted)' }}>
+            {allScored ? total : '—'} <span style={{ fontSize: 13, color: 'var(--muted)' }}>/ {maxScore}</span>
+          </span>
+        </div>
+        <div>
+          <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.12em', color: 'var(--muted)', marginBottom: 6 }}>HOT WASH / OBSERVER NOTES (optional)</div>
+          <textarea
+            value={feedback}
+            onChange={(e) => setFeedback(e.target.value)}
+            placeholder="Specific observations for this squad…"
+            rows={4}
             style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, resize: 'vertical' }}
           />
         </div>
@@ -4858,6 +4975,22 @@ function SubmissionDetail({ sub, assignment, existingGrade, onGradeSaved, onReop
             userId={sub.user_id}
             squadId={sub.squad_id}
             isSquad={isSquad}
+            existingGrade={savedGrade}
+            onGradeSaved={handleSaved}
+          />
+        </div>
+      )}
+
+      {/* Range-observer squad-lead rubric — no submission content, purely
+          instructor/observer scoring against the assignment's own criteria */}
+      {parsed.type === 'range_rubric' && (
+        <div className="admin-content-box">
+          <div className="section-label" style={{ marginBottom: 16 }}>Squad-Lead Performance Rubric</div>
+          <RangeObserverRubricGrading
+            questions={assignment.questions ?? []}
+            maxScore={maxScore}
+            assignmentId={assignment.id}
+            squadId={sub.squad_id}
             existingGrade={savedGrade}
             onGradeSaved={handleSaved}
           />
