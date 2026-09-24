@@ -90,6 +90,15 @@ async function upsertGrade(assignmentId, userId, data, graderId) {
   // ...and this student's own assignment-list cache, so a just-graded
   // prompt's rubric shows up immediately instead of within the next 10s.
   invalidateStudentCache(assignment.course_id, userId);
+  // ...and the gradebook/squad-scoreboard cache (courseGrades:*,
+  // squadScoreboard:*) — previously never invalidated by any of this file's
+  // three grade-writing functions, so a just-saved regrade could still read
+  // back as up to 15s stale from getCourseGrades (Command's "View Grades"
+  // lookup and full gradebook) or getSquadScoreboard. Flushed rather than
+  // targeted per-key, matching assignment.service.js's invalidateAssignmentLists()
+  // — courseGrades keys vary by cohortId/userId filter combination, so there's
+  // no single key to invalidate for "this course changed."
+  gradesCache.flush();
 
   // Fire-and-forget AGS passback (outside transaction — non-critical)
   if (assignment.lineitem_url) {
@@ -145,6 +154,9 @@ async function gradeSquad(assignmentId, squadId, data, graderId) {
   for (const e of enrollments) {
     invalidateStudentCache(assignment.course_id, e.user_id);
   }
+  // Squad-graded work is exactly what getSquadScoreboard totals — see this
+  // function's own file-level gradesCache.flush() comment on upsertGrade.
+  gradesCache.flush();
 
   // Fire-and-forget AGS passback (outside transaction — non-critical)
   if (assignment.lineitem_url) {
@@ -202,6 +214,7 @@ async function autoGradeQuiz(assignment, userId, squadId, score, maxScore) {
   for (const uid of targetUserIds) {
     invalidateStudentCache(assignment.course_id, uid);
   }
+  gradesCache.flush();
 
   if (assignment.lineitem_url) {
     for (const uid of targetUserIds) {
