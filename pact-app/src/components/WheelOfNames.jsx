@@ -2,24 +2,43 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 
 /*
-  Every spin picks one comedic "gimmick" at random and runs its own
-  intermediate rotation stage(s) before handing off into the shared real
-  spin (runFinal, below). Whatever a gimmick does with `rotation` along the
+  Each spin runs a randomly-picked QUEUE of comedic "gimmick" stages, one
+  after another, before handing off into the shared real spin (runFinal,
+  below) — see pickGimmickQueue(). Every stage's runner takes the rotation
+  it's starting FROM and calls `next(endRotation)` when it's done, so
+  chaining two of them is just passing that handoff along instead of
+  straight into runFinal. Whatever a gimmick does with `rotation` along the
   way is purely a visual detour — the actual winner and its landing angle
   (finalRotation) are computed once, upfront, from the wheel's rotation at
-  the moment spin() was called, and never change. Every gimmick's stages
-  stay well under ~1,500° of net displacement, while the real spin
-  (extraSpins alone) always covers ≥3,600° — so the handoff into runFinal
-  is always a forward burst past wherever the gimmick left off, never a
-  backward jump.
+  the moment spin() was called, and never change regardless of what's queued
+  ahead of it.
 
-  'plain' — 1-in-5 — is deliberately a non-event: it skips straight to
-  runFinal with no detour and no stage label. The point isn't the absence of
-  a bit so much as nobody watching can ever be sure THIS spin won't have
-  one — that uncertainty is itself the joke, and it'd evaporate if "plain"
-  looked any different going in from a spin that's about to fake them out.
+  Each individual gimmick's net displacement stays well under ~1,500°, so
+  even the worst-case TWO chained together stays under ~2,900° — still
+  comfortably less than the real spin's minimum ~3,600° (extraSpins alone).
+  That means the handoff into runFinal is always a forward burst past
+  wherever the queue left off, never a backward jump, no matter how many
+  stages ran first or in what order.
+
+  An empty queue (1-in-5, see pickGimmickQueue) is deliberately a non-event:
+  runFinal fires immediately, no detour, no stage label. The point isn't the
+  absence of a bit so much as nobody watching can ever be sure THIS spin
+  won't have one, or won't have two — that uncertainty is itself the joke,
+  and it'd evaporate if an empty queue looked any different going in from
+  one that's about to fake them out.
 */
-const GIMMICKS = ['fakeout', 'doublestop', 'reverse', 'shuffle', 'plain'];
+const GIMMICK_POOL = ['fakeout', 'doublestop', 'reverse', 'shuffle'];
+
+// 20% nothing, 65% one gimmick, 15% two different gimmicks chained.
+function pickGimmickQueue() {
+  const r = Math.random();
+  if (r < 0.2) return [];
+  const first = GIMMICK_POOL[Math.floor(Math.random() * GIMMICK_POOL.length)];
+  if (r < 0.85) return [first];
+  const secondPool = GIMMICK_POOL.filter((g) => g !== first);
+  const second = secondPool[Math.floor(Math.random() * secondPool.length)];
+  return [first, second];
+}
 
 const FAKEOUT_DURATION_MS = 4500;
 const FAKEOUT_EASE        = 'cubic-bezier(0.25, 0.7, 0.4, 1)'; // a believable, ordinary ease-out — sells the "it's stopping!" lie
@@ -204,35 +223,43 @@ export default function WheelOfNames({ names = [], onWinner, disabled = false })
       }, FINAL_DURATION_MS);
     };
 
-    const gimmick = GIMMICKS[Math.floor(Math.random() * GIMMICKS.length)];
-
-    if (gimmick === 'fakeout') {
+    // Each runner starts from `fromRotation`, does its own thing, and calls
+    // `next(endRotation)` when done — `next` is either the following
+    // gimmick's runner (chained) or runFinal (queue exhausted).
+    const runFakeout = (fromRotation, next) => {
       // Spins hard, appears to coast down toward a stop that is NOT the
       // winner — picked 100–260° away (wrapped across a couple of extra
       // turns) so it can't visually double as landing on the real answer —
-      // then bursts back into the real spin.
+      // then bursts onward.
       const fakeArc    = 100 + Math.random() * 160;
       const fakeOffset = 360 * (2 + Math.floor(Math.random() * 2)) + fakeArc;
+      const to = fromRotation + fakeOffset;
+      setStageLabel(null);
       setTransitionCss(`transform ${FAKEOUT_DURATION_MS}ms ${FAKEOUT_EASE}`);
-      setRotation(startRotation + fakeOffset);
-      gimmickTimeoutRef.current = setTimeout(runFinal, FAKEOUT_DURATION_MS);
+      setRotation(to);
+      gimmickTimeoutRef.current = setTimeout(() => next(to), FAKEOUT_DURATION_MS);
+    };
 
-    } else if (gimmick === 'doublestop') {
+    const runDoublestop = (fromRotation, next) => {
       // Spins, comes to a genuine, complete stop (not just a coast) — then
-      // a beat of stillness before it bursts back into the real spin.
+      // a beat of stillness before it bursts onward.
       const stopArc    = 100 + Math.random() * 160;
       const stopOffset = 360 * (2 + Math.floor(Math.random() * 2)) + stopArc;
+      const to = fromRotation + stopOffset;
+      setStageLabel(null);
       setTransitionCss(`transform ${DOUBLESTOP_SPIN_MS}ms ${EASE_INOUT}`);
-      setRotation(startRotation + stopOffset);
+      setRotation(to);
       gimmickTimeoutRef.current = setTimeout(() => {
         setStageLabel('WAIT, ONE MORE…');
-        gimmickTimeoutRef.current = setTimeout(runFinal, DOUBLESTOP_PAUSE_MS);
+        gimmickTimeoutRef.current = setTimeout(() => next(to), DOUBLESTOP_PAUSE_MS);
       }, DOUBLESTOP_SPIN_MS);
+    };
 
-    } else if (gimmick === 'reverse') {
+    const runReverse = (fromRotation, next) => {
       // Spins forward, "changes its mind," spins backward a stretch, then
-      // changes its mind again and bursts forward into the real spin.
-      const fwdRotation = startRotation + 500 + Math.random() * 300;
+      // changes its mind again and bursts onward.
+      const fwdRotation = fromRotation + 500 + Math.random() * 300;
+      setStageLabel(null);
       setTransitionCss(`transform ${REVERSE_FWD_MS}ms ${EASE_INOUT}`);
       setRotation(fwdRotation);
       gimmickTimeoutRef.current = setTimeout(() => {
@@ -241,23 +268,25 @@ export default function WheelOfNames({ names = [], onWinner, disabled = false })
         setTransitionCss(`transform ${REVERSE_BACK_MS}ms ${EASE_SNAP}`);
         setRotation(backRotation);
         gimmickTimeoutRef.current = setTimeout(() => {
-          // A real pause here, not just a same-tick label swap — setStageLabel(null)
-          // inside runFinal() would otherwise batch with this into one render and
-          // this line would never actually be visible on screen.
+          // A real pause here, not just a same-tick label swap — the next
+          // stage's own setStageLabel(null)/'…' would otherwise batch with
+          // this into one render and this line would never actually be
+          // visible on screen.
           setStageLabel('OKAY, FOR REAL—');
-          gimmickTimeoutRef.current = setTimeout(runFinal, REVERSE_SNAP_PAUSE_MS);
+          gimmickTimeoutRef.current = setTimeout(() => next(backRotation), REVERSE_SNAP_PAUSE_MS);
         }, REVERSE_BACK_MS);
       }, REVERSE_FWD_MS);
+    };
 
-    } else if (gimmick === 'shuffle') {
+    const runShuffle = (fromRotation, next) => {
       // The wheel itself just spins normally, but the NAME TEXT drawn in
       // each wedge rapidly cycles through other candidates (a decorative
       // index offset only — wedge geometry/color never moves), like a slot
       // machine reconsidering its options, before snapping back to the true
-      // labels well before the real spin lands.
-      const shuffleTarget = startRotation + 360 * (3 + Math.floor(Math.random() * 2));
+      // labels well before anything actually lands.
+      const to = fromRotation + 360 * (3 + Math.floor(Math.random() * 2));
       setTransitionCss(`transform ${SHUFFLE_SPIN_MS}ms ${EASE_INOUT}`);
-      setRotation(shuffleTarget);
+      setRotation(to);
       setStageLabel('SHUFFLING…');
       shuffleIntervalRef.current = setInterval(() => {
         setLabelOffset((o) => (o + 1 + Math.floor(Math.random() * Math.max(1, names.length - 1))) % names.length);
@@ -265,16 +294,21 @@ export default function WheelOfNames({ names = [], onWinner, disabled = false })
       gimmickTimeoutRef.current = setTimeout(() => {
         clearInterval(shuffleIntervalRef.current);
         setLabelOffset(0);
-        runFinal();
+        next(to);
       }, SHUFFLE_SPIN_MS);
+    };
 
-    } else {
-      // 'plain' — no detour at all, straight into the real spin. Nothing
-      // here should look any different in the moment the button is pressed
-      // than the start of any other gimmick — see this file's header
-      // comment for why that's the point, not an oversight.
-      runFinal();
-    }
+    const RUNNERS = { fakeout: runFakeout, doublestop: runDoublestop, reverse: runReverse, shuffle: runShuffle };
+
+    // Walks the queue one stage at a time; an empty queue (or the end of a
+    // chain) falls straight through to runFinal.
+    const runQueue = (queue, fromRotation) => {
+      if (queue.length === 0) { runFinal(); return; }
+      const [head, ...rest] = queue;
+      RUNNERS[head](fromRotation, (endRotation) => runQueue(rest, endRotation));
+    };
+
+    runQueue(pickGimmickQueue(), startRotation);
   };
 
   return (
