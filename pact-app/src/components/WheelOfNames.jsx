@@ -1,16 +1,46 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 
-// Two-phase spin: a fake-out that looks like it's coasting to a stop
-// (classic wheel-of-fortune gotcha), then a burst back into the real spin
-// that grinds down onto the actual winner. Total ceremony is long on
-// purpose — this is the point of the feature, not an accident.
+/*
+  Every spin picks one comedic "gimmick" at random and runs its own
+  intermediate rotation stage(s) before handing off into the shared real
+  spin (runFinal, below). Whatever a gimmick does with `rotation` along the
+  way is purely a visual detour — the actual winner and its landing angle
+  (finalRotation) are computed once, upfront, from the wheel's rotation at
+  the moment spin() was called, and never change. Every gimmick's stages
+  stay well under ~1,500° of net displacement, while the real spin
+  (extraSpins alone) always covers ≥3,600° — so the handoff into runFinal
+  is always a forward burst past wherever the gimmick left off, never a
+  backward jump.
+
+  'plain' — 1-in-5 — is deliberately a non-event: it skips straight to
+  runFinal with no detour and no stage label. The point isn't the absence of
+  a bit so much as nobody watching can ever be sure THIS spin won't have
+  one — that uncertainty is itself the joke, and it'd evaporate if "plain"
+  looked any different going in from a spin that's about to fake them out.
+*/
+const GIMMICKS = ['fakeout', 'doublestop', 'reverse', 'shuffle', 'plain'];
+
 const FAKEOUT_DURATION_MS = 4500;
 const FAKEOUT_EASE        = 'cubic-bezier(0.25, 0.7, 0.4, 1)'; // a believable, ordinary ease-out — sells the "it's stopping!" lie
-const FINAL_DURATION_MS   = 9500;
-const SPIN_EASE            = 'cubic-bezier(0.05, 0.9, 0.01, 1)'; // fast wind-up, very slow, grinding final crawl
-const TENSION_MS          = 2600; // last stretch of the real spin — glow/pointer quicken to build anticipation before it lands
-const REVEAL_PAUSE_MS     = 2600; // beat of silence between the wheel stopping and the winner banner appearing
+
+const DOUBLESTOP_SPIN_MS  = 3200;
+const DOUBLESTOP_PAUSE_MS = 900; // a genuine, dead-stop beat before it bursts back to life
+
+const REVERSE_FWD_MS        = 2200;
+const REVERSE_BACK_MS       = 1600;
+const REVERSE_SNAP_PAUSE_MS = 500; // real, visible beat for "OKAY, FOR REAL—" before the real spin takes over
+
+const SHUFFLE_SPIN_MS   = 2600; // window during which the wedge labels rapidly cycle through other names
+const SHUFFLE_STEP_MS   = 130;
+
+const EASE_INOUT = 'cubic-bezier(0.3, 0.7, 0.3, 1)';
+const EASE_SNAP  = 'cubic-bezier(0.5, 0, 0.5, 1)';
+
+const FINAL_DURATION_MS = 9500;
+const SPIN_EASE          = 'cubic-bezier(0.05, 0.9, 0.01, 1)'; // fast wind-up, very slow, grinding final crawl
+const TENSION_MS        = 2600; // last stretch of the real spin — glow/pointer quicken to build anticipation before it lands
+const REVEAL_PAUSE_MS   = 2600; // beat of silence between the wheel stopping and the winner banner appearing
 
 const TENSION_LINES = ['ALMOST…', 'SO CLOSE…', "DON'T BLINK…", 'HOLD ON…', 'HERE IT COMES…'];
 const TENSION_LINE_MS = 600;
@@ -83,34 +113,29 @@ const btnBase = {
 
 export default function WheelOfNames({ names = [], onWinner, disabled = false }) {
   const [rotation, setRotation] = useState(0);
-  // 'idle' | 'fakeout' | 'final' | 'settling'
-  const [phase,    setPhase]    = useState('idle');
-  const [tensing,  setTensing]  = useState(false); // final stretch of the real spin, before it actually stops
-  const [tensionLine, setTensionLine] = useState(0);
+  const [transitionCss, setTransitionCss] = useState('none');
+  const [phase,    setPhase]    = useState('idle'); // 'idle' | 'spinning' | 'settling'
+  const [tensing,  setTensing]  = useState(false);  // final stretch of the real spin, before it actually stops
+  const [tensionLine,  setTensionLine]  = useState(0);
+  const [stageLabel,   setStageLabel]   = useState(null); // gimmick-specific button text override, or null for the default
+  const [labelOffset,  setLabelOffset]  = useState(0);    // cosmetic wedge-label cycling for the 'shuffle' gimmick only
   const [winner,   setWinner]   = useState(null);
   const [confetti, setConfetti] = useState([]);
 
-  const fakeoutTimeoutRef = useRef(null);
+  const gimmickTimeoutRef = useRef(null);
   const spinTimeoutRef    = useRef(null);
   const tensionTimeoutRef = useRef(null);
   const revealTimeoutRef  = useRef(null);
   const tensionLineRef    = useRef(null);
+  const shuffleIntervalRef = useRef(null);
 
-  const spinning = phase === 'fakeout' || phase === 'final';
+  const spinning = phase === 'spinning';
   const settling = phase === 'settling';
   const canSpin  = !disabled && phase === 'idle' && names.length >= 2;
   const segAngle = names.length > 0 ? 360 / names.length : 0;
   const fontSize = segmentFontSize(names.length);
 
-  const wheelTransition = phase === 'fakeout'
-    ? `transform ${FAKEOUT_DURATION_MS}ms ${FAKEOUT_EASE}`
-    : phase === 'final'
-      ? `transform ${FINAL_DURATION_MS}ms ${SPIN_EASE}`
-      : 'none';
-
-  // Cycle the comedic one-liners while tensing — this is the one bit of
-  // "funny" that needs its own ticking timer rather than riding the phase
-  // transitions above.
+  // Cycle the comedic one-liners while tensing.
   useEffect(() => {
     if (!tensing) { setTensionLine(0); return undefined; }
     tensionLineRef.current = setInterval(() => {
@@ -120,48 +145,47 @@ export default function WheelOfNames({ names = [], onWinner, disabled = false })
   }, [tensing]);
 
   useEffect(() => () => {
-    clearTimeout(fakeoutTimeoutRef.current);
+    clearTimeout(gimmickTimeoutRef.current);
     clearTimeout(spinTimeoutRef.current);
     clearTimeout(tensionTimeoutRef.current);
     clearTimeout(revealTimeoutRef.current);
     clearInterval(tensionLineRef.current);
+    clearInterval(shuffleIntervalRef.current);
   }, []);
 
   const spin = () => {
     if (!canSpin) return;
     setWinner(null);
     setConfetti([]);
+    setLabelOffset(0);
 
     const winnerIdx      = Math.floor(Math.random() * names.length);
     const winnerMidAngle = winnerIdx * segAngle + segAngle / 2;
-    const currentMod     = ((rotation % 360) + 360) % 360;
+    const startRotation  = rotation;
+    const currentMod     = ((startRotation % 360) + 360) % 360;
     const targetMod      = ((360 - winnerMidAngle) % 360 + 360) % 360;
     let delta             = targetMod - currentMod;
     if (delta < 0) delta += 360;
     const extraSpins    = 360 * (10 + Math.floor(Math.random() * 4));
-    const finalRotation = rotation + delta + extraSpins;
+    const finalRotation = startRotation + delta + extraSpins;
 
-    // The fake-out target is picked well clear of the real winner's angle
-    // (100–260° away, wrapped across a couple of extra full turns) so the
-    // "coast to a stop" never visually doubles as landing on the actual
-    // answer — it has to look like it's about to pick someone ELSE first.
-    const fakeArc      = 100 + Math.random() * 160;
-    const fakeOffset   = 360 * (2 + Math.floor(Math.random() * 2)) + fakeArc;
-    const fakeRotation = rotation + fakeOffset;
-
-    clearTimeout(fakeoutTimeoutRef.current);
+    clearTimeout(gimmickTimeoutRef.current);
     clearTimeout(spinTimeoutRef.current);
     clearTimeout(tensionTimeoutRef.current);
     clearTimeout(revealTimeoutRef.current);
+    clearInterval(shuffleIntervalRef.current);
 
-    setPhase('fakeout');
+    setPhase('spinning');
     setTensing(false);
-    setRotation(fakeRotation);
+    setStageLabel(null);
 
-    fakeoutTimeoutRef.current = setTimeout(() => {
-      // Burst back into it — a fresh transition target from wherever the
-      // fake-out coasted to, now running the real grinding-stop curve.
-      setPhase('final');
+    // The shared tail every gimmick eventually calls into — the real,
+    // deterministic spin onto the true winner, followed by the tension
+    // build, the settle, and the reveal.
+    const runFinal = () => {
+      setStageLabel(null);
+      setLabelOffset(0);
+      setTransitionCss(`transform ${FINAL_DURATION_MS}ms ${SPIN_EASE}`);
       setRotation(finalRotation);
 
       tensionTimeoutRef.current = setTimeout(() => {
@@ -178,7 +202,72 @@ export default function WheelOfNames({ names = [], onWinner, disabled = false })
           onWinner?.(names[winnerIdx]);
         }, REVEAL_PAUSE_MS);
       }, FINAL_DURATION_MS);
-    }, FAKEOUT_DURATION_MS);
+    };
+
+    const gimmick = GIMMICKS[Math.floor(Math.random() * GIMMICKS.length)];
+
+    if (gimmick === 'fakeout') {
+      // Spins hard, appears to coast down toward a stop that is NOT the
+      // winner — picked 100–260° away (wrapped across a couple of extra
+      // turns) so it can't visually double as landing on the real answer —
+      // then bursts back into the real spin.
+      const fakeArc    = 100 + Math.random() * 160;
+      const fakeOffset = 360 * (2 + Math.floor(Math.random() * 2)) + fakeArc;
+      setTransitionCss(`transform ${FAKEOUT_DURATION_MS}ms ${FAKEOUT_EASE}`);
+      setRotation(startRotation + fakeOffset);
+      gimmickTimeoutRef.current = setTimeout(runFinal, FAKEOUT_DURATION_MS);
+
+    } else if (gimmick === 'doublestop') {
+      // Spins, comes to a genuine, complete stop (not just a coast) — then
+      // a beat of stillness before it bursts back into the real spin.
+      const stopArc    = 100 + Math.random() * 160;
+      const stopOffset = 360 * (2 + Math.floor(Math.random() * 2)) + stopArc;
+      setTransitionCss(`transform ${DOUBLESTOP_SPIN_MS}ms ${EASE_INOUT}`);
+      setRotation(startRotation + stopOffset);
+      gimmickTimeoutRef.current = setTimeout(() => {
+        setStageLabel('WAIT, ONE MORE…');
+        gimmickTimeoutRef.current = setTimeout(runFinal, DOUBLESTOP_PAUSE_MS);
+      }, DOUBLESTOP_SPIN_MS);
+
+    } else if (gimmick === 'reverse') {
+      // Spins forward, "changes its mind," spins backward a stretch, then
+      // changes its mind again and bursts forward into the real spin.
+      const fwdRotation = startRotation + 500 + Math.random() * 300;
+      setTransitionCss(`transform ${REVERSE_FWD_MS}ms ${EASE_INOUT}`);
+      setRotation(fwdRotation);
+      gimmickTimeoutRef.current = setTimeout(() => {
+        setStageLabel('WAIT, NO—');
+        const backRotation = fwdRotation - (300 + Math.random() * 250);
+        setTransitionCss(`transform ${REVERSE_BACK_MS}ms ${EASE_SNAP}`);
+        setRotation(backRotation);
+        gimmickTimeoutRef.current = setTimeout(() => {
+          // A real pause here, not just a same-tick label swap — setStageLabel(null)
+          // inside runFinal() would otherwise batch with this into one render and
+          // this line would never actually be visible on screen.
+          setStageLabel('OKAY, FOR REAL—');
+          gimmickTimeoutRef.current = setTimeout(runFinal, REVERSE_SNAP_PAUSE_MS);
+        }, REVERSE_BACK_MS);
+      }, REVERSE_FWD_MS);
+
+    } else {
+      // 'shuffle' — the wheel itself just spins normally, but the NAME
+      // TEXT drawn in each wedge rapidly cycles through other candidates
+      // (a decorative index offset only — wedge geometry/color never
+      // moves), like a slot machine reconsidering its options, before
+      // snapping back to the true labels well before the real spin lands.
+      const shuffleTarget = startRotation + 360 * (3 + Math.floor(Math.random() * 2));
+      setTransitionCss(`transform ${SHUFFLE_SPIN_MS}ms ${EASE_INOUT}`);
+      setRotation(shuffleTarget);
+      setStageLabel('SHUFFLING…');
+      shuffleIntervalRef.current = setInterval(() => {
+        setLabelOffset((o) => (o + 1 + Math.floor(Math.random() * Math.max(1, names.length - 1))) % names.length);
+      }, SHUFFLE_STEP_MS);
+      gimmickTimeoutRef.current = setTimeout(() => {
+        clearInterval(shuffleIntervalRef.current);
+        setLabelOffset(0);
+        runFinal();
+      }, SHUFFLE_SPIN_MS);
+    }
   };
 
   return (
@@ -272,12 +361,17 @@ export default function WheelOfNames({ names = [], onWinner, disabled = false })
                 borderRadius: '50%',
                 display: 'block',
                 transform: `rotate(${rotation}deg)`,
-                transition: wheelTransition,
+                transition: transitionCss,
                 filter: 'drop-shadow(0 6px 18px rgba(0,0,0,.55))',
               }}
             >
               <circle cx={CENTER} cy={CENTER} r={RADIUS + 2} fill="none" stroke="var(--bright, #c8d8e8)" strokeWidth={2} />
-              {names.map((name, i) => {
+              {names.map((_, i) => {
+                // Wedge position/color always stay keyed to the real index i
+                // — only the TEXT drawn here shifts during the 'shuffle'
+                // gimmick's cosmetic window (labelOffset resets to 0 well
+                // before the wheel actually lands).
+                const shownName  = names[(i + labelOffset) % names.length];
                 const startAngle = i * segAngle;
                 const endAngle   = startAngle + segAngle;
                 const midAngle   = startAngle + segAngle / 2;
@@ -286,11 +380,11 @@ export default function WheelOfNames({ names = [], onWinner, disabled = false })
                 const textAngle  = flip ? midAngle + 180 : midAngle;
 
                 const maxWidth      = LABEL_R * (segAngle * Math.PI / 180) * 0.88;
-                const naturalWidth  = name.length * fontSize * 0.6;
+                const naturalWidth  = shownName.length * fontSize * 0.6;
                 const needsClamp    = naturalWidth > maxWidth;
 
                 return (
-                  <g key={`${name}-${i}`}>
+                  <g key={`slot-${i}`}>
                     <path d={wedgePath(startAngle, endAngle)} fill={PALETTE[i % PALETTE.length]} stroke="var(--bg)" strokeWidth={1.5} />
                     <text
                       x={labelPos.x}
@@ -305,7 +399,7 @@ export default function WheelOfNames({ names = [], onWinner, disabled = false })
                       transform={`rotate(${textAngle}, ${labelPos.x}, ${labelPos.y})`}
                       {...(needsClamp ? { textLength: maxWidth, lengthAdjust: 'spacingAndGlyphs' } : {})}
                     >
-                      {truncate(name)}
+                      {truncate(shownName)}
                     </text>
                   </g>
                 );
@@ -330,7 +424,7 @@ export default function WheelOfNames({ names = [], onWinner, disabled = false })
           cursor: canSpin ? 'pointer' : 'not-allowed',
         }}
       >
-        {settling ? '🥁 ● ● ●' : tensing ? TENSION_LINES[tensionLine] : spinning ? 'SPINNING…' : '◉ SPIN'}
+        {stageLabel ?? (settling ? '🥁 ● ● ●' : tensing ? TENSION_LINES[tensionLine] : spinning ? 'SPINNING…' : '◉ SPIN')}
       </button>
 
       {names.length === 1 && phase === 'idle' && (
