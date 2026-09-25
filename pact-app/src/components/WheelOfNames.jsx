@@ -53,10 +53,26 @@ const REVERSE_SNAP_PAUSE_MS = 500; // real, visible beat for "OKAY, FOR REAL—"
 const SHUFFLE_SPIN_MS   = 2600; // window during which the wedge labels rapidly cycle through other names
 const SHUFFLE_STEP_MS   = 130;
 
+// Fixed wall-clock cost of each gimmick, used only to figure out how much of
+// the randomized total budget (below) is left over for the real spin.
+const GIMMICK_COST_MS = {
+  fakeout:    FAKEOUT_DURATION_MS,
+  doublestop: DOUBLESTOP_SPIN_MS + DOUBLESTOP_PAUSE_MS,
+  reverse:    REVERSE_FWD_MS + REVERSE_BACK_MS + REVERSE_SNAP_PAUSE_MS,
+  shuffle:    SHUFFLE_SPIN_MS,
+};
+
 const EASE_INOUT = 'cubic-bezier(0.3, 0.7, 0.3, 1)';
 const EASE_SNAP  = 'cubic-bezier(0.5, 0, 0.5, 1)';
 
-const FINAL_DURATION_MS = 9500;
+// The whole visible spin (gimmick queue + the real grinding-stop phase, NOT
+// counting the post-stop reveal pause below) lands somewhere in this window
+// every time — nobody watching, including whoever clicked the button, knows
+// going in whether this one wraps up in 10 seconds or drags on for 20.
+const TOTAL_SPIN_MIN_MS      = 10000;
+const TOTAL_SPIN_MAX_MS      = 20000;
+const MIN_FINAL_DURATION_MS  = 5000; // floor so the real spin always gets a meaningful stretch, even after a costly gimmick chain
+
 const SPIN_EASE          = 'cubic-bezier(0.05, 0.9, 0.01, 1)'; // fast wind-up, very slow, grinding final crawl
 const TENSION_MS        = 2600; // last stretch of the real spin — glow/pointer quicken to build anticipation before it lands
 const REVEAL_PAUSE_MS   = 2600; // beat of silence between the wheel stopping and the winner banner appearing
@@ -188,6 +204,15 @@ export default function WheelOfNames({ names = [], onWinner, disabled = false })
     const extraSpins    = 360 * (10 + Math.floor(Math.random() * 4));
     const finalRotation = startRotation + delta + extraSpins;
 
+    // Total visible-spin budget randomized once per spin (10–20s) — the
+    // gimmick queue below is picked first since its cost is fixed per
+    // gimmick, and whatever's left over becomes the real spin's duration,
+    // floored so it never gets crowded out to something too short to read.
+    const gimmickQueue  = pickGimmickQueue();
+    const queueCost     = gimmickQueue.reduce((sum, g) => sum + GIMMICK_COST_MS[g], 0);
+    const totalBudgetMs = TOTAL_SPIN_MIN_MS + Math.random() * (TOTAL_SPIN_MAX_MS - TOTAL_SPIN_MIN_MS);
+    const finalDuration = Math.max(MIN_FINAL_DURATION_MS, Math.round(totalBudgetMs - queueCost));
+
     clearTimeout(gimmickTimeoutRef.current);
     clearTimeout(spinTimeoutRef.current);
     clearTimeout(tensionTimeoutRef.current);
@@ -204,12 +229,12 @@ export default function WheelOfNames({ names = [], onWinner, disabled = false })
     const runFinal = () => {
       setStageLabel(null);
       setLabelOffset(0);
-      setTransitionCss(`transform ${FINAL_DURATION_MS}ms ${SPIN_EASE}`);
+      setTransitionCss(`transform ${finalDuration}ms ${SPIN_EASE}`);
       setRotation(finalRotation);
 
       tensionTimeoutRef.current = setTimeout(() => {
         setTensing(true);
-      }, Math.max(0, FINAL_DURATION_MS - TENSION_MS));
+      }, Math.max(0, finalDuration - TENSION_MS));
 
       spinTimeoutRef.current = setTimeout(() => {
         setTensing(false);
@@ -220,7 +245,7 @@ export default function WheelOfNames({ names = [], onWinner, disabled = false })
           setConfetti(makeConfetti());
           onWinner?.(names[winnerIdx]);
         }, REVEAL_PAUSE_MS);
-      }, FINAL_DURATION_MS);
+      }, finalDuration);
     };
 
     // Each runner starts from `fromRotation`, does its own thing, and calls
@@ -308,7 +333,7 @@ export default function WheelOfNames({ names = [], onWinner, disabled = false })
       RUNNERS[head](fromRotation, (endRotation) => runQueue(rest, endRotation));
     };
 
-    runQueue(pickGimmickQueue(), startRotation);
+    runQueue(gimmickQueue, startRotation);
   };
 
   return (
