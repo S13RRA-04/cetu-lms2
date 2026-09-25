@@ -13,13 +13,19 @@
  * it, not replace it. See seed-pact-day4-toolbox-quiz.js.
  *
  * Same mc/blank/prompt helper shape as day3RoleSpecs.js/day4RoleSpecs.js —
- * cohort-wide, not role- or victim-scoped ("Complete individually," no role
- * gating in the source packet), so role_filters/victim_name both stay empty.
- * type:'challenge' (not 'module', unlike the existing Day 4 Lecture quizzes)
- * because each topic ends in a free-text short-answer item needing manual
- * grading — AssignmentPage.jsx routes a challenge with any kind:'prompt'
- * question to ChallengeFlow, which is what auto-graded-only 'module' quizzes
- * can't render.
+ * cohort-wide, not role- or victim-scoped, so role_filters/victim_name both
+ * stay empty. type:'challenge' (not 'module', unlike the existing Day 4
+ * Lecture quizzes) because each topic ends in a free-text short-answer item
+ * needing manual grading — AssignmentPage.jsx routes a challenge with any
+ * kind:'prompt' question to ChallengeFlow, which is what auto-graded-only
+ * 'module' quizzes can't render.
+ *
+ * grading_mode:'squad' per explicit instruction — overrides the source
+ * packet's own "Complete individually" framing, so DESCRIPTION below is
+ * reworded to match rather than telling a squad to work solo while grading
+ * them as one unit. This shape (squad-graded, payload checks mixed with
+ * free-text prompts, rendered via ChallengeFlow's shared/live-sync path) is
+ * already proven elsewhere in this course — e.g. day4CryptocurrencyWorkshopSpec.js.
  *
  * The instructor key flags four MC items [MUST-PASS] as the lesson plan's
  * core must-pass concepts — mapped to scoring.mustPass:true, an already-
@@ -31,7 +37,7 @@
 const { v4: uuidv4 } = require('uuid');
 
 const TITLE = "The Investigator's Toolbox — Quiz Module";
-const DESCRIPTION = 'Individual assessment for Day 4, Lecture 2 — investigative tooling, tool-selection discipline, and provenance discipline. Complete individually; short-answer items expect a few sentences, not a single word.';
+const DESCRIPTION = 'Squad assessment for Day 4, Lecture 2 — investigative tooling, tool-selection discipline, and provenance discipline. Complete together as a squad; short-answer items expect a few sentences, not a single word.';
 
 const MC_POINTS = 10;
 const BLANK_POINTS = 10;

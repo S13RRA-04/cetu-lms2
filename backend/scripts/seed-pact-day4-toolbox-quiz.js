@@ -60,7 +60,7 @@ async function main() {
             is_published, scenario_name, drop_number, victim_name, questions, role_filters,
             created_at, updated_at)
          VALUES
-           (:id, :courseId, :title, :description, 'challenge', 'individual', :maxScore, :orderIndex,
+           (:id, :courseId, :title, :description, 'challenge', 'squad', :maxScore, :orderIndex,
             false, NULL, NULL, NULL, :questions, ARRAY[]::text[],
             NOW(), NOW())`,
         {
