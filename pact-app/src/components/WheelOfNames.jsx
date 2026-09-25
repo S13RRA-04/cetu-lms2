@@ -249,12 +249,12 @@ export default function WheelOfNames({ names = [], onWinner, disabled = false })
         }, REVERSE_BACK_MS);
       }, REVERSE_FWD_MS);
 
-    } else {
-      // 'shuffle' — the wheel itself just spins normally, but the NAME
-      // TEXT drawn in each wedge rapidly cycles through other candidates
-      // (a decorative index offset only — wedge geometry/color never
-      // moves), like a slot machine reconsidering its options, before
-      // snapping back to the true labels well before the real spin lands.
+    } else if (gimmick === 'shuffle') {
+      // The wheel itself just spins normally, but the NAME TEXT drawn in
+      // each wedge rapidly cycles through other candidates (a decorative
+      // index offset only — wedge geometry/color never moves), like a slot
+      // machine reconsidering its options, before snapping back to the true
+      // labels well before the real spin lands.
       const shuffleTarget = startRotation + 360 * (3 + Math.floor(Math.random() * 2));
       setTransitionCss(`transform ${SHUFFLE_SPIN_MS}ms ${EASE_INOUT}`);
       setRotation(shuffleTarget);
@@ -267,6 +267,13 @@ export default function WheelOfNames({ names = [], onWinner, disabled = false })
         setLabelOffset(0);
         runFinal();
       }, SHUFFLE_SPIN_MS);
+
+    } else {
+      // 'plain' — no detour at all, straight into the real spin. Nothing
+      // here should look any different in the moment the button is pressed
+      // than the start of any other gimmick — see this file's header
+      // comment for why that's the point, not an oversight.
+      runFinal();
     }
   };
 
