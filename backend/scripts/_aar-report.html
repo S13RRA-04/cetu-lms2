@@ -1,0 +1,732 @@
+<title>PACT September AAR</title>
+<meta name="description" content="After-action report for the PACT September 2026 cohort: participation, pre/post assessment delta, and post-course survey results.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Public+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --paper:#eef0ea; --surface:#ffffff; --surface-2:#f5f6f0;
+    --ink:#1b2420; --ink-muted:#5b6b60; --line:#ccd1c3; --line-strong:#a8b09c;
+    --accent:#2b5f66; --accent-strong:#193d42; --accent-bg:#e2eceb;
+    --pos:#2f6b46; --pos-bg:#e2ede6;
+    --warn:#a8791f; --warn-bg:#f4ecd8;
+    --neg:#a3402c; --neg-bg:#f3e3dd;
+    --shadow: 0 1px 0 var(--line);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#14171a; --surface:#1b1f22; --surface-2:#20252a;
+      --ink:#e7e9e4; --ink-muted:#98a29b; --line:#2b3238; --line-strong:#3a434a;
+      --accent:#6fb3bb; --accent-strong:#9ccbd1; --accent-bg:#1d2d2f;
+      --pos:#5cae7c; --pos-bg:#1c2a21;
+      --warn:#d9a13f; --warn-bg:#2c2417;
+      --neg:#d9765f; --neg-bg:#2d1e19;
+      --shadow: 0 1px 0 var(--line);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#14171a; --surface:#1b1f22; --surface-2:#20252a;
+    --ink:#e7e9e4; --ink-muted:#98a29b; --line:#2b3238; --line-strong:#3a434a;
+    --accent:#6fb3bb; --accent-strong:#9ccbd1; --accent-bg:#1d2d2f;
+    --pos:#5cae7c; --pos-bg:#1c2a21;
+    --warn:#d9a13f; --warn-bg:#2c2417;
+    --neg:#d9765f; --neg-bg:#2d1e19;
+    --shadow: 0 1px 0 var(--line);
+  }
+
+  body{ background:var(--paper); color:var(--ink); font-family:'Public Sans',system-ui,sans-serif; padding-inline:16px; }
+  * { box-sizing:border-box; }
+  .wrap{ max-width:920px; margin:0 auto; padding-block:28px 64px; }
+
+  h1,h2,h3{ font-family:'Oswald',system-ui,sans-serif; text-transform:uppercase; letter-spacing:.02em; margin:0; color:var(--ink); }
+  .mono{ font-family:'IBM Plex Mono',ui-monospace,monospace; }
+  a{ color:var(--accent); }
+
+  /* ---- Header band ---- */
+  .band{
+    background:var(--accent-strong); color:#f2f4ee; border-radius:6px;
+    padding:22px 24px; margin-bottom:6px;
+    background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.035) 0 2px, transparent 2px 14px);
+  }
+  .band .eyebrow{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; opacity:.78; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .band .eyebrow .dot{ width:5px; height:5px; border-radius:50%; background:#e8c26b; display:inline-block; }
+  .band h1{ color:#fff; font-size:clamp(28px,5vw,40px); margin-top:6px; line-height:1.05; }
+  .band .sub{ font-size:15px; opacity:.86; margin-top:6px; max-width:56ch; }
+  .meta-row{
+    display:flex; flex-wrap:wrap; gap:0; margin-top:18px; border-top:1px solid rgba(255,255,255,.18);
+  }
+  .meta-row div{ flex:1 1 140px; padding:10px 14px 0 0; }
+  .meta-row .k{ font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.1em; opacity:.62; }
+  .meta-row .v{ font-family:'IBM Plex Mono',monospace; font-size:13px; margin-top:2px; }
+
+  /* ---- Section chrome ---- */
+  section{ margin-top:38px; }
+  .sec-head{ display:flex; align-items:baseline; gap:12px; border-bottom:2px solid var(--ink); padding-bottom:8px; margin-bottom:16px; }
+  .sec-head .num{ font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--accent); font-weight:600; }
+  .sec-head h2{ font-size:20px; }
+  .sec-note{ font-size:13px; color:var(--ink-muted); margin-top:-8px; margin-bottom:16px; max-width:70ch; }
+
+  p{ line-height:1.55; font-size:14.5px; }
+  .lede{ font-size:15.5px; max-width:72ch; }
+
+  /* ---- Stat tiles ---- */
+  .tiles{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:6px; overflow:hidden; margin:18px 0; }
+  .tile{ background:var(--surface); padding:16px 16px 14px; }
+  .tile .label{ font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-muted); font-family:'IBM Plex Mono',monospace; }
+  .tile .num{ font-family:'Oswald',sans-serif; font-size:30px; margin-top:4px; font-variant-numeric:tabular-nums; }
+  .tile .foot{ font-size:11.5px; color:var(--ink-muted); margin-top:2px; }
+  .tile .num.pos{ color:var(--pos); } .tile .num.warn{ color:var(--warn); } .tile .num.neg{ color:var(--neg); }
+
+  /* ---- Tables ---- */
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  .tablewrap{ overflow-x:auto; border:1px solid var(--line); border-radius:6px; background:var(--surface); }
+  th{ text-align:left; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-muted); font-weight:500; padding:9px 12px; border-bottom:1px solid var(--line-strong); background:var(--surface-2); position:sticky; top:0; }
+  td{ padding:7px 12px; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  tr:last-child td{ border-bottom:none; }
+  td.num, th.num{ text-align:right; }
+  .squad-hdr td{ background:var(--surface-2); font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--accent); font-weight:600; }
+  .delta{ font-family:'IBM Plex Mono',monospace; font-weight:600; padding:1px 6px; border-radius:3px; font-size:12px; }
+  .delta.pos{ color:var(--pos); background:var(--pos-bg); }
+  .delta.flat{ color:var(--ink-muted); background:var(--surface-2); }
+  .delta.na{ color:var(--ink-muted); }
+
+  /* ---- Distribution bars ---- */
+  .dist{ margin:14px 0; }
+  .dist .q{ font-size:13.5px; margin-bottom:6px; }
+  .dist .bar{ display:flex; height:20px; border-radius:3px; overflow:hidden; border:1px solid var(--line); }
+  .dist .seg{ height:100%; }
+  .seg.sd{ background:var(--neg); opacity:.55; } .seg.d{ background:var(--neg); opacity:.85; }
+  .seg.n{ background:var(--line-strong); }
+  .seg.a{ background:var(--pos); opacity:.8; } .seg.sa{ background:var(--pos); }
+  .dist .readout{ display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-muted); margin-top:4px; }
+  .legend{ display:flex; gap:14px; flex-wrap:wrap; font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-muted); margin:10px 0 18px; }
+  .legend span{ display:inline-flex; align-items:center; gap:5px; }
+  .legend i{ width:9px; height:9px; border-radius:2px; display:inline-block; }
+
+  /* ---- Callouts ---- */
+  .callout{ border:1px solid var(--line); border-left:4px solid var(--accent); background:var(--surface); border-radius:0 6px 6px 0; padding:14px 16px; margin:16px 0; }
+  .callout.warn{ border-left-color:var(--warn); }
+  .callout.neg{ border-left-color:var(--neg); }
+  .callout.pos{ border-left-color:var(--pos); }
+  .callout .tag{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-muted); margin-bottom:4px; }
+  .callout p{ margin:4px 0 0; }
+
+  .quote{ font-size:13.5px; font-style:italic; color:var(--ink); border-left:2px solid var(--line-strong); padding-left:12px; margin:8px 0; line-height:1.5; }
+  .quote cite{ display:block; font-style:normal; font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-muted); margin-top:3px; }
+
+  .theme-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px; margin:16px 0; }
+  .theme-card{ background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:14px 16px; }
+  .theme-card h3{ font-size:13.5px; display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .theme-card .count{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--accent); background:var(--accent-bg); padding:2px 8px; border-radius:10px; }
+
+  .notes-list{ font-size:13.5px; line-height:1.6; }
+  .notes-list li{ margin-bottom:8px; }
+
+  footer{ margin-top:46px; padding-top:16px; border-top:1px solid var(--line); font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-muted); display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+
+  @media (max-width:560px){
+    .meta-row div{ flex:1 1 45%; }
+    .band{ padding:18px 16px; }
+  }
+</style>
+
+<div class="wrap">
+
+  <div class="band">
+    <div class="eyebrow"><span class="dot"></span> PACT PROGRAM &middot; INTERNAL TRAINING RECORD &middot; NOT FOR EXTERNAL DISTRIBUTION</div>
+    <h1>After-Action Report</h1>
+    <div class="sub">PACT — September 2026 Cohort ("PACT September 26"). Prepared for program leadership and instructional staff.</div>
+    <div class="meta-row">
+      <div><div class="k">Course Dates</div><div class="v">2026-09-21 &rarr; 2026-09-25</div></div>
+      <div><div class="k">Cohort ID</div><div class="v">8139412f&hellip;5294c3</div></div>
+      <div><div class="k">Students (Clean)</div><div class="v">33</div></div>
+      <div><div class="k">Squads</div><div class="v">4</div></div>
+      <div><div class="k">Survey Responses</div><div class="v">33 / 33</div></div>
+      <div><div class="k">Prepared</div><div class="v">2026-09-27</div></div>
+    </div>
+  </div>
+
+  <!-- 01 EXECUTIVE SUMMARY -->
+  <section>
+    <div class="sec-head"><span class="num">01</span><h2>Executive Summary</h2></div>
+    <p class="lede">The September cohort closed with strong academic outcomes and near-universal survey participation. Grades were uniformly high (91% average, zero students below a B), and every student who sat both the pre- and post-course assessment improved. Two friction points recur across the qualitative record — application legibility/stability and the amount of unstructured investigation time per evidence drop — and both are specific enough to act on directly.</p>
+
+    <div class="tiles">
+      <div class="tile"><div class="label">Clean Roster</div><div class="num">33</div><div class="foot">36 raw enrollees, 3 excluded — see §07</div></div>
+      <div class="tile"><div class="label">Avg. Grade</div><div class="num pos">91%</div><div class="foot">24 A &middot; 9 B &middot; 0 C/D/F</div></div>
+      <div class="tile"><div class="label">Pre &rarr; Post Delta</div><div class="num pos">+7.0 pts</div><div class="foot">90.8% &rarr; 97.8% avg, n=31</div></div>
+      <div class="tile"><div class="label">Survey Response</div><div class="num">100%</div><div class="foot">33 of 33 clean students</div></div>
+      <div class="tile"><div class="label">Would Recommend</div><div class="num">76%</div><div class="foot">agree / strongly agree, n=33</div></div>
+      <div class="tile"><div class="label">App Reliability</div><div class="num neg">33%</div><div class="foot">agree it performed reliably; 42% disagreed</div></div>
+    </div>
+  </section>
+
+  <!-- 02 PARTICIPATION & PERFORMANCE -->
+  <section>
+    <div class="sec-head"><span class="num">02</span><h2>Participation &amp; Performance</h2></div>
+    <p class="sec-note">Figures below reflect the 33-student clean roster (duplicate and non-student accounts removed — §07). Avg% is each student's mean graded score across all assignments visible to their role.</p>
+
+    <div class="tablewrap" style="margin-bottom:20px;">
+      <table>
+        <thead><tr><th>Squad</th><th>Victim Code</th><th class="num">Members</th></tr></thead>
+        <tbody>
+          <tr><td>Squad 1</td><td class="mono">REDSTONE</td><td class="num">8</td></tr>
+          <tr><td>Squad 2</td><td class="mono">DOGWOOD</td><td class="num">9</td></tr>
+          <tr><td>Squad 3</td><td class="mono">CYBERDYNE</td><td class="num">7</td></tr>
+          <tr><td>Squad 4</td><td class="mono">PIXELPLAY</td><td class="num">9</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="tablewrap">
+      <table id="roster-table">
+        <thead><tr>
+          <th>Student</th><th>Squad</th><th class="num">Submitted</th><th class="num">Graded</th>
+          <th class="num">Avg %</th><th class="num">Pre %</th><th class="num">Post %</th><th class="num">&Delta;</th>
+        </tr></thead>
+        <tbody id="roster-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 03 PRE/POST DELTA -->
+  <section>
+    <div class="sec-head"><span class="num">03</span><h2>Pre/Post Assessment Delta</h2></div>
+    <p class="sec-note">Matched pre- and post-course assessment scores, per student. 31 of 33 students sat both assessments; 2 are missing one side (noted below) and excluded from the aggregate.</p>
+
+    <div class="tiles">
+      <div class="tile"><div class="label">Avg. Pretest</div><div class="num">90.8%</div><div class="foot">n=31</div></div>
+      <div class="tile"><div class="label">Avg. Posttest</div><div class="num">97.8%</div><div class="foot">n=31</div></div>
+      <div class="tile"><div class="label">Avg. Delta</div><div class="num pos">+7.0 pts</div><div class="foot">every matched student improved or held</div></div>
+      <div class="tile"><div class="label">Missing One Score</div><div class="num warn">2</div><div class="foot">C. D — no pretest &middot; W. Huntsville — no posttest</div></div>
+    </div>
+
+    <div class="callout pos">
+      <div class="tag">Notable gains</div>
+      <p><strong>Jacques (+17.1 pts)</strong>, <strong>Burlant (+12.9)</strong>, <strong>Fleet (+12.5)</strong>, <strong>Smith, J. (+11.2)</strong>, <strong>Costello (+10.9)</strong>, and <strong>Smith, P. (+10.5)</strong> posted the largest gains — each started below the cohort's pretest average and finished at or near the top of the post-test distribution.</p>
+    </div>
+    <div class="callout">
+      <div class="tag">Flat result</div>
+      <p><strong>Smith, S.</strong> is the one matched student without a net gain (92% &rarr; 91%, &minus;0.2 pts) — inside normal test-retest noise given a pretest already near the cohort ceiling, not a red flag on its own.</p>
+    </div>
+  </section>
+
+  <!-- 04 COURSE & INSTRUCTION SATISFACTION -->
+  <section>
+    <div class="sec-head"><span class="num">04</span><h2>Course &amp; Instruction Satisfaction</h2></div>
+    <p class="sec-note">Anonymous post-course survey, 33 of 33 clean students responding. Bars show Strongly Disagree &rarr; Strongly Agree share of responses.</p>
+    <div class="legend">
+      <span><i style="background:var(--neg);opacity:.55"></i>Strongly disagree</span>
+      <span><i style="background:var(--neg);opacity:.85"></i>Disagree</span>
+      <span><i style="background:var(--line-strong)"></i>Neutral</span>
+      <span><i style="background:var(--pos);opacity:.8"></i>Agree</span>
+      <span><i style="background:var(--pos)"></i>Strongly agree</span>
+    </div>
+    <div id="dist-content"></div>
+
+    <div class="callout pos">
+      <div class="tag">Instruction is the strongest single measure in the survey</div>
+      <p>Overall instructional effectiveness: <strong>82% agree/strongly agree, 0% disagree</strong>. Logistics (schedule, classroom, workload, communications) all scored 73–82% positive. Free-text comments were consistently warm toward individual instructors and guest speakers.</p>
+    </div>
+  </section>
+
+  <!-- 05 EVIDENCE DROP FORMAT & COLLABORATION -->
+  <section>
+    <div class="sec-head"><span class="num">05</span><h2>Evidence Drop Format &amp; Collaboration</h2></div>
+    <p class="sec-note">The drop &rarr; investigate &rarr; collaborate sequence is the course's signature format. Net favorable, but "independent investigation time" is the format's clearest weak point.</p>
+    <div id="dist-format"></div>
+
+    <div class="callout warn">
+      <div class="tag">Top requested format change (of 33 respondents)</div>
+      <p><strong>24% </strong>more briefing before each drop &middot; <strong>21%</strong> more independent investigation time &middot; <strong>21%</strong> more squad/class collaboration time &middot; <strong>18%</strong> smaller, more frequent drops &middot; <strong>6%</strong> keep as-is.</p>
+    </div>
+
+    <h3 style="font-size:13px;margin:22px 0 10px;">Thematic breakdown — 20 free-text recommendations, tagged by theme (not mutually exclusive)</h3>
+    <div class="theme-grid" id="theme-grid"></div>
+  </section>
+
+  <!-- 06 APPLICATION EXPERIENCE -->
+  <section>
+    <div class="sec-head"><span class="num">06</span><h2>Application Experience</h2></div>
+    <p class="sec-note">The one section where sentiment turns net negative. This is a build/UX risk, not an instructional one — worth separating cleanly from §§04–05 when this report is read.</p>
+    <div id="dist-app"></div>
+
+    <div class="callout neg">
+      <div class="tag">Single largest actionable finding in this report</div>
+      <p>At least <strong>12 of 33 responses</strong>, independently, across two separate free-text questions, named the same specific problem: low-contrast text (gray-on-gray, gray-on-black), animated scanline/CRT-style visual effects, and motion graphics that were hard to read and — for several students — correlated with their laptop crashing or needing "graphics acceleration" disabled in the browser to stay usable. This was volunteered, not prompted by a leading question.</p>
+    </div>
+
+    <div class="quote">"Super hard for me to read. The lines going down the pages and flashing made it difficult to digest the information."<cite>App issue — most affected</cite></div>
+    <div class="quote">"The visuals were extremely difficult to work with. The lines running down the text was distracting, but the biggest issue was the color schemes… gray font on black background, gray font on white background, black font on black background."<cite>App issue — most affected</cite></div>
+    <div class="quote">"The site crashed my laptop a half dozen times in the first few days… I really think the more 'cyber' design elements deter from the legibility of the site (moving graphics, flashing background, similar color text to background)."<cite>App issue — most affected</cite></div>
+    <div class="quote">"****Ensure the text is legible (black text/white background)****"<cite>What to improve first</cite></div>
+    <div class="quote">"The font/background color scheme — this will make the world of difference for users. Followed narrowly in second by the lines moving down the screen."<cite>What to improve first</cite></div>
+
+    <p style="margin-top:14px;">Underneath the visual-effects complaint, the application otherwise reads as well-liked in concept: 22 of 33 free-text answers on "what did you like most" praised the format itself — link analysis, squad standings, role-tailored views, the drop-based structure — unprompted, in the same survey. This is a legibility/performance-tuning problem on a concept respondents want kept, not a request to abandon the format.</p>
+  </section>
+
+  <!-- 07 DATA NOTES -->
+  <section>
+    <div class="sec-head"><span class="num">07</span><h2>Data Notes &amp; Methodology</h2></div>
+    <ul class="notes-list">
+      <li><strong>36 → 33 roster cleaning.</strong> Three accounts were excluded from every figure in this report: one system-flagged duplicate (inactive, <span class="mono">duplicate+…invalid</span> email), one unused duplicate signup that never logged in (a second, real account for the same student has 23 submissions and is included), and one account matching this course's known staff-preview-account pattern. All three carried squad assignments and would otherwise have skewed squad rosters and course-wide averages.</li>
+      <li><strong>Grade distribution and average are recomputed from the clean roster,</strong> not read directly from the platform's course-analytics summary, which still includes the 3 excluded accounts.</li>
+      <li><strong>The platform's built-in "at-risk" metric was deliberately not used in this report.</strong> Its submission-rate calculation divides each student's submitted-assignment count by the course-wide total of published assignments (167) rather than the subset actually visible to that student under role-based content gating — so it currently flags effectively the entire cohort as "at risk" regardless of actual performance. That is a platform bug, not a cohort finding; it is noted here so the number doesn't surface elsewhere without this context.</li>
+      <li><strong>Pre/post scores</strong> are matched by student account via the platform's pretest/posttest assignment records. 2 of 33 students are missing one side of the pair and are excluded only from the pre/post aggregate (§03), not from participation or survey figures.</li>
+      <li><strong>Survey results are anonymous by design</strong> and cannot be — and were not — matched back to individual students; §04–§06 report cohort-level aggregates and unattributed verbatim quotes only.</li>
+    </ul>
+  </section>
+
+  <footer>
+    <span>PACT — September 2026 Cohort AAR</span>
+    <span>Internal training record — not for external distribution</span>
+  </footer>
+</div>
+
+<script>
+(function(){
+  var roster = [
+ {
+  "name": "Burlant, Zack",
+  "squad": 1,
+  "victim": "REDSTONE",
+  "submitted": 13,
+  "graded": 24,
+  "avgPct": 91.5,
+  "prePct": 86,
+  "postPct": 99,
+  "deltaPct": 12.9
+ },
+ {
+  "name": "Cotter, Brian",
+  "squad": 1,
+  "victim": "REDSTONE",
+  "submitted": 12,
+  "graded": 21,
+  "avgPct": 90.7,
+  "prePct": 91,
+  "postPct": 92,
+  "deltaPct": 1.4
+ },
+ {
+  "name": "Dumaine, Michael",
+  "squad": 1,
+  "victim": "REDSTONE",
+  "submitted": 17,
+  "graded": 24,
+  "avgPct": 93.9,
+  "prePct": 92,
+  "postPct": 100,
+  "deltaPct": 8.4
+ },
+ {
+  "name": "Garner, Alison",
+  "squad": 1,
+  "victim": "REDSTONE",
+  "submitted": 11,
+  "graded": 21,
+  "avgPct": 92.6,
+  "prePct": 92,
+  "postPct": 100,
+  "deltaPct": 8.4
+ },
+ {
+  "name": "Green, Simone",
+  "squad": 1,
+  "victim": "REDSTONE",
+  "submitted": 18,
+  "graded": 24,
+  "avgPct": 95,
+  "prePct": 91,
+  "postPct": 100,
+  "deltaPct": 9.2
+ },
+ {
+  "name": "Jacques, Whitney",
+  "squad": 1,
+  "victim": "REDSTONE",
+  "submitted": 14,
+  "graded": 24,
+  "avgPct": 88.2,
+  "prePct": 82,
+  "postPct": 99,
+  "deltaPct": 17.1
+ },
+ {
+  "name": "Rueger, Niki",
+  "squad": 1,
+  "victim": "REDSTONE",
+  "submitted": 12,
+  "graded": 21,
+  "avgPct": 93.1,
+  "prePct": 89,
+  "postPct": 96,
+  "deltaPct": 7.4
+ },
+ {
+  "name": "Ta, Albert",
+  "squad": 1,
+  "victim": "REDSTONE",
+  "submitted": 13,
+  "graded": 23,
+  "avgPct": 92.9,
+  "prePct": 92,
+  "postPct": 99,
+  "deltaPct": 7
+ },
+ {
+  "name": "Bradley, Marcus",
+  "squad": 2,
+  "victim": "DOGWOOD",
+  "submitted": 13,
+  "graded": 23,
+  "avgPct": 91.5,
+  "prePct": 88,
+  "postPct": 97,
+  "deltaPct": 8.9
+ },
+ {
+  "name": "Collins, Eric",
+  "squad": 2,
+  "victim": "DOGWOOD",
+  "submitted": 14,
+  "graded": 24,
+  "avgPct": 92.8,
+  "prePct": 93,
+  "postPct": 100,
+  "deltaPct": 6.7
+ },
+ {
+  "name": "D, Carmen",
+  "squad": 2,
+  "victim": "DOGWOOD",
+  "submitted": 12,
+  "graded": 23,
+  "avgPct": 87,
+  "prePct": null,
+  "postPct": 92,
+  "deltaPct": null
+ },
+ {
+  "name": "Gawkins, MaryCate",
+  "squad": 2,
+  "victim": "DOGWOOD",
+  "submitted": 13,
+  "graded": 24,
+  "avgPct": 91.3,
+  "prePct": 95,
+  "postPct": 100,
+  "deltaPct": 5
+ },
+ {
+  "name": "Hernandez , Alexa",
+  "squad": 2,
+  "victim": "DOGWOOD",
+  "submitted": 14,
+  "graded": 24,
+  "avgPct": 90.6,
+  "prePct": 92,
+  "postPct": 100,
+  "deltaPct": 8.4
+ },
+ {
+  "name": "Huntsville, Will",
+  "squad": 2,
+  "victim": "DOGWOOD",
+  "submitted": 11,
+  "graded": 23,
+  "avgPct": 91,
+  "prePct": 92,
+  "postPct": null,
+  "deltaPct": null
+ },
+ {
+  "name": "Reyes, Jocelyn",
+  "squad": 2,
+  "victim": "DOGWOOD",
+  "submitted": 13,
+  "graded": 24,
+  "avgPct": 92.9,
+  "prePct": 90,
+  "postPct": 97,
+  "deltaPct": 7.2
+ },
+ {
+  "name": "Salas, Francisco",
+  "squad": 2,
+  "victim": "DOGWOOD",
+  "submitted": 21,
+  "graded": 24,
+  "avgPct": 91.5,
+  "prePct": 95,
+  "postPct": 97,
+  "deltaPct": 2.2
+ },
+ {
+  "name": "Todaro, Joseph",
+  "squad": 2,
+  "victim": "DOGWOOD",
+  "submitted": 14,
+  "graded": 24,
+  "avgPct": 90.7,
+  "prePct": 95,
+  "postPct": 99,
+  "deltaPct": 3.6
+ },
+ {
+  "name": "Brown, Logan",
+  "squad": 3,
+  "victim": "CYBERDYNE",
+  "submitted": 20,
+  "graded": 24,
+  "avgPct": 90.1,
+  "prePct": 93,
+  "postPct": 100,
+  "deltaPct": 6.7
+ },
+ {
+  "name": "Costello, William",
+  "squad": 3,
+  "victim": "CYBERDYNE",
+  "submitted": 16,
+  "graded": 23,
+  "avgPct": 89.3,
+  "prePct": 89,
+  "postPct": 100,
+  "deltaPct": 10.9
+ },
+ {
+  "name": "Griffin, Marcus",
+  "squad": 3,
+  "victim": "CYBERDYNE",
+  "submitted": 14,
+  "graded": 24,
+  "avgPct": 88.7,
+  "prePct": 92,
+  "postPct": 100,
+  "deltaPct": 7.6
+ },
+ {
+  "name": "Murphy, Allysia",
+  "squad": 3,
+  "victim": "CYBERDYNE",
+  "submitted": 14,
+  "graded": 24,
+  "avgPct": 91.3,
+  "prePct": 97,
+  "postPct": 100,
+  "deltaPct": 3.4
+ },
+ {
+  "name": "Pact, Lucy",
+  "squad": 3,
+  "victim": "CYBERDYNE",
+  "submitted": 10,
+  "graded": 21,
+  "avgPct": 89.2,
+  "prePct": 95,
+  "postPct": 100,
+  "deltaPct": 5
+ },
+ {
+  "name": "Penka, Connie",
+  "squad": 3,
+  "victim": "CYBERDYNE",
+  "submitted": 13,
+  "graded": 24,
+  "avgPct": 88.3,
+  "prePct": 93,
+  "postPct": 96,
+  "deltaPct": 2.4
+ },
+ {
+  "name": "Smith, Poco",
+  "squad": 3,
+  "victim": "CYBERDYNE",
+  "submitted": 13,
+  "graded": 24,
+  "avgPct": 88.1,
+  "prePct": 82,
+  "postPct": 93,
+  "deltaPct": 10.5
+ },
+ {
+  "name": "Carrington, Nathan",
+  "squad": 4,
+  "victim": "PIXELPLAY",
+  "submitted": 14,
+  "graded": 24,
+  "avgPct": 94,
+  "prePct": 93,
+  "postPct": 99,
+  "deltaPct": 5.3
+ },
+ {
+  "name": "Dawson, Christian",
+  "squad": 4,
+  "victim": "PIXELPLAY",
+  "submitted": 16,
+  "graded": 24,
+  "avgPct": 94.8,
+  "prePct": 95,
+  "postPct": 100,
+  "deltaPct": 5
+ },
+ {
+  "name": "Fleet, Jasmine",
+  "squad": 4,
+  "victim": "PIXELPLAY",
+  "submitted": 16,
+  "graded": 24,
+  "avgPct": 88.2,
+  "prePct": 74,
+  "postPct": 86,
+  "deltaPct": 12.5
+ },
+ {
+  "name": "Moore, James",
+  "squad": 4,
+  "victim": "PIXELPLAY",
+  "submitted": 12,
+  "graded": 23,
+  "avgPct": 91.3,
+  "prePct": 91,
+  "postPct": 96,
+  "deltaPct": 5
+ },
+ {
+  "name": "Perfetti, May",
+  "squad": 4,
+  "victim": "PIXELPLAY",
+  "submitted": 13,
+  "graded": 24,
+  "avgPct": 91.5,
+  "prePct": 95,
+  "postPct": 99,
+  "deltaPct": 3.6
+ },
+ {
+  "name": "Rogers, Anne Marie",
+  "squad": 4,
+  "victim": "PIXELPLAY",
+  "submitted": 15,
+  "graded": 24,
+  "avgPct": 92.7,
+  "prePct": 95,
+  "postPct": 100,
+  "deltaPct": 5
+ },
+ {
+  "name": "Smith, Jon",
+  "squad": 4,
+  "victim": "PIXELPLAY",
+  "submitted": 16,
+  "graded": 24,
+  "avgPct": 92.4,
+  "prePct": 87,
+  "postPct": 99,
+  "deltaPct": 11.2
+ },
+ {
+  "name": "Smith, Sofia",
+  "squad": 4,
+  "victim": "PIXELPLAY",
+  "submitted": 16,
+  "graded": 24,
+  "avgPct": 89.6,
+  "prePct": 92,
+  "postPct": 91,
+  "deltaPct": -0.2
+ },
+ {
+  "name": "Veara, Edward",
+  "squad": 4,
+  "victim": "PIXELPLAY",
+  "submitted": 13,
+  "graded": 24,
+  "avgPct": 93.2,
+  "prePct": 92,
+  "postPct": 100,
+  "deltaPct": 8.4
+ }
+];
+
+  var victimBySquad = {1:'REDSTONE',2:'DOGWOOD',3:'CYBERDYNE',4:'PIXELPLAY'};
+  var tbody = document.getElementById('roster-body');
+  var rows = [];
+  var curSquad = null;
+  roster.forEach(function(r){
+    if (r.squad !== curSquad){
+      curSquad = r.squad;
+      rows.push('<tr class="squad-hdr"><td colspan="8">Squad '+r.squad+' — '+victimBySquad[r.squad]+'</td></tr>');
+    }
+    var d = r.deltaPct;
+    var deltaHtml;
+    if (d === null) deltaHtml = '<span class="delta na">&mdash;</span>';
+    else if (d > 0.3) deltaHtml = '<span class="delta pos">+'+d.toFixed(1)+'</span>';
+    else deltaHtml = '<span class="delta flat">'+d.toFixed(1)+'</span>';
+    rows.push(
+      '<tr><td>'+r.name+'</td><td class="mono">Sq'+r.squad+'</td>'+
+      '<td class="num">'+r.submitted+'</td><td class="num">'+r.graded+'</td>'+
+      '<td class="num">'+r.avgPct+'%</td>'+
+      '<td class="num">'+(r.prePct===null?'&mdash;':r.prePct+'%')+'</td>'+
+      '<td class="num">'+(r.postPct===null?'&mdash;':r.postPct+'%')+'</td>'+
+      '<td class="num">'+deltaHtml+'</td></tr>'
+    );
+  });
+  tbody.innerHTML = rows.join('');
+
+  function bar(prompt, counts, answered){
+    var order = ['sd','d','n','a','sa'];
+    var seg = order.map(function(k){
+      var v = counts[k];
+      var pct = Math.round((v/answered)*1000)/10;
+      return '<div class="seg '+k+'" style="width:'+pct+'%" title="'+pct+'%"></div>';
+    }).join('');
+    var agree = Math.round(((counts.a+counts.sa)/answered)*100);
+    var disagree = Math.round(((counts.sd+counts.d)/answered)*100);
+    return '<div class="dist"><div class="q">'+prompt+'</div><div class="bar">'+seg+'</div>'+
+      '<div class="readout"><span>'+disagree+'% disagree</span><span>'+agree+'% agree</span></div></div>';
+  }
+
+  var contentQs = [
+    ['The course objectives were clear from the beginning.', {sd:1,d:4,n:3,a:18,sa:7}, 33],
+    ['The course material was relevant to my role and learning goals.', {sd:0,d:2,n:5,a:16,sa:10}, 33],
+    ['The pacing of the course was appropriate.', {sd:1,d:6,n:8,a:14,sa:4}, 33],
+    ['Hands-on exercises reinforced key concepts effectively.', {sd:1,d:8,n:3,a:14,sa:7}, 33],
+    ['I would recommend this course to another analyst.', {sd:1,d:1,n:6,a:18,sa:7}, 33],
+    ['Overall, how effective was the instructional experience?', {sd:0,d:0,n:6,a:16,sa:11}, 33],
+    ['The schedule and timing worked well for me.', {sd:0,d:2,n:7,a:11,sa:13}, 33],
+    ['Class communications and updates were timely and clear.', {sd:2,d:2,n:4,a:14,sa:11}, 33],
+  ];
+  document.getElementById('dist-content').innerHTML = contentQs.map(function(q){return bar(q[0],q[1],q[2]);}).join('');
+
+  var formatQs = [
+    ['The drop &rarr; investigate &rarr; collaborate sequence supported my learning.', {sd:2,d:3,n:5,a:13,sa:10}, 33],
+    ['Evidence drops arrived at an appropriate pace / manageable volume.', {sd:2,d:4,n:11,a:11,sa:5}, 33],
+    ['I had enough time to investigate independently before collaborating.', {sd:6,d:10,n:6,a:8,sa:3}, 33],
+    ['Collaboration helped me reach conclusions I would not have reached alone.', {sd:1,d:1,n:6,a:15,sa:10}, 33],
+    ['The individual / squad collaboration balance was appropriate.', {sd:2,d:2,n:7,a:18,sa:4}, 33],
+  ];
+  document.getElementById('dist-format').innerHTML = formatQs.map(function(q){return bar(q[0],q[1],q[2]);}).join('');
+
+  var appQs = [
+    ['The application performed reliably during class exercises.', {sd:7,d:7,n:8,a:9,sa:2}, 33],
+    ['Pages and workflows loaded fast enough for class use.', {sd:1,d:5,n:9,a:13,sa:5}, 33],
+    ['The CTF and challenge tools were responsive.', {sd:0,d:4,n:12,a:13,sa:4}, 33],
+    ['I liked the application interface and usability.', {sd:2,d:6,n:12,a:8,sa:5}, 33],
+  ];
+  document.getElementById('dist-app').innerHTML = appQs.map(function(q){return bar(q[0],q[1],q[2]);}).join('');
+
+  var themes = [
+    ['Collaboration & information sharing', 7, 'Squads want more structured, evenly-distributed collaboration time — several noted that time pressure forced "divide and conquer" instead of genuine group analysis.'],
+    ['Independent investigation time', 6, 'The most repeated concrete ask: time to read and think individually before being pulled into squad breakouts.'],
+    ['Application & tools', 4, 'Overlaps with §06 — several respondents tied evidence-drop friction directly to app reliability, not just format.'],
+    ['Briefing & guidance', 3, 'Requests for more context before a drop lands — "what am I about to receive and why" — rather than more raw material.'],
+    ['Pacing & volume', 2, 'A minority view, but specific: fewer, more tool-focused questions per drop rather than broad content coverage.'],
+    ['Other', 8, 'Mixed — slide availability in advance, quiz relevance, cryptocurrency-block repetition, and one strongly positive close-out comment.'],
+  ];
+  document.getElementById('theme-grid').innerHTML = themes.map(function(t){
+    return '<div class="theme-card"><h3>'+t[0]+'<span class="count">'+t[1]+'</span></h3><p style="font-size:12.5px;color:var(--ink-muted);margin:0;">'+t[2]+'</p></div>';
+  }).join('');
+})();
+</script>

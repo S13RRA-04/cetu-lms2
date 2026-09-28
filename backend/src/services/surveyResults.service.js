@@ -1,6 +1,6 @@
 'use strict';
 const { Op } = require('sequelize');
-const { Assignment, Submission } = require('../models');
+const { Assignment, Submission, Enrollment } = require('../models');
 const { NotFoundError, AppError } = require('../utils/errors');
 const MIN_ANONYMOUS_RESPONSES = 3;
 function shouldSuppressAnonymousResults(responseCount) {
@@ -44,11 +44,28 @@ function aggregateSurveyResults(questions, responseSets) {
   const comments = responseSets.map((responses) => String(responses.q35 ?? '').trim()).filter(Boolean);
   return { response_count: responseSets.length, sections, distributions, text_responses: textResponses, recommendation_count: comments.length, recommendation_groups: groupRecommendations(comments) };
 }
-async function getSurveyResults(assignmentId) {
-  const assignment = await Assignment.findByPk(assignmentId, { attributes: ['id', 'title', 'type', 'questions'] });
+// cohortId scopes results to that cohort's enrolled students, WITHOUT
+// breaking anonymity — it filters which submissions feed the aggregate via
+// each submitter's own Enrollment (never exposing which specific student
+// wrote which response, same as the unscoped path). Needed because a
+// course's Post-Course Survey is one shared assignment row across every
+// cohort that's ever taken it, so "just this cohort's results" isn't
+// something the unfiltered query can answer on its own.
+async function getSurveyResults(assignmentId, cohortId = null) {
+  const assignment = await Assignment.findByPk(assignmentId, { attributes: ['id', 'title', 'type', 'questions', 'course_id'] });
   if (!assignment) throw new NotFoundError('Assignment');
   if (assignment.type !== 'survey') throw new AppError('Results aggregation is available only for surveys', 400, 'NOT_A_SURVEY');
-  const rows = await Submission.findAll({ where: { assignment_id: assignmentId, status: { [Op.in]: ['submitted', 'graded', 'returned'] } }, attributes: ['content'] });
+
+  const where = { assignment_id: assignmentId, status: { [Op.in]: ['submitted', 'graded', 'returned'] } };
+  if (cohortId) {
+    const enrollments = await Enrollment.findAll({
+      where: { course_id: assignment.course_id, cohort_id: cohortId },
+      attributes: ['user_id'],
+    });
+    where.user_id = enrollments.map((e) => e.user_id);
+  }
+
+  const rows = await Submission.findAll({ where, attributes: ['content'] });
   const responses = rows.map((row) => parseResponses(row.content)).filter(Boolean);
   if (shouldSuppressAnonymousResults(responses.length)) {
     return {

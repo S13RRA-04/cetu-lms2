@@ -2990,18 +2990,114 @@ function ModulesGating({ assignments, cohorts, contentItems = [], onUnlocksChang
   );
 }
 
-function SurveyResultsPanel({ assignmentId }) {
+// CSV export — same download-as-blob pattern as downloadQuestionSet above.
+// Free-text responses get one row each (not crammed into one cell) so the
+// export stays a real, sortable/filterable spreadsheet rather than a dump.
+function csvEscape(value) {
+  const str = String(value ?? '');
+  return /[",\r\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+}
+function csvRow(fields) {
+  return fields.map(csvEscape).join(',') + '\r\n';
+}
+function buildSurveyCsv(results, cohortLabel) {
+  let csv = '';
+  csv += csvRow(['Survey', results.assignment?.title ?? '']);
+  csv += csvRow(['Cohort', cohortLabel]);
+  csv += csvRow(['Response count', results.response_count]);
+  csv += csvRow(['Generated', new Date().toLocaleString()]);
+  csv += '\r\n';
+
+  for (const section of results.sections ?? []) {
+    csv += csvRow([section.title]);
+    if (section.distributions.length > 0) {
+      csv += csvRow(['Question', 'Option', 'Count', 'Percent']);
+      for (const q of section.distributions) {
+        for (const option of q.options) {
+          csv += csvRow([q.prompt, option.label, option.count, `${option.percent}%`]);
+        }
+      }
+      csv += '\r\n';
+    }
+    for (const q of section.text_responses) {
+      csv += csvRow([q.prompt]);
+      csv += csvRow(['#', 'Response']);
+      if (q.responses.length === 0) {
+        csv += csvRow(['', '(no written responses)']);
+      } else {
+        q.responses.forEach((response, i) => { csv += csvRow([i + 1, response]); });
+      }
+      csv += '\r\n';
+    }
+  }
+  return csv;
+}
+function downloadSurveyCsv(results, cohortLabel, filenameSuffix) {
+  const csv = buildSurveyCsv(results, cohortLabel);
+  // Leading BOM so Excel opens the UTF-8 file (em dashes, curly quotes in
+  // free-text responses) without mangling it into Latin-1 mojibake.
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `post-course-survey_${filenameSuffix}_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function SurveyResultsPanel({ assignmentId, cohorts = [] }) {
+  const [cohortFilter, setCohortFilter] = useState('');
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   useEffect(() => {
     setLoading(true); setError('');
-    getSurveyResults(assignmentId).then(setResults).catch((e) => setError(e.response?.data?.error?.message ?? 'Unable to load survey results')).finally(() => setLoading(false));
-  }, [assignmentId]);
-  if (loading) return <div style={{ padding: 18 }}><div className="spinner" /></div>;
-  if (error) return <div className="err-msg" style={{ margin: 16 }}>{error}</div>;
-  if (!results) return null;
+    getSurveyResults(assignmentId, cohortFilter || null)
+      .then(setResults)
+      .catch((e) => setError(e.response?.data?.error?.message ?? 'Unable to load survey results'))
+      .finally(() => setLoading(false));
+  }, [assignmentId, cohortFilter]);
+
+  const sortedCohorts = [...cohorts].sort((a, b) => a.name.localeCompare(b.name));
+  const cohortLabel   = cohortFilter ? (cohorts.find((c) => c.id === cohortFilter)?.name ?? 'Selected cohort') : 'All cohorts';
+  const canExport     = !!results && !results.results_suppressed && results.response_count > 0;
+
+  const handleExport = () => {
+    if (!canExport) return;
+    const suffix = (cohortFilter ? cohortLabel : 'all_cohorts').replace(/[^\w.-]+/g, '_');
+    downloadSurveyCsv(results, cohortLabel, suffix);
+  };
+
   return <div className="survey-results-admin">
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+        <span style={{ color: 'var(--muted)' }}>Cohort</span>
+        <select
+          value={cohortFilter}
+          onChange={(e) => setCohortFilter(e.target.value)}
+          style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 12 }}
+        >
+          <option value="">All cohorts</option>
+          {sortedCohorts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </label>
+      <button
+        type="button"
+        className="btn-secondary"
+        disabled={!canExport}
+        onClick={handleExport}
+        style={{ fontSize: 11, padding: '5px 10px' }}
+        title={canExport ? `Export ${cohortLabel} results as CSV` : 'No results available to export yet'}
+      >
+        ↓ Export CSV
+      </button>
+    </div>
+    {loading ? <div style={{ padding: 18 }}><div className="spinner" /></div>
+      : error ? <div className="err-msg" style={{ margin: 16 }}>{error}</div>
+      : !results ? null
+      : <>
     <div className="survey-results-summary"><strong>{results.response_count}</strong><span>submitted responses</span><strong>{results.recommendation_count}</strong><span>written format recommendations</span></div>
     {results.results_suppressed ? (
       <p className="survey-results-empty">
@@ -3023,6 +3119,7 @@ function SurveyResultsPanel({ assignmentId }) {
             : question.responses.map((response, index) => <blockquote key={`${question.id}:${index}`}>{response}</blockquote>)}
         </details>)}
       </div>)}
+    </>}
     </>}
   </div>;
 }
@@ -3849,7 +3946,7 @@ function AssessmentSurveyGating({ assignments, cohorts, onUnlocksChange, onAssig
                 <div className="admin-right-sub">{selected.type}</div>
               </div>
             </div>
-            {selected.type === 'survey' && <SurveyResultsPanel assignmentId={selected.id} />}
+            {selected.type === 'survey' && <SurveyResultsPanel assignmentId={selected.id} cohorts={cohorts} />}
             {selected.type !== 'survey' && (
               <QuestionsEditor
                 key={selected.id}

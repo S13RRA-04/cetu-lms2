@@ -1,0 +1,432 @@
+﻿Survey,Post-Course Survey
+Cohort,PACT September 26
+Response count,33
+Generated,"9/27/2026, 11:31:12 PM"
+
+Course Content
+Question,Option,Count,Percent
+The course objectives were clear from the beginning.,Strongly disagree,1,3%
+The course objectives were clear from the beginning.,Disagree,4,12%
+The course objectives were clear from the beginning.,Neutral,3,9%
+The course objectives were clear from the beginning.,Agree,18,55%
+The course objectives were clear from the beginning.,Strongly agree,7,21%
+The course material was relevant to my role and learning goals.,Strongly disagree,0,0%
+The course material was relevant to my role and learning goals.,Disagree,2,6%
+The course material was relevant to my role and learning goals.,Neutral,5,15%
+The course material was relevant to my role and learning goals.,Agree,16,48%
+The course material was relevant to my role and learning goals.,Strongly agree,10,30%
+The pacing of the course was appropriate.,Strongly disagree,1,3%
+The pacing of the course was appropriate.,Disagree,6,18%
+The pacing of the course was appropriate.,Neutral,8,24%
+The pacing of the course was appropriate.,Agree,14,42%
+The pacing of the course was appropriate.,Strongly agree,4,12%
+Hands-on exercises reinforced key concepts effectively.,Strongly disagree,1,3%
+Hands-on exercises reinforced key concepts effectively.,Disagree,8,24%
+Hands-on exercises reinforced key concepts effectively.,Neutral,3,9%
+Hands-on exercises reinforced key concepts effectively.,Agree,14,42%
+Hands-on exercises reinforced key concepts effectively.,Strongly agree,7,21%
+The instructor explanations were clear and actionable.,Strongly disagree,1,3%
+The instructor explanations were clear and actionable.,Disagree,3,9%
+The instructor explanations were clear and actionable.,Neutral,5,15%
+The instructor explanations were clear and actionable.,Agree,13,39%
+The instructor explanations were clear and actionable.,Strongly agree,11,33%
+I can apply what I learned to real-world security work.,Strongly disagree,0,0%
+I can apply what I learned to real-world security work.,Disagree,1,3%
+I can apply what I learned to real-world security work.,Neutral,7,21%
+I can apply what I learned to real-world security work.,Agree,16,48%
+I can apply what I learned to real-world security work.,Strongly agree,9,27%
+The challenge difficulty progression felt appropriate.,Strongly disagree,0,0%
+The challenge difficulty progression felt appropriate.,Disagree,2,6%
+The challenge difficulty progression felt appropriate.,Neutral,11,33%
+The challenge difficulty progression felt appropriate.,Agree,16,48%
+The challenge difficulty progression felt appropriate.,Strongly agree,4,12%
+I would recommend this course to another analyst.,Strongly disagree,1,3%
+I would recommend this course to another analyst.,Disagree,1,3%
+I would recommend this course to another analyst.,Neutral,6,18%
+I would recommend this course to another analyst.,Agree,18,55%
+I would recommend this course to another analyst.,Strongly agree,7,21%
+
+What was the most valuable part of the course?
+#,Response
+1,"Case Studies, would have liked the instructors to talk more about the case studies--the case tools used/ how it could be worked today"
+2,Being in groups to complete challenges was great to be able to learn how and who would do various roles in a more realistic setting. And to be able to connect with others from across the Bureau.
+3,"I really enjoyed the practical exercises, but I think there is a lot that could be improved upon (see below)."
+4,Interacting with analysts and agents from across the country and understanding the similarities and differences in their work and mine.
+5,"I really liked the pact.cetu interface. It was engaging and fun and held my attention. 
+I thought the quizes, activities and hands-on practicals were helpful.
+The Drops were great because it contained different data sets (.json files, exported logs and other .csvs) which was helpful for me to look through and get more comfortable with. 
+I liked that activities we had to work in groups, but also that the activities were tailored to job position. That was nice because, I'll be honest, I don't need to do a ton of intel work in real life, and it was nice to focus on more of the actionable legal processing work as an agent."
+6,Lectures
+7,The gradual dissemination of evidentiary information following each instructional period. This helped frame the type of information we will received from the various tools/process and how they fit into the overall case framework.
+8,"The most valuable part of the course for me was learning the types of evidence available to you (to ask for / find) and how to use it to build a timeline / case ready for prosecution. The blocks on digital evidence and digital forensics were the most valuable to me. Additionally, hearing from the instructors how they have executed cases and utilized the material presented was valuable."
+9,"introduction to tools, links, and resources from the instructors was particularly helpful."
+10,Practical exercise at the KCR.
+11,The search warrant.
+12,"The more hands-on approach was the most valuable. Specifically when we broke out into squads and were provided our investigation, this was a much more useful part of the training as it was applicable and realistic. Executing the search warrants and participating in Grand Jury was an excellent use of time."
+13,grand jury
+14,"The most valuable part of this course was the presentation of the information included in the PowerPoint presentations. The tools available to investigators/analysts, legal process, and methodology were helpful."
+15,"Search warrant practice, seeing case progression. Would like more time dedicated to our capstone case and not learning other cases for exercises between."
+16,"Practical applications of the material and seeing examples. Actually getting ""drops"" of information/intel/evidence to comb through to make connections/assessments was great. Keep that up."
+17,"The kinetic cyber range, the presentation on the investigator's toolbox, the way the presentations were given and the frameworks provided in each were great from a TFO's point-of-view. Also, the networking that was available. It was great to meet other agents and instructors."
+18,The hands-on exercise with the case scenario was beneficial as it helped to reinforce/apply concepts learned in class versus learning via lecture.
+19,The investigative tools presented and how they can be applied to case work.
+20,The Threat Intrusion Lifecycle/ Landscape. Gave a baseline for what is out there and how we should look to identify where victims are in the cycle when we first interact
+21,The most valuable part of the course was the actual search warrant execution.
+22,Working with other job roles on tackling problems.
+23,"I believe the tools portion of the course, cryptocurrency block, mlat/24-7 network block and practical exercise."
+24,"Seeing real life examples such as logs and digital artifacts was the most valuable. Being new to cyber, these are items I have not yet seen but will going forward."
+25,The most valuable part of the course was learning the appropriate timelines for various legal process.
+26,"The most valuable part of the course was the level of interaction required to complete group exercises and the cross-group engagement. The ""search warrants"" were fun and added a real world next step."
+27,Real world examples in lectures
+28,Hands on exercises were really useful. The search process was great to give stakes and context to what we were doing in the computer room.
+29,"This course was great at walking us through a cyber investigation, what tools to use, how to use them, and how to make connections. Overall FANTASTIC course! Thank you all!!!"
+
+What should be improved in course content or delivery?
+#,Response
+1,"instructors did great, but some blocks were TOO rushed and the amount of lists was inundating"
+2,"The pacing of some of the lectures were very fast, and didn't go into as much depth compared to the time spent by instructors sharing their personal stories. While interesting, I could tell some people were still lost. Also, in the beginning, there was a good bit of content repeated from BITS and different instructors (ex Tor, IP addresses). That could be better communicated as to who is covering this so we don't waste time hearing it again."
+3,"We were not allotted sufficient time for many of the group exercises, especially the exercises that involved new material outside of the case we were following throughout most of the course. During those exercises, we were rushed because the timeframe really only allowed us to read through the materials and answer about 5-10 questions, when those exercises typically had 15+ questions. Instructions for these activities were often not clear and please please please fix the website. There was a lot of confusion created when the only instructions given were to go on the website and find materials that were either not there or needed to be updated. The length of this survey is reflective of the issue I mentioned above. A lot should be condensed given the time provided to complete everything.
+
+ While I thought the complexity was okay, I think it would be a good idea for the course to be tested by outside participants to get feedback on the structure and progression of the course. Some people in the course had no familiarity with cyber and felt the progression was too steep, while others with cyber backgrounds felt it was okay."
+4,"Issues with the website, such as being logged out regularly and confusion about what we were supposed to do separately/together/in what order. For example, my SOS quiz had a question at the end every time saying it was a squad question, but since I am the only SOS on the squad, it was a personal question."
+5,"The OSINT block - I wish was more towards the beginning of the course. In an investigation, that's where I typically start. I thought it would be helpful if we were given a list of IOCs, [pretend] malware sets, and other network artifacts, and have us individually play around Shodan, VirusTotal, Censys, ect. The instructor showed us what they looked like, but I learn by doing. Same thing with learning to capture RAM... I wish I could have seen what that really looks like for the process, but also was the output data looks like. 
+I would get rid of the open answers in the quizes. A lot of the answers were counted as wrong because I used a ""&"" instead of ""and"" or I added a ""-""."
+6,"I think we should make the scenario incorporate tool usage that can be used back in the field. I also think the break out sessions were not as helpful as talking through case briefing scenarios etc. I believe getting hands on with Wireshark, simple Cmd line commands, and other tools would help me better serve my victims in my AOR. As a new agent I don't know how to confidently and thoroughly triage a guardian and how to maximize those engagements for future investigative action, so talking through that would be great. I recognize it is difficult as guardians come in all flavors and cases also have a variety of different types of IOCs. Not sure if this helps but anything that I could say ""hey I learned how to do this in Huntsville"" or "" i learned to ask these five basic questions"" when engaging with victims or first receiving a case would be helpful. We did get some of that over the two weeks so thank you."
+7,Less content within the actual case scenario and more focus on the application of the tools.
+8,The case we were investigating each day was difficult follow as the course progressed each day.
+9,Minor delivery recommendation: simplifying the pact.cetu.edu scenario website for resources. There seemed to be delays in navigating between the different tabs to access reference docs vs quiz / scenario questions. Or allow a function to have the site opened on a separate tab.
+10,"Additional hands on training. I would like to have seen an actual physical image get done of a switch, router, etc."
+11,Read over the case study together as a class so everyone has an understanding before breaking off into groups.
+12,"The cryptocurrency blocks were very repetitive, I really enjoy learning about cryptocurrency though the several blocks on it did not feel as though different content was being provided. I would recommend adding a hands on activity for crypto as well instead of one of the blocks of power point."
+13,better timing of content. release the slides as the lecture is going to follow along better. the Tech was having lots of issues.
+14,"Have fewer ""war stories"" or work on relating them to the content of the lecture provided. Oftentimes, the story would meander away from the intended lesson and did not connect in a logical way."
+15,"Streamline the workshops, or provide appropriate documents and time to complete them accurately. Online system was interesting but led to a lot of slow down waiting for bugs to be fixed or trying to troubleshoot on our own when documents were missing."
+16,"- Wording of questions: consult with Training Unit at Quantico to review website for wording, variations to accepted answers for free form text, and instruction flow.
+- Legibility of website: Make sure text is legible (e.g. contrasting fonts - black font, white background)."
+17,"I think the heavy emphasis on group work lead to only a couple people writing/talking/analyzing. Personally, leaning more towards personalized projects would force us to review the material at our own individual pace to make natural connections between the lectures and the practical exercises. Since most of us are new to this, the ones with more experience tended to move quickly through the group exercises."
+18,"Of course there were issues with the website, but I did like the idea of it and how it helped make the class more interesting. It would have helped if we had a hard copy search warrant for the KCR scenario. Hard copies of the scenario information would have also been helpful so I could understand what was going on better."
+19,"The pacing of the course made it difficult for the squad to get a good handle on the scenario because of the workshop exercises that relied on different fact patterns. I feel like using the scenario as the basis of all workshops would be beneficial to help us understand the scenario at large, the application of course content, and how the process works in the real world. Also the PACT site is cool but the issues with the function made it a little frustrating to access course content."
+20,More detailed instructions as to how to obtain the background information and where that information is located to answer the questions.
+21,Some of the group discussion typed out answers have confusing wording and at times can lack clarity on where the answer should be found.
+22,"- ‎Put the reading documents in a folder on the computer, would decrease load on website and likely improve functionality 
+- ‎Change the color of True/False buttons to make them easily readable during the quizzes
+- Make navigation menu on lefthand side of the webpage higher contrast and probably larger font to increase ease of navigation
+- During group exercises, I would put the objectives on the screen so that the teams can check on what they should be doing, maybe as a split screen with the timer cause having the countdown was great)
+- Would be helpful to have the agenda for the week.
+- Would suggest deconflicting several blocks with BITS, cryptocurrency block and first block of PACT was repetitive. Now that BITS and PACT are back to back, I don't think reviewing those topics in PACT makes sense
+- Would include overview of OPSEC considerations for use of open source tools and how use of certain tools may tip off the threat actor you are trying to investigate
+- Would include instructions on where to find things in the website on a white board so students know to look for slides in this folder and assessments in this folder. Eventually, we remember where to look, but for more than half the class it felt like we had to keep reasking the same question of where to find the things we needed."
+23,The program used for the case should be further developed or in the least bit tested prior to class. There were several issues with not receiving the information that was needed to continue with the challenges.
+24,The group assignments need a little more allocated time as they're currently written.
+25,I enjoyed the scenarios/cyber kenetic range. I think more interactive scenarios could be include. Content for the course could be recorded and added within the moduals.
+26,"Improvements should focus on fixing the technical issues. My workstation crashed or froze no less than 3 times per day and the challenges would be sometimes mixed up (individual challenges being recognized as squad challenges. Also, the course should be more in sync with the week one training. I felt week two expected us to be at a higher technical ability than was expected by the participants. While seeing logs was great, it would of been nice to learn how to read and interpret the logs, instead of being expected to be at this level already."
+27,"The website needs some QA/QC.  Maybe have someone who isn't involved with the site click through it to document where discrepancies are (ie: references to documents that weren't provided, questions that were confusing, etc).  Also turning off the browser setting ""Use graphics acceleration when available"" helped significantly decrease the number of times the website crashed my computer.  Kudos to Butch for that find."
+28,There were too many questions for the time provided. Initially the group was very engaged to get a well thought out answer but that could not happen and as we went through assignments the group got quieter and quieter as it felt like we could not always understand the questions or have the time to really find and discuss the answer. Would also recommend the social be earlier in the week as the class lost its social battery towards the end of the week.
+29,Ironing out bugs in the program took away time we needed to do collaborative work as a squad in the 2nd week.
+30,"This course would be better if we focused solely on the one case. Having other one-off cases injected to the team sometimes jumbled the information together, and we didn't have enough time to dedicate to the primary case."
+
+Instruction & Support
+Question,Option,Count,Percent
+"Overall, how effective was the instructional experience?",Strongly disagree,0,0%
+"Overall, how effective was the instructional experience?",Disagree,0,0%
+"Overall, how effective was the instructional experience?",Neutral,6,18%
+"Overall, how effective was the instructional experience?",Agree,16,48%
+"Overall, how effective was the instructional experience?",Strongly agree,11,33%
+
+Which concept was the most challenging for you?
+#,Response
+1,"The legal content, particularly because many acronyms and processes were assumed knowledge that I haven't experienced."
+2,"The most challenging concept for me was all of the different categories and artifacts presented during the course. Those slides tended to be glanced over pretty quickly with just a definition, which made it somewhat difficult when we had to do exercises looking at each category and artifact type in-depth."
+3,"Network analysis. I still don't get it, to be honest"
+4,Conducting field work since I've always been HQ
+5,"No specific concept was super difficult. I would say it was mostly the speed at which some of the more technical things were presented was challenging at times. Having no background in cyber, it was hard to apply some of the technical reasoning after a quick lecture and overview of the technical information."
+6,I think the most challenging concept isn't a concept and rather applying the content to investigations.
+7,Bitcoin
+8,"Some topics were not showcased on how this will be used back in the field for various roles especially the more technical aspects. In some portions of the course such as the coding parts, I was often left wondering why that would be something I would do as oppose to a computer scientist or individual who has a technical job role."
+9,The most challenging concept was the diamond model. I'm not sure why that was included in the course and don't remember it referenced much other than on assessments.
+10,Reading returns and interpreting them
+11,Time management in the scenarios
+12,The artifacts provided in the drops were new to me having never worked Cyber. I would have like more individual time to work through that learning process.
+13,Attribution
+14,"A combination of cryptocurrency, once you get past basic tracing, and network/host logs and what each allows you to learn."
+15,"I still don't understand how to read various technical documents that were provided in our file drops.  Figuring out what they were and how they were important was almost impossible.  Maybe for each document have a sentence from the applicable position as to it's importance.  IE: Network logs from your CS ""hey you should look at these because..."" or crypto tracing from a foa ""hey agent look at this link chart..."""
+16,The confidence discussion was challenging as it was not discussed in intel or ops terms. It was a good exercise but need additional framing.
+17,"I still struggle with DNS vs host vs network. I think that further focus on the details as to how an intrusion happens would have helped me work this out, especially if there were hands on opportunities to see how this works like red teaming."
+18,Learning all the lingo. Cyber is a language in itself and it just takes time to learn the language.
+
+Which topics should be expanded in future cohorts?
+#,Response
+1,CASE STUDIES-- this is far more than arbitrary quizzes on unrelated content
+2,"I would love to have hands-on using some of the mentioned tools, even an activity doing pDNS or IP enrichment as one of the tasks."
+3,"It would be great to get more PRACTICAL applications of cyber tools rather than an explanation of different cyber tools. For example, tying the different categories of cyber tools to tools available and seeing how to use them would reinforce concepts."
+4,OSINT 100%
+5,Tool usage examples (particularly if no foreign partners are here).
+6,Less content and more time to apply the tools we learn about to strengthen our understanding of how they can be used to synthesis and correlate information.
+7,More practicals.
+8,Cryptocurrency was great and should be expanded in a way that makes it less repetitive. I would also make much more of a focus on working through the investigation with your Squad.
+9,crypto
+10,The legal process portion of the course should be expanded and examples of legal process returns provided. There are a few providers which cyber heavily relies on for information and examining those returns could be helpful.
+11,How to read and interpret different types of cyber-specific evidence
+12,"I don't have a specific suggestion, but there could be more class review (maybe) of the overall picture of where the class/squads stood in the ""investigation"", what was happening, investigative thoughts, etc. The case seemed a little amorphous."
+13,"More on the bureau tools that are available (criminal, green side tools). One more scenario in the KCR would have been great."
+14,There should be more time for us to review the images taken following the search warrant exercises as they prove key to the grand jury exercise. Also giving investigators an idea of what to look for in those returns would greatly benefit us in the real world.
+15,More on the tools available and how we can use them in our cases/ how they would impact the scenario throughout class
+16,I would build out a step-by-step approach to opening and investigation to the tools that can be used to investigate that case.
+17,"I think the review of logs and the review of more technical evidence should be looked at more, since we would need to testify on these thing."
+18,"Expand on logs, more time on what they can provide and on how to read/interpret them."
+19,More information on the technical side of things.
+20,Additional expansion of network log analysis would be super helpful and the material is already there.
+21,Cryptocurrency
+22,"How the intrusions are conducted, what it would look like if we were looking at logs, realistically how we would be attributing to an actor group from evidence we would receive in a case. Would love to see some nation state actor level examples for those of us who work NS."
+23,Digital forensics and digital evidence.
+
+What additional resources would have helped you most?
+#,Response
+1,unet tools/ OSINT tools/ how to document in Sentinel
+2,"Maybe utilize some of the skills taught in week 1, with PowerShell, Linux Command Line, or Kali? And having the schedule/layout of what content was going to be covered for each lession."
+3,I think some handouts for the course with different artifact types/categories of different topics to keep as desk references would have been helpful.
+4,"Practical exercises to plug stuff into Shodan, Virus Total, IP lookup, etc. so that I could play around with it."
+5,"Take home products to reference throughout investigations. Incident response questions, handouts to help agents think through IOC pivot opportunities"
+6,"All the tools used such as Shodan io., etc."
+7,N/A
+8,releasing the slides in advance
+9,Same as above
+10,The guest instructors
+11,Some sort of Cyber Primer/Cyber-for-Idiots guide on red prior to coming to the class?
+12,"Demos of some of the analytic tools mentioned during class, or a preview of images taken during real-world cases. This would give us an idea of what to look for in investigations."
+13,More examples of where and how to use tools within an investigation would have been helpful.
+14,More engagement at the KCR. There was a lot of standing around after the search. I felt there was plenty of time to run all four squads through the different search sites individually.
+15,More time would be necessary to properly complete the amount of quizzes we have in the course.  we had to split them up to finish them.  Also more time is needed to properly analyze the documents included in the drops.
+16,"Time, more time throughout for the practical exercises."
+17,More time.
+
+What follow-up support would you like after this course?
+#,Response
+1,list of resources  and FBI SMEs
+2,Recommendations for next trainings to take and how to use some of what we learned in day-to-day.
+3,"It would be cool to be further connected with my classmates so that we could stay in touch regarding our work. We can of course do this ourselves, but also any structured way of doing this would be great as well."
+4,I appreciate having the contact information of the instructors.
+5,Updated tools as they become available.
+6,Potentially a word document or email listing out the various helpful tools and resources that we went over throughout the week.
+7,Any updates to bureau tools/ Nat sec specific training
+8,Be notified of other available Cyber trainings
+9,"I think your sharepoint sites are great, but just access to tools and the latest practices since the world of Cyber is going to be the violation that changes the fastest."
+10,A copy of the PowerPoint slides.
+11,"Follow-on emails regarding training, an area for support blogs and questions"
+12,"More training on reading logs. While I will defer to our CS, it would be nice to have a base level understanding on what to focus on and extract from logs."
+13,I would appreciate receiving news on updated best practices or new tools.
+14,Please send out a list of resources that were mentioned in the course! And maybe further classes that would be useful to take to continue with our cyber education.
+15,You guys did good sending the resources and pointing us to the Cyber Resource page. I expect I'll be using those often and reaching out to my counterparts at HQ and in other FOs.
+
+Any other comments about instruction and facilitation?
+#,Response
+1,"A lot of practical examples given by the instructor (not Ron or Nolan, but don't know that name) did not do much to reinforce concepts and just seemed kind of randomly thrown in."
+2,"The contrived scenarios are very tough when we have to spend more time figuring out what the assignment is than actually doing it, because we have no context."
+3,"The instruction and instructors were great. My only critique is that is went a little fast sometimes (or if not fast, was too broadly covered particularly in the areas where I lacked the technical understanding or experience)."
+4,N/A
+5,n/a
+6,"Guest instructors seemed just as confused about the direction of the course as students. More coordination amongst instructors, so guest instructors could guide students, would be appreciated."
+7,Guest instructors provide valuable insights and different experiences across the field. Keep bringing guest instructors.
+8,All instructors were great! I really appreciate the time and insights into these types of investigations. I feel like everyone would responsive if I hit them up with questions.
+9,"Some instructions for exercises were very unclear, leaving my squad a little confused on what we needed to do."
+10,I enjoy voices from the field actively investigating cyber
+11,"Good group of instructors. Kept the class fun, I enjoyed the experience."
+12,I appreciated how passionate the instructors were. This is a very important trait to have when training others.
+13,Instructors were fantastic.  I really enjoyed learning from them.
+14,The website was a very neat resource and overall worked well. More time to complete the exercises and having several people read the questions for understanding and clarity would go a long way in making this a sometimes hard to follow to an overall excellent course.  Allow a break in the middle of lecture blocks or keep them to the hour mark (week 1 mastered the lecture to break ratio). The GJ component was also a fun way to conclude.
+15,"Great instructors, good environment for collaborate learning."
+16,Instructors were great and their depth of experience was top notch. Their first-hand experience helped us to better understand how what they're teaching applies to real-world scenarios.
+
+Logistics
+Question,Option,Count,Percent
+The schedule and timing worked well for me.,Strongly disagree,0,0%
+The schedule and timing worked well for me.,Disagree,2,6%
+The schedule and timing worked well for me.,Neutral,7,21%
+The schedule and timing worked well for me.,Agree,11,33%
+The schedule and timing worked well for me.,Strongly agree,13,39%
+The classroom setup and provided tools were sufficient.,Strongly disagree,2,6%
+The classroom setup and provided tools were sufficient.,Disagree,2,6%
+The classroom setup and provided tools were sufficient.,Neutral,2,6%
+The classroom setup and provided tools were sufficient.,Agree,17,52%
+The classroom setup and provided tools were sufficient.,Strongly agree,10,30%
+The workload was manageable during the course.,Strongly disagree,2,6%
+The workload was manageable during the course.,Disagree,2,6%
+The workload was manageable during the course.,Neutral,3,9%
+The workload was manageable during the course.,Agree,17,52%
+The workload was manageable during the course.,Strongly agree,9,27%
+Class communications and updates were timely and clear.,Strongly disagree,2,6%
+Class communications and updates were timely and clear.,Disagree,2,6%
+Class communications and updates were timely and clear.,Neutral,4,12%
+Class communications and updates were timely and clear.,Agree,14,42%
+Class communications and updates were timely and clear.,Strongly agree,11,33%
+
+Please share any logistics feedback.
+#,Response
+1,"Sometimes the size of the group made it hard to manage collaborative work, especially when the task had many parts and not a lot of time. The breakout rooms also didn't have enough ethernet connections for everyone."
+2,"Many students in the course had computer issues with laptops restarting throughout the course. Some were fixed, but others were not."
+3,"As stated above, I would scale back the content a little and focus more on the application of the tools. As for the classroom and breakout rooms, everything was great except that its freezing in here all of the time."
+4,I would have the happy hours walking distance from the hotel.
+5,I would shorten the first week though the amount of time for the second week felt appropriate.
+6,the days were overwhelming for people new to cyber trying to digest all the lessons.
+7,The directions were often unclear and students spent a majority of the allotted time figuring out what they were supposed to achieve. That left little time to examine the provided information/evidence and discuss the implications of it. This was partially due to a lack of communication from the main instructor and the class website not functioning.
+8,I would add just another line of clarity in the initial email for PACT setup...be clear if you want a sudo name or real name on the account creation page.
+9,The squad joint quizzess had a lot of write in answers that you can't really do together in the timeframe. You have to break them up into like groups of 2.
+10,We ran out of time for many of the challenges. I would suggest building more time to complete them or not having as many so that students are able to provide and present quality work.
+11,"We felt pretty time constrained and had to ""game"" the system by splitting up work most days.  There wasn't a day I had enough time to really look through each file in the daily drops."
+12,"It would be great to have the quizzes come after the lecture. Our Tuesday afternoon group quiz was based on Wednesday morning's lecture, so it was hard taking a quiz on something we hadn't yet learned. Also, as stated above, it would help a lot of the one-off cases were removed and we could dedicate that time to working on the main case. I get the one-offs are more ideal to daily squad work, but it hindered our ability to thoroughly understand the main case and why we did certain things."
+
+Evidence Drop & Investigation Format
+Question,Option,Count,Percent
+"The course sequence—receiving an evidence drop, investigating it, and then collaborating with others—supported my learning.",Strongly disagree,2,6%
+"The course sequence—receiving an evidence drop, investigating it, and then collaborating with others—supported my learning.",Disagree,3,9%
+"The course sequence—receiving an evidence drop, investigating it, and then collaborating with others—supported my learning.",Neutral,5,15%
+"The course sequence—receiving an evidence drop, investigating it, and then collaborating with others—supported my learning.",Agree,13,39%
+"The course sequence—receiving an evidence drop, investigating it, and then collaborating with others—supported my learning.",Strongly agree,10,30%
+Evidence drops arrived at an appropriate pace and contained a manageable amount of information.,Strongly disagree,2,6%
+Evidence drops arrived at an appropriate pace and contained a manageable amount of information.,Disagree,4,12%
+Evidence drops arrived at an appropriate pace and contained a manageable amount of information.,Neutral,11,33%
+Evidence drops arrived at an appropriate pace and contained a manageable amount of information.,Agree,11,33%
+Evidence drops arrived at an appropriate pace and contained a manageable amount of information.,Strongly agree,5,15%
+I had enough time to investigate and form my own conclusions before collaborating with others.,Strongly disagree,6,18%
+I had enough time to investigate and form my own conclusions before collaborating with others.,Disagree,10,30%
+I had enough time to investigate and form my own conclusions before collaborating with others.,Neutral,6,18%
+I had enough time to investigate and form my own conclusions before collaborating with others.,Agree,8,24%
+I had enough time to investigate and form my own conclusions before collaborating with others.,Strongly agree,3,9%
+"Collaboration helped me identify connections, challenge assumptions, or reach conclusions I would not have reached alone.",Strongly disagree,1,3%
+"Collaboration helped me identify connections, challenge assumptions, or reach conclusions I would not have reached alone.",Disagree,1,3%
+"Collaboration helped me identify connections, challenge assumptions, or reach conclusions I would not have reached alone.",Neutral,6,18%
+"Collaboration helped me identify connections, challenge assumptions, or reach conclusions I would not have reached alone.",Agree,15,45%
+"Collaboration helped me identify connections, challenge assumptions, or reach conclusions I would not have reached alone.",Strongly agree,10,30%
+The balance between individual investigation and squad/class collaboration was appropriate.,Strongly disagree,2,6%
+The balance between individual investigation and squad/class collaboration was appropriate.,Disagree,2,6%
+The balance between individual investigation and squad/class collaboration was appropriate.,Neutral,7,21%
+The balance between individual investigation and squad/class collaboration was appropriate.,Agree,18,55%
+The balance between individual investigation and squad/class collaboration was appropriate.,Strongly agree,4,12%
+Which change would most improve the course format?,Keep the format as it is,2,6%
+Which change would most improve the course format?,Provide more briefing before each evidence drop,8,24%
+Which change would most improve the course format?,Allow more independent investigation time,7,21%
+Which change would most improve the course format?,Allow more squad or class collaboration time,7,21%
+Which change would most improve the course format?,"Use smaller, more frequent evidence drops",6,18%
+Which change would most improve the course format?,"Use fewer, larger evidence drops",0,0%
+Which change would most improve the course format?,Other (describe below),3,9%
+
+"What specific changes, if any, would you recommend to the evidence drop, investigation, and collaboration format? Please explain what you would change and why."
+#,Response
+1,"I think it would have been much more helpful to have ALL the slides ahead of time. I think the formatting of where to find things kept changing and was frustrating. I think there were way too many arbitrary quizzes that did not help us learn, it was rushed and unrelated to the blocks we learned because we had too much to do and too little time to ingest the data, review resources."
+2,"The content of the evidence drops and questions were often inconsistent, either with very vague instructions/expectations or just missing information. Having clearer guidance would be helpful, and also for drops with a ton of files, it felt like a lot to sift through at times. If there were hints, even like ""decrypt this to find which files to look at"" would have been useful. Biggest thing was lack of appropriate time for some of the reading heavy collaboration tasks."
+3,"Most of the time it did not work. I understand the purpose, which would have been excellent, but the actual issues we had with the sequence in class actually made this format disruptive to learning. A lot of the evidence drops did not come across when they needed and made us in a constant state of confusion and waiting."
+4,The evidence drops felt like that had little to no context and tons of info. I would have benefitted on being briefed on the context of what we were about to receive.
+5,.
+6,"Because there is a lot of information to digest in the drops, I would have wanted more independent time to digest it and think about the period of instruction preceding the drop and how the various tools apply before going to breakouts. If not allowing for more time, I would scale back the amount of information in the drops. I think the focus should be more on the tools and less on the content."
+7,I would try to connect it even more to the content presented.
+8,Contextualizing the evidence drop would potentially save more time on the backend.
+9,N/A
+10,N/A
+11,"Fix the website. Update content of the assessments so that they accurately reflect what is provided in the drops. Make sure the drops are provided on a timely basis and do not forget to distribute them. Finally, test and validate the website/drops work as intended before students arrive."
+12,15 minutes to digest evidence drops is not a realistic way to ingest information.
+13,"Collaboration is extremely important, but I would find a way to tailor that time to force everyone to participate more in a group setting. I think my classmates would beat me for that comment, but I just think if we're all going to be here, let's all get the benefit."
+14,"For the cryptocurrency portion, provide a graphical trace and written up by as a 302."
+15,"For the drop/investigation/collaboration format, there were way too many questions to answer during the allotted period of time, requiring my squad to divide and conquer versus talk through the answers. Reducing the number of questions and giving us more time to collaborate would result in more cohesive group responses."
+16,Adding all of the drops to the program at once would be helpful.
+17,"More time conducting an individual investigation would have been nice, there were times I was too reliant on others because I could not be as thorough with the drops as I preferred to be."
+18,"Increase the individual workload/quizzes then have the squad work on larger collaborative ideas not more quizzes.  Not sure if this is where I should write this, but having two text blocks per question on each squad quiz was redundant.  We don't need a block for discussion and a block for the answer."
+19,More time for the squad exercises. More time was needed to prepare the witnesses for GJ. This caused some undue stress for some of the GJ witnesses.
+20,"It would help to show a demo of the tool on the big screens at the beginning of class. We also need more time to review the documents, understand them, and then come together as a team to discuss them and answer the questions."
+
+Application Experience
+Question,Option,Count,Percent
+The application performed reliably during class exercises.,Strongly disagree,7,21%
+The application performed reliably during class exercises.,Disagree,7,21%
+The application performed reliably during class exercises.,Neutral,8,24%
+The application performed reliably during class exercises.,Agree,9,27%
+The application performed reliably during class exercises.,Strongly agree,2,6%
+Pages and workflows loaded fast enough for class use.,Strongly disagree,1,3%
+Pages and workflows loaded fast enough for class use.,Disagree,5,15%
+Pages and workflows loaded fast enough for class use.,Neutral,9,27%
+Pages and workflows loaded fast enough for class use.,Agree,13,39%
+Pages and workflows loaded fast enough for class use.,Strongly agree,5,15%
+The CTF and challenge tools were responsive.,Strongly disagree,0,0%
+The CTF and challenge tools were responsive.,Disagree,4,12%
+The CTF and challenge tools were responsive.,Neutral,12,36%
+The CTF and challenge tools were responsive.,Agree,13,39%
+The CTF and challenge tools were responsive.,Strongly agree,4,12%
+I liked the application interface and usability.,Strongly disagree,2,6%
+I liked the application interface and usability.,Disagree,6,18%
+I liked the application interface and usability.,Neutral,12,36%
+I liked the application interface and usability.,Agree,8,24%
+I liked the application interface and usability.,Strongly agree,5,15%
+
+What did you like most about the application?
+#,Response
+1,the look is beautiful- but the tabs within tabs was difficult to navigate.
+2,"I really loved this format to answer questions and put our learning to the test, rather than standard forms or quizzes. I also like that you can get semi-real world scenarios like the evidence drops and splitting independent vs group activities."
+3,"Cool concept, did not work."
+4,It was beneficial having everything in one place.
+5,The creativity
+6,It was interesting in both design and trying to make the class more interactive and fun.
+7,I think this is a great tool that will continue to get better. I would increase the font size for the Navigation section.
+8,N/A
+9,it has lots of potential and is a cool interface
+10,"Unique, everything was in one spot"
+11,Cool idea
+12,"The graphics, ease of use, analytics, personal/group standing, and ever Link analysis is awesome. Great job on this!!"
+13,I like that it added variability and function. I appreciate that.
+14,It looks pretty cool and the link analysis/timeline tools work very well.
+15,The graphics
+16,Very cool system for a training class
+17,I like the overall goal of the application but did not like the overall function.
+18,"The theory behind the application is understandable. However, in practice it glitched too much. My workstation shut off numerous times and there was a need to constantly refresh in order to see the drops or challenges."
+19,I liked the ability to view content on the website and work collaboratively.
+20,It was great for a learning environment. The tabs and standing tools were fun and created a competitive component.
+21,"Great vision. If we didn't overload it and the bugs got worked out it would have been amazing. As it stands now it was a little clunky to use as things didn't load all the way/reliably and would sometime glitch out (premature quiz submissions, locking into one page, injects not dropping)"
+22,"The functionality was great. I liked how each interface is tailored to each user. Once I learned how to use the tool, it was easy to navigate. It would help to show a demo of the tool on the big screens at the beginning of class."
+
+What app issue or bug affected you the most?
+#,Response
+1,the drops and information missing or not working
+2,"Content to download not working (broken links), especially for PowerPoints to follow along with. Then just getting things to load and be legible was hard in the beginning, especially because the heavy graphics seemed to cause issues on the laptop."
+3,The website.
+4,Being logged off automatically and randomly and also quizzes submitting themselves.
+5,Super hard for me to read. The lines going down the pages and flashing made it difficult to digest the information.
+6,Sometimes the squad quizes / workshops after submitted by one person did not update as being complete for me.
+7,Crashed the computer several times. I toggled the graphic acceleration on the browser off and it largely resolved the issue: i.e Google Chrome: Go to Settings > System > toggle off Use graphics acceleration when available.
+8,Having to refresh after changes.
+9,N/A
+10,the coloring makes it hard to read the choices and navigation buttons
+11,"Not having necessary documents when needed, cut into workshop time significantly"
+12,user interface/font colors - it is hard to read grey text on grey background. Run the site on a website accessibility checker.
+13,"The quizes were quite confusing on whether they were individual or group (yes, I know they say what they are...but sometimes an individual quiz looked like the group quizes on how answers are submitted). The Agent/Analyst quizes could be completed by one individual so if they thought it was a personal quiz..oh well. And even though the tests were completed, the list of quizes don't all show ""done"" which is a little confusing."
+14,Missing content in the drop.
+15,"The constant scanning lines on the exercise intros made reading the text difficult, so we had to copy/paste the text onto a Word doc. Also on occasions the assessments would force-submit before we were finished."
+16,The app would log me out and delete responses sometimes.
+17,The screen lines are annoying
+18,the moving graphics made some of the text hard to read and sometimes graphics would cause it to jump making it unreadable. Would advise adjusting graphics to fix that bug.
+19,The app was slow at times. The case files were not dropped when they were scheduled to be dropped. The app had many glitches that were distracting and prevented students from completing assignments.
+20,Whatever caused my machine to restart multiple times a day.
+21,"The site crashed my laptop a half dozen times in the first few days making it almost impossible to complete work.  I appreciate the effort on the UI, but I really think the more ""cyber"" design elements deter from the legibility of the site (IE: moving graphics, flashing background, similar color text to background) and possibly were causing the laptop to crash.  Again, thanks to Butch for finding the turn off ""Use graphics acceleration when available"" fix."
+22,Premature quiz submission. I dropped from 1st to below 20th ): the decryption screen that we were locked into was very frustrating as it ate into the time I needed to look at the injects.
+23,"The visuals were extremely difficult to work with. The lines running down the text was distracting, but the biggest issue was the color schemes. It is very hard to read some of the font (gray font on black background, gray font on white background, black font on black background, etc). There were several spots I had to highlight what appeared to be a black box just to see the text. Using a font/background scheme that has higher contrast would have made the application much easier to use."
+
+What should we improve first in the application?
+#,Response
+1,"Label the navigation accordingly:  Independent Research/ Quizzes, Group Research/ Quizzes, Slides Library, Case File Documents, Analysis Tools, etc..."
+2,"Maybe an option to not have the graphics behind it? It is very distracting for someone with attention issues, and also seemed to be the primary thing slowing down the loading."
+3,Some of the questions had two entry boxes for the squad questions. It was confusing.
+4,Scale back the theatrical bits and improve the readability and digestion of the information.
+5,N/A
+6,N/A
+7,"Less fluff, more streamlined. Focus more having the content there and available then how it looks or having it only appear when ""drops"" happen."
+8,****Ensure the text is legible (black text/white background)****
+9,"make it more clear (more color-coding?) which is YOUR individual quick, a category (AGENT/IA) quick, what is to be done TOGETHER, etc. Seriously though, this is nit-picking. You have a great product with this app!"
+10,"Have all the information needed in the drop with specific instructions. Sometimes we were unsure if we had everything or if we had to look up a indictment on the web for instance. The drops contain everything. Maybe structure it like a case (302, GJ docs, etc.)"
+11,"Please remove some of the moving features on the site to improve readability of exercises, and then try to expand server capacity so we don't get booted with a ""too many requests"" error."
+12,The lines
+13,Would improve contrast on navigation menu to improve usability.
+14,I would recommend simplifying the app or in the least bit dropping all of the challenges and case docs so students do not have to spend time waiting for them to be released. I think students are responsible enough to not open any of the documents that are meant for the next day.
+15,Lighten the text a little bit more to improve contrast with the background.
+16,Reduce the graphics of the page and focus more on the content. The demanding graphics may be a reason why it glitched for so many.
+17,Strip the UI to a more basic legible site.
+18,Timing
+19,"Fixing what the issue was behind us not being able to log in initially, or if a lot of us were logging in on the same time."
+20,The font/background color scheme - this will make the world of difference for users. Followed narrowly in second by the lines moving down the screen.
+

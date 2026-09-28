@@ -8,7 +8,7 @@ const surveyResultsService = require('../services/surveyResults.service');
 async function getSurveyResults(req, res, next) {
   try {
     res.set({ 'Cache-Control': 'private, no-store', Pragma: 'no-cache', Expires: '0', Vary: 'Authorization' });
-    return res.json(await surveyResultsService.getSurveyResults(req.params.aid));
+    return res.json(await surveyResultsService.getSurveyResults(req.params.aid, req.query.cohort_id ?? null));
   }
   catch (err) { return next(err); }
 }

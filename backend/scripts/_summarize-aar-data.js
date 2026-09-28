@@ -1,0 +1,11 @@
+'use strict';
+const path = require('path');
+const data = require(path.join(process.env.TEMP, 'aar-data-clean.json'));
+console.log('Cohort:', JSON.stringify(data.cohort));
+console.log('Summary:', JSON.stringify(data.analytics.summary, null, 1));
+console.log('Grade distribution:', JSON.stringify(data.analytics.gradeDistribution));
+console.log('Assignment count:', data.analytics.assignments.length);
+console.log('Student count:', data.analytics.students.length);
+console.log('Squad rows:', JSON.stringify(data.squadRows));
+console.log('Activity window:', JSON.stringify(data.window));
+console.log('PrePost sample:', JSON.stringify(data.prePost.slice(0, 3), null, 1));

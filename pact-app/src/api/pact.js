@@ -68,8 +68,10 @@ export const getGradesForAssignment = (assignmentId) =>
 export const getUserGrades = (userId) =>
   client.get(`/courses/${COURSE_ID}/grades`, { params: { user_id: userId } }).then((r) => r.data);
 
-export const getSurveyResults = (assignmentId) =>
-  client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/survey-results`).then((r) => r.data);
+// cohortId is optional — omitted, this returns the unfiltered results across
+// every cohort that's ever taken this survey (one shared assignment row).
+export const getSurveyResults = (assignmentId, cohortId = null) =>
+  client.get(`/courses/${COURSE_ID}/assignments/${assignmentId}/survey-results`, { params: cohortId ? { cohort_id: cohortId } : {} }).then((r) => r.data);
 
 export const submitGrade = (assignmentId, userId, data) =>
   client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}/grades/${userId}`, data).then((r) => r.data);
