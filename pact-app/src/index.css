@@ -2,6 +2,24 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Browsers give button/input/select/textarea their OWN default text color
+   (traditionally near-black) instead of inheriting the page's — CSS
+   inheritance normally flows color down from an ancestor, but the
+   user-agent stylesheet sets it explicitly ON these elements, which beats
+   inheritance regardless of the author stylesheet's specificity elsewhere.
+   Every quiz option/True-False button in this app (.qz-option, .qz-tf-btn)
+   sets only `background: var(--bg)` and never its own `color`, assuming
+   it would inherit the themed text color like everything else — so in the
+   default dark theme (--bg: #04070b) they rendered near-black text on a
+   near-black button. The September cohort's post-course survey described
+   this exactly: "black font on black background... There were several
+   spots I had to highlight what appeared to be a black box just to see the
+   text." This is the standard fix (every modern CSS reset includes it) —
+   applied once, globally, rather than patching each affected class, since
+   the same silent-inheritance-break likely affects other unstyled buttons
+   too, not just the two named here. */
+button, input, select, textarea { font: inherit; color: inherit; }
+
 :root {
   --bg:        #f8f9fa;
   --surface:   #ffffff;
