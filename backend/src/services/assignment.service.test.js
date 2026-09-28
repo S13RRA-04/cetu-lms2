@@ -163,3 +163,65 @@ test('listForStudent applies the same per-assignment grade gating to every item 
   assert.deepEqual(byId['graded-1'].questions[0].rubric.keyElements, ['must mention X']);
   assert.equal(byId['ungraded-1'].questions[0].rubric, undefined);
 });
+
+test('listForStudent shows a squad-graded assignment as complete once a TEAMMATE submits it, even though this student has no submission of their own', async (t) => {
+  const { Assignment, Enrollment, AssignmentUnlock, Submission, Grade, User, DropLocationSelection } = require('../models');
+  const original = {
+    findAll: Assignment.findAll, enrollmentFindOne: Enrollment.findOne, userFindByPk: User.findByPk,
+    unlockFindAll: AssignmentUnlock.findAll, subFindAll: Submission.findAll, gradeFindAll: Grade.findAll,
+    dropLocationFindAll: DropLocationSelection.findAll,
+  };
+  const rows = [
+    { id: 'squad-quiz-1', grading_mode: 'squad', toJSON: () => ({ id: 'squad-quiz-1', grading_mode: 'squad', role_filters: [], victim_name: null, questions: [] }), role_filters: [], victim_name: null, questions: [] },
+  ];
+  Assignment.findAll = async () => rows;
+  Enrollment.findOne = async () => ({ cohort_id: 'cohort-1', squad: { id: 'squad-9', victim_code: null } });
+  User.findByPk = async () => ({ professional_role: null, certifications: [] });
+  AssignmentUnlock.findAll = async () => [];
+  // This student's own row (if any) never reached 100 — only a squadmate's did.
+  Submission.findAll = async ({ where }) => {
+    if (where.user_id) return [{ assignment_id: 'squad-quiz-1', progress: 40, status: 'in_progress' }];
+    if (where.squad_id) return [{ assignment_id: 'squad-quiz-1', progress: 100, status: 'submitted' }];
+    return [];
+  };
+  Grade.findAll = async () => [];
+  DropLocationSelection.findAll = async () => [];
+  t.after(() => {
+    Assignment.findAll = original.findAll; Enrollment.findOne = original.enrollmentFindOne; User.findByPk = original.userFindByPk;
+    AssignmentUnlock.findAll = original.unlockFindAll; Submission.findAll = original.subFindAll; Grade.findAll = original.gradeFindAll;
+    DropLocationSelection.findAll = original.dropLocationFindAll;
+  });
+
+  const list = await assignmentService.listForStudent('course-squad-progress-test', 'user-squad-progress-test');
+  assert.equal(list.find((a) => a.id === 'squad-quiz-1').progress, 100);
+});
+
+test('listForStudent leaves an individually-graded assignment on the student\'s OWN progress, ignoring any squad_id on other submissions', async (t) => {
+  const { Assignment, Enrollment, AssignmentUnlock, Submission, Grade, User, DropLocationSelection } = require('../models');
+  const original = {
+    findAll: Assignment.findAll, enrollmentFindOne: Enrollment.findOne, userFindByPk: User.findByPk,
+    unlockFindAll: AssignmentUnlock.findAll, subFindAll: Submission.findAll, gradeFindAll: Grade.findAll,
+    dropLocationFindAll: DropLocationSelection.findAll,
+  };
+  const rows = [
+    { id: 'solo-quiz-1', grading_mode: 'individual', toJSON: () => ({ id: 'solo-quiz-1', grading_mode: 'individual', role_filters: [], victim_name: null, questions: [] }), role_filters: [], victim_name: null, questions: [] },
+  ];
+  Assignment.findAll = async () => rows;
+  Enrollment.findOne = async () => ({ cohort_id: 'cohort-1', squad: { id: 'squad-9', victim_code: null } });
+  User.findByPk = async () => ({ professional_role: null, certifications: [] });
+  AssignmentUnlock.findAll = async () => [];
+  Submission.findAll = async ({ where }) => {
+    if (where.user_id) return [{ assignment_id: 'solo-quiz-1', progress: 25, status: 'in_progress' }];
+    return []; // no squad-scoped query should even run for a non-squad-graded assignment
+  };
+  Grade.findAll = async () => [];
+  DropLocationSelection.findAll = async () => [];
+  t.after(() => {
+    Assignment.findAll = original.findAll; Enrollment.findOne = original.enrollmentFindOne; User.findByPk = original.userFindByPk;
+    AssignmentUnlock.findAll = original.unlockFindAll; Submission.findAll = original.subFindAll; Grade.findAll = original.gradeFindAll;
+    DropLocationSelection.findAll = original.dropLocationFindAll;
+  });
+
+  const list = await assignmentService.listForStudent('course-solo-progress-test', 'user-solo-progress-test');
+  assert.equal(list.find((a) => a.id === 'solo-quiz-1').progress, 25);
+});

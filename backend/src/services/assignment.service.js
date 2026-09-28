@@ -167,12 +167,28 @@ async function _queryListForStudent(courseId, userId) {
   const orClauses = [{ cohort_id: enrollment.cohort_id, squad_id: null }];
   if (squadId) orClauses.push({ squad_id: squadId });
 
+  // A squad-graded assignment is submitted once, by ONE squad member — that
+  // upsert is still keyed to (assignment_id, submitter's own user_id) (see
+  // submission.service.js's submit()), so it never touches the other
+  // squadmates' own rows. Without this second query, this list read only
+  // this student's own submission row, so a squad quiz a TEAMMATE finished
+  // kept showing as incomplete for everyone else — the September cohort's
+  // post-course survey named this directly: "the list of quizzes don't all
+  // show 'done' ... even though the tests were completed."
+  const squadGradedIds = visibleAssignments.filter((a) => a.grading_mode === 'squad').map((a) => a.id);
+
   // Round-trip 2: unlocks (needs enrollment) + submissions (needs assignment IDs) — run in parallel
   const assignmentIds = visibleAssignments.map((a) => a.id);
-  const [unlocks, submissions, grades] = await Promise.all([
+  const [unlocks, submissions, squadSubmissions, grades] = await Promise.all([
     AssignmentUnlock.findAll({ where: { [Op.or]: orClauses } }),
     assignmentIds.length
       ? Submission.findAll({ where: { assignment_id: assignmentIds, user_id: userId }, attributes: ['assignment_id', 'progress', 'status'] })
+      : [],
+    squadId && squadGradedIds.length
+      ? Submission.findAll({
+          where: { assignment_id: squadGradedIds, squad_id: squadId, status: { [Op.in]: ['submitted', 'graded', 'returned'] } },
+          attributes: ['assignment_id', 'progress', 'status'],
+        })
       : [],
     assignmentIds.length
       ? Grade.findAll({ where: { assignment_id: assignmentIds, user_id: userId }, attributes: ['assignment_id'] })
@@ -181,6 +197,9 @@ async function _queryListForStudent(courseId, userId) {
 
   const unlockedIds = new Set(unlocks.map((u) => u.assignment_id));
   const progressMap = Object.fromEntries(submissions.map((s) => [s.assignment_id, s.progress ?? 0]));
+  // A teammate's completed submission wins over this student's own
+  // (possibly still in-progress, possibly nonexistent) row.
+  for (const s of squadSubmissions) progressMap[s.assignment_id] = s.progress ?? 100;
   const gradedIds    = new Set(grades.map((g) => g.assignment_id));
 
   return visibleAssignments.map((a) => ({

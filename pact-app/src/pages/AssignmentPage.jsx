@@ -26,6 +26,24 @@ const TYPE_COLOR = {
 
 const PCT_STEPS = [0, 25, 50, 75, 100];
 
+// Whether this student has already sat through this assignment's briefing
+// interstitial (TransmissionInterceptor) once before. Namespaced by user for
+// the same shared-kiosk-machine reason as useDraft's draftKey — see its
+// comment. Not persisted server-side: this only spares a repeat viewing of a
+// ~5s staged animation on the SAME browser, which is what the September
+// cohort's post-course survey named as eating into limited exercise time —
+// worth doing even though it won't follow a student across devices.
+function briefingAckKey(assignmentId, userId) {
+  return `pact_briefing_ack_${userId ?? 'anon'}_${assignmentId}`;
+}
+function hasAcknowledgedBriefing(assignmentId, userId) {
+  try { return localStorage.getItem(briefingAckKey(assignmentId, userId)) === '1'; }
+  catch { return false; }
+}
+function markBriefingAcknowledged(assignmentId, userId) {
+  try { localStorage.setItem(briefingAckKey(assignmentId, userId), '1'); } catch {}
+}
+
 /* ── Accessing classified document screen ─────────────────────────────────── */
 function AccessingScreen({ assignment }) {
   const color = TYPE_COLOR[assignment?.type] ?? '#60a5fa';
@@ -90,7 +108,7 @@ export default function AssignmentPage() {
     setError('');
     setQuizResult(null);
     setQuizStarted(false);
-    setBriefingAcknowledged(false);
+    setBriefingAcknowledged(hasAcknowledgedBriefing(id, user?.id));
     setGrade(null);
     setSquadState(null);
 
@@ -140,6 +158,35 @@ export default function AssignmentPage() {
       setAccessPhase('accessing');
     });
   }, [id, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* Poll for a teammate finishing a shared squad assignment out from under
+     this student. getMySubmission() already returns the SQUAD's submission
+     once anyone on it has submitted (submission.service.js's getMySubmission
+     prefers the squad's shared row over this student's own in-progress one)
+     — the gap was purely that this page only ever fetched it once, on
+     mount. A student left looking at an already-finished squad quiz/
+     workshop, with no signal it was done, is exactly what the September
+     cohort's post-course survey described: "the squad quizzes / workshops
+     after submitted by one person did not update as being complete for me."
+     Only polls while there's something to catch — a squad-graded assignment
+     this student hasn't already seen as submitted. */
+  useEffect(() => {
+    if (loading || submitted || assignment?.grading_mode !== 'squad') return;
+    const t = setInterval(() => {
+      getMySubmission(id).then((sub) => {
+        if (sub?.status !== 'submitted' && sub?.status !== 'graded') return;
+        setSubmission(sub);
+        setContent(sub.content ?? '');
+        setProgress(sub.progress ?? 0);
+        setSubmitted(true);
+        try {
+          const parsed = JSON.parse(sub.content ?? 'null');
+          if (parsed?.totalScore !== undefined) setQuizResult(parsed);
+        } catch {}
+      }).catch(() => {});
+    }, 12_000);
+    return () => clearInterval(t);
+  }, [id, loading, submitted, assignment?.grading_mode]);
 
   // Drive the access phase timer
   useEffect(() => {
@@ -245,7 +292,10 @@ export default function AssignmentPage() {
         }}
         idLine={assignment.drop_number != null ? `DROP ${String(assignment.drop_number).padStart(2, '0')}` : 'CHALLENGE BRIEFING'}
         narrativeLabel="COMMAND POST GUIDANCE"
-        onAcknowledge={() => setBriefingAcknowledged(true)}
+        onAcknowledge={() => {
+          markBriefingAcknowledged(id, user?.id);
+          setBriefingAcknowledged(true);
+        }}
       />
     );
   }

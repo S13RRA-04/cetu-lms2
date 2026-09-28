@@ -63,7 +63,13 @@
 
   --text:       #7a9ab8;
   --bright:     #c8d8e8;
-  --muted:      #2d3f52;
+  /* Was #2d3f52 — ~1.9:1 against --bg, well under WCAG AA's 4.5:1 floor for
+     text. --muted is used site-wide for real secondary copy (labels, hints,
+     timestamps), not purely decorative borders, and low-contrast text was
+     the single most repeated complaint in the September cohort's post-course
+     survey. This value keeps the same hue (still visibly dimmer than --text)
+     but lands at ~5.6:1. */
+  --muted:      #6d8aa8;
 
   --shadow-sm:  0 2px 8px rgba(0, 0, 0, 0.5);
   --shadow:     0 4px 20px rgba(0, 0, 0, 0.6);
@@ -85,7 +91,8 @@
   --danger-lt:  rgba(239, 68, 68, 0.12);
   --text:       #2e5070;
   --bright:     #0e2540;
-  --muted:      #7090ae;
+  /* Was #7090ae — ~2.7:1 against this theme's --bg, also under WCAG AA. */
+  --muted:      #4a6480;
   --shadow-sm:  0 2px 8px rgba(10, 50, 110, 0.1);
   --shadow:     0 4px 20px rgba(10, 50, 110, 0.14);
   --shadow-lg:  0 8px 32px rgba(10, 50, 110, 0.18);
@@ -311,12 +318,19 @@
     /* Horizontal scanlines */
     repeating-linear-gradient(
       0deg,
-      rgba(0, 0, 0, 0.22) 0px,
-      rgba(0, 0, 0, 0.22) 1px,
+      rgba(0, 0, 0, 0.14) 0px,
+      rgba(0, 0, 0, 0.14) 1px,
       transparent 1px,
       transparent 4px
     );
-  animation: crt-static 0.5s steps(4) infinite;
+  /* Was 0.5s steps(4) — a position jump roughly every 125ms, read back by
+     the September cohort's post-course survey as "constant scanning lines,"
+     "flashing," and text that was "hard to read" (several respondents said
+     they copy/pasted exercise text into a separate document to read it at
+     all). Slowed to keep the CRT texture alive without it reading as a
+     strobe. Still an animated overlay above the content, so it's also
+     disabled outright under prefers-reduced-motion below. */
+  animation: crt-static 7s steps(4) infinite;
 }
 
 @keyframes crt-static {
@@ -325,6 +339,19 @@
   50%  { background-position: 7px -5px,  0 0; }
   75%  { background-position: -4px 12px,  0 0; }
   100% { background-position: 0 0,    0 0; }
+}
+
+/* Anyone with the OS-level "reduce motion" preference set gets the terminal
+   theme's static bezel look (color, scanline texture, vignette) without any
+   of its motion — flicker, jitter, scan sweep, or the static-position
+   animation above. */
+@media (prefers-reduced-motion: reduce) {
+  .ops-room.ops-terminal,
+  .ops-room.ops-terminal .ops-right-pane,
+  .ops-room.ops-terminal .ops-right-pane::before,
+  .ops-room.ops-terminal::before {
+    animation: none;
+  }
 }
 
 /* ── CRT vignette: heavy corners = screen curvature illusion ───────── */
@@ -521,12 +548,16 @@
 }
 
 /* ── Phosphor glow: chromatic aberration + tight bloom on all text ─── */
+/* Bloom layers were rgba(...,0.65)/rgba(...,0.22) — strong enough at small
+   font sizes to visibly fuzz glyph edges. Several September-cohort survey
+   respondents specifically named terminal-mode text as hard to read; halved
+   here to keep the phosphor character without blurring dense body copy. */
 .ops-room.ops-terminal *:not(canvas):not(.ops-nav-active) {
   text-shadow:
     -0.3px 0 0.6px rgba(255, 60, 30, 0.07),
      0.3px 0 0.6px rgba(30,  60, 255, 0.07),
-     0 0 3px  rgba(0, 255, 65, 0.65),
-     0 0 8px  rgba(0, 255, 65, 0.22);
+     0 0 2px  rgba(0, 255, 65, 0.35),
+     0 0 6px  rgba(0, 255, 65, 0.11);
 }
 /* Active nav is inverted (black on green) — no glow needed */
 .ops-room.ops-terminal .ops-nav-active {
@@ -4709,6 +4740,45 @@ body {
 /* Acknowledge button */
 .tx-ack-btn {
   align-self: flex-start;
+}
+
+/* Skip affordance — lets a student jump straight past the staged reveal
+   instead of waiting out the full sequence on every briefing. */
+.tx-skip-btn {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+  color: rgba(226, 232, 240, 0.75);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .12em;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+  animation: tx-skip-in .3s ease;
+}
+.tx-skip-btn:hover {
+  background: rgba(0, 0, 0, 0.55);
+  border-color: rgba(148, 163, 184, 0.55);
+  color: #fff;
+}
+.tx-skip-kbd {
+  padding: 1px 5px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 4px;
+  font-size: 9px;
+  opacity: .8;
+}
+@keyframes tx-skip-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 

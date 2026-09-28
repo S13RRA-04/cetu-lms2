@@ -10,6 +10,20 @@ const logger                 = require('../utils/logger');
 const ACCESS_EXPIRY         = '15m';
 const REFRESH_EXPIRY_MS     = 7 * 24 * 60 * 60 * 1000;
 const RESET_TOKEN_TTL_MS    = 30 * 60 * 1000; // 30 minutes
+// Refresh tokens rotate on every use and the previous one is revoked
+// immediately — but the cookie backing this is shared across every
+// pact/lair/kcr subdomain and every tab of each, all on 15-minute access
+// tokens. Two requests that both hit a 401 around the same moment (two open
+// tabs, or a background poll racing a page's own refresh) both replay the
+// SAME still-valid cookie; whichever reaches the DB second finds its token
+// already revoked and previously hard-failed, forcing that tab to a full
+// logout mid-exercise — exactly what the September cohort's post-course
+// survey described ("the app would log me out and delete responses
+// sometimes," "being logged off automatically and randomly"). This grace
+// window lets a token reused shortly after its own rotation mint a fresh
+// pair instead of failing; a token replayed well outside the window (a
+// genuinely stale tab, or actual token theft) is still rejected.
+const REUSE_GRACE_MS        = 20 * 1000;
 
 // Login must never be foiled by casing (autocapitalize, copy-paste from an
 // invite email, etc.) — this also has to work for the handful of legacy
@@ -42,15 +56,28 @@ async function generateRefreshToken(user) {
   return raw;
 }
 
+function isReuseWithinGrace(revokedAt, graceMs = REUSE_GRACE_MS, now = Date.now()) {
+  return (now - new Date(revokedAt).getTime()) <= graceMs;
+}
+
 async function validateRefreshToken(raw) {
   const hash   = crypto.createHash('sha256').update(raw).digest('hex');
   const record = await RefreshToken.findOne({
-    where: { token_hash: hash, revoked: false },
+    where: { token_hash: hash },
     include: [{ model: User.unscoped() }],
   });
 
   if (!record || record.expires_at < new Date()) {
     throw new AppError('Invalid or expired refresh token', 401, 'INVALID_TOKEN');
+  }
+
+  if (record.revoked) {
+    if (!isReuseWithinGrace(record.updated_at)) {
+      throw new AppError('Invalid or expired refresh token', 401, 'INVALID_TOKEN');
+    }
+    logger.info('Refresh token reused within grace window — likely a concurrent tab/app, not theft', {
+      userId: record.user_id,
+    });
   }
 
   return record;
@@ -168,4 +195,5 @@ async function resetPasswordWithToken(rawToken, newPassword) {
 module.exports = {
   login, logout, generateAccessToken, generateRefreshToken, rotateRefreshToken,
   changePassword, adminResetPassword, requestPasswordReset, resetPasswordWithToken,
+  isReuseWithinGrace,
 };

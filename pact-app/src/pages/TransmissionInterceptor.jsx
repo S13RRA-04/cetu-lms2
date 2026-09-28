@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import DecryptText from '../components/DecryptText.jsx';
 import DataStream  from '../components/DataStream.jsx';
@@ -64,6 +64,8 @@ function TxStaticOverlay() {
 export default function TransmissionInterceptor({ drop, onAcknowledge, idLine = null, narrativeLabel = 'COMMAND BRIEFING' }) {
   const [stage,      setStage]      = useState(0);
   const [showStatic, setShowStatic] = useState(true);
+  const [showSkip,   setShowSkip]   = useState(false);
+  const timersRef = useRef([]);
   // Stages (static clears at ~850ms, then reveal sequence begins):
   // 0 = static overlay (pre-stage)
   // 1 = "INCOMING TRANSMISSION" signal
@@ -72,8 +74,24 @@ export default function TransmissionInterceptor({ drop, onAcknowledge, idLine = 
   // 4 = narrative text
   // 5 = button
 
+  // Jumps straight to the fully-revealed state. Every assignment with a
+  // briefing routes through this screen (AssignmentPage renders it whenever
+  // launch_briefing exists and hasn't been acknowledged yet), and this state
+  // was never persisted, so a mid-course refresh — which the September
+  // cohort's post-course survey flagged as a frequent, app-caused event —
+  // replayed the full ~5s staged reveal from scratch every time. Several
+  // respondents named this specific screen as eating into limited exercise
+  // time. Skippable via click or keypress; AssignmentPage additionally
+  // persists acknowledgment so it doesn't replay at all once seen.
+  function skip() {
+    timersRef.current.forEach(clearTimeout);
+    timersRef.current = [];
+    setShowStatic(false);
+    setStage(5);
+  }
+
   useEffect(() => {
-    const timers = [
+    timersRef.current = [
       setTimeout(() => setShowStatic(false), 850),
       setTimeout(() => setStage(1),          950),
       setTimeout(() => setStage(2),          1800),
@@ -81,7 +99,16 @@ export default function TransmissionInterceptor({ drop, onAcknowledge, idLine = 
       setTimeout(() => setStage(4),          3700),
       setTimeout(() => setStage(5),          5100),
     ];
-    return () => timers.forEach(clearTimeout);
+    const skipHint = setTimeout(() => setShowSkip(true), 500);
+    const onKey = (e) => {
+      if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') skip();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      timersRef.current.forEach(clearTimeout);
+      clearTimeout(skipHint);
+      window.removeEventListener('keydown', onKey);
+    };
   }, []);
 
   return (
@@ -89,6 +116,12 @@ export default function TransmissionInterceptor({ drop, onAcknowledge, idLine = 
       <DataStream color="#00b0ff" opacity={0.10} fontSize={11} speedScale={1.6} />
       <div className="ind-scanlines" />
       <div className="tx-interference" />
+
+      {showSkip && stage < 5 && (
+        <button type="button" className="tx-skip-btn" onClick={skip}>
+          SKIP <span className="tx-skip-kbd">ESC</span>
+        </button>
+      )}
 
       <AnimatePresence>
         {showStatic && <TxStaticOverlay />}
