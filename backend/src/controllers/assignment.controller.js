@@ -63,8 +63,9 @@ async function listByCourse(req, res, next) {
     // Only the Command page's explicit management view (`manage=1`, itself
     // restricted to non-students) is meant to return every assignment in the
     // course regardless of who's looking, for authoring purposes.
-    // Staff outside manage=1 get the active cohort's view (see
-    // assignmentService.listForStaffView), not their own enrollment's.
+    // Staff outside manage=1 get their own squad's view if they're on a squad
+    // in the active cohort, otherwise the active cohort's observer view (see
+    // assignmentService.listForStaffView) — never an older enrollment's.
     const manage = !isStudent && req.query.manage === '1';
     const data = manage
       ? await assignmentService.listByCourse(req.params.id, req.query, { includeUnpublished: true })

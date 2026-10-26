@@ -9,6 +9,7 @@ const TtlCache = require('../utils/ttlCache');
 const { parseDropCaseFile, scenarioSlugFromName } = require('../utils/r2CaseFile');
 const { contentMatchesSquadVictim, matchesRoleFilters } = require('../utils/campaignRelease');
 const { getStudentLocationCodes, locationMatches } = require('../utils/dropLocation');
+const { getActiveCohortEnrollment } = require('../utils/staffView');
 
 const contentCache = new TtlCache(15_000);
 
@@ -37,10 +38,11 @@ async function uploadToR2(buffer, fileName, mimeType) {
   return { r2Key, url: `${R2_PUBLIC_BASE_URL}/${r2Key}` };
 }
 
-async function listForStudent(courseId, userId) {
+// cohortId pins which enrollment counts (see listForStaffView).
+async function listForStudent(courseId, userId, { cohortId = null } = {}) {
   const [enrollment, student] = await Promise.all([
     Enrollment.findOne({
-      where:   { user_id: userId, course_id: courseId },
+      where:   { user_id: userId, course_id: courseId, ...(cohortId ? { cohort_id: cohortId } : {}) },
       include: [{ association: 'squad', attributes: ['id', 'victim_code'] }],
     }),
     User.findByPk(userId, { attributes: ['professional_role', 'certifications'] }),
@@ -92,7 +94,15 @@ async function listForStudent(courseId, userId) {
 // been released yet is left out entirely rather than returned with
 // is_unlocked:false and a nulled-out download_url — this view is meant to
 // show only what's actually live.
-async function listForStaffView(courseId) {
+//
+// Exception: staff who are on a squad in the active cohort get that squad's
+// own view, exactly like a student — same rule as assignment.service.js's
+// listForStaffView.
+async function listForStaffView(courseId, userId = null) {
+  if (userId) {
+    const enrollment = await getActiveCohortEnrollment(courseId, userId);
+    if (enrollment?.squad_id) return listForStudent(courseId, userId, { cohortId: enrollment.cohort_id });
+  }
   const activeCohort = await Cohort.findOne({ where: { course_id: courseId, is_active: true } });
   if (!activeCohort) return [];
 

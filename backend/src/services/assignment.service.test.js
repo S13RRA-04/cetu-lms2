@@ -282,7 +282,7 @@ test('listForStudent leaves an individually-graded assignment on the student\'s 
   assert.equal(list.find((a) => a.id === 'solo-quiz-1').progress, 25);
 });
 
-test('staff view lists every published assignment unlocked for the active cohort (cohort-wide or any squad), ignoring their own enrollment and role routing', async (t) => {
+test('staff with no squad in the active cohort see every published assignment unlocked for it (cohort-wide or any squad), ignoring role routing', async (t) => {
   const { Assignment, AssignmentUnlock, Submission, Enrollment } = require('../models');
   stubActiveCohort(t, 'active-cohort');
   const original = { assignmentFindAll: Assignment.findAll, unlockFindAll: AssignmentUnlock.findAll, submissionFindAll: Submission.findAll, enrollmentFindOne: Enrollment.findOne };
@@ -291,7 +291,10 @@ test('staff view lists every published assignment unlocked for the active cohort
   let unlockWhere;
   AssignmentUnlock.findAll = async ({ where }) => { unlockWhere = where; return [{ assignment_id: 'cohort-wide' }, { assignment_id: 'squad-only' }]; };
   Submission.findAll = async () => [{ assignment_id: 'cohort-wide', progress: 40 }];
-  Enrollment.findOne = async () => { throw new Error('staff view must not read the viewer\'s own enrollment'); };
+  const enrollmentWheres = [];
+  // Only an active-cohort enrollment may count — an older one must never
+  // pull this viewer into a past squad's view.
+  Enrollment.findOne = async ({ where }) => { enrollmentWheres.push(where); return null; };
   t.after(() => {
     Assignment.findAll = original.assignmentFindAll;
     AssignmentUnlock.findAll = original.unlockFindAll;
@@ -301,6 +304,7 @@ test('staff view lists every published assignment unlocked for the active cohort
 
   const result = await assignmentService.listForStaffView('staff-view-course', 'instructor-1');
 
+  assert.deepEqual(enrollmentWheres, [{ user_id: 'instructor-1', course_id: 'staff-view-course', cohort_id: 'active-cohort' }]);
   assert.deepEqual(unlockWhere, { cohort_id: 'active-cohort' });
   assert.deepEqual(result.map(({ id, is_unlocked, progress }) => ({ id, is_unlocked, progress })), [
     { id: 'cohort-wide', is_unlocked: true, progress: 40 },
@@ -319,14 +323,14 @@ test('staff view is empty when no cohort is active', async (t) => {
   assert.deepEqual(await assignmentService.listForStaffView('no-active-staff-course', 'instructor-1'), []);
 });
 
-test('getById with staffView reports is_unlocked from the active cohort, not the viewer\'s enrollment', async (t) => {
+test('getById with staffView, for staff with no squad in the active cohort, reports is_unlocked from the active cohort as a whole', async (t) => {
   const { Assignment, AssignmentUnlock, Enrollment } = require('../models');
   stubActiveCohort(t, 'active-cohort');
   const original = { find: Assignment.findByPk, unlockFind: AssignmentUnlock.findOne, enrollmentFind: Enrollment.findOne };
   Assignment.findByPk = async () => ({ id: 'a1', course_id: 'course-1', is_published: true, toJSON() { return { id: 'a1', questions: [] }; } });
   let unlockWhere;
   AssignmentUnlock.findOne = async ({ where }) => { unlockWhere = where; return null; };
-  Enrollment.findOne = async () => { throw new Error('staff view must not read the viewer\'s own enrollment'); };
+  Enrollment.findOne = async () => null;
   t.after(() => {
     Assignment.findByPk = original.find;
     AssignmentUnlock.findOne = original.unlockFind;
@@ -336,6 +340,50 @@ test('getById with staffView reports is_unlocked from the active cohort, not the
   const result = await assignmentService.getById('a1', 'instructor-1', { staffView: true });
   assert.deepEqual(unlockWhere, { assignment_id: 'a1', cohort_id: 'active-cohort' });
   assert.equal(result.is_unlocked, false);
+});
+
+test('staff on a squad in the active cohort get that squad\'s own view — victim, role and squad unlocks applied like a student', async (t) => {
+  const { Assignment, AssignmentUnlock, Submission, Enrollment, User, Grade, DropLocationSelection } = require('../models');
+  stubActiveCohort(t, 'active-cohort');
+  const original = {
+    assignmentFindAll: Assignment.findAll, unlockFindAll: AssignmentUnlock.findAll, submissionFindAll: Submission.findAll,
+    enrollmentFindOne: Enrollment.findOne, userFindByPk: User.findByPk, gradeFindAll: Grade.findAll, locFindAll: DropLocationSelection.findAll,
+  };
+  const row = (id, extra = {}) => ({ id, grading_mode: 'individual', ...extra, toJSON() { return { id, questions: [], ...extra }; } });
+  Assignment.findAll = async () => [
+    row('shared'),
+    row('my-victim', { victim_name: 'Redstone Memorial Hospital' }),
+    row('other-victim', { victim_name: 'Pixel Play Arcade' }),
+    row('my-role', { role_filters: ['special_agent'] }),
+    row('other-role', { role_filters: ['forensic_accountant'] }),
+  ];
+  const enrollmentWheres = [];
+  Enrollment.findOne = async ({ where }) => {
+    enrollmentWheres.push(where);
+    return { cohort_id: 'active-cohort', squad_id: 'squad-1', squad: { id: 'squad-1', victim_code: 'REDSTONE' } };
+  };
+  User.findByPk = async () => ({ professional_role: 'special_agent', certifications: [] });
+  DropLocationSelection.findAll = async () => [];
+  let unlockWhere;
+  AssignmentUnlock.findAll = async ({ where }) => {
+    unlockWhere = where;
+    return ['shared', 'my-victim', 'other-victim', 'my-role', 'other-role'].map((assignment_id) => ({ assignment_id }));
+  };
+  Submission.findAll = async () => [];
+  Grade.findAll = async () => [];
+  t.after(() => {
+    Assignment.findAll = original.assignmentFindAll; AssignmentUnlock.findAll = original.unlockFindAll;
+    Submission.findAll = original.submissionFindAll; Enrollment.findOne = original.enrollmentFindOne;
+    User.findByPk = original.userFindByPk; Grade.findAll = original.gradeFindAll; DropLocationSelection.findAll = original.locFindAll;
+  });
+
+  const result = await assignmentService.listForStaffView('staff-squad-course', 'admin-1');
+
+  assert.deepEqual(result.map((a) => a.id), ['shared', 'my-victim', 'my-role'], 'other squads\' victim and role taskings are hidden');
+  assert.ok(enrollmentWheres.every((w) => w.cohort_id === 'active-cohort'), 'the student path is pinned to the active-cohort enrollment');
+  // Op.or is a symbol key, so JSON.stringify can't see it — read it directly.
+  const { Op } = require('sequelize');
+  assert.ok(unlockWhere[Op.or].some((clause) => clause.squad_id === 'squad-1'), 'unlocks are matched against the viewer\'s own squad');
 });
 
 // Stubs model statics for one test and restores them afterwards.

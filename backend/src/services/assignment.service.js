@@ -10,7 +10,7 @@ const TtlCache = require('../utils/ttlCache');
 const { getStudentLocationCodes, locationMatches } = require('../utils/dropLocation');
 const { matchesRoleFilters } = require('../utils/campaignRelease');
 const { codeToName } = require('../constants/victims');
-const { getActiveCohortId } = require('../utils/staffView');
+const { getActiveCohortId, getActiveCohortEnrollment } = require('../utils/staffView');
 
 // Admin assignment list is the same for every instructor request.
 // 15-second TTL absorbs thundering-herd without hiding new submissions long.
@@ -128,12 +128,14 @@ async function listForStudent(courseId, userId) {
   return studentListCache.get(`listForStudent:${courseId}:${userId}`, () => _queryListForStudent(courseId, userId));
 }
 
-async function _queryListForStudent(courseId, userId) {
+// cohortId pins which enrollment counts — staff on a squad in the active
+// cohort (see listForStaffView) must not fall back to an older enrollment.
+async function _queryListForStudent(courseId, userId, { cohortId = null } = {}) {
   // Round-trip 1: enrollment, assignment list, and the student's professional
   // role are independent — run in parallel
   const [enrollment, assignments, student] = await Promise.all([
     Enrollment.findOne({
-      where:   { user_id: userId, course_id: courseId },
+      where:   { user_id: userId, course_id: courseId, ...(cohortId ? { cohort_id: cohortId } : {}) },
       include: [{ association: 'squad', attributes: ['id', 'victim_code'] }],
     }),
     Assignment.findAll({
@@ -213,15 +215,25 @@ async function _queryListForStudent(courseId, userId) {
   }));
 }
 
-// Staff browsing Operations/AppShell nav see exactly what has been released
-// to the active cohort — every published assignment unlocked for it,
+// Staff with no squad in the active cohort, browsing Operations/AppShell nav,
+// see exactly what has been released to that cohort — every published
+// assignment unlocked for it,
 // cohort-wide or for any of its squads — not what their own (often
 // past-cohort) enrollment would show. Role/victim/location routing is
 // per-student and deliberately not applied: if anyone in the active cohort
 // has it, it has been released. Shares listForStudent's cache key (a user is
 // never both) so the same submit/progress/unlock invalidations apply.
+// Staff who are on a squad in the active cohort (an admin playing along in
+// their own squad) get exactly that squad's view, the same as a student —
+// otherwise the Operations dashboard showed every squad's victim and role
+// taskings at once. Staff with no squad there keep the cohort-wide observer
+// view below.
 async function listForStaffView(courseId, userId) {
-  return studentListCache.get(`listForStudent:${courseId}:${userId}`, () => _queryListForStaffView(courseId, userId));
+  return studentListCache.get(`listForStudent:${courseId}:${userId}`, async () => {
+    const enrollment = await getActiveCohortEnrollment(courseId, userId);
+    if (enrollment?.squad_id) return _queryListForStudent(courseId, userId, { cohortId: enrollment.cohort_id });
+    return _queryListForStaffView(courseId, userId);
+  });
 }
 
 async function _queryListForStaffView(courseId, userId) {
@@ -411,9 +423,12 @@ async function getById(id, userId = null, { staffView = false } = {}) {
   });
   if (!assignment) throw new NotFoundError('Assignment');
 
-  // Same active-cohort rule as listForStaffView: unlocked if released to the
-  // active cohort at all (cohort-wide or any of its squads).
-  if (userId && staffView) {
+  // Staff on a squad in the active cohort are checked against that squad,
+  // exactly like a student (below); other staff use the observer rule —
+  // unlocked if released to the active cohort at all (cohort-wide or any of
+  // its squads). Same split as listForStaffView.
+  const staffEnrollment = userId && staffView ? await getActiveCohortEnrollment(assignment.course_id, userId) : null;
+  if (userId && staffView && !staffEnrollment?.squad_id) {
     const cohortId = await getActiveCohortId(assignment.course_id);
     const unlock = cohortId
       ? await AssignmentUnlock.findOne({ where: { assignment_id: id, cohort_id: cohortId }, attributes: ['id'] })
@@ -426,7 +441,11 @@ async function getById(id, userId = null, { staffView = false } = {}) {
   if (userId) {
     const [enrollment, grade] = await Promise.all([
       Enrollment.findOne({
-        where: { user_id: userId, course_id: assignment.course_id },
+        where: {
+          user_id: userId,
+          course_id: assignment.course_id,
+          ...(staffEnrollment ? { cohort_id: staffEnrollment.cohort_id } : {}),
+        },
         include: [{ association: 'squad', attributes: ['id'] }],
       }),
       Grade.findOne({ where: { assignment_id: id, user_id: userId }, attributes: ['id'] }),

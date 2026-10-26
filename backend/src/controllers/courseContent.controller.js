@@ -21,7 +21,7 @@ async function list(req, res, next) {
     // been released yet.
     const data = isStudent
       ? await svc.listForStudent(req.params.id, req.user.id)
-      : await svc.listForStaffView(req.params.id);
+      : await svc.listForStaffView(req.params.id, req.user.id);
     return res.json(data);
   } catch (err) { return next(err); }
 }
