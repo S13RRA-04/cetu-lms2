@@ -53,6 +53,7 @@ import {
 import { VICTIMS } from '../constants/victims.js';
 import { activeLearnerCount, defaultReleaseCohortId } from '../lib/releaseCohorts.js';
 import { contentStatus, splitActiveCohort } from '../lib/releaseStatus.js';
+import { TYPE_ORDER, TYPE_LABELS, STATUS_FILTERS, buildEntries, filterEntries, countBy, groupEntries } from '../lib/contentWorkspace.js';
 import { PROFESSIONAL_ROLES } from '../constants/professionalRoles.js';
 import { CERTIFICATIONS } from '../constants/certifications.js';
 import TransmissionInterceptor from './TransmissionInterceptor.jsx';
@@ -655,7 +656,7 @@ export default function AdminPage() {
   const [selectedSub,        setSelectedSub]        = useState(null);
   const [savedGrades,        setSavedGrades]        = useState({});
 
-  // top-level admin panel: 'grading' | 'cohorts' | 'content' | 'library' | 'campaign'
+  // top-level admin panel: 'grading' | 'content' | 'campaign' | 'cohorts' | 'live' | 'users' | 'grand-jury'
   const [adminPanel, setAdminPanel] = useState('grading');
 
   // course content state
@@ -691,16 +692,18 @@ export default function AdminPage() {
     }).finally(() => setLoading(false));
   }, []);
 
-  const switchToContent = useCallback(() => {
-    setAdminPanel('content');
-    if (!contentLoaded) {
-      getCourseContent(true)
-        .then((data) => { setContentItems(Array.isArray(data) ? data : []); setContentLoaded(true); })
-        .catch(() => setContentLoaded(true));
-    }
+  // Content items used to load only when the Course Content tab was opened, so
+  // anything else reading them (module slide links, campaign pairing) showed
+  // an empty library until then. Load up front; setContentLoaded(false) is
+  // the refresh signal after R2 publishes/syncs add items server-side.
+  useEffect(() => {
+    if (contentLoaded) return;
+    getCourseContent(true)
+      .then((data) => setContentItems(Array.isArray(data) ? data : []))
+      .catch(() => {})
+      .finally(() => setContentLoaded(true));
   }, [contentLoaded]);
-
-  const switchToLibrary = useCallback(() => setAdminPanel('library'), []);
+  const reloadContent = useCallback(() => setContentLoaded(false), []);
 
   // Guards against out-of-order responses: clicking a second assignment
   // before the first one's fetch resolves must not let the first assignment's
@@ -855,15 +858,15 @@ export default function AdminPage() {
         </button>
         <button
           className={`admin-panel-tab${adminPanel === 'content' ? ' active' : ''}`}
-          onClick={switchToContent}
+          onClick={() => setAdminPanel('content')}
         >
-          Course Content
+          Content
         </button>
         <button
-          className={`admin-panel-tab${adminPanel === 'library' ? ' active' : ''}`}
-          onClick={switchToLibrary}
+          className={`admin-panel-tab${adminPanel === 'campaign' ? ' active' : ''}`}
+          onClick={() => setAdminPanel('campaign')}
         >
-          Content Gating
+          Campaign
         </button>
         <button
           className={`admin-panel-tab${adminPanel === 'cohorts' ? ' active' : ''}`}
@@ -895,13 +898,13 @@ export default function AdminPage() {
         <LiveProgressPanel cohorts={cohorts} />
       ) : adminPanel === 'users' ? (
         <UsersPanel cohorts={cohorts} />
-      ) : adminPanel === 'library' ? (
-        <ContentGatingPanel
+      ) : adminPanel === 'campaign' ? (
+        <CampaignPanel
           assignments={assignments}
           cohorts={cohorts}
           contentItems={contentItems}
           onAssignmentsChange={setAssignments}
-          onContentPublished={() => setContentLoaded(false)}
+          onContentPublished={reloadContent}
         />
       ) : adminPanel === 'cohorts' ? (
         <CohortScenarioPanel
@@ -911,12 +914,14 @@ export default function AdminPage() {
       ) : adminPanel === 'grand-jury' ? (
         <GrandJuryWheelPanel cohorts={cohorts} />
       ) : adminPanel === 'content' ? (
-        <CourseContentPanel
-          items={contentItems}
-          cohorts={cohorts}
-          loaded={contentLoaded}
-          onItemsChange={setContentItems}
+        <ContentWorkspace
           assignments={assignments}
+          contentItems={contentItems}
+          contentLoaded={contentLoaded}
+          cohorts={cohorts}
+          onAssignmentsChange={setAssignments}
+          onContentItemsChange={setContentItems}
+          onLibraryChanged={reloadContent}
         />
       ) : (
       <div className="admin-layout">
@@ -2331,7 +2336,10 @@ function GrandJuryWheelPanel({ cohorts }) {
   );
 }
 
-function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignmentsChange, onContentPublished }) {
+// Scenario/drop campaign workflows. Per-item editing, publishing and unlocking
+// live in ContentWorkspace; this panel keeps the R2 scenario browser, drop
+// release, and the pre-range briefing.
+function CampaignPanel({ assignments, cohorts, contentItems = [], onAssignmentsChange, onContentPublished }) {
   const [subTab,            setSubTab]            = useState('drops');
   const [refreshKey,        setRefreshKey]        = useState(0);
   const [selectedScenario,  setSelectedScenario]  = useState(null);
@@ -2343,17 +2351,10 @@ function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignm
       .catch(() => setScenarioFolders([]));
   }, []);
 
-  const assessmentItems = assignments.filter((a) => a.type === 'assessment' || a.type === 'survey');
-  const moduleItems     = assignments.filter((a) => a.type === 'module');
-  const challengeItems  = assignments.filter((a) => a.type === 'challenge');
-
   const handlePublished = () => {
     setRefreshKey((k) => k + 1);
     onContentPublished?.();
   };
-
-  const handleUnlocksChange = (id, unlocks) =>
-    onAssignmentsChange((prev) => prev.map((a) => a.id === id ? { ...a, unlocks } : a));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
@@ -2367,18 +2368,6 @@ function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignm
         </button>
         <button className={`admin-mode-tab${subTab === 'briefing'   ? ' active' : ''}`} onClick={() => setSubTab('briefing')}>
           Pre-Range Briefing
-        </button>
-        <button className={`admin-mode-tab${subTab === 'challenges' ? ' active' : ''}`} onClick={() => setSubTab('challenges')}>
-          Challenges
-        </button>
-        <button className={`admin-mode-tab${subTab === 'modules'    ? ' active' : ''}`} onClick={() => setSubTab('modules')}>
-          Modules
-        </button>
-        <button className={`admin-mode-tab${subTab === 'gates'      ? ' active' : ''}`} onClick={() => setSubTab('gates')}>
-          Assessments &amp; Surveys
-        </button>
-        <button className={`admin-mode-tab${subTab === 'library'    ? ' active' : ''}`} onClick={() => setSubTab('library')}>
-          Intel Library
         </button>
       </div>
 
@@ -2466,281 +2455,6 @@ function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignm
       )}
 
       {subTab === 'briefing' && <PreRangeBriefingManager cohorts={cohorts} />}
-
-      {subTab === 'challenges' && (
-        <ChallengesGating
-          assignments={challengeItems}
-          cohorts={cohorts}
-          onUnlocksChange={handleUnlocksChange}
-          onAssignmentsChange={onAssignmentsChange}
-        />
-      )}
-
-      {subTab === 'modules' && (
-        <ModulesGating
-          assignments={moduleItems}
-          cohorts={cohorts}
-          contentItems={contentItems}
-          onUnlocksChange={handleUnlocksChange}
-          onAssignmentsChange={onAssignmentsChange}
-        />
-      )}
-
-      {subTab === 'gates' && (
-        <AssessmentSurveyGating
-          assignments={assessmentItems}
-          cohorts={cohorts}
-          onUnlocksChange={(id, unlocks) => handleUnlocksChange(id, unlocks)}
-          onAssignmentsChange={onAssignmentsChange}
-        />
-      )}
-
-      {subTab === 'library' && (
-        <IntelLibraryGating
-          contentItems={contentItems}
-          cohorts={cohorts}
-          moduleAssignments={moduleItems}
-          onItemAdded={onContentPublished}
-        />
-      )}
-    </div>
-  );
-}
-
-/* ── Intel Library Gating ── */
-function IntelLibraryGating({ contentItems, cohorts, moduleAssignments = [], onItemAdded }) {
-  const [selected,    setSelected]    = useState(null);
-  const [showR2,      setShowR2]      = useState(false);
-  const [localItems,  setLocalItems]  = useState(contentItems);
-  const [syncing,     setSyncing]     = useState(false);
-  const [syncResult,  setSyncResult]  = useState(null);
-  const [syncKind,    setSyncKind]    = useState(null);
-
-  useEffect(() => { setLocalItems(contentItems); }, [contentItems]);
-
-  const handleItemAdded = () => {
-    setShowR2(false);
-    onItemAdded?.();
-  };
-
-  const handleSyncDecks = async () => {
-    setSyncing(true);
-    setSyncKind('decks');
-    setSyncResult(null);
-    try {
-      const result = await syncDecksFromR2();
-      setSyncResult(result);
-      if (result.added > 0) onItemAdded?.();
-    } catch {
-      setSyncResult({ error: true });
-    } finally {
-      setSyncing(false);
-      setSyncKind(null);
-    }
-  };
-
-  const handleSyncDropFiles = async () => {
-    setSyncing(true);
-    setSyncKind('case files');
-    setSyncResult(null);
-    try {
-      const result = await syncDropFilesFromR2();
-      setSyncResult({ ...result, kind: 'case file' });
-      if (result.added > 0 || result.updated > 0) onItemAdded?.();
-    } catch {
-      setSyncResult({ error: true, kind: 'case file' });
-    } finally {
-      setSyncing(false);
-      setSyncKind(null);
-    }
-  };
-
-  const handleItemUpdated = (updated) => {
-    setLocalItems((prev) => prev.map((i) => i.id === updated.id ? updated : i));
-    setSelected(updated);
-  };
-
-  // Group items: by linked module first, then unlinked by content_type
-  const moduleMap = new Map();
-  const unlinked  = [];
-  for (const item of localItems) {
-    if (item.linked_assignment_id) {
-      const mod = moduleAssignments.find((m) => m.id === item.linked_assignment_id);
-      const key = mod ? mod.title : item.linked_assignment_id;
-      if (!moduleMap.has(key)) moduleMap.set(key, { mod, items: [] });
-      moduleMap.get(key).items.push(item);
-    } else {
-      unlinked.push(item);
-    }
-  }
-  const moduleGroups = [...moduleMap.entries()].sort(([a], [b]) => {
-    const ai = moduleAssignments.findIndex((m) => m.title === a);
-    const bi = moduleAssignments.findIndex((m) => m.title === b);
-    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
-  });
-
-  const renderItem = (item) => (
-    <button
-      key={item.id}
-      className={`admin-assign-btn${selected?.id === item.id ? ' active' : ''}`}
-      onClick={() => setSelected(item)}
-    >
-      <span className="admin-assign-type" style={{ fontSize: 9 }}>
-        {(CONTENT_TYPE_LABELS[item.content_type] ?? item.content_type).toUpperCase()}
-      </span>
-      <span className="admin-assign-title">{item.title}</span>
-      <ReleaseBadge item={item} />
-    </button>
-  );
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-      {/* R2 toolbar */}
-      <div style={{ borderBottom: '1px solid var(--border)', padding: '8px 16px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 20 }}>
-        <button
-          onClick={() => setShowR2((b) => !b)}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: 0 }}
-        >
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)' }}>
-            ADD FROM R2
-          </span>
-          <span style={{ color: 'var(--muted)', fontSize: 10, fontFamily: 'var(--mono)' }}>{showR2 ? '▲' : '▼'}</span>
-        </button>
-
-        <button
-          onClick={handleSyncDecks}
-          disabled={syncing}
-          style={{ background: 'none', border: 'none', cursor: syncing ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: 0, opacity: syncing ? 0.6 : 1 }}
-        >
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--accent)' }}>
-            {syncing && syncKind === 'decks' ? 'SYNCING…' : 'SYNC DECKS'}
-          </span>
-        </button>
-
-        <button
-          onClick={handleSyncDropFiles}
-          disabled={syncing}
-          style={{ background: 'none', border: 'none', cursor: syncing ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: 0, opacity: syncing ? 0.6 : 1 }}
-        >
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--accent)' }}>
-            {syncing && syncKind === 'case files' ? 'SYNCING…' : 'SYNC DROP FILES'}
-          </span>
-        </button>
-
-        {syncResult && !syncResult.error && (
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: syncResult.added > 0 ? '#10b981' : 'var(--muted)' }}>
-            {syncResult.added > 0
-              ? `+${syncResult.added} ${syncResult.kind ?? 'deck'}${syncResult.added !== 1 ? 's' : ''} imported (${syncResult.skipped} already synced)`
-              : `All ${syncResult.total} ${syncResult.kind ?? 'deck'}${syncResult.total !== 1 ? 's' : ''} already synced`}
-          </span>
-        )}
-        {syncResult?.error && (
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: '#f87171' }}>Sync failed</span>
-        )}
-      </div>
-      {showR2 && (
-        <div style={{ maxHeight: 380, overflowY: 'auto', borderBottom: '1px solid var(--border)', padding: '10px 16px', flexShrink: 0, background: 'var(--surface)' }}>
-          <R2PublishBrowser
-            rootPrefix=""
-            cohorts={[]}
-            hideRelease
-            onPublished={handleItemAdded}
-          />
-        </div>
-      )}
-
-      {/* Items list + cohort access split */}
-      <div className="admin-layout" style={{ flex: 1, overflow: 'hidden' }}>
-        <div className="admin-left" style={{ overflowY: 'auto' }}>
-          {localItems.length === 0 && (
-            <p style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 16px' }}>
-              No items yet. Use <strong>ADD FROM R2</strong> to publish files.
-            </p>
-          )}
-
-          {moduleGroups.map(([modTitle, { items }]) => (
-            <div key={modTitle}>
-              <div style={{ padding: '6px 14px 3px', fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.14em', color: 'var(--primary)', textTransform: 'uppercase' }}>
-                {modTitle}
-              </div>
-              {items.map(renderItem)}
-            </div>
-          ))}
-
-          {unlinked.length > 0 && (
-            <div>
-              {moduleGroups.length > 0 && (
-                <div style={{ padding: '6px 14px 3px', fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.14em', color: 'var(--muted)', textTransform: 'uppercase' }}>
-                  Unlinked
-                </div>
-              )}
-              {unlinked.map(renderItem)}
-            </div>
-          )}
-        </div>
-
-        <div className="admin-right">
-          {!selected ? (
-            <div className="admin-empty">
-              <p>Select an item to manage cohort access.</p>
-            </div>
-          ) : (
-            <IntelItemCohortAccess
-              key={selected.id}
-              item={selected}
-              cohorts={cohorts}
-              onUpdated={handleItemUpdated}
-            />
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// GatingPanel's onPublish/onUnlocksChange both report a whole item back, and
-// one "publish when I unlock" click fires both inside the same async run —
-// before this component re-renders. Working from a ref (instead of the
-// render's `item`) keeps the unlock update from reverting the publish.
-function useContentItemGating(item, onUpdated) {
-  const latest = useRef(item);
-  useEffect(() => { latest.current = item; }, [item]);
-  return {
-    isPublished: item.is_published,
-    onPublish: async () => {
-      await updateContentItem(item.id, { is_published: true });
-      latest.current = { ...latest.current, is_published: true };
-      onUpdated(latest.current);
-    },
-    onUnlocksChange: (unlocks) => {
-      latest.current = { ...latest.current, unlocks };
-      onUpdated(latest.current);
-    },
-  };
-}
-
-function IntelItemCohortAccess({ item, cohorts, onUpdated }) {
-  const gating = useContentItemGating(item, onUpdated);
-  return (
-    <div>
-      <div className="admin-right-header">
-        <div>
-          <div className="admin-right-title">{item.title}</div>
-          <div className="admin-right-sub">
-            {CONTENT_TYPE_LABELS[item.content_type] ?? item.content_type}
-            {item.is_published ? ' · Published' : ' · Draft'}
-          </div>
-        </div>
-      </div>
-      <GatingPanel
-        unlocks={item.unlocks ?? []}
-        cohorts={cohorts}
-        noun="content item"
-        allowCohortWide
-        onLock={(cohortId, squadId) => lockContentItem(item.id, cohortId, squadId)}
-        onUnlock={(cohortId, squadId) => unlockContentItem(item.id, cohortId, squadId)}
-        {...gating}
-      />
     </div>
   );
 }
@@ -2886,180 +2600,6 @@ function ReleasesManager({ onRefresh, scenarioFilter = null }) {
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-/* ── Modules Gating ── (cohort-wide; no scenario grouping) */
-function ModulesGating({ assignments, cohorts, contentItems = [], onUnlocksChange, onAssignmentsChange }) {
-  const [selected,    setSelected]    = useState(null);
-  const [localItems,  setLocalItems]  = useState(contentItems);
-  const [showPicker,  setShowPicker]  = useState(false);
-  const [busy,        setBusy]        = useState({});
-
-  useEffect(() => { setLocalItems(contentItems); }, [contentItems]);
-  useEffect(() => { setShowPicker(false); }, [selected?.id]);
-
-  const linkedSlides   = selected ? localItems.filter((ci) => ci.linked_assignment_id === selected.id) : [];
-  const availableDecks = localItems.filter((ci) => !ci.linked_assignment_id);
-
-  const handleLink = async (ci) => {
-    setBusy((b) => ({ ...b, [ci.id]: true }));
-    try {
-      await updateContentItem(ci.id, { linked_assignment_id: selected.id, is_published: true });
-      setLocalItems((prev) => prev.map((x) => x.id === ci.id ? { ...x, linked_assignment_id: selected.id, is_published: true } : x));
-    } catch { /* ignore */ } finally {
-      setBusy((b) => ({ ...b, [ci.id]: false }));
-    }
-  };
-
-  const handleUnlink = async (ci) => {
-    setBusy((b) => ({ ...b, [ci.id]: true }));
-    try {
-      await updateContentItem(ci.id, { linked_assignment_id: null });
-      setLocalItems((prev) => prev.map((x) => x.id === ci.id ? { ...x, linked_assignment_id: null } : x));
-    } catch { /* ignore */ } finally {
-      setBusy((b) => ({ ...b, [ci.id]: false }));
-    }
-  };
-
-  return (
-    <div className="admin-layout">
-      <div className="admin-left">
-        {assignments.length === 0 && (
-          <p style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 16px' }}>
-            No modules found.
-          </p>
-        )}
-        {assignments.map((a) => (
-          <button
-            key={a.id}
-            className={`admin-assign-btn${selected?.id === a.id ? ' active' : ''}`}
-            onClick={() => setSelected(a)}
-          >
-            <span className="admin-assign-type" style={{ color: TYPE_COLOR.module }}>MODULE</span>
-            <span className="admin-assign-title">{a.title}</span>
-            <ReleaseBadge item={a} />
-          </button>
-        ))}
-      </div>
-      <div className="admin-right">
-        {!selected ? (
-          <div className="admin-empty">
-            <p>Select a module to manage cohort access.</p>
-          </div>
-        ) : (
-          <>
-            <div className="admin-right-header">
-              <div>
-                <div className="admin-right-title">{selected.title}</div>
-                <div className="admin-right-sub">Module · cohort-wide</div>
-              </div>
-            </div>
-            <QuestionsEditor
-              key={selected.id}
-              assignment={selected}
-              onSaved={(patch) => {
-                setSelected((s) => ({ ...s, ...patch }));
-                onAssignmentsChange?.((prev) => prev.map((a) => a.id === selected.id ? { ...a, ...patch } : a));
-              }}
-            />
-            <GatingPanel
-              key={selected.id}
-              unlocks={selected.unlocks ?? []}
-              cohorts={cohorts}
-              onLock={(cohortId, squadId) => lockAssignment(selected.id, cohortId, squadId)}
-              onUnlock={(cohortId, squadId) => unlockAssignment(selected.id, cohortId, squadId)}
-              isPublished={selected.is_published}
-              onPublish={async () => {
-                await updateAssignment(selected.id, { is_published: true });
-                setSelected((s) => ({ ...s, is_published: true }));
-                onAssignmentsChange?.((prev) => prev.map((a) => a.id === selected.id ? { ...a, is_published: true } : a));
-              }}
-              onUnlocksChange={(unlocks) => {
-                setSelected((s) => ({ ...s, unlocks }));
-                onUnlocksChange(selected.id, unlocks);
-              }}
-            />
-
-            {/* ── Linked slide decks ── */}
-            <div style={{ padding: '12px 20px 20px', borderTop: '1px solid var(--border)' }}>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)', marginBottom: 10 }}>
-                LINKED SLIDE DECKS
-              </div>
-
-              {linkedSlides.length === 0 && (
-                <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
-                  No slide decks linked. Add one below — it will auto-unlock with this module.
-                </p>
-              )}
-
-              {linkedSlides.map((ci) => (
-                <div key={ci.id} style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '5px 8px', marginBottom: 4,
-                  background: 'rgba(0,176,255,0.05)',
-                  border: '1px solid rgba(0,176,255,0.15)',
-                  borderRadius: 4,
-                }}>
-                  <span style={{ fontSize: 9, fontFamily: 'var(--mono)', color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '.1em', flexShrink: 0 }}>
-                    {CONTENT_TYPE_LABELS[ci.content_type] ?? ci.content_type}
-                  </span>
-                  <span style={{ fontSize: 12, color: 'var(--bright)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ci.title}</span>
-                  <span style={{ fontSize: 9, color: '#10b981', flexShrink: 0 }}>LIVE</span>
-                  <button
-                    onClick={() => handleUnlink(ci)}
-                    disabled={busy[ci.id]}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f87171', fontSize: 11, padding: '0 2px', flexShrink: 0 }}
-                    title="Unlink from this module"
-                  >
-                    {busy[ci.id] ? '…' : '✕'}
-                  </button>
-                </div>
-              ))}
-
-              {/* Add deck picker */}
-              <button
-                onClick={() => setShowPicker((b) => !b)}
-                style={{ marginTop: 6, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, padding: 0 }}
-              >
-                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.12em', color: 'var(--accent)' }}>
-                  {showPicker ? '▲ CANCEL' : '+ ADD SLIDE DECK'}
-                </span>
-              </button>
-
-              {showPicker && (
-                <div style={{ marginTop: 8, maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 4 }}>
-                  {availableDecks.length === 0 ? (
-                    <p style={{ fontSize: 12, color: 'var(--muted)', padding: '10px 12px' }}>
-                      No unlinked slide decks available. Use <strong>SYNC DECKS</strong> in the Intel Library tab to import from R2.
-                    </p>
-                  ) : availableDecks.map((ci) => (
-                    <div key={ci.id} style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      padding: '6px 10px',
-                      borderBottom: '1px solid var(--border)',
-                    }}>
-                      <span style={{ fontSize: 9, fontFamily: 'var(--mono)', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.1em', flexShrink: 0 }}>
-                        {CONTENT_TYPE_LABELS[ci.content_type] ?? ci.content_type}
-                      </span>
-                      <span style={{ fontSize: 12, color: 'var(--text)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ci.title}</span>
-                      <button
-                        onClick={() => handleLink(ci)}
-                        disabled={busy[ci.id]}
-                        className="btn-sm-primary"
-                        style={{ flexShrink: 0, fontSize: 10 }}
-                      >
-                        {busy[ci.id] ? '…' : 'Link'}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
     </div>
   );
 }
@@ -3654,442 +3194,12 @@ function QuestionsEditor({ assignment, allowPrompts = false, onSaved }) {
   );
 }
 
-/* ── Challenges Gating ── (grouped by scenario_name) */
+/* ── Scenario options (challenge/capstone scenario picker) ── */
 const KNOWN_SCENARIOS = [
   { value: 'packet-heist',  label: 'Packet Heist'  },
   { value: 'brokered-exit', label: 'Brokered Exit' },
   { value: 'left-on-red',   label: 'Left On Red'   },
 ];
-
-function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignmentsChange }) {
-  const [selected,     setSelected]     = useState(null);
-  const [closedGroups, setClosedGroups] = useState(new Set());
-  const [localItems,   setLocalItems]   = useState(assignments);
-  const [victimDraft,  setVictimDraft]  = useState('');
-  const [debriefDraft, setDebriefDraft] = useState('');
-  const [launchBriefingDraft, setLaunchBriefingDraft] = useState('');
-  const [previewAssignment, setPreviewAssignment] = useState(null);
-
-  useEffect(() => { setLocalItems(assignments); }, [assignments]);
-  // Filter by active-cohort release state — 150+ challenges is too many to
-  // scan for "what's live right now" by eye.
-  const [releaseFilter, setReleaseFilter] = useState('all');
-  const { cohort: activeCohort, squadCount } = useContext(ActiveReleaseContext);
-  const filteredItems = releaseFilter === 'all'
-    ? localItems
-    : localItems.filter((a) => contentStatus(a, activeCohort?.id, squadCount).state === releaseFilter);
-  // These three drafts load from `selected` only once, when the id changes —
-  // not on every render — so typing isn't clobbered by unrelated re-fetches
-  // while the panel stays open. That means each one goes stale the moment
-  // the underlying value changes elsewhere (another tab, a script, a direct
-  // DB fix) while this same assignment stays selected. Their onBlur handlers
-  // below must dirty-check against `selected`'s current value before saving
-  // — without that check, merely clicking into and back out of an untouched
-  // field re-PATCHes the stale draft over whatever just changed underneath
-  // it, silently reverting the fix.
-  useEffect(() => { setVictimDraft(selected?.victim_name ?? ''); }, [selected?.id]);
-  useEffect(() => { setDebriefDraft(selected?.debrief ?? ''); }, [selected?.id]);
-  useEffect(() => { setLaunchBriefingDraft(selected?.launch_briefing ?? ''); }, [selected?.id]);
-
-  // Scenario is the top level (null → '__unassigned__'). Within a scenario,
-  // squad-graded challenges branch by victim; individual, role-filtered
-  // challenges branch by professional role instead (victim and role are
-  // separate dimensions — a challenge is either squad/victim work or
-  // individual role work, not nested one inside the other). Anything with
-  // neither a victim nor a role falls into a residual "shared" bucket.
-  const scenarioMap = new Map(); // scenarioKey → { victims: Map, roles: Map, shared: [] }
-  for (const a of filteredItems) {
-    const sKey = a.scenario_name ?? '__unassigned__';
-    if (!scenarioMap.has(sKey)) scenarioMap.set(sKey, { victims: new Map(), roles: new Map(), shared: [] });
-    const group = scenarioMap.get(sKey);
-    if (a.victim_name) {
-      if (!group.victims.has(a.victim_name)) group.victims.set(a.victim_name, []);
-      group.victims.get(a.victim_name).push(a);
-    } else if (a.role_filters?.length > 0) {
-      for (const role of a.role_filters) {
-        if (!group.roles.has(role)) group.roles.set(role, []);
-        group.roles.get(role).push(a);
-      }
-    } else {
-      group.shared.push(a);
-    }
-  }
-  const scenarioGroups = [...scenarioMap.entries()].sort(([a], [b]) => {
-    if (a === '__unassigned__') return 1;
-    if (b === '__unassigned__') return -1;
-    return a.localeCompare(b);
-  });
-  for (const [sKey, group] of scenarioGroups) {
-    for (const items of group.victims.values()) items.sort((a, b) => a.order_index - b.order_index);
-    for (const items of group.roles.values())   items.sort((a, b) => a.order_index - b.order_index);
-    group.shared.sort((a, b) => a.order_index - b.order_index);
-  }
-
-  const toggleGroup = (key) =>
-    setClosedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      return next;
-    });
-
-  const renderSubgroup = (groupKey, label, items) => {
-    const isOpen = !closedGroups.has(groupKey);
-    return (
-      <div key={groupKey}>
-        <button
-          className="admin-group-header"
-          style={{ paddingLeft: 24, background: 'transparent', fontSize: 10, color: 'var(--muted)', letterSpacing: '.12em' }}
-          onClick={() => toggleGroup(groupKey)}
-        >
-          <span style={{ flex: 1, textAlign: 'left' }}>{label.toUpperCase()}</span>
-          <span className="admin-group-badge" style={{ fontSize: 9 }}>{items.length}</span>
-          <span className="admin-group-chevron" style={{ fontSize: 9 }}>{isOpen ? '▲' : '▼'}</span>
-        </button>
-        {isOpen && items.map((a) => (
-          <button
-            key={a.id}
-            className={`admin-assign-btn admin-assign-btn--nested${selected?.id === a.id ? ' active' : ''}`}
-            style={{ paddingLeft: 36 }}
-            onClick={() => setSelected(a)}
-          >
-            <span className="admin-assign-type" style={{ color: TYPE_COLOR.challenge }}>CHALLENGE</span>
-            <span className="admin-assign-title">{a.title}</span>
-            <ReleaseBadge item={a} />
-          </button>
-        ))}
-      </div>
-    );
-  };
-
-  const handleFieldChange = async (assignmentId, patch) => {
-    try {
-      await updateAssignment(assignmentId, patch);
-      applyLocalPatch(assignmentId, patch);
-    } catch { /* ignore */ }
-  };
-
-  // Same local-state update as handleFieldChange, without re-issuing the PATCH
-  // — for callers (like QuestionsEditor) that already persisted the change
-  // themselves and just need the cached list/selection to catch up.
-  const applyLocalPatch = (assignmentId, patch) => {
-    setLocalItems((prev) => prev.map((a) => a.id === assignmentId ? { ...a, ...patch } : a));
-    setSelected((s) => s?.id === assignmentId ? { ...s, ...patch } : s);
-    onAssignmentsChange?.((prev) => prev.map((a) => a.id === assignmentId ? { ...a, ...patch } : a));
-  };
-
-  const toggleRole = (assignment, role) => {
-    const current = assignment.role_filters ?? [];
-    const next = current.includes(role) ? current.filter((r) => r !== role) : [...current, role];
-    handleFieldChange(assignment.id, { role_filters: next });
-  };
-
-  return (
-    <>
-      {previewAssignment && (
-        <TransmissionInterceptor
-          drop={{
-            number: previewAssignment.drop_number,
-            title: previewAssignment.title,
-            narrative_intro: previewAssignment.launch_briefing,
-          }}
-          idLine={previewAssignment.drop_number != null
-            ? `DROP ${String(previewAssignment.drop_number).padStart(2, '0')}`
-            : 'CHALLENGE BRIEFING'}
-          narrativeLabel="COMMAND POST GUIDANCE"
-          onAcknowledge={() => setPreviewAssignment(null)}
-        />
-      )}
-      <div className="admin-layout">
-      <div className="admin-left">
-        {activeCohort && localItems.length > 0 && (
-          <div className="admin-release-filter">
-            {[['all', 'All'], ['live', 'Live'], ['partial', 'Partial'], ['locked', 'Locked'], ['draft', 'Draft']].map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                className={`admin-release-filter-btn${releaseFilter === value ? ' active' : ''}`}
-                onClick={() => setReleaseFilter(value)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-        {localItems.length === 0 && (
-          <p style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 16px' }}>
-            No challenges found.
-          </p>
-        )}
-        {localItems.length > 0 && filteredItems.length === 0 && (
-          <p style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 16px' }}>
-            No {releaseFilter} challenges for {activeCohort?.name}.
-          </p>
-        )}
-        {scenarioGroups.map(([sKey, group]) => {
-          const sLabel  = scenarioLabel(sKey === '__unassigned__' ? null : sKey);
-          const sCount  = filteredItems.filter((a) => (a.scenario_name ?? '__unassigned__') === sKey).length;
-          const sIsOpen = !closedGroups.has(sKey);
-
-          const victimEntries = [...group.victims.entries()].sort(([a], [b]) => a.localeCompare(b));
-          const roleEntries   = [...group.roles.entries()].sort(([a], [b]) => {
-            const ai = ROLE_ORDER.indexOf(a), bi = ROLE_ORDER.indexOf(b);
-            if (ai === -1 && bi === -1) return a.localeCompare(b);
-            if (ai === -1) return 1;
-            if (bi === -1) return -1;
-            return ai - bi;
-          });
-
-          return (
-            <div key={sKey}>
-              <button className="admin-group-header" onClick={() => toggleGroup(sKey)}>
-                <span className="admin-group-label">{sLabel}</span>
-                <span className="admin-group-badge">{sCount}</span>
-                <span className="admin-group-chevron">{sIsOpen ? '▲' : '▼'}</span>
-              </button>
-              {sIsOpen && (
-                <>
-                  {victimEntries.map(([vKey, items]) => renderSubgroup(`${sKey}::victim::${vKey}`, vKey, items))}
-                  {roleEntries.map(([rKey, items]) => renderSubgroup(`${sKey}::role::${rKey}`, ROLE_LABELS[rKey] ?? rKey, items))}
-                  {group.shared.length > 0 && renderSubgroup(`${sKey}::shared`, 'Shared / All Squads', group.shared)}
-                </>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      <div className="admin-right">
-        {!selected ? (
-          <div className="admin-empty">
-            <p>Select a challenge to manage cohort access.</p>
-          </div>
-        ) : (
-          <>
-            <div className="admin-right-header">
-              <div>
-                <div className="admin-right-title">{selected.title}</div>
-                <div className="admin-right-sub">
-                  Challenge
-                  {selected.scenario_name && ` · ${scenarioLabel(selected.scenario_name)}`}
-                  {selected.victim_name && ` · ${selected.victim_name}`}
-                  {selected.role_filters?.length > 0 && ` · ${selected.role_filters.map((r) => ROLE_LABELS[r] ?? r).join(', ')}`}
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  <input
-                    type="checkbox"
-                    checked={!!selected.is_published}
-                    onChange={(e) => handleFieldChange(selected.id, { is_published: e.target.checked })}
-                  />
-                  Published
-                </label>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  disabled={!launchBriefingDraft.trim()}
-                  onClick={() => setPreviewAssignment({
-                    ...selected,
-                    launch_briefing: launchBriefingDraft.trim() || selected.launch_briefing,
-                  })}
-                  title={launchBriefingDraft.trim() ? 'Preview the learner launch briefing' : 'Add a launch briefing to enable preview'}
-                >
-                  Preview Launch Screen
-                </button>
-              </div>
-            </div>
-            {!selected.is_published && (
-              <p style={{ margin: 0, padding: '8px 20px', fontSize: 11, color: '#b45309', background: 'rgba(180,83,9,0.08)', borderBottom: '1px solid var(--border)' }}>
-                {contentStatus(selected, activeCohort?.id, squadCount).hiddenUnlocks
-                  ? 'Draft — unlocked for squads in the active cohort, but hidden from every student until Published is checked.'
-                  : 'Draft — hidden from every student until Published is checked, even once unlocked.'}
-              </p>
-            )}
-
-            {/* ── Scenario + Victim + Role assignment ── */}
-            <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)' }}>
-                SCENARIO, VICTIM &amp; ROLE
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <label style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', width: 56 }}>Scenario:</label>
-                <select
-                  value={selected.scenario_name ?? ''}
-                  onChange={(e) => handleFieldChange(selected.id, { scenario_name: e.target.value || null })}
-                  style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, cursor: 'pointer' }}
-                >
-                  <option value="">— Unassigned —</option>
-                  {KNOWN_SCENARIOS.map((s) => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <label style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', width: 56 }}>Victim:</label>
-                <input
-                  type="text"
-                  value={victimDraft}
-                  onChange={(e) => setVictimDraft(e.target.value)}
-                  onBlur={() => { if (victimDraft.trim() !== (selected.victim_name ?? '')) handleFieldChange(selected.id, { victim_name: victimDraft.trim() || null }); }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && victimDraft.trim() !== (selected.victim_name ?? '')) handleFieldChange(selected.id, { victim_name: victimDraft.trim() || null }); }}
-                  placeholder="e.g. Redstone Memorial Hospital"
-                  style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, flex: 1 }}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <label style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', width: 56, flexShrink: 0, paddingTop: 2 }}>Roles:</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
-                  {ROLE_ORDER.map((role) => (
-                    <label key={role} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={(selected.role_filters ?? []).includes(role)}
-                        onChange={() => toggleRole(selected, role)}
-                      />
-                      {ROLE_LABELS[role]}
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
-                Leave all roles unchecked to show this challenge to every professional role. Role and victim filters both apply if both are set — the list on the left groups by whichever one is set for simplicity, since in practice a challenge is normally one or the other.
-              </p>
-            </div>
-
-            {/* ── Pre-challenge launch briefing ── */}
-            <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)' }}>
-                LAUNCH BRIEFING (acknowledgement required before challenge entry)
-              </div>
-              <textarea
-                value={launchBriefingDraft}
-                onChange={(e) => setLaunchBriefingDraft(e.target.value)}
-                onBlur={() => { if (launchBriefingDraft.trim() !== (selected.launch_briefing ?? '')) handleFieldChange(selected.id, { launch_briefing: launchBriefingDraft.trim() || null }); }}
-                placeholder="Optional Command Post guidance shown when a user launches this challenge."
-                rows={6}
-                style={{ padding: '8px 10px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
-              />
-            </div>
-
-            {/* ── Post-completion debrief ── */}
-            <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)' }}>
-                DEBRIEF (shown to students after they complete this challenge)
-              </div>
-              <textarea
-                value={debriefDraft}
-                onChange={(e) => setDebriefDraft(e.target.value)}
-                onBlur={() => { if (debriefDraft.trim() !== (selected.debrief ?? '')) handleFieldChange(selected.id, { debrief: debriefDraft.trim() || null }); }}
-                placeholder="Optional note shown on the results screen after submission — e.g. why this skill matters in the field."
-                rows={4}
-                style={{ padding: '8px 10px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
-              />
-            </div>
-
-            <QuestionsEditor
-              key={selected.id}
-              assignment={selected}
-              allowPrompts
-              onSaved={(patch) => applyLocalPatch(selected.id, patch)}
-            />
-
-            <GatingPanel
-              key={selected.id}
-              unlocks={selected.unlocks ?? []}
-              cohorts={cohorts}
-              onLock={(cohortId, squadId) => lockAssignment(selected.id, cohortId, squadId)}
-              onUnlock={(cohortId, squadId) => unlockAssignment(selected.id, cohortId, squadId)}
-              isPublished={selected.is_published}
-              onPublish={async () => {
-                await updateAssignment(selected.id, { is_published: true });
-                setSelected((s) => ({ ...s, is_published: true }));
-                onAssignmentsChange?.((prev) => prev.map((a) => a.id === selected.id ? { ...a, is_published: true } : a));
-              }}
-              onUnlocksChange={(unlocks) => {
-                setSelected((s) => ({ ...s, unlocks }));
-                onUnlocksChange(selected.id, unlocks);
-              }}
-            />
-          </>
-        )}
-      </div>
-      </div>
-    </>
-  );
-}
-
-function AssessmentSurveyGating({ assignments, cohorts, onUnlocksChange, onAssignmentsChange }) {
-  const [selected, setSelected] = useState(null);
-
-  return (
-    <div className="admin-layout">
-      <div className="admin-left">
-        {assignments.length === 0 && (
-          <p style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 16px' }}>
-            No assessments or surveys found.
-          </p>
-        )}
-        {assignments.map((a) => {
-          const color = TYPE_COLOR[a.type] ?? TYPE_COLOR.assessment;
-          return (
-            <button
-              key={a.id}
-              className={`admin-assign-btn${selected?.id === a.id ? ' active' : ''}`}
-              onClick={() => setSelected(a)}
-            >
-              <span className="admin-assign-type" style={{ color }}>{a.type.toUpperCase()}</span>
-              <span className="admin-assign-title">{a.title}</span>
-              <ReleaseBadge item={a} />
-            </button>
-          );
-        })}
-      </div>
-      <div className="admin-right">
-        {!selected ? (
-          <div className="admin-empty">
-            <p>Select an assessment or survey to manage cohort access.</p>
-          </div>
-        ) : (
-          <>
-            <div className="admin-right-header">
-              <div>
-                <div className="admin-right-title">{selected.title}</div>
-                <div className="admin-right-sub">{selected.type}</div>
-              </div>
-            </div>
-            {selected.type === 'survey' && <SurveyResultsPanel assignmentId={selected.id} cohorts={cohorts} />}
-            {selected.type !== 'survey' && (
-              <QuestionsEditor
-                key={selected.id}
-                assignment={selected}
-                onSaved={(patch) => {
-                  setSelected((s) => ({ ...s, ...patch }));
-                  onAssignmentsChange?.((prev) => prev.map((a) => a.id === selected.id ? { ...a, ...patch } : a));
-                }}
-              />
-            )}
-            <GatingPanel
-              key={selected.id}
-              unlocks={selected.unlocks ?? []}
-              cohorts={cohorts}
-              onLock={(cohortId, squadId) => lockAssignment(selected.id, cohortId, squadId)}
-              onUnlock={(cohortId, squadId) => unlockAssignment(selected.id, cohortId, squadId)}
-              isPublished={selected.is_published}
-              onPublish={async () => {
-                await updateAssignment(selected.id, { is_published: true });
-                setSelected((s) => ({ ...s, is_published: true }));
-                onAssignmentsChange?.((prev) => prev.map((a) => a.id === selected.id ? { ...a, is_published: true } : a));
-              }}
-              onUnlocksChange={(unlocks) => {
-                setSelected((s) => ({ ...s, unlocks }));
-                onUnlocksChange(selected.id, unlocks);
-              }}
-            />
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
 
 /* ── Live Progress ── */
 const LIVE_STATUS_META = {
@@ -7191,96 +6301,533 @@ const CONTENT_TYPE_LABELS = {
   resource:     'Resource',
 };
 
-function CourseContentPanel({ items, cohorts, loaded, onItemsChange, assignments = [] }) {
-  const [selected, setSelected] = useState(null);
-  const [showForm, setShowForm] = useState(false);
-  const [collapsedSections, setCollapsedSections] = useState({});
+/* ═══════════════════════════════════════════════════════════
+   CONTENT WORKSPACE
+   One list of every assignment (any type) and every content item, with one
+   detail pane per kind. Replaces the separate Challenges / Modules /
+   Assessments & Surveys / Intel Library tabs and the Course Content panel,
+   which each re-implemented list + publish + unlock — and between them
+   never covered capstones or the investigation desk at all.
 
-  const moduleAssignments = assignments.filter((a) => a.type === 'module');
-  const contentSections = useMemo(() => {
-    const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
-    const grouped = items.reduce((sections, item) => {
-      const type = item.content_type || 'resource';
-      const existing = sections.get(type) ?? [];
-      existing.push(item);
-      sections.set(type, existing);
-      return sections;
-    }, new Map());
+   AdminPage owns `assignments`/`contentItems`; every detail pane reads its
+   item from those lists by id and reports changes back as a patch, so there
+   is no per-tab `selected`/`localItems` copy to go stale.
+═══════════════════════════════════════════════════════════ */
 
-    return Array.from(grouped, ([type, sectionItems]) => ({
-      type,
-      label: CONTENT_TYPE_LABELS[type] ?? type.replaceAll('_', ' '),
-      items: sectionItems.sort((a, b) => collator.compare(a.title ?? '', b.title ?? '')),
-    })).sort((a, b) => collator.compare(a.label, b.label));
-  }, [items]);
+// GatingPanel props for one assignment. onPatch merges into AdminPage's list
+// functionally, so publish-then-unlock in one async run can't clobber itself.
+function assignmentGatingProps(assignment, onPatch) {
+  return {
+    unlocks:         assignment.unlocks ?? [],
+    onLock:          (cohortId, squadId) => lockAssignment(assignment.id, cohortId, squadId),
+    onUnlock:        (cohortId, squadId) => unlockAssignment(assignment.id, cohortId, squadId),
+    isPublished:     assignment.is_published,
+    onPublish:       async () => { await updateAssignment(assignment.id, { is_published: true }); onPatch({ is_published: true }); },
+    onUnlocksChange: (unlocks) => onPatch({ unlocks }),
+  };
+}
 
-  const toggleSection = (type) => {
-    setCollapsedSections((current) => ({ ...current, [type]: !current[type] }));
+function contentGatingProps(item, onPatch) {
+  return {
+    unlocks:         item.unlocks ?? [],
+    onLock:          (cohortId, squadId) => lockContentItem(item.id, cohortId, squadId),
+    onUnlock:        (cohortId, squadId) => unlockContentItem(item.id, cohortId, squadId),
+    isPublished:     item.is_published,
+    onPublish:       async () => { await updateContentItem(item.id, { is_published: true }); onPatch({ is_published: true }); },
+    onUnlocksChange: (unlocks) => onPatch({ unlocks }),
+    noun:            'content item',
+    allowCohortWide: true,
+  };
+}
+
+const ASSIGNMENT_TYPE_LABEL = {
+  challenge: 'Challenge', capstone: 'Capstone', module: 'Module', assessment: 'Assessment',
+  survey: 'Survey', investigation: 'Investigation',
+};
+
+// Title, status and the Published switch — the same for every assignment type,
+// so publishing never depends on which kind of item you happen to be editing.
+function AssignmentDetailHeader({ assignment, sub, onPatch, children }) {
+  const [err, setErr] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const setPublished = async (value) => {
+    setBusy(true); setErr(null);
+    try {
+      await updateAssignment(assignment.id, { is_published: value });
+      onPatch({ is_published: value });
+    } catch (e) {
+      setErr(e.response?.data?.error?.message ?? 'Could not change Published');
+    } finally { setBusy(false); }
+  };
+  return (
+    <div className="admin-right-header">
+      <div>
+        <div className="admin-right-title">{assignment.title}</div>
+        <div className="admin-right-sub">
+          {ASSIGNMENT_TYPE_LABEL[assignment.type] ?? assignment.type}
+          {sub ? ` · ${sub}` : ''}
+          {' '}<ReleaseBadge item={assignment} />
+        </div>
+        {err && <div className="err-msg" style={{ fontSize: 11 }}>{err}</div>}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          <input type="checkbox" checked={!!assignment.is_published} disabled={busy} onChange={(e) => setPublished(e.target.checked)} />
+          Published
+        </label>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// Challenges and capstones share the same authoring fields. Mounted with
+// key={assignment.id}, so the text drafts initialise once per item and typing
+// isn't clobbered by unrelated list updates; each blur still dirty-checks
+// against the current value before saving.
+function ChallengeDetail({ assignment, cohorts, onPatch }) {
+  const [victimDraft,         setVictimDraft]         = useState(assignment.victim_name ?? '');
+  const [debriefDraft,        setDebriefDraft]        = useState(assignment.debrief ?? '');
+  const [launchBriefingDraft, setLaunchBriefingDraft] = useState(assignment.launch_briefing ?? '');
+  const [previewing,          setPreviewing]          = useState(false);
+  const [err,                 setErr]                 = useState(null);
+  const { cohort: activeCohort, squadCount } = useContext(ActiveReleaseContext);
+
+  const save = async (patch) => {
+    setErr(null);
+    try {
+      await updateAssignment(assignment.id, patch);
+      onPatch(patch);
+    } catch (e) {
+      setErr(e.response?.data?.error?.message ?? 'Save failed');
+    }
+  };
+  const saveIfChanged = (field, draft) => {
+    const next = draft.trim() || null;
+    if (next !== (assignment[field] ?? null)) save({ [field]: next });
+  };
+  const toggleRole = (role) => {
+    const current = assignment.role_filters ?? [];
+    save({ role_filters: current.includes(role) ? current.filter((r) => r !== role) : [...current, role] });
   };
 
-  if (!loaded) return <div className="loading-screen"><div className="spinner" /></div>;
+  const sub = [
+    assignment.scenario_name && scenarioLabel(assignment.scenario_name),
+    assignment.victim_name,
+    assignment.role_filters?.length > 0 && assignment.role_filters.map((r) => ROLE_LABELS[r] ?? r).join(', '),
+  ].filter(Boolean).join(' · ');
+  const fieldStyle = { padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13 };
+  const areaStyle  = { padding: '8px 10px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 };
 
   return (
-    <div className="admin-layout">
-      <div className="admin-left">
-        <div style={{ padding: '12px 16px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span className="section-label">Content Items</span>
-          <button className="btn-sm-primary" onClick={() => { setShowForm(true); setSelected(null); }}>+ Add</button>
+    <>
+      {previewing && (
+        <TransmissionInterceptor
+          drop={{ number: assignment.drop_number, title: assignment.title, narrative_intro: launchBriefingDraft.trim() || assignment.launch_briefing }}
+          idLine={assignment.drop_number != null ? `DROP ${String(assignment.drop_number).padStart(2, '0')}` : 'CHALLENGE BRIEFING'}
+          narrativeLabel="COMMAND POST GUIDANCE"
+          onAcknowledge={() => setPreviewing(false)}
+        />
+      )}
+      <AssignmentDetailHeader assignment={assignment} sub={sub} onPatch={onPatch}>
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={!launchBriefingDraft.trim()}
+          onClick={() => setPreviewing(true)}
+          title={launchBriefingDraft.trim() ? 'Preview the learner launch briefing' : 'Add a launch briefing to enable preview'}
+        >
+          Preview Launch Screen
+        </button>
+      </AssignmentDetailHeader>
+      {!assignment.is_published && (
+        <p style={{ margin: 0, padding: '8px 20px', fontSize: 11, color: '#b45309', background: 'rgba(180,83,9,0.08)', borderBottom: '1px solid var(--border)' }}>
+          {contentStatus(assignment, activeCohort?.id, squadCount).hiddenUnlocks
+            ? 'Draft — unlocked for squads in the active cohort, but hidden from every student until Published is checked.'
+            : 'Draft — hidden from every student until Published is checked, even once unlocked.'}
+        </p>
+      )}
+      {err && <div className="err-msg" style={{ padding: '6px 20px', fontSize: 12 }}>{err}</div>}
+
+      <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className="content-ws-section-label">SCENARIO, VICTIM &amp; ROLE</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <label style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', width: 56 }}>Scenario:</label>
+          <select
+            value={assignment.scenario_name ?? ''}
+            onChange={(e) => save({ scenario_name: e.target.value || null })}
+            style={{ ...fieldStyle, cursor: 'pointer' }}
+          >
+            <option value="">— Unassigned —</option>
+            {KNOWN_SCENARIOS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            {assignment.scenario_name && !KNOWN_SCENARIOS.some((s) => s.value === assignment.scenario_name) && (
+              <option value={assignment.scenario_name}>{scenarioLabel(assignment.scenario_name)}</option>
+            )}
+          </select>
         </div>
-        <div className="admin-assignment-list">
-          {items.length === 0 && <div className="empty-state" style={{ padding: '24px 16px' }}>No content yet.</div>}
-          {contentSections.map((section) => {
-            const isCollapsed = Boolean(collapsedSections[section.type]);
-            return (
-              <section className="admin-content-section" key={section.type}>
-                <button
-                  type="button"
-                  className="admin-content-section-toggle"
-                  onClick={() => toggleSection(section.type)}
-                  aria-expanded={!isCollapsed}
-                >
-                  <span className="admin-content-section-chevron" aria-hidden="true">▾</span>
-                  <span>{section.label}</span>
-                  <span className="admin-content-section-count">{section.items.length}</span>
-                </button>
-                {!isCollapsed && section.items.map((item) => (
-                  <button
-                    type="button"
-                    key={item.id}
-                    className={`admin-assignment-row${selected?.id === item.id ? ' selected' : ''}`}
-                    onClick={() => { setSelected(item); setShowForm(false); }}
-                  >
-                    <span className="admin-a-title">{item.title}</span>
-                    <span className="admin-a-meta">
-                      <ReleaseBadge item={item} />
-                    </span>
-                  </button>
-                ))}
-              </section>
-            );
-          })}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <label style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', width: 56 }}>Victim:</label>
+          <input
+            type="text"
+            value={victimDraft}
+            onChange={(e) => setVictimDraft(e.target.value)}
+            onBlur={() => saveIfChanged('victim_name', victimDraft)}
+            onKeyDown={(e) => { if (e.key === 'Enter') saveIfChanged('victim_name', victimDraft); }}
+            placeholder="e.g. Redstone Memorial Hospital"
+            style={{ ...fieldStyle, flex: 1 }}
+          />
         </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <label style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', width: 56, flexShrink: 0, paddingTop: 2 }}>Roles:</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
+            {ROLE_ORDER.map((role) => (
+              <label key={role} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer' }}>
+                <input type="checkbox" checked={(assignment.role_filters ?? []).includes(role)} onChange={() => toggleRole(role)} />
+                {ROLE_LABELS[role]}
+              </label>
+            ))}
+          </div>
+        </div>
+        <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
+          Leave all roles unchecked to show this to every professional role. Role and victim filters both apply if both are set.
+        </p>
       </div>
 
-      <div className="admin-right">
-        {showForm ? (
-          <ContentItemForm
-            onSaved={(newItem) => { onItemsChange((p) => [newItem, ...p]); setShowForm(false); setSelected(newItem); }}
-            onCancel={() => setShowForm(false)}
-          />
-        ) : selected ? (
-          <ContentItemDetail
-            item={selected}
-            cohorts={cohorts}
-            moduleAssignments={moduleAssignments}
-            onUpdated={(updated) => { onItemsChange((p) => p.map((i) => i.id === updated.id ? updated : i)); setSelected(updated); }}
-            onDeleted={(id) => { onItemsChange((p) => p.filter((i) => i.id !== id)); setSelected(null); }}
-          />
-        ) : (
-          <div className="admin-empty-right">
-            <p>Select a content item or click <strong>+ Add</strong> to create one.</p>
+      <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className="content-ws-section-label">LAUNCH BRIEFING (acknowledgement required before entry)</div>
+        <textarea
+          value={launchBriefingDraft}
+          onChange={(e) => setLaunchBriefingDraft(e.target.value)}
+          onBlur={() => saveIfChanged('launch_briefing', launchBriefingDraft)}
+          placeholder="Optional Command Post guidance shown when a user launches this."
+          rows={6}
+          style={areaStyle}
+        />
+      </div>
+
+      <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className="content-ws-section-label">DEBRIEF (shown to students after they complete it)</div>
+        <textarea
+          value={debriefDraft}
+          onChange={(e) => setDebriefDraft(e.target.value)}
+          onBlur={() => saveIfChanged('debrief', debriefDraft)}
+          placeholder="Optional note shown on the results screen after submission — e.g. why this skill matters in the field."
+          rows={4}
+          style={areaStyle}
+        />
+      </div>
+
+      <QuestionsEditor assignment={assignment} allowPrompts onSaved={onPatch} />
+      <GatingPanel cohorts={cohorts} {...assignmentGatingProps(assignment, onPatch)} />
+    </>
+  );
+}
+
+function ModuleDetail({ assignment, cohorts, contentItems, onPatch, onContentPatch }) {
+  const [showPicker, setShowPicker] = useState(false);
+  const [busy,       setBusy]       = useState({});
+  const [err,        setErr]        = useState(null);
+
+  const linkedSlides   = contentItems.filter((ci) => ci.linked_assignment_id === assignment.id);
+  const availableDecks = contentItems.filter((ci) => !ci.linked_assignment_id);
+
+  const relink = async (ci, patch) => {
+    setBusy((b) => ({ ...b, [ci.id]: true })); setErr(null);
+    try {
+      await updateContentItem(ci.id, patch);
+      onContentPatch(ci.id, patch);
+    } catch (e) {
+      setErr(e.response?.data?.error?.message ?? 'Could not update the link');
+    } finally {
+      setBusy((b) => ({ ...b, [ci.id]: false }));
+    }
+  };
+
+  return (
+    <>
+      <AssignmentDetailHeader assignment={assignment} sub="cohort-wide" onPatch={onPatch} />
+      <QuestionsEditor assignment={assignment} onSaved={onPatch} />
+      <GatingPanel cohorts={cohorts} {...assignmentGatingProps(assignment, onPatch)} />
+
+      <div style={{ padding: '12px 20px 20px', borderTop: '1px solid var(--border)' }}>
+        <div className="content-ws-section-label" style={{ marginBottom: 10 }}>LINKED SLIDE DECKS</div>
+        {err && <div className="err-msg" style={{ fontSize: 11, marginBottom: 8 }}>{err}</div>}
+        {linkedSlides.length === 0 && (
+          <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
+            No slide decks linked. Add one below — it unlocks automatically with this module.
+          </p>
+        )}
+        {linkedSlides.map((ci) => (
+          <div key={ci.id} className="content-ws-linked-row">
+            <span className="content-ws-linked-type">{CONTENT_TYPE_LABELS[ci.content_type] ?? ci.content_type}</span>
+            <span className="content-ws-linked-title">{ci.title}</span>
+            <ReleaseBadge item={ci} />
+            <button
+              type="button"
+              onClick={() => relink(ci, { linked_assignment_id: null })}
+              disabled={busy[ci.id]}
+              className="content-ws-unlink"
+              title="Unlink from this module"
+            >
+              {busy[ci.id] ? '…' : '✕'}
+            </button>
+          </div>
+        ))}
+        <button type="button" onClick={() => setShowPicker((b) => !b)} className="content-ws-link-toggle">
+          {showPicker ? '▲ CANCEL' : '+ ADD SLIDE DECK'}
+        </button>
+        {showPicker && (
+          <div className="content-ws-picker">
+            {availableDecks.length === 0 ? (
+              <p style={{ fontSize: 12, color: 'var(--muted)', padding: '10px 12px', margin: 0 }}>
+                No unlinked library items. Use <strong>Sync decks</strong> in the library tools to import from R2.
+              </p>
+            ) : availableDecks.map((ci) => (
+              <div key={ci.id} className="content-ws-picker-row">
+                <span className="content-ws-linked-type">{CONTENT_TYPE_LABELS[ci.content_type] ?? ci.content_type}</span>
+                <span className="content-ws-linked-title">{ci.title}</span>
+                <button
+                  type="button"
+                  onClick={() => relink(ci, { linked_assignment_id: assignment.id, is_published: true })}
+                  disabled={busy[ci.id]}
+                  className="btn-sm-primary"
+                  style={{ flexShrink: 0, fontSize: 10 }}
+                >
+                  {busy[ci.id] ? '…' : 'Link'}
+                </button>
+              </div>
+            ))}
           </div>
         )}
+      </div>
+    </>
+  );
+}
+
+// Assessments, surveys, the investigation desk, and any type added later.
+function AssignmentAccessDetail({ assignment, cohorts, onPatch }) {
+  const editable = assignment.type === 'assessment';
+  return (
+    <>
+      <AssignmentDetailHeader assignment={assignment} onPatch={onPatch} />
+      {assignment.type === 'survey' && <SurveyResultsPanel assignmentId={assignment.id} cohorts={cohorts} />}
+      {editable && <QuestionsEditor assignment={assignment} onSaved={onPatch} />}
+      <GatingPanel cohorts={cohorts} {...assignmentGatingProps(assignment, onPatch)} />
+    </>
+  );
+}
+
+// Library-wide actions that used to live on the Intel Library tab's toolbar.
+function LibraryTools({ onNewItem, onShowR2, r2Open, onLibraryChanged }) {
+  const [syncing, setSyncing] = useState(null);
+  const [result,  setResult]  = useState(null);
+
+  const runSync = async (kind, fn, label) => {
+    setSyncing(kind); setResult(null);
+    try {
+      const r = await fn();
+      setResult({ ...r, label });
+      if (r.added > 0 || r.updated > 0) onLibraryChanged();
+    } catch {
+      setResult({ error: true, label });
+    } finally {
+      setSyncing(null);
+    }
+  };
+
+  return (
+    <div className="content-ws-tools">
+      <button type="button" className="content-ws-tool content-ws-tool--primary" onClick={onNewItem}>+ New item</button>
+      <button type="button" className={`content-ws-tool${r2Open ? ' active' : ''}`} onClick={onShowR2}>Add from R2</button>
+      <button type="button" className="content-ws-tool" disabled={!!syncing} onClick={() => runSync('decks', syncDecksFromR2, 'deck')}>
+        {syncing === 'decks' ? 'Syncing…' : 'Sync decks'}
+      </button>
+      <button type="button" className="content-ws-tool" disabled={!!syncing} onClick={() => runSync('files', syncDropFilesFromR2, 'case file')}>
+        {syncing === 'files' ? 'Syncing…' : 'Sync drop files'}
+      </button>
+      {result && (
+        <span className={`content-ws-tool-result${result.error ? ' error' : ''}`}>
+          {result.error
+            ? 'Sync failed'
+            : result.added > 0
+              ? `+${result.added} ${result.label}${result.added !== 1 ? 's' : ''} imported`
+              : `All ${result.label}s already synced`}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function ContentWorkspace({ assignments, contentItems, contentLoaded, cohorts, onAssignmentsChange, onContentItemsChange, onLibraryChanged }) {
+  const { cohort: activeCohort, squadCount } = useContext(ActiveReleaseContext);
+  const [selectedKey,  setSelectedKey]  = useState(null);
+  const [rightMode,    setRightMode]    = useState(null);   // null | 'new-item' | 'r2'
+  const [typeFilter,   setTypeFilter]   = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [query,        setQuery]        = useState('');
+  const [collapsed,    setCollapsed]    = useState(() => new Set());
+
+  const statusOf = useCallback((item) => contentStatus(item, activeCohort?.id, squadCount).state, [activeCohort?.id, squadCount]);
+  const entries  = useMemo(() => buildEntries(assignments, contentItems), [assignments, contentItems]);
+  const typeCounts   = useMemo(() => countBy(filterEntries(entries, { query, status: statusFilter, statusOf }), (e) => e.type), [entries, query, statusFilter, statusOf]);
+  const statusCounts = useMemo(() => countBy(filterEntries(entries, { query, type: typeFilter, statusOf }), (e) => statusOf(e.item)), [entries, query, typeFilter, statusOf]);
+  const visible      = useMemo(() => filterEntries(entries, { type: typeFilter, status: statusFilter, query, statusOf }), [entries, typeFilter, statusFilter, query, statusOf]);
+  const sections     = useMemo(() => groupEntries(visible, {
+    scenarioLabel,
+    contentTypeLabel: (t) => CONTENT_TYPE_LABELS[t] ?? t.replaceAll('_', ' '),
+  }), [visible]);
+  const selected = entries.find((e) => e.key === selectedKey) ?? null;
+  const filtering = typeFilter !== 'all' || statusFilter !== 'all' || query.trim() !== '';
+
+  const patchAssignment = (id) => (patch) =>
+    onAssignmentsChange((prev) => prev.map((a) => a.id === id ? { ...a, ...patch } : a));
+  const patchContent = (id, patch) =>
+    onContentItemsChange((prev) => prev.map((c) => c.id === id ? { ...c, ...patch } : c));
+
+  const toggle = (key) => setCollapsed((prev) => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
+  const select = (key) => { setSelectedKey(key); setRightMode(null); };
+
+  const typeChips = [['all', 'All'], ...TYPE_ORDER.filter((t) => typeCounts[t] || typeFilter === t).map((t) => [t, TYPE_LABELS[t]]),
+    ...Object.keys(typeCounts).filter((t) => t !== 'all' && !TYPE_ORDER.includes(t)).map((t) => [t, t])];
+
+  const renderDetail = () => {
+    if (rightMode === 'new-item') {
+      return (
+        <ContentItemForm
+          onSaved={(newItem) => { onContentItemsChange((p) => [newItem, ...p]); select(`c:${newItem.id}`); }}
+          onCancel={() => setRightMode(null)}
+        />
+      );
+    }
+    if (rightMode === 'r2') {
+      return (
+        <div style={{ padding: '16px 20px', overflowY: 'auto' }}>
+          <div className="content-ws-section-label" style={{ marginBottom: 8 }}>ADD FROM R2</div>
+          <R2PublishBrowser rootPrefix="" cohorts={[]} hideRelease onPublished={onLibraryChanged} />
+        </div>
+      );
+    }
+    if (!selected) {
+      return (
+        <div className="admin-empty">
+          <p>Select anything on the left to edit it, publish it, and control who can see it.</p>
+        </div>
+      );
+    }
+    const { item } = selected;
+    if (selected.kind === 'content') {
+      return (
+        <ContentItemDetail
+          key={item.id}
+          item={item}
+          cohorts={cohorts}
+          moduleAssignments={assignments.filter((a) => a.type === 'module')}
+          onPatch={(patch) => patchContent(item.id, patch)}
+          onDeleted={(id) => { onContentItemsChange((p) => p.filter((i) => i.id !== id)); setSelectedKey(null); }}
+        />
+      );
+    }
+    const props = { assignment: item, cohorts, onPatch: patchAssignment(item.id) };
+    if (item.type === 'challenge' || item.type === 'capstone') return <ChallengeDetail key={item.id} {...props} />;
+    if (item.type === 'module') return <ModuleDetail key={item.id} {...props} contentItems={contentItems} onContentPatch={patchContent} />;
+    return <AssignmentAccessDetail key={item.id} {...props} />;
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+      <ActiveReleaseBanner />
+      <div className="admin-layout" style={{ flex: 1, overflow: 'hidden' }}>
+        <div className="admin-left content-ws-left">
+          <div className="content-ws-controls">
+            <input
+              type="search"
+              className="content-ws-search"
+              placeholder="Search titles…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              aria-label="Search content titles"
+            />
+            <div className="content-ws-chips" role="group" aria-label="Filter by type">
+              {typeChips.map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`content-ws-chip${typeFilter === value ? ' active' : ''}`}
+                  onClick={() => setTypeFilter(value)}
+                >
+                  {label} <span className="content-ws-chip-count">{typeCounts[value] ?? 0}</span>
+                </button>
+              ))}
+            </div>
+            <div className="content-ws-chips" role="group" aria-label="Filter by status">
+              {STATUS_FILTERS.filter(([value]) => value === 'all' || value === 'draft' || activeCohort).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`content-ws-chip content-ws-chip--status${statusFilter === value ? ' active' : ''}`}
+                  onClick={() => setStatusFilter(value)}
+                >
+                  {label} <span className="content-ws-chip-count">{statusCounts[value] ?? 0}</span>
+                </button>
+              ))}
+            </div>
+            <LibraryTools
+              onNewItem={() => { setRightMode('new-item'); setSelectedKey(null); }}
+              onShowR2={() => setRightMode((m) => (m === 'r2' ? null : 'r2'))}
+              r2Open={rightMode === 'r2'}
+              onLibraryChanged={onLibraryChanged}
+            />
+          </div>
+
+          <div className="content-ws-list">
+            {!contentLoaded && <p className="content-ws-note">Loading library items…</p>}
+            {visible.length === 0 && (
+              <p className="content-ws-note">{filtering ? 'Nothing matches these filters.' : 'No content yet.'}</p>
+            )}
+            {sections.map((section) => {
+              const open = filtering || !collapsed.has(section.key);
+              return (
+                <div key={section.key}>
+                  <button type="button" className="admin-group-header" onClick={() => toggle(section.key)} aria-expanded={open}>
+                    <span className="admin-group-label">{section.label}</span>
+                    <span className="admin-group-badge">{section.count}</span>
+                    <span className="admin-group-chevron">{open ? '▲' : '▼'}</span>
+                  </button>
+                  {open && section.groups.map((group) => {
+                    const groupOpen = filtering || !collapsed.has(group.key);
+                    return (
+                      <div key={group.key}>
+                        {group.label && (
+                          <button type="button" className="admin-group-header content-ws-subgroup" onClick={() => toggle(group.key)} aria-expanded={groupOpen}>
+                            <span style={{ flex: 1, textAlign: 'left' }}>{group.label.toUpperCase()}</span>
+                            <span className="admin-group-badge" style={{ fontSize: 9 }}>{group.entries.length}</span>
+                            <span className="admin-group-chevron" style={{ fontSize: 9 }}>{groupOpen ? '▲' : '▼'}</span>
+                          </button>
+                        )}
+                        {groupOpen && group.entries.map((e) => (
+                          <button
+                            key={e.key}
+                            type="button"
+                            className={`admin-assign-btn${group.label ? ' admin-assign-btn--nested' : ''}${selectedKey === e.key ? ' active' : ''}`}
+                            onClick={() => select(e.key)}
+                          >
+                            <span className="admin-assign-title">{e.item.title}</span>
+                            <ReleaseBadge item={e.item} />
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div className="admin-right">{renderDetail()}</div>
       </div>
     </div>
   );
@@ -7339,7 +6886,9 @@ function ContentItemForm({ onSaved, onCancel }) {
   );
 }
 
-function ContentItemDetail({ item, cohorts, moduleAssignments = [], onUpdated, onDeleted }) {
+// onPatch merges into AdminPage's contentItems (see ContentWorkspace), so a
+// save that returns only the item's own columns can't drop its unlocks.
+function ContentItemDetail({ item, cohorts, moduleAssignments = [], onPatch, onDeleted }) {
   const [editing,           setEditing]           = useState(false);
   const [title,             setTitle]             = useState(item.title);
   const [description,       setDescription]       = useState(item.description ?? '');
@@ -7357,7 +6906,6 @@ function ContentItemDetail({ item, cohorts, moduleAssignments = [], onUpdated, o
   // changes is_published without changing the item, and a stale checkbox
   // here would silently unpublish it again on the next Save.
   useEffect(() => { setIsPublished(item.is_published); }, [item.id, item.is_published]);
-  const gating = useContentItemGating(item, onUpdated);
 
   const handleSave = async () => {
     setSaving(true); setErr('');
@@ -7368,7 +6916,7 @@ function ContentItemDetail({ item, cohorts, moduleAssignments = [], onUpdated, o
         is_published:        isPublished,
         linked_assignment_id: linkedAssignmentId || null,
       });
-      onUpdated(updated); setEditing(false);
+      onPatch(updated); setEditing(false);
     } catch { setErr('Save failed'); }
     finally { setSaving(false); }
   };
@@ -7389,7 +6937,7 @@ function ContentItemDetail({ item, cohorts, moduleAssignments = [], onUpdated, o
             <label>Linked Module</label>
             <select value={linkedAssignmentId} onChange={(e) => setLinkedAssignmentId(e.target.value)}>
               <option value="">— None —</option>
-              {moduleAssignments.sort((a, b) => a.order_index - b.order_index).map((m) => (
+              {[...moduleAssignments].sort((a, b) => a.order_index - b.order_index).map((m) => (
                 <option key={m.id} value={m.id}>{m.title}</option>
               ))}
             </select>
@@ -7442,15 +6990,7 @@ function ContentItemDetail({ item, cohorts, moduleAssignments = [], onUpdated, o
             );
           })()}
           <div className="section-label" style={{ marginBottom: 8 }}>Access</div>
-          <GatingPanel
-            unlocks={item.unlocks ?? []}
-            cohorts={cohorts}
-            noun="content item"
-            allowCohortWide
-            onLock={(cohortId, squadId) => lockContentItem(item.id, cohortId, squadId)}
-            onUnlock={(cohortId, squadId) => unlockContentItem(item.id, cohortId, squadId)}
-            {...gating}
-          />
+          <GatingPanel cohorts={cohorts} {...contentGatingProps(item, onPatch)} />
           {err && <div className="err-msg" style={{ marginTop: 8 }}>{err}</div>}
         </>
       )}
