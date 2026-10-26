@@ -3,9 +3,19 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { sequelize } = require('../config/database');
+const { Cohort } = require('../models');
 const assignmentService = require('./assignment.service');
 
-test('live overview includes assessments and surveys', async (t) => {
+function stubActiveCohort(t, cohortId) {
+  const originalFindOne = Cohort.findOne;
+  const calls = [];
+  Cohort.findOne = async (options) => { calls.push(options); return cohortId ? { id: cohortId } : null; };
+  t.after(() => { Cohort.findOne = originalFindOne; });
+  return calls;
+}
+
+test('live overview includes assessments and surveys, scoped to the active cohort', async (t) => {
+  const cohortCalls = stubActiveCohort(t, 'active-cohort');
   const originalQuery = sequelize.query;
   let sql;
   let queryOptions;
@@ -37,14 +47,16 @@ test('live overview includes assessments and surveys', async (t) => {
 
   const result = await assignmentService.getLiveOverview('live-assessment-survey-test-course');
 
+  assert.deepEqual(cohortCalls[0].where, { course_id: 'live-assessment-survey-test-course', is_active: true });
   assert.match(sql, /a\.type IN \('module', 'challenge', 'assessment', 'survey'\)/);
   assert.match(sql, /e\.cohort_id = :cohortId/);
+  assert.doesNotMatch(sql, /:cohortId IS NULL/);
   assert.match(sql, /s\.squad_id = :squadId/);
   assert.match(sql, /a\.type = :type/);
-  assert.match(sql, /a\.type != 'survey' OR \(:cohortId IS NULL AND :squadId IS NULL\)/);
+  assert.match(sql, /a\.type != 'survey' OR :squadId IS NULL/);
   assert.deepEqual(queryOptions.replacements, {
     courseId: 'live-assessment-survey-test-course',
-    cohortId: null,
+    cohortId: 'active-cohort',
     squadId: null,
     type: null,
   });
@@ -58,7 +70,8 @@ test('live overview includes assessments and surveys', async (t) => {
   ]);
 });
 
-test('live overview passes cohort, squad, and assignment type filters to the aggregate query', async (t) => {
+test('live overview ignores a requested cohort_id and always uses the active cohort', async (t) => {
+  stubActiveCohort(t, 'active-cohort');
   const originalQuery = sequelize.query;
   let replacements;
   sequelize.query = async (_query, options) => {
@@ -68,17 +81,28 @@ test('live overview passes cohort, squad, and assignment type filters to the agg
   t.after(() => { sequelize.query = originalQuery; });
 
   await assignmentService.getLiveOverview('filtered-live-course', {
-    cohort_id: 'cohort-2',
+    cohort_id: 'past-cohort',
     squad_id: 'squad-7',
     type: 'survey',
   });
 
   assert.deepEqual(replacements, {
     courseId: 'filtered-live-course',
-    cohortId: 'cohort-2',
+    cohortId: 'active-cohort',
     squadId: 'squad-7',
     type: 'survey',
   });
+});
+
+test('live overview returns nothing when no cohort is active', async (t) => {
+  stubActiveCohort(t, null);
+  const originalQuery = sequelize.query;
+  let queried = false;
+  sequelize.query = async () => { queried = true; return [[]]; };
+  t.after(() => { sequelize.query = originalQuery; });
+
+  assert.deepEqual(await assignmentService.getLiveOverview('no-active-cohort-course'), []);
+  assert.equal(queried, false);
 });
 
 test('sanitizeQuestionsForStudent strips the rubric entirely when ungraded, and strips only commonErrors (never keyElements) once graded', () => {

@@ -4,7 +4,7 @@ const { Submission, Assignment, AssignmentUnlock, Enrollment, Squad, User, Grade
 const { NotFoundError, AppError, ForbiddenError } = require('../utils/errors');
 const logger      = require('../utils/logger');
 const gradeService = require('./grade.service');
-const { invalidateStudentCache } = require('./assignment.service');
+const { invalidateStudentCache, getActiveCohortId } = require('./assignment.service');
 const { gradeQuizAnswers, isFullyAutoGradable } = require('../utils/quizGrading');
 
 async function listByAssignment(assignmentId) {
@@ -103,9 +103,13 @@ async function getProgressForAssignment(assignmentId, filters = {}) {
     throw new ForbiddenError('Individual survey progress is anonymous; use aggregate live progress');
   }
   const questions = Array.isArray(assignment.questions) ? assignment.questions : [];
+  // Locked to the active cohort, same as the live overview — a requested
+  // cohort_id is ignored so past cohorts never appear in the live roster.
+  const cohortId = await getActiveCohortId(assignment.course_id);
+  if (!cohortId) return [];
   const enrollmentWhere = {
     course_id: assignment.course_id,
-    ...(filters.cohort_id ? { cohort_id: filters.cohort_id } : {}),
+    cohort_id: cohortId,
     ...(filters.squad_id ? { squad_id: filters.squad_id } : {}),
   };
   const scopedEnrollments = await Enrollment.findAll({

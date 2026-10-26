@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { Assignment, Submission, Enrollment, AssignmentUnlock, Grade } = require('../models');
+const { Assignment, Submission, Enrollment, AssignmentUnlock, Grade, Cohort } = require('../models');
 const { Op } = require('sequelize');
 const submissionService = require('./submission.service');
 
@@ -245,4 +245,46 @@ test('reopenSquadAttempt refuses an individual assignment', async (t) => {
   Assignment.findByPk = async () => ({ id: 'a1', course_id: 'c1', grading_mode: 'individual' });
   t.after(() => { Assignment.findByPk = original; });
   await assert.rejects(submissionService.reopenSquadAttempt('a1', 'squad-1'), (e) => e.statusCode === 400);
+});
+
+test('live roster is locked to the active cohort, ignoring a requested cohort_id', async (t) => {
+  const originalAssignmentFind = Assignment.findByPk;
+  const originalCohortFindOne = Cohort.findOne;
+  const originalEnrollmentFindAll = Enrollment.findAll;
+  const originalSubmissionFind = Submission.findAll;
+  let enrollmentWhere;
+  let submissionWhere;
+  Assignment.findByPk = async () => ({ id: 'module-1', course_id: 'course-1', type: 'module', questions: [], max_score: 0 });
+  Cohort.findOne = async () => ({ id: 'active-cohort' });
+  Enrollment.findAll = async (options) => { enrollmentWhere = options.where; return [{ user_id: 'user-1' }]; };
+  Submission.findAll = async (options) => { submissionWhere = options.where; return []; };
+  t.after(() => {
+    Assignment.findByPk = originalAssignmentFind;
+    Cohort.findOne = originalCohortFindOne;
+    Enrollment.findAll = originalEnrollmentFindAll;
+    Submission.findAll = originalSubmissionFind;
+  });
+
+  await submissionService.getProgressForAssignment('module-1', { cohort_id: 'past-cohort', squad_id: 'squad-2' });
+
+  assert.deepEqual(enrollmentWhere, { course_id: 'course-1', cohort_id: 'active-cohort', squad_id: 'squad-2' });
+  assert.deepEqual(submissionWhere, { assignment_id: 'module-1', user_id: ['user-1'] });
+});
+
+test('live roster is empty when no cohort is active', async (t) => {
+  const originalAssignmentFind = Assignment.findByPk;
+  const originalCohortFindOne = Cohort.findOne;
+  const originalEnrollmentFindAll = Enrollment.findAll;
+  let queriedEnrollments = false;
+  Assignment.findByPk = async () => ({ id: 'module-1', course_id: 'course-1', type: 'module', questions: [], max_score: 0 });
+  Cohort.findOne = async () => null;
+  Enrollment.findAll = async () => { queriedEnrollments = true; return []; };
+  t.after(() => {
+    Assignment.findByPk = originalAssignmentFind;
+    Cohort.findOne = originalCohortFindOne;
+    Enrollment.findAll = originalEnrollmentFindAll;
+  });
+
+  assert.deepEqual(await submissionService.getProgressForAssignment('module-1'), []);
+  assert.equal(queriedEnrollments, false);
 });

@@ -4189,7 +4189,10 @@ function LiveProgressPanel({ cohorts }) {
   const [rosterLoading, setRosterLoading] = useState(false);
   const [collapsedAssignmentGroups, setCollapsedAssignmentGroups] = useState({});
   const [collapsedRosterGroups, setCollapsedRosterGroups] = useState({});
-  const [cohortId,      setCohortId]      = useState('');
+  // Live Progress is locked to the active cohort (the server enforces this
+  // too) — past cohorts are never selectable here.
+  const activeCohort = cohorts.find((cohort) => cohort.is_active) ?? null;
+  const cohortId = activeCohort?.id ?? '';
   const [squadId,       setSquadId]       = useState('');
   const [assignmentType, setAssignmentType] = useState('');
   const [squads,        setSquads]        = useState([]);
@@ -4211,10 +4214,9 @@ function LiveProgressPanel({ cohorts }) {
   }, [cohortId]);
 
   const filterParams = useMemo(() => ({
-    ...(cohortId ? { cohort_id: cohortId } : {}),
     ...(squadId ? { squad_id: squadId } : {}),
     ...(assignmentType ? { type: assignmentType } : {}),
-  }), [cohortId, squadId, assignmentType]);
+  }), [squadId, assignmentType]);
 
   const loadOverview = useCallback(() => {
     return getLiveOverview(filterParams)
@@ -4300,16 +4302,15 @@ function LiveProgressPanel({ cohorts }) {
     <>
       <div className="live-filter-bar">
         <label>
-          <span>Cohort</span>
-          <select value={cohortId} onChange={(e) => setCohortId(e.target.value)}>
-            <option value="">All cohorts</option>
-            {cohorts.map((cohort) => <option key={cohort.id} value={cohort.id}>{cohort.name}</option>)}
+          <span>Active cohort</span>
+          <select value={cohortId} disabled>
+            <option value={cohortId}>{activeCohort ? activeCohort.name : 'No active cohort'}</option>
           </select>
         </label>
         <label>
           <span>Squad</span>
           <select value={squadId} onChange={(e) => setSquadId(e.target.value)} disabled={!cohortId}>
-            <option value="">{cohortId ? 'All squads' : 'Select a cohort first'}</option>
+            <option value="">{cohortId ? 'All squads' : 'No active cohort'}</option>
             {squads.map((squad) => (
               <option key={squad.id} value={squad.id}>
                 Squad {squad.number}{squad.name ? ` · ${squad.name}` : ''}
@@ -4332,7 +4333,9 @@ function LiveProgressPanel({ cohorts }) {
       <div className="admin-left">
         {overview.length === 0 && (
           <p style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 16px' }}>
-            No published modules, challenges, assessments, or surveys yet.
+            {activeCohort
+              ? 'No published modules, challenges, assessments, or surveys yet.'
+              : 'No cohort is marked active, so there is no live progress to show.'}
           </p>
         )}
         {assignmentGroups.map((group) => (

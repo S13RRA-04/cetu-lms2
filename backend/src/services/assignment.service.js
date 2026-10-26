@@ -294,17 +294,27 @@ async function lockForCohort(assignmentId, cohortId, squadId = null) {
 // before drilling into a specific one via getProgressForAssignment.
 const LIVE_ASSIGNMENT_TYPES = ['module', 'challenge', 'assessment', 'survey'];
 
+// Live Progress is locked to the single currently-active cohort
+// (cohorts.is_active) — same rule as the scoreboard. Past cohorts' in-progress
+// and completed submissions must never mix into the live view, so any
+// requested cohort_id is ignored and no active cohort means no live data.
+async function getActiveCohortId(courseId) {
+  const cohort = await Cohort.findOne({ where: { course_id: courseId, is_active: true }, attributes: ['id'] });
+  return cohort?.id ?? null;
+}
+
 function normalizeLiveFilters(filters = {}) {
   return {
-    cohortId: filters.cohort_id || null,
     squadId: filters.squad_id || null,
     type: LIVE_ASSIGNMENT_TYPES.includes(filters.type) ? filters.type : null,
   };
 }
 
 async function getLiveOverview(courseId, filters = {}) {
-  const normalized = normalizeLiveFilters(filters);
-  const cacheKey = `liveOverview:${courseId}:${normalized.cohortId ?? 'all'}:${normalized.squadId ?? 'all'}:${normalized.type ?? 'all'}`;
+  const cohortId = await getActiveCohortId(courseId);
+  if (!cohortId) return [];
+  const normalized = { cohortId, ...normalizeLiveFilters(filters) };
+  const cacheKey = `liveOverview:${courseId}:${cohortId}:${normalized.squadId ?? 'all'}:${normalized.type ?? 'all'}`;
   return liveOverviewCache.get(cacheKey, () => _queryLiveOverview(courseId, normalized));
 }
 
@@ -318,18 +328,15 @@ async function _queryLiveOverview(courseId, { cohortId, squadId, type }) {
      LEFT JOIN submissions s
        ON s.assignment_id = a.id
       AND (:squadId IS NULL OR s.squad_id = :squadId)
-      AND (
-        :cohortId IS NULL
-        OR EXISTS (
-          SELECT 1 FROM enrollments e
-          WHERE e.user_id = s.user_id
-            AND e.course_id = a.course_id
-            AND e.cohort_id = :cohortId
-        )
+      AND EXISTS (
+        SELECT 1 FROM enrollments e
+        WHERE e.user_id = s.user_id
+          AND e.course_id = a.course_id
+          AND e.cohort_id = :cohortId
       )
      WHERE a.course_id = :courseId
        AND a.type IN ('module', 'challenge', 'assessment', 'survey')
-       AND (a.type != 'survey' OR (:cohortId IS NULL AND :squadId IS NULL))
+       AND (a.type != 'survey' OR :squadId IS NULL)
        AND (:type IS NULL OR a.type = :type)
        AND a.is_published = true
      GROUP BY a.id
@@ -403,4 +410,4 @@ async function remove(id) {
   await assignment.destroy();
 }
 
-module.exports = { listByCourse, listForStudent, getById, create, update, remove, unlockForCohort, lockForCohort, releaseVictimScopedAssignments, getUnlockStatus, getLiveOverview, invalidateStudentCache, invalidateAssignmentLists, sanitizeQuestionsForStudent };
+module.exports = { listByCourse, listForStudent, getById, create, update, remove, unlockForCohort, lockForCohort, releaseVictimScopedAssignments, getUnlockStatus, getLiveOverview, getActiveCohortId, invalidateStudentCache, invalidateAssignmentLists, sanitizeQuestionsForStudent };
