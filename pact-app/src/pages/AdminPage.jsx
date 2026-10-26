@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { Fragment, createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
   getAdminAssignments,
   getSubmissions,
@@ -31,6 +31,7 @@ import {
   lockCampaignDrop,
   verifyDropPuzzle,
   updateCohort,
+  setActiveCohort,
   getPreRangeBriefing,
   releasePreRangeBriefing,
   lockPreRangeBriefing,
@@ -51,6 +52,7 @@ import {
 } from '../api/pact.js';
 import { VICTIMS } from '../constants/victims.js';
 import { activeLearnerCount, defaultReleaseCohortId } from '../lib/releaseCohorts.js';
+import { activeReleaseStatus, splitActiveCohort } from '../lib/releaseStatus.js';
 import { PROFESSIONAL_ROLES } from '../constants/professionalRoles.js';
 import { CERTIFICATIONS } from '../constants/certifications.js';
 import TransmissionInterceptor from './TransmissionInterceptor.jsx';
@@ -842,6 +844,7 @@ export default function AdminPage() {
   }
 
   return (
+    <ActiveReleaseProvider cohorts={cohorts}>
     <div className="admin-page">
       <div className="admin-panel-tabs">
         <button
@@ -1160,6 +1163,7 @@ export default function AdminPage() {
       </div>
       )}
     </div>
+    </ActiveReleaseProvider>
   );
 }
 
@@ -1802,6 +1806,25 @@ function CohortScenarioPanel({ cohorts, onCohortsChange }) {
   };
 
   const [revealing, setRevealing] = useState({});
+  // Two-click confirm: switching the active cohort changes what every
+  // student and instructor sees, so the first click only arms it.
+  const [activateArmed, setActivateArmed] = useState(null);
+  const [activating,    setActivating]    = useState(null);
+  const [activateError, setActivateError] = useState(null);
+
+  const activateCohort = async (cohort) => {
+    if (activateArmed !== cohort.id) { setActivateArmed(cohort.id); setActivateError(null); return; }
+    setActivating(cohort.id);
+    try {
+      await setActiveCohort(cohort.id);
+      onCohortsChange((prev) => prev.map((c) => ({ ...c, is_active: c.id === cohort.id })));
+      setActivateArmed(null);
+    } catch (err) {
+      setActivateError(err.response?.data?.error?.message ?? 'Could not change the active cohort');
+    } finally {
+      setActivating(null);
+    }
+  };
 
   const toggleTargetReveal = async (cohort) => {
     setRevealing((r) => ({ ...r, [cohort.id]: true }));
@@ -1830,6 +1853,13 @@ function CohortScenarioPanel({ cohorts, onCohortsChange }) {
         Assign a scenario to each cohort. Students in that cohort will only see scenario files and intel packages for their assigned scenario.
       </p>
 
+      {!cohorts.some((c) => c.is_active) && (
+        <div className="admin-release-warning" style={{ marginBottom: 14 }}>
+          No cohort is active — students and instructors see no live content until one is made active.
+        </div>
+      )}
+      {activateError && <div className="err-msg" style={{ marginBottom: 10 }}>{activateError}</div>}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {cohorts.map((cohort) => {
           const isSaving    = !!saving[cohort.id];
@@ -1844,7 +1874,10 @@ function CohortScenarioPanel({ cohorts, onCohortsChange }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px' }}>
                 {/* Cohort info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--bright)', marginBottom: 2 }}>{cohort.name}</div>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--bright)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {cohort.name}
+                    {cohort.is_active && <span className="admin-release-badge admin-release-badge--live">ACTIVE</span>}
+                  </div>
                   <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '.1em', color: hasScenario ? 'var(--primary)' : 'var(--muted)' }}>
                     {hasScenario ? `◉ ${scenarioLabel(cohort.scenario_name)}` : '◌ NO SCENARIO ASSIGNED'}
                   </div>
@@ -1878,6 +1911,19 @@ function CohortScenarioPanel({ cohorts, onCohortsChange }) {
                   {flashState === 'saved' && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: '#10b981' }}>◉ SAVED</span>}
                   {flashState === 'error' && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: '#ef4444' }}>FAILED</span>}
                 </div>
+
+                {!cohort.is_active && (
+                  <button
+                    className={activateArmed === cohort.id ? 'btn-primary' : 'btn-secondary'}
+                    style={{ fontSize: 11, padding: '4px 10px', flexShrink: 0 }}
+                    disabled={activating === cohort.id}
+                    onClick={() => activateCohort(cohort)}
+                    onBlur={() => setActivateArmed((armed) => (armed === cohort.id ? null : armed))}
+                    title="Make this the cohort every live view and release is scoped to. The current active cohort is deactivated."
+                  >
+                    {activating === cohort.id ? 'SAVING…' : activateArmed === cohort.id ? 'Confirm: Make Active' : 'Make Active'}
+                  </button>
+                )}
 
                 <button
                   className={cohort.target_revealed ? 'btn-secondary' : 'btn-primary'}
@@ -2311,6 +2357,7 @@ function ContentGatingPanel({ assignments, cohorts, contentItems = [], onAssignm
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+      <ActiveReleaseBanner />
       <div className="admin-mode-tabs" style={{ padding: '0 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <button className={`admin-mode-tab${subTab === 'drops'      ? ' active' : ''}`} onClick={() => setSubTab('drops')}>
           Scenario Drops
@@ -2545,6 +2592,7 @@ function IntelLibraryGating({ contentItems, cohorts, moduleAssignments = [], onI
       {!item.is_published && (
         <span style={{ fontSize: 9, color: 'var(--muted)', marginLeft: 4 }}>DRAFT</span>
       )}
+      <ReleaseBadge unlocks={item.unlocks} />
     </button>
   );
 
@@ -2872,6 +2920,7 @@ function ModulesGating({ assignments, cohorts, contentItems = [], onUnlocksChang
           >
             <span className="admin-assign-type" style={{ color: TYPE_COLOR.module }}>MODULE</span>
             <span className="admin-assign-title">{a.title}</span>
+            <ReleaseBadge unlocks={a.unlocks} />
           </button>
         ))}
       </div>
@@ -3597,6 +3646,13 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
   const [previewAssignment, setPreviewAssignment] = useState(null);
 
   useEffect(() => { setLocalItems(assignments); }, [assignments]);
+  // Filter by active-cohort release state — 150+ challenges is too many to
+  // scan for "what's live right now" by eye.
+  const [releaseFilter, setReleaseFilter] = useState('all');
+  const { cohort: activeCohort, squadCount } = useContext(ActiveReleaseContext);
+  const filteredItems = releaseFilter === 'all'
+    ? localItems
+    : localItems.filter((a) => activeReleaseStatus(a.unlocks, activeCohort?.id, squadCount).state === releaseFilter);
   // These three drafts load from `selected` only once, when the id changes —
   // not on every render — so typing isn't clobbered by unrelated re-fetches
   // while the panel stays open. That means each one goes stale the moment
@@ -3617,7 +3673,7 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
   // individual role work, not nested one inside the other). Anything with
   // neither a victim nor a role falls into a residual "shared" bucket.
   const scenarioMap = new Map(); // scenarioKey → { victims: Map, roles: Map, shared: [] }
-  for (const a of localItems) {
+  for (const a of filteredItems) {
     const sKey = a.scenario_name ?? '__unassigned__';
     if (!scenarioMap.has(sKey)) scenarioMap.set(sKey, { victims: new Map(), roles: new Map(), shared: [] });
     const group = scenarioMap.get(sKey);
@@ -3673,6 +3729,7 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
           >
             <span className="admin-assign-type" style={{ color: TYPE_COLOR.challenge }}>CHALLENGE</span>
             <span className="admin-assign-title">{a.title}</span>
+            <ReleaseBadge unlocks={a.unlocks} />
           </button>
         ))}
       </div>
@@ -3719,14 +3776,33 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
       )}
       <div className="admin-layout">
       <div className="admin-left">
+        {activeCohort && localItems.length > 0 && (
+          <div className="admin-release-filter">
+            {[['all', 'All'], ['live', 'Live'], ['partial', 'Partial'], ['locked', 'Locked']].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={`admin-release-filter-btn${releaseFilter === value ? ' active' : ''}`}
+                onClick={() => setReleaseFilter(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         {localItems.length === 0 && (
           <p style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 16px' }}>
             No challenges found.
           </p>
         )}
+        {localItems.length > 0 && filteredItems.length === 0 && (
+          <p style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 16px' }}>
+            No {releaseFilter} challenges for {activeCohort?.name}.
+          </p>
+        )}
         {scenarioGroups.map(([sKey, group]) => {
           const sLabel  = scenarioLabel(sKey === '__unassigned__' ? null : sKey);
-          const sCount  = localItems.filter((a) => (a.scenario_name ?? '__unassigned__') === sKey).length;
+          const sCount  = filteredItems.filter((a) => (a.scenario_name ?? '__unassigned__') === sKey).length;
           const sIsOpen = !closedGroups.has(sKey);
 
           const victimEntries = [...group.victims.entries()].sort(([a], [b]) => a.localeCompare(b));
@@ -3929,6 +4005,7 @@ function AssessmentSurveyGating({ assignments, cohorts, onUnlocksChange, onAssig
             >
               <span className="admin-assign-type" style={{ color }}>{a.type.toUpperCase()}</span>
               <span className="admin-assign-title">{a.title}</span>
+              <ReleaseBadge unlocks={a.unlocks} />
             </button>
           );
         })}
@@ -4952,23 +5029,83 @@ function PublishFileForm({ file, onPublished, onCancel }) {
    unlockContentItem) — the caller supplies which pair to call plus its own
    `unlocks` array ({cohort_id, squad_id}) and how to persist changes to it,
    so this component has no idea which kind of thing it's gating. */
+/* ── Active-cohort release state ──
+   Every gating view answers one question first: is this live for the active
+   cohort right now? The provider loads that cohort's squad count once so
+   list badges can tell "every squad" from "some squads" without each list
+   fetching squads itself. */
+const ActiveReleaseContext = createContext({ cohort: null, squadCount: 0 });
+
+function ActiveReleaseProvider({ cohorts, children }) {
+  const cohort = cohorts.find((c) => c.is_active) ?? null;
+  const [squadCount, setSquadCount] = useState(0);
+  useEffect(() => {
+    if (!cohort?.id) { setSquadCount(0); return; }
+    getSquadsByCohort(cohort.id)
+      .then((data) => setSquadCount((Array.isArray(data) ? data : (data?.data ?? [])).length))
+      .catch(() => setSquadCount(0));
+  }, [cohort?.id]);
+  const value = useMemo(() => ({ cohort, squadCount }), [cohort, squadCount]);
+  return <ActiveReleaseContext.Provider value={value}>{children}</ActiveReleaseContext.Provider>;
+}
+
+function ReleaseBadge({ unlocks }) {
+  const { cohort, squadCount } = useContext(ActiveReleaseContext);
+  const status = activeReleaseStatus(unlocks, cohort?.id, squadCount);
+  if (status.state === 'no-cohort') return null;
+  if (status.state === 'live') {
+    return <span className="admin-release-badge admin-release-badge--live" title={`Live for every squad in ${cohort.name}`}>LIVE</span>;
+  }
+  if (status.state === 'partial') {
+    return (
+      <span className="admin-release-badge admin-release-badge--partial" title={`Unlocked for ${status.unlockedSquads} of ${status.squadCount} squads in ${cohort.name}`}>
+        {status.unlockedSquads}/{status.squadCount || '?'} SQUADS
+      </span>
+    );
+  }
+  return <span className="admin-release-badge admin-release-badge--locked" title={`Not released to ${cohort.name}`}>LOCKED</span>;
+}
+
+function ActiveReleaseBanner() {
+  const { cohort, squadCount } = useContext(ActiveReleaseContext);
+  if (!cohort) {
+    return (
+      <div className="admin-release-warning">
+        No cohort is active — nothing unlocked here reaches students. Make a cohort active in the Cohorts tab.
+      </div>
+    );
+  }
+  return (
+    <div className="admin-release-banner">
+      <span className="admin-release-banner-label">RELEASING TO</span>
+      <strong>{cohort.name}</strong>
+      <span className="admin-release-banner-sub">{squadCount} squad{squadCount === 1 ? '' : 's'} · LIVE / LOCKED badges show this cohort only</span>
+    </div>
+  );
+}
+
 function GatingPanel({ unlocks = [], cohorts, onUnlocksChange, onLock, onUnlock, noun = 'assignment', allowCohortWide = false }) {
   const [squadsByC,  setSquadsByC]  = useState({});   // cohortId → Squad[]
   const [loadingC,   setLoadingC]   = useState({});   // cohortId → bool
   const [busy,       setBusy]       = useState({});   // `${cohortId}:${squadId}` → bool
   const [errors,     setErrors]     = useState({});
+  const [showOthers, setShowOthers] = useState(false);
+  const { active: activeCohort, others: otherCohorts } = splitActiveCohort(cohorts);
+  // Past/future cohorts are history, not the live release — their squads
+  // only load once someone actually opens them.
+  const visibleCohorts = [
+    ...(activeCohort ? [activeCohort] : []),
+    ...(showOthers || !activeCohort ? otherCohorts : []),
+  ];
 
-  // Build sets from current unlock records for fast lookup
-  const unlockedSquadIds = new Set(
-    unlocks.filter((u) => u.squad_id).map((u) => u.squad_id)
-  );
-  const unlockedCohortIds = new Set(
-    unlocks.filter((u) => !u.squad_id).map((u) => u.cohort_id)
-  );
+  // Matched on (cohort, squad) so a row for another cohort never reads as
+  // unlocked here.
+  const hasUnlock = (cohortId, squadId) =>
+    unlocks.some((u) => u.cohort_id === cohortId && (u.squad_id ?? null) === squadId);
 
-  // Eager-load squads for all cohorts on mount / when cohorts change
+  const visibleKey = visibleCohorts.map((c) => c.id).join(',');
   useEffect(() => {
-    cohorts.forEach(async (c) => {
+    visibleCohorts.forEach(async (c) => {
       if (squadsByC[c.id] || loadingC[c.id]) return;
       setLoadingC((l) => ({ ...l, [c.id]: true }));
       try {
@@ -4978,99 +5115,160 @@ function GatingPanel({ unlocks = [], cohorts, onUnlocksChange, onLock, onUnlock,
       finally { setLoadingC((l) => ({ ...l, [c.id]: false })); }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cohorts]);
+  }, [visibleKey]);
 
-  // squad === null means the cohort-wide toggle (only rendered when
-  // allowCohortWide is set) — same unlock row shape either way, just with
-  // squad_id: null instead of a specific squad's id.
-  const toggle = async (cohort, squad) => {
-    const squadId  = squad?.id ?? null;
-    const key      = `${cohort.id}:${squadId ?? 'cohort'}`;
-    const unlocked = squadId ? unlockedSquadIds.has(squadId) : unlockedCohortIds.has(cohort.id);
+  // One lock/unlock, returning the next unlock list. squadId null is the
+  // cohort-wide row — same row shape, squad_id: null.
+  const apply = async (current, cohortId, squadId, unlock) => {
+    if (unlock) {
+      await onUnlock(cohortId, squadId);
+      return [...current, { cohort_id: cohortId, squad_id: squadId }];
+    }
+    await onLock(cohortId, squadId);
+    return current.filter((u) => !(u.cohort_id === cohortId && (u.squad_id ?? null) === squadId));
+  };
+
+  // `commit` records progress as it happens, so whatever succeeded before a
+  // failure is still reported as the real server state.
+  const run = async (key, work) => {
     setBusy((b)   => ({ ...b, [key]: true }));
     setErrors((e) => ({ ...e, [key]: null }));
+    let next = unlocks;
     try {
-      if (unlocked) {
-        await onLock(cohort.id, squadId);
-        onUnlocksChange(unlocks.filter((u) => !(u.cohort_id === cohort.id && (u.squad_id ?? null) === squadId)));
-      } else {
-        await onUnlock(cohort.id, squadId);
-        onUnlocksChange([...unlocks, { cohort_id: cohort.id, squad_id: squadId }]);
-      }
+      next = await work(next, (n) => { next = n; });
     } catch (err) {
       setErrors((e) => ({ ...e, [key]: err.response?.data?.error?.message ?? 'Action failed' }));
     } finally {
+      if (next !== unlocks) onUnlocksChange(next);
       setBusy((b) => ({ ...b, [key]: false }));
     }
   };
+
+  const toggle = (cohort, squad) => {
+    const squadId = squad?.id ?? null;
+    return run(`${cohort.id}:${squadId ?? 'cohort'}`, (current) => apply(current, cohort.id, squadId, !hasUnlock(cohort.id, squadId)));
+  };
+
+  // Bulk per-squad release: one request per squad still to change, in order,
+  // so a mid-way failure leaves an accurate partial state.
+  const setAllSquads = (cohort, unlock) => run(`${cohort.id}:all`, async (current, commit) => {
+    let next = current;
+    for (const squad of squadsByC[cohort.id] ?? []) {
+      if (hasUnlock(cohort.id, squad.id) === unlock) continue;
+      next = await apply(next, cohort.id, squad.id, unlock);
+      commit(next);
+    }
+    return next;
+  });
 
   if (!cohorts.length) {
     return <div className="admin-empty"><p>No cohorts found for this course.</p></div>;
   }
 
+  const renderCohort = (cohort) => {
+    const isActive      = cohort.id === activeCohort?.id;
+    const squads        = squadsByC[cohort.id] ?? [];
+    const loading       = loadingC[cohort.id];
+    const cohortWide    = hasUnlock(cohort.id, null);
+    const unlockedCount = squads.filter((sq) => hasUnlock(cohort.id, sq.id)).length;
+    const bulkBusy      = busy[`${cohort.id}:all`];
+    return (
+      <div key={cohort.id} className={`admin-gating-cohort${isActive ? ' admin-gating-cohort--active' : ' admin-gating-cohort--other'}`}>
+        <div className="admin-gating-cohort-header" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ flex: 1, minWidth: 160 }}>
+            {cohort.name}
+            {isActive && <span className="admin-release-badge admin-release-badge--live" style={{ marginLeft: 8 }}>ACTIVE</span>}
+            {cohortWide && (
+              <span className="admin-gating-badge badge-unlocked" style={{ marginLeft: 8, fontSize: 10 }}>
+                {allowCohortWide ? 'Whole cohort unlocked' : 'Whole cohort unlocked (legacy)'}
+              </span>
+            )}
+          </span>
+          {(allowCohortWide || cohortWide) && (
+            // A legacy cohort-wide row must always be lockable — the per-squad
+            // buttons are disabled while it exists, so without this the item
+            // could never be locked again from Command.
+            <button
+              className={`admin-gate-btn ${cohortWide ? 'gate-lock' : 'gate-unlock'}`}
+              onClick={() => toggle(cohort, null)}
+              disabled={busy[`${cohort.id}:cohort`]}
+              title={cohortWide ? 'Remove the whole-cohort unlock' : 'Unlock this for every squad in the cohort at once'}
+            >
+              {busy[`${cohort.id}:cohort`] ? '…' : cohortWide ? 'Lock Whole Cohort' : 'Unlock Whole Cohort'}
+            </button>
+          )}
+          {!cohortWide && squads.length > 0 && (
+            <>
+              <button
+                className="admin-gate-btn gate-unlock"
+                onClick={() => setAllSquads(cohort, true)}
+                disabled={bulkBusy || unlockedCount === squads.length}
+                title="Unlock every squad in this cohort"
+              >
+                {bulkBusy ? '…' : 'Unlock All Squads'}
+              </button>
+              <button
+                className="admin-gate-btn gate-lock"
+                onClick={() => setAllSquads(cohort, false)}
+                disabled={bulkBusy || unlockedCount === 0}
+                title="Lock every squad in this cohort"
+              >
+                {bulkBusy ? '…' : 'Lock All Squads'}
+              </button>
+            </>
+          )}
+        </div>
+        {errors[`${cohort.id}:all`] && <div className="err-msg" style={{ fontSize: 11, padding: '4px 0' }}>{errors[`${cohort.id}:all`]}</div>}
+        {errors[`${cohort.id}:cohort`] && <div className="err-msg" style={{ fontSize: 11, padding: '4px 0' }}>{errors[`${cohort.id}:cohort`]}</div>}
+        {loading ? (
+          <div className="admin-gating-loading">Loading squads…</div>
+        ) : squads.length === 0 ? (
+          <div className="admin-gating-loading">No squads in this cohort.</div>
+        ) : squads.map((squad) => {
+          const key      = `${cohort.id}:${squad.id}`;
+          const unlocked = cohortWide || hasUnlock(cohort.id, squad.id);
+          return (
+            <div key={squad.id} className="admin-gating-row">
+              <div className="admin-gating-info">
+                <span className="admin-gating-name">
+                  Squad {squad.number}{squad.name ? ` · ${squad.name}` : ''}
+                </span>
+                <span className={`admin-gating-badge ${unlocked ? 'badge-unlocked' : 'badge-locked'}`}>
+                  {unlocked ? '🔓 Unlocked' : '🔒 Locked'}
+                </span>
+              </div>
+              {errors[key] && (
+                <div className="err-msg" style={{ fontSize: 11, padding: '4px 0' }}>{errors[key]}</div>
+              )}
+              <button
+                className={`admin-gate-btn ${unlocked ? 'gate-lock' : 'gate-unlock'}`}
+                onClick={() => toggle(cohort, squad)}
+                disabled={busy[key] || bulkBusy || cohortWide}
+                title={cohortWide ? 'Whole-cohort unlock in effect — lock the whole cohort first' : undefined}
+              >
+                {busy[key] ? '…' : unlocked ? 'Lock' : 'Unlock'}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="admin-gating">
       <p className="admin-gating-desc">
-        Control which squads can access this {noun}. Select individual squads across cohorts.
+        {activeCohort
+          ? <>Students in <strong>{activeCohort.name}</strong> see this {noun} once it is unlocked for their squad{allowCohortWide ? ' or the whole cohort' : ''}.</>
+          : <>No cohort is active, so nothing unlocked here reaches students yet.</>}
       </p>
-      {cohorts.map((cohort) => {
-        const squads = squadsByC[cohort.id] ?? [];
-        const loading = loadingC[cohort.id];
-        const cohortWide = unlockedCohortIds.has(cohort.id);
-        return (
-          <div key={cohort.id} className="admin-gating-cohort">
-            <div className="admin-gating-cohort-header" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ flex: 1 }}>
-                {cohort.name}
-                {cohortWide && !allowCohortWide && (
-                  <span className="admin-gating-badge badge-unlocked" style={{ marginLeft: 8, fontSize: 10 }}>All unlocked (legacy)</span>
-                )}
-              </span>
-              {allowCohortWide && (
-                <button
-                  className={`admin-gate-btn ${cohortWide ? 'gate-lock' : 'gate-unlock'}`}
-                  onClick={() => toggle(cohort, null)}
-                  disabled={busy[`${cohort.id}:cohort`]}
-                  title="Unlock/lock this content for every squad in the cohort at once"
-                >
-                  {busy[`${cohort.id}:cohort`] ? '…' : cohortWide ? 'Lock Cohort' : 'Unlock Cohort'}
-                </button>
-              )}
-            </div>
-            {loading ? (
-              <div className="admin-gating-loading">Loading squads…</div>
-            ) : squads.length === 0 ? (
-              <div className="admin-gating-loading">No squads in this cohort.</div>
-            ) : squads.map((squad) => {
-              const key      = `${cohort.id}:${squad.id}`;
-              const unlocked = cohortWide || unlockedSquadIds.has(squad.id);
-              return (
-                <div key={squad.id} className="admin-gating-row">
-                  <div className="admin-gating-info">
-                    <span className="admin-gating-name">
-                      Squad {squad.number}{squad.name ? ` · ${squad.name}` : ''}
-                    </span>
-                    <span className={`admin-gating-badge ${unlocked ? 'badge-unlocked' : 'badge-locked'}`}>
-                      {unlocked ? '🔓 Unlocked' : '🔒 Locked'}
-                    </span>
-                  </div>
-                  {errors[key] && (
-                    <div className="err-msg" style={{ fontSize: 11, padding: '4px 0' }}>{errors[key]}</div>
-                  )}
-                  <button
-                    className={`admin-gate-btn ${unlocked ? 'gate-lock' : 'gate-unlock'}`}
-                    onClick={() => toggle(cohort, squad)}
-                    disabled={busy[key] || cohortWide}
-                    title={cohortWide ? 'Cohort-wide unlock in effect' : undefined}
-                  >
-                    {busy[key] ? '…' : unlocked ? 'Lock' : 'Unlock'}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        );
-      })}
+      {activeCohort && renderCohort(activeCohort)}
+      {activeCohort && otherCohorts.length > 0 && (
+        <button type="button" className="admin-gating-others-toggle" onClick={() => setShowOthers((v) => !v)} aria-expanded={showOthers}>
+          {showOthers ? '▾' : '▸'} Other cohorts ({otherCohorts.length}) — not live
+        </button>
+      )}
+      {(showOthers || !activeCohort) && otherCohorts.map(renderCohort)}
     </div>
   );
 }
@@ -6961,6 +7159,7 @@ function CourseContentPanel({ items, cohorts, loaded, onItemsChange, assignments
                       {item.is_published
                         ? <span style={{ fontSize: 10, color: '#10b981' }}>Published</span>
                         : <span style={{ fontSize: 10, color: '#94a3b8' }}>Draft</span>}
+                      <ReleaseBadge unlocks={item.unlocks} />
                     </span>
                   </button>
                 ))}

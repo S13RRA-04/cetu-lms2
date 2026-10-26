@@ -1,7 +1,10 @@
 'use strict';
 const { Cohort, Course, Enrollment, User } = require('../models');
 const { NotFoundError, ConflictError }     = require('../utils/errors');
+const { sequelize } = require('../config/database');
 const { normalizeScenarioName } = require('./scenario.service');
+const { invalidateAssignmentLists } = require('./assignment.service');
+const { invalidateCourseContentLists } = require('./courseContent.service');
 
 function activeMemberCount(cohort) {
   return (cohort.members ?? []).filter((member) => (
@@ -52,6 +55,22 @@ async function update(cohortId, data) {
   const cohort = await Cohort.findByPk(cohortId);
   if (!cohort) throw new NotFoundError('Cohort');
   return cohort.update(normalizeCohortData(data));
+}
+
+// Exactly one cohort per course is "active" — it is what every live view
+// (Operations, Case File, Intel Library, Live Progress, Standings, the staff
+// operator view) is scoped to — so activating one deactivates the rest in the
+// same transaction rather than ever leaving two (or zero, mid-switch) live.
+async function setActive(courseId, cohortId) {
+  const cohort = await Cohort.findOne({ where: { id: cohortId, course_id: courseId } });
+  if (!cohort) throw new NotFoundError('Cohort');
+  await sequelize.transaction(async (transaction) => {
+    await Cohort.update({ is_active: false }, { where: { course_id: courseId }, transaction });
+    await cohort.update({ is_active: true }, { transaction });
+  });
+  invalidateAssignmentLists();
+  invalidateCourseContentLists(courseId);
+  return cohort;
 }
 
 async function remove(cohortId) {
@@ -108,4 +127,4 @@ async function removeMember(cohortId, userId) {
   await enrollment.destroy();
 }
 
-module.exports = { listByCourse, getById, create, update, remove, addMember, addMembers, removeMember, normalizeCohortData, activeMemberCount };
+module.exports = { setActive, listByCourse, getById, create, update, remove, addMember, addMembers, removeMember, normalizeCohortData, activeMemberCount };

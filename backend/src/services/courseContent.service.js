@@ -82,6 +82,38 @@ async function listForStudent(courseId, userId) {
   });
 }
 
+// Staff browsing the plain Intel Library/Case File page (not Command's
+// manage=1 authoring view) see every item released to the ACTIVE cohort,
+// cohort-wide or for any of its squads — not scoped to one squad, since
+// staff oversee every squad at once and most don't carry a personal
+// enrollment at all. Mirrors scenario.service.js's listForStaffView and
+// assignment.service.js's: role/victim/location routing is per-student and
+// deliberately skipped here. Unlike listForStudent, an item that hasn't
+// been released yet is left out entirely rather than returned with
+// is_unlocked:false and a nulled-out download_url — this view is meant to
+// show only what's actually live.
+async function listForStaffView(courseId) {
+  const activeCohort = await Cohort.findOne({ where: { course_id: courseId, is_active: true } });
+  if (!activeCohort) return [];
+
+  const [items, unlocks] = await Promise.all([
+    contentCache.get(`listItems:${courseId}`, () => CourseContentItem.findAll({
+      where: { course_id: courseId, is_published: true },
+      order: [['order_index', 'ASC'], ['created_at', 'ASC']],
+    })),
+    CourseContentUnlock.findAll({ where: { cohort_id: activeCohort.id } }),
+  ]);
+
+  const unlockedSet = new Set(unlocks.map((u) => u.content_id));
+  return items
+    .filter((item) => unlockedSet.has(item.id))
+    .map((item) => ({
+      ...item.toJSON(),
+      is_unlocked:  true,
+      download_url: item.r2_key ? `${R2_PUBLIC_BASE_URL}/${item.r2_key}` : item.url,
+    }));
+}
+
 /* Staff browsing the operator-facing Case File/Intel Library (pact-app's
    CourseContentPage/ScenariosPage/EvidenceDrawer, not Command's manage=1
    view) need a real is_unlocked signal — otherwise every published item
@@ -394,4 +426,4 @@ async function syncDropCaseFiles(courseId, { scenarioName, dropNumber }) {
   };
 }
 
-module.exports = { listForStudent, listForAdmin, create, update, remove, unlockForCohort, lockForCohort, getDownloadUrl, syncDecks, syncDropCaseFiles, invalidateCourseContentLists };
+module.exports = { listForStudent, listForStaffView, listForAdmin, create, update, remove, unlockForCohort, lockForCohort, getDownloadUrl, syncDecks, syncDropCaseFiles, invalidateCourseContentLists };

@@ -4,13 +4,26 @@ const scenarioService = require('../services/scenario.service');
 async function list(req, res, next) {
   try {
     const isStudent = req.user.role === 'student';
-    // Case File is operator-facing — admins/instructors browsing it see
-    // published-only packages too. Only Command's management view
-    // (`manage=1`) sees unpublished/draft packages.
-    const includeUnpublished = !isStudent && req.query.manage === '1';
+    const manage = !isStudent && req.query.manage === '1';
+    if (manage) {
+      // Command's authoring view (AdminPage.jsx's ContentGatingPanel et al.)
+      // — the one place that's SUPPOSED to see every package, locked or
+      // unlocked, published or draft, across every squad, in order to
+      // manage release state.
+      return res.json(await scenarioService.listForAdmin(req.params.id, { includeUnpublished: true }));
+    }
+    // Plain Case File (ScenariosPage.jsx, no `manage`): a student sees only
+    // what's been released to their OWN squad; staff see everything
+    // released to the active cohort, for any squad, but — like a student —
+    // nothing that hasn't actually been released yet. This used to fall
+    // through to listForAdmin for every non-student role, which has no
+    // release-aware filtering at all: every locked package rendered as a
+    // titled "RESTRICTED" placeholder (narrative/description text and all),
+    // and packages tagged for a squad other than the viewer's own showed up
+    // too, just like a student's would have.
     const data = isStudent
       ? await scenarioService.listForStudent(req.params.id, req.user.id)
-      : await scenarioService.listForAdmin(req.params.id, { includeUnpublished });
+      : await scenarioService.listForStaffView(req.params.id);
     return res.json(data);
   } catch (err) { return next(err); }
 }

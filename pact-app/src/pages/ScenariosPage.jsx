@@ -169,12 +169,13 @@ export default function ScenariosPage() {
     </div>
   );
 
-  // Publish state is enforced server-side (published-only, even for admins).
-  // is_unlocked is also real for every caller now — scoped server-side to
-  // the currently-active cohort (scenario.service.js's listForAdmin) — so
-  // staff browsing this operator-facing view see exactly what a student in
-  // the live cohort would see, not a preview of locked-but-published content.
-  const visible = packages;
+  // The backend (scenario.service.js's listForStudent/listForStaffView) now
+  // only ever returns already-released packages — a student's own squad's,
+  // or (for staff) anything released to the active cohort — so this filter
+  // is normally a no-op. Kept explicit, matching dropFiles just above,
+  // rather than trusting every caller to never slip an unreleased package
+  // into the response: Case File shows nothing until it's actually live.
+  const visible = packages.filter((p) => p.is_unlocked === true);
 
   // Group by scenario_name, then by search location, then by drop number.
   // Packages and loose case files both carry location_code + drop_number now

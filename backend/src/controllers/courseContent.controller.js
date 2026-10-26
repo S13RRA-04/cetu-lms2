@@ -4,13 +4,24 @@ const svc = require('../services/courseContent.service');
 async function list(req, res, next) {
   try {
     const isStudent = req.user.role === 'student';
-    // Intel Library is operator-facing — admins/instructors browsing it see
-    // published-only content too. Only Command's management view (`manage=1`)
-    // sees unpublished/draft items.
-    const includeUnpublished = !isStudent && req.query.manage === '1';
+    const manage = !isStudent && req.query.manage === '1';
+    if (manage) {
+      // Command's authoring view — needs every item, locked or unlocked,
+      // published or draft, across every squad, to manage release state.
+      return res.json(await svc.listForAdmin(req.params.id, { includeUnpublished: true }));
+    }
+    // Plain Intel Library/Case File (CourseContentPage.jsx, ScenariosPage.jsx,
+    // EvidenceDrawer.jsx — no `manage`): same fix as scenario.controller.js's
+    // list() and for the same reason — listForAdmin has no squad/victim/role/
+    // location scoping at all, so any staff role fell through to it and saw
+    // every squad's content, including locked items with a still-populated
+    // download_url the squad-scoped path would have nulled out. Students
+    // keep their own-squad-scoped view; staff see everything released to
+    // the active cohort, for any squad, but nothing that hasn't actually
+    // been released yet.
     const data = isStudent
       ? await svc.listForStudent(req.params.id, req.user.id)
-      : await svc.listForAdmin(req.params.id, { includeUnpublished });
+      : await svc.listForStaffView(req.params.id);
     return res.json(data);
   } catch (err) { return next(err); }
 }

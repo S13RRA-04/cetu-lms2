@@ -117,6 +117,9 @@ export const getCohorts = () =>
 export const updateCohort = (cohortId, data) =>
   client.put(`/courses/${COURSE_ID}/cohorts/${cohortId}`, data).then((r) => r.data);
 
+export const setActiveCohort = (cohortId) =>
+  client.post(`/courses/${COURSE_ID}/cohorts/${cohortId}/activate`).then((r) => r.data);
+
 export const getPreRangeBriefing = (cohortId) =>
   client.get(`/courses/${COURSE_ID}/cohorts/${cohortId}/pre-range-briefing`).then((r) => r.data);
 

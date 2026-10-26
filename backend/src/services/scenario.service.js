@@ -183,6 +183,37 @@ async function listForStudent(courseId, userId) {
   return unlocked.map((p) => ({ ...p.toJSON(), is_unlocked: true }));
 }
 
+// Staff browsing the plain Case File page (not Command's manage=1 authoring
+// view) see every package released to the ACTIVE cohort, for any squad —
+// not scoped to one squad the way listForStudent is, since staff oversee
+// every squad at once and most don't carry a personal enrollment at all.
+// Mirrors assignment.service.js's listForStaffView: role/victim/location
+// routing is per-student and deliberately not applied here — if the active
+// cohort has had it released, staff see it. Unlike listForStudent, a
+// package that ISN'T released yet is left out entirely (no "RESTRICTED"
+// placeholder) rather than returned with is_unlocked:false — Case File is
+// meant to show only what's actually live, never what's coming.
+async function listForStaffView(courseId) {
+  const activeCohort = await Cohort.findOne({ where: { course_id: courseId, is_active: true } });
+  if (!activeCohort) return [];
+  const activeCohortScenario = normalizeScenarioName(activeCohort.scenario_name);
+
+  const [packages, unlocks] = await Promise.all([
+    packageListCache.get(`packages:${courseId}`, () => ScenarioPackage.findAll({
+      where: { course_id: courseId, is_published: true },
+      order: [['release_number', 'ASC']],
+    })),
+    unlockListCache.get(`unlocks:${activeCohort.id}`, () => ScenarioPackageUnlock.findAll({ where: { cohort_id: activeCohort.id } })),
+  ]);
+
+  const unlockedSet = new Set(unlocks.map((u) => u.package_id));
+  const unlocked = packages.filter((p) =>
+    unlockedSet.has(p.id) &&
+    (activeCohortScenario == null || normalizeScenarioName(p.scenario_name) === activeCohortScenario)
+  );
+  return unlocked.map((p) => ({ ...p.toJSON(), is_unlocked: true }));
+}
+
 /* Staff browsing the operator-facing Case File (pact-app's ScenariosPage,
    not Command's manage=1 view) need a real is_unlocked signal — otherwise
    every published package silently reads as available and there is no way
@@ -409,7 +440,7 @@ async function quickRelease(courseId, cohortId, { r2_key, title, scenario_name, 
 }
 
 module.exports = {
-  listForStudent, listForAdmin, getDownloadUrl, getFilesAdmin, zipPackage,
+  listForStudent, listForStaffView, listForAdmin, getDownloadUrl, getFilesAdmin, zipPackage,
   create, update, remove, unlockForCohort, lockForCohort,
   browseR2, getPresignedUploadUrl, deleteR2Object, quickRelease,
   normalizeScenarioName, invalidatePackageLists,

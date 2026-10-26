@@ -29,6 +29,11 @@ async function update(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function setActive(req, res, next) {
+  try { res.json(await cohortService.setActive(req.params.id, req.params.cid)); }
+  catch (err) { next(err); }
+}
+
 async function remove(req, res, next) {
   try {
     await cohortService.remove(req.params.cid);
@@ -58,4 +63,4 @@ async function removeMember(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listByCourse, getOne, create, update, remove, addMember, addMembers, removeMember };
+module.exports = { listByCourse, getOne, create, update, setActive, remove, addMember, addMembers, removeMember };

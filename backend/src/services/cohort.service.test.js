@@ -28,3 +28,29 @@ test('activeMemberCount excludes completed and withdrawn learners', () => {
     { Enrollment: { status: 'withdrawn', role: 'student' } },
   ] }), 1);
 });
+
+test('setActive deactivates every other cohort in the course and activates the chosen one, atomically', async (t) => {
+  const { Cohort } = require('../models');
+  const { sequelize } = require('../config/database');
+  const cohortService = require('./cohort.service');
+  const original = { findOne: Cohort.findOne, update: Cohort.update, transaction: sequelize.transaction };
+  const calls = [];
+  const cohort = { id: 'oct', async update(values, opts) { calls.push(['activate', values, !!opts?.transaction]); } };
+  Cohort.findOne = async ({ where }) => (where.id === 'oct' && where.course_id === 'course-1' ? cohort : null);
+  Cohort.update = async (values, opts) => { calls.push(['deactivate', values, opts.where, !!opts.transaction]); return [3]; };
+  sequelize.transaction = async (callback) => callback({ id: 'tx' });
+  t.after(() => {
+    Cohort.findOne = original.findOne;
+    Cohort.update = original.update;
+    sequelize.transaction = original.transaction;
+  });
+
+  await cohortService.setActive('course-1', 'oct');
+  assert.deepEqual(calls, [
+    ['deactivate', { is_active: false }, { course_id: 'course-1' }, true],
+    ['activate', { is_active: true }, true],
+  ]);
+
+  // A cohort from another course can't be activated through this course.
+  await assert.rejects(cohortService.setActive('course-2', 'oct'), (error) => error.statusCode === 404);
+});
