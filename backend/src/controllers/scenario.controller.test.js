@@ -11,7 +11,7 @@ function mockRes() {
   return res;
 }
 
-test('list: staff (no manage flag) get the active-cohort, any-squad view; students get their own-squad view', async (t) => {
+test('list: staff (no manage flag) get the staff view — passed their own id so a squad-enrolled admin is scoped to that squad; students get their own-squad view', async (t) => {
   const original = {
     listForStudent: scenarioService.listForStudent,
     listForStaffView: scenarioService.listForStaffView,
@@ -19,7 +19,7 @@ test('list: staff (no manage flag) get the active-cohort, any-squad view; studen
   };
   let calledWith = null;
   scenarioService.listForStudent = async (courseId, userId) => { calledWith = { fn: 'student', courseId, userId }; return ['scoped']; };
-  scenarioService.listForStaffView = async (courseId) => { calledWith = { fn: 'staff', courseId }; return ['scoped']; };
+  scenarioService.listForStaffView = async (courseId, userId) => { calledWith = { fn: 'staff', courseId, userId }; return ['scoped']; };
   scenarioService.listForAdmin = async () => { throw new Error('should not call the unfiltered listForAdmin without manage=1'); };
   t.after(() => Object.assign(scenarioService, original));
 
@@ -29,8 +29,7 @@ test('list: staff (no manage flag) get the active-cohort, any-squad view; studen
     const res = mockRes();
     await scenarioController.list(req, res, (err) => { throw err; });
     assert.deepEqual(res.body, ['scoped'], role);
-    const expected = fn === 'student' ? { fn, courseId: 'course-1', userId: `user-${role}` } : { fn, courseId: 'course-1' };
-    assert.deepEqual(calledWith, expected, role);
+    assert.deepEqual(calledWith, { fn, courseId: 'course-1', userId: `user-${role}` }, role);
   }
 });
 

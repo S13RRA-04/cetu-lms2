@@ -23,7 +23,7 @@ async function list(req, res, next) {
     // too, just like a student's would have.
     const data = isStudent
       ? await scenarioService.listForStudent(req.params.id, req.user.id)
-      : await scenarioService.listForStaffView(req.params.id);
+      : await scenarioService.listForStaffView(req.params.id, req.user.id);
     return res.json(data);
   } catch (err) { return next(err); }
 }

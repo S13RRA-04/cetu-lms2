@@ -8,6 +8,7 @@ const { NotFoundError, ForbiddenError } = require('../utils/errors');
 const TtlCache = require('../utils/ttlCache');
 const { scenarioSlugFromName } = require('../utils/r2CaseFile');
 const { getStudentLocationCodes, locationMatches } = require('../utils/dropLocation');
+const { getActiveCohortEnrollment } = require('../utils/staffView');
 
 // scenario_name must be the same slug form assignments/course-content/campaign
 // drops use (e.g. "packet-heist") — the student Evidence Repository groups
@@ -129,9 +130,10 @@ async function getFilesForPackage(pkg, presigned = false) {
   })));
 }
 
-async function listForStudent(courseId, userId) {
+// cohortId pins which enrollment counts (see listForStaffView).
+async function listForStudent(courseId, userId, { cohortId = null } = {}) {
   const enrollment = await Enrollment.findOne({
-    where:   { user_id: userId, course_id: courseId },
+    where:   { user_id: userId, course_id: courseId, ...(cohortId ? { cohort_id: cohortId } : {}) },
     include: [
       { model: Squad,  as: 'squad',  attributes: ['id', 'number', 'victim_code'] },
       { model: Cohort, as: 'cohort', attributes: ['id', 'scenario_name'] },
@@ -193,7 +195,15 @@ async function listForStudent(courseId, userId) {
 // package that ISN'T released yet is left out entirely (no "RESTRICTED"
 // placeholder) rather than returned with is_unlocked:false — Case File is
 // meant to show only what's actually live, never what's coming.
-async function listForStaffView(courseId) {
+// Staff who are on a squad in the active cohort get that squad's own Case
+// File, exactly like a student — packages are scoped per victim/squad, so the
+// cohort-wide view below showed them every squad's packages. Same rule as
+// assignment.service.js's and courseContent.service.js's listForStaffView.
+async function listForStaffView(courseId, userId = null) {
+  if (userId) {
+    const enrollment = await getActiveCohortEnrollment(courseId, userId);
+    if (enrollment?.squad_id) return listForStudent(courseId, userId, { cohortId: enrollment.cohort_id });
+  }
   const activeCohort = await Cohort.findOne({ where: { course_id: courseId, is_active: true } });
   if (!activeCohort) return [];
   const activeCohortScenario = normalizeScenarioName(activeCohort.scenario_name);
