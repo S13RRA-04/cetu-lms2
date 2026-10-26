@@ -3,7 +3,8 @@ const { Op }             = require('sequelize');
 const { sequelize }      = require('../config/database');
 const { Assignment, AssignmentUnlock, Course, Cohort, Enrollment, User, Submission, CourseContentItem, CourseContentUnlock, Squad, Grade } = require('../models');
 const { randomUUID }     = require('crypto');
-const { NotFoundError, AppError, ConflictError } = require('../utils/errors');
+const { NotFoundError, AppError, ConflictError, ValidationError } = require('../utils/errors');
+const { reorderSlots } = require('../utils/reorderSlots');
 const { paginate, paginatedResponse } = require('../utils/pagination');
 const TtlCache = require('../utils/ttlCache');
 const { getStudentLocationCodes, locationMatches } = require('../utils/dropLocation');
@@ -532,4 +533,21 @@ async function duplicate(id) {
   return copy;
 }
 
-module.exports = { listByCourse, listForStudent, listForStaffView, getById, create, update, remove, archive, restore, duplicate, unlockForCohort, lockForCohort, releaseVictimScopedAssignments, getUnlockStatus, getLiveOverview, getActiveCohortId, invalidateStudentCache, invalidateAssignmentLists, sanitizeQuestionsForStudent };
+// Reorders one group (a course day in Command) by rewriting only that group's
+// order_index values — see utils/reorderSlots.js for why the rest of the
+// course is left alone. ids must all belong to this course.
+async function reorder(courseId, ids) {
+  const rows = await Assignment.findAll({ where: { id: ids, course_id: courseId }, attributes: ['id', 'order_index'] });
+  if (rows.length !== ids.length) throw new ValidationError('Some assignments were not found in this course');
+  const slots = reorderSlots(rows.map((r) => r.order_index));
+  const result = ids.map((id, i) => ({ id, order_index: slots[i] }));
+  await sequelize.transaction(async (transaction) => {
+    for (const { id, order_index } of result) {
+      await Assignment.update({ order_index }, { where: { id, course_id: courseId }, transaction });
+    }
+  });
+  invalidateAssignmentLists();
+  return result;
+}
+
+module.exports = { listByCourse, listForStudent, listForStaffView, getById, create, update, remove, archive, restore, duplicate, reorder, unlockForCohort, lockForCohort, releaseVictimScopedAssignments, getUnlockStatus, getLiveOverview, getActiveCohortId, invalidateStudentCache, invalidateAssignmentLists, sanitizeQuestionsForStudent };

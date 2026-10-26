@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildEntries, filterEntries, countBy, countStatuses, groupEntries } from './contentWorkspace.js';
+import { buildEntries, filterEntries, countBy, countStatuses, groupEntries, groupEntriesByDay, moveWithin } from './contentWorkspace.js';
 
 const assignments = [
   { id: 'c2', type: 'challenge', title: 'Drop 1 Quiz', order_index: 29, scenario_name: 'packet-heist' },
@@ -72,4 +72,21 @@ test('archived items are hidden from All and only shown by the Archived filter; 
   assert.deepEqual(filterEntries(list, { status: 'archived', statusOf }).map((e) => e.item.id), ['a']);
   assert.equal(filterEntries(list, { status: 'any', statusOf }).length, 2);
   assert.deepEqual(countStatuses(list, statusOf), { all: 1, archived: 1, live: 1 });
+});
+
+test('day view: days ascending, then Unscheduled, then Library; only assignment sections are reorderable', () => {
+  const dayOf = (item) => ({ c1: 1, c2: 2, c3: 1, cap: 1 })[item.id] ?? null;
+  const sections = groupEntriesByDay(entries, dayOf);
+  assert.deepEqual(sections.map((s) => s.label), ['Day 1', 'Day 2', 'Unscheduled', 'Library']);
+  assert.deepEqual(sections[0].groups[0].entries.map((e) => e.item.id), ['c1', 'cap', 'c3'], 'order_index order within a day');
+  assert.deepEqual(sections.map((s) => s.reorderable), [true, true, true, false]);
+  assert.equal(sections[3].count, content.length);
+});
+
+test('moveWithin swaps with the neighbour and refuses to leave the section', () => {
+  assert.deepEqual(moveWithin(['a', 'b', 'c'], 'c', -1), ['a', 'c', 'b']);
+  assert.deepEqual(moveWithin(['a', 'b', 'c'], 'a', 1), ['b', 'a', 'c']);
+  assert.equal(moveWithin(['a', 'b'], 'a', -1), null);
+  assert.equal(moveWithin(['a', 'b'], 'b', 1), null);
+  assert.equal(moveWithin(['a'], 'zzz', 1), null);
 });

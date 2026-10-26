@@ -18,6 +18,7 @@ const createAssignmentSchema = Joi.object({
   scenario_name: Joi.string().max(255).allow('', null),
   victim_name:   Joi.string().max(255).allow('', null),
   role_filters:  Joi.array().items(Joi.string().max(64)).default([]),
+  course_day:    Joi.number().integer().min(1).max(30).allow(null),
 });
 
 const updateAssignmentSchema = Joi.object({
@@ -38,7 +39,21 @@ const updateAssignmentSchema = Joi.object({
   // Missing until now — and since validate() strips unknown keys, Command's
   // role checkboxes sent a body that arrived empty and failed .min(1).
   role_filters:  Joi.array().items(Joi.string().max(64)),
+  course_day:    Joi.number().integer().min(1).max(30).allow(null),
 }).min(1);
+
+// Command's per-day reorder: the full set of ids in one day group, in their
+// new order (see services/assignment.service.js reorder()).
+const reorderAssignmentsSchema = Joi.object({
+  ids: Joi.array().items(Joi.string().guid()).min(1).max(500).unique().required(),
+});
+
+// null course_day clears the drop's day.
+const dropDaySchema = Joi.object({
+  scenario_name: Joi.string().max(255).allow('', null).default(''),
+  drop_number:   Joi.number().integer().required(),
+  course_day:    Joi.number().integer().min(1).max(30).allow(null).required(),
+});
 
 const gradeSchema = Joi.object({
   score:        Joi.number().min(0).required(),
@@ -74,4 +89,4 @@ const unlockSchema = Joi.object({
   squad_id:  Joi.string().uuid().allow(null).optional(),
 });
 
-module.exports = { createAssignmentSchema, updateAssignmentSchema, gradeSchema, unlockSchema };
+module.exports = { createAssignmentSchema, updateAssignmentSchema, gradeSchema, unlockSchema, reorderAssignmentsSchema, dropDaySchema };

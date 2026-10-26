@@ -27,7 +27,8 @@ const {
   createCourseSchema, updateCourseSchema,
   createModuleSchema, updateModuleSchema,
 } = require('../validators/course.validator');
-const { createAssignmentSchema, updateAssignmentSchema, gradeSchema, unlockSchema } = require('../validators/assignment.validator');
+const { createAssignmentSchema, updateAssignmentSchema, gradeSchema, unlockSchema, reorderAssignmentsSchema, dropDaySchema } = require('../validators/assignment.validator');
+const dropDayCtrl  = require('../controllers/dropDay.controller');
 const { createCampaignDropSchema, updateCampaignDropSchema, verifyVaultPinSchema, lockCampaignDropSchema, releasePreviewSchema } = require('../validators/campaign.validator');
 const { createPuzzleSchema, updatePuzzleSchema, verifyPuzzleSchema, reorderPuzzlesSchema } = require('../validators/campaignPuzzle.validator');
 const { syncDropCaseFilesSchema } = require('../validators/courseContent.validator');
@@ -79,6 +80,10 @@ router.get('/:id/squad-scoreboard', requireAuth, assignCtrl.getSquadScoreboard);
 // Assignments (nested under course)
 router.get('/:id/assignments',              requireAuth,                    assignCtrl.listByCourse);
 router.post('/:id/assignments',             requireAuth, requireInstructor, validate(createAssignmentSchema), auditLog('create', 'assignment'), assignCtrl.create);
+// Literal segment, registered before the '/:aid' routes below so it can never be read as an assignment id.
+router.post('/:id/assignments/reorder',     requireAuth, requireInstructor, validate(reorderAssignmentsSchema), auditLog('reorder', 'assignment'), assignCtrl.reorder);
+router.get('/:id/drop-days',                requireAuth, requireInstructor, dropDayCtrl.list);
+router.put('/:id/drop-days',                requireAuth, requireInstructor, validate(dropDaySchema), auditLog('update', 'drop_day'), dropDayCtrl.set);
 router.get('/:id/assignments/:aid',         requireAuth,                    assignCtrl.getOne);
 router.put('/:id/assignments/:aid',         requireAuth, requireInstructor, validate(updateAssignmentSchema), auditLog('update', 'assignment'), assignCtrl.update);
 router.delete('/:id/assignments/:aid',      requireAuth, requireInstructor, auditLog('delete', 'assignment'), assignCtrl.remove);

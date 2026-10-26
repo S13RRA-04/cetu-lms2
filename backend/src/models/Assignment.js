@@ -37,6 +37,9 @@ module.exports = (sequelize) => {
       role_filters:  { type: DataTypes.ARRAY(DataTypes.TEXT), allowNull: false, defaultValue: [] },
       // Set by archive(); an archived assignment is always unpublished.
       archived_at:   { type: DataTypes.DATE,                  allowNull: true,  defaultValue: null },
+      // Explicit course-day override; otherwise inherited from drop_days, see
+      // migration 094. Command-only organization — not used for student sorting.
+      course_day:    { type: DataTypes.SMALLINT,              allowNull: true,  defaultValue: null },
     },
     { tableName: 'assignments' }
   );

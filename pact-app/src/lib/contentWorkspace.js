@@ -120,3 +120,40 @@ export function groupEntries(entries, { scenarioLabel = (s) => s, contentTypeLab
     return { key: type, type, label: TYPE_LABELS[type] ?? type, count: sectionEntries.length, groups };
   });
 }
+
+// Day view: one section per course day (ascending), then Unscheduled, then
+// Library items, which have no day. Each section is a single unlabeled group
+// in order_index order — the order a day reorder rewrites. dayOf(item)
+// returns a day number or null.
+export function groupEntriesByDay(entries, dayOf) {
+  const days = new Map();
+  const unscheduled = [];
+  const library = [];
+  for (const e of entries) {
+    if (e.kind === 'content') { library.push(e); continue; }
+    const day = dayOf(e.item);
+    if (day == null) { unscheduled.push(e); continue; }
+    if (!days.has(day)) days.set(day, []);
+    days.get(day).push(e);
+  }
+  const section = (key, label, list, reorderable) => ({
+    key, type: key, label, count: list.length, reorderable,
+    groups: [{ key: `${key}::all`, label: null, entries: [...list].sort(compareEntries) }],
+  });
+  return [
+    ...[...days.keys()].sort((a, b) => a - b).map((d) => section(`day-${d}`, `Day ${d}`, days.get(d), true)),
+    ...(unscheduled.length ? [section('unscheduled', 'Unscheduled', unscheduled, true)] : []),
+    ...(library.length ? [section('library-items', 'Library', library, false)] : []),
+  ];
+}
+
+// The section's ids after moving one entry by `delta` (-1 up, +1 down), or
+// null when the move would leave the section.
+export function moveWithin(ids, id, delta) {
+  const from = ids.indexOf(id);
+  const to = from + delta;
+  if (from === -1 || to < 0 || to >= ids.length) return null;
+  const next = [...ids];
+  [next[from], next[to]] = [next[to], next[from]];
+  return next;
+}

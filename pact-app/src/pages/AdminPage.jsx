@@ -47,6 +47,9 @@ import {
   archiveAssignment,
   restoreAssignment,
   deleteAssignment,
+  reorderAssignments,
+  getDropDays,
+  setDropDay,
   getLiveOverview,
   getAssignmentProgress,
   getSquadChallengeStateForSquad,
@@ -58,7 +61,8 @@ import {
 import { VICTIMS } from '../constants/victims.js';
 import { activeLearnerCount, defaultReleaseCohortId } from '../lib/releaseCohorts.js';
 import { contentStatus, splitActiveCohort } from '../lib/releaseStatus.js';
-import { TYPE_ORDER, TYPE_LABELS, STATUS_FILTERS, buildEntries, filterEntries, countBy, countStatuses, groupEntries } from '../lib/contentWorkspace.js';
+import { TYPE_ORDER, TYPE_LABELS, STATUS_FILTERS, buildEntries, filterEntries, countBy, countStatuses, groupEntries, groupEntriesByDay, moveWithin } from '../lib/contentWorkspace.js';
+import { MAX_COURSE_DAY, buildDropDayMap, effectiveDay, listDrops } from '../lib/courseDays.js';
 import { PROFESSIONAL_ROLES } from '../constants/professionalRoles.js';
 import { CERTIFICATIONS } from '../constants/certifications.js';
 import TransmissionInterceptor from './TransmissionInterceptor.jsx';
@@ -6406,6 +6410,7 @@ function AssignmentDetailHeader({ assignment, sub, onPatch, children }) {
             <input type="checkbox" checked={!!assignment.is_published} disabled={!!busy || archived} onChange={(e) => setPublished(e.target.checked)} />
             Published
           </label>
+          <CourseDaySelect assignment={assignment} onPatch={onPatch} />
           {children}
         </div>
       </div>
@@ -6786,10 +6791,104 @@ function LibraryTools({ onNewAssignment, onNewItem, onShowR2, r2Open, onLibraryC
   );
 }
 
+// The drop schedule, for anything that needs to resolve an item's course day.
+const CourseDayContext = createContext({ dropDayMap: new Map() });
+
+const DAY_SOURCE_LABEL = { drop: 'from its drop', title: 'from its title' };
+
+// Explicit per-item day, or "Auto" — which shows what the item currently
+// inherits (from its drop's schedule or a "Day N" title) so the default is
+// never a mystery.
+function CourseDaySelect({ assignment, onPatch }) {
+  const { dropDayMap } = useContext(CourseDayContext);
+  const [err, setErr] = useState(null);
+  const inherited = effectiveDay({ ...assignment, course_day: null }, dropDayMap);
+  const change = async (value) => {
+    const course_day = value === '' ? null : Number(value);
+    setErr(null);
+    try {
+      await updateAssignment(assignment.id, { course_day });
+      onPatch({ course_day });
+    } catch (e) {
+      setErr(e.response?.data?.error?.message ?? 'Could not set the day');
+    }
+  };
+  return (
+    <label className="content-ws-day-select" title={err ?? undefined}>
+      Day
+      <select value={assignment.course_day ?? ''} onChange={(e) => change(e.target.value)} aria-invalid={!!err}>
+        <option value="">
+          {inherited.day != null ? `Auto — Day ${inherited.day} (${DAY_SOURCE_LABEL[inherited.source]})` : 'Auto — unscheduled'}
+        </option>
+        {Array.from({ length: MAX_COURSE_DAY }, (_, i) => i + 1).map((d) => <option key={d} value={d}>Day {d}</option>)}
+      </select>
+      {err && <span className="err-msg" style={{ fontSize: 11 }}>{err}</span>}
+    </label>
+  );
+}
+
+// One day per scenario + drop. Every assignment in a drop inherits it unless
+// it has its own Day set.
+function DropSchedulePanel({ assignments, dropDayMap, onChanged }) {
+  const [busy, setBusy] = useState(null);
+  const [err,  setErr]  = useState(null);
+  const drops = listDrops(assignments, dropDayMap);
+
+  const change = async (drop, value) => {
+    const day = value === '' ? null : Number(value);
+    setBusy(drop.key); setErr(null);
+    try {
+      await setDropDay(drop.scenario_name, drop.drop_number, day);
+      onChanged(drop, day);
+    } catch (e) {
+      setErr(e.response?.data?.error?.message ?? 'Could not save');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div style={{ padding: '16px 20px', overflowY: 'auto' }}>
+      <div className="content-ws-section-label" style={{ marginBottom: 6 }}>DROP SCHEDULE</div>
+      <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 12px', lineHeight: 1.5 }}>
+        Set the course day each drop is taught. Every assignment in the drop is grouped under that day in the
+        Day view unless it has its own Day set. This only organizes Command — students' lists don't change.
+      </p>
+      {err && <div className="err-msg" style={{ marginBottom: 8 }}>{err}</div>}
+      {drops.length === 0 ? (
+        <p className="content-ws-note">No assignments are tagged with a drop.</p>
+      ) : (
+        <table className="content-ws-drop-table">
+          <thead><tr><th>Scenario</th><th>Drop</th><th>Items</th><th>Day</th></tr></thead>
+          <tbody>
+            {drops.map((d) => (
+              <tr key={d.key}>
+                <td>{d.scenario_name ? scenarioLabel(d.scenario_name) : '—'}</td>
+                <td>{d.drop_number}</td>
+                <td>{d.count}</td>
+                <td>
+                  <select value={d.day ?? ''} disabled={busy === d.key} onChange={(e) => change(d, e.target.value)} aria-label={`Day for ${d.scenario_name || 'no scenario'} drop ${d.drop_number}`}>
+                    <option value="">—</option>
+                    {Array.from({ length: MAX_COURSE_DAY }, (_, i) => i + 1).map((n) => <option key={n} value={n}>Day {n}</option>)}
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 function ContentWorkspace({ assignments, contentItems, contentLoaded, cohorts, onAssignmentsChange, onContentItemsChange, onLibraryChanged }) {
   const { cohort: activeCohort, squadCount } = useContext(ActiveReleaseContext);
   const [selectedKey,  setSelectedKey]  = useState(null);
-  const [rightMode,    setRightMode]    = useState(null);   // null | 'new-assignment' | 'new-item' | 'r2'
+  const [rightMode,    setRightMode]    = useState(null);   // null | 'new-assignment' | 'new-item' | 'r2' | 'drop-days'
+  const [groupBy,      setGroupBy]      = useState('type'); // 'type' | 'day'
+  const [dropDayRows,  setDropDayRows]  = useState([]);
+  const [reorderBusy,  setReorderBusy]  = useState(false);
+  const [reorderErr,   setReorderErr]   = useState(null);
   const [typeFilter,   setTypeFilter]   = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [query,        setQuery]        = useState('');
@@ -6800,12 +6899,39 @@ function ContentWorkspace({ assignments, contentItems, contentLoaded, cohorts, o
   const typeCounts   = useMemo(() => countBy(filterEntries(entries, { query, status: statusFilter, statusOf }), (e) => e.type), [entries, query, statusFilter, statusOf]);
   const statusCounts = useMemo(() => countStatuses(filterEntries(entries, { query, type: typeFilter, status: 'any', statusOf }), statusOf), [entries, query, typeFilter, statusOf]);
   const visible      = useMemo(() => filterEntries(entries, { type: typeFilter, status: statusFilter, query, statusOf }), [entries, typeFilter, statusFilter, query, statusOf]);
-  const sections     = useMemo(() => groupEntries(visible, {
-    scenarioLabel,
-    contentTypeLabel: (t) => CONTENT_TYPE_LABELS[t] ?? t.replaceAll('_', ' '),
-  }), [visible]);
+  useEffect(() => {
+    getDropDays().then((rows) => setDropDayRows(Array.isArray(rows) ? rows : [])).catch(() => {});
+  }, []);
+  const dropDayMap = useMemo(() => buildDropDayMap(dropDayRows), [dropDayRows]);
+  const courseDay  = useMemo(() => ({ dropDayMap }), [dropDayMap]);
+
+  const sections     = useMemo(() => (groupBy === 'day'
+    ? groupEntriesByDay(visible, (item) => effectiveDay(item, dropDayMap).day)
+    : groupEntries(visible, {
+      scenarioLabel,
+      contentTypeLabel: (t) => CONTENT_TYPE_LABELS[t] ?? t.replaceAll('_', ' '),
+    })), [visible, groupBy, dropDayMap]);
   const selected = entries.find((e) => e.key === selectedKey) ?? null;
   const filtering = typeFilter !== 'all' || statusFilter !== 'all' || query.trim() !== '';
+  // A reorder rewrites a whole day's order, so it needs the whole day on
+  // screen: only in Day view with no filter narrowing the list.
+  const canReorder = groupBy === 'day' && !filtering;
+
+  const move = async (section, id, delta) => {
+    const ids = section.groups[0].entries.filter((e) => e.kind === 'assignment').map((e) => e.item.id);
+    const next = moveWithin(ids, id, delta);
+    if (!next) return;
+    setReorderBusy(true); setReorderErr(null);
+    try {
+      const result = await reorderAssignments(next);
+      const byId = new Map(result.map((r) => [r.id, r.order_index]));
+      onAssignmentsChange((prev) => prev.map((a) => (byId.has(a.id) ? { ...a, order_index: byId.get(a.id) } : a)));
+    } catch (e) {
+      setReorderErr(e.response?.data?.error?.message ?? 'Reorder failed');
+    } finally {
+      setReorderBusy(false);
+    }
+  };
 
   const patchAssignment = (id) => (patch) =>
     onAssignmentsChange((prev) => prev.map((a) => a.id === id ? { ...a, ...patch } : a));
@@ -6827,6 +6953,18 @@ function ContentWorkspace({ assignments, contentItems, contentLoaded, cohorts, o
     ...Object.keys(typeCounts).filter((t) => t !== 'all' && !TYPE_ORDER.includes(t)).map((t) => [t, t])];
 
   const renderDetail = () => {
+    if (rightMode === 'drop-days') {
+      return (
+        <DropSchedulePanel
+          assignments={assignments}
+          dropDayMap={dropDayMap}
+          onChanged={(drop, day) => setDropDayRows((rows) => [
+            ...rows.filter((r) => !(r.scenario_name === drop.scenario_name && r.drop_number === drop.drop_number)),
+            ...(day == null ? [] : [{ scenario_name: drop.scenario_name, drop_number: drop.drop_number, course_day: day }]),
+          ])}
+        />
+      );
+    }
     if (rightMode === 'new-assignment') {
       return <NewAssignmentForm assignments={assignments} onCreated={lifecycle.onCreated} onCancel={() => setRightMode(null)} />;
     }
@@ -6886,6 +7024,34 @@ function ContentWorkspace({ assignments, contentItems, contentLoaded, cohorts, o
               onChange={(e) => setQuery(e.target.value)}
               aria-label="Search content titles"
             />
+            <div className="content-ws-groupby" role="group" aria-label="Group list by">
+              <span>Group by</span>
+              {[['type', 'Type'], ['day', 'Day']].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`content-ws-chip${groupBy === value ? ' active' : ''}`}
+                  aria-pressed={groupBy === value}
+                  onClick={() => setGroupBy(value)}
+                >
+                  {label}
+                </button>
+              ))}
+              <button
+                type="button"
+                className={`content-ws-tool${rightMode === 'drop-days' ? ' active' : ''}`}
+                onClick={() => { setRightMode((m) => (m === 'drop-days' ? null : 'drop-days')); setSelectedKey(null); }}
+              >
+                Drop schedule
+              </button>
+            </div>
+            {groupBy === 'day' && (
+              <p className="content-ws-hint">
+                {canReorder
+                  ? 'Use ▲ ▼ to reorder within a day. Students see the same order inside their tabs.'
+                  : 'Clear search and filters to reorder.'}
+              </p>
+            )}
             <div className="content-ws-chips" role="group" aria-label="Filter by type">
               {typeChips.map(([value, label]) => (
                 <button
@@ -6921,6 +7087,7 @@ function ContentWorkspace({ assignments, contentItems, contentLoaded, cohorts, o
 
           <div className="content-ws-list">
             {!contentLoaded && <p className="content-ws-note">Loading library items…</p>}
+            {reorderErr && <p className="content-ws-note err-msg">{reorderErr}</p>}
             {visible.length === 0 && (
               <p className="content-ws-note">{filtering ? 'Nothing matches these filters.' : 'No content yet.'}</p>
             )}
@@ -6944,17 +7111,29 @@ function ContentWorkspace({ assignments, contentItems, contentLoaded, cohorts, o
                             <span className="admin-group-chevron" style={{ fontSize: 9 }}>{groupOpen ? '▲' : '▼'}</span>
                           </button>
                         )}
-                        {groupOpen && group.entries.map((e) => (
-                          <button
-                            key={e.key}
-                            type="button"
-                            className={`admin-assign-btn${group.label ? ' admin-assign-btn--nested' : ''}${selectedKey === e.key ? ' active' : ''}`}
-                            onClick={() => select(e.key)}
-                          >
-                            <span className="admin-assign-title">{e.item.title}</span>
-                            <ReleaseBadge item={e.item} />
-                          </button>
-                        ))}
+                        {groupOpen && group.entries.map((e, i) => {
+                          const row = (
+                            <button
+                              key={e.key}
+                              type="button"
+                              className={`admin-assign-btn${group.label ? ' admin-assign-btn--nested' : ''}${selectedKey === e.key ? ' active' : ''}`}
+                              onClick={() => select(e.key)}
+                            >
+                              <span className="admin-assign-title">{e.item.title}</span>
+                              <ReleaseBadge item={e.item} />
+                            </button>
+                          );
+                          if (!(canReorder && section.reorderable)) return row;
+                          return (
+                            <div key={e.key} className="content-ws-row">
+                              {row}
+                              <span className="content-ws-move">
+                                <button type="button" disabled={reorderBusy || i === 0} onClick={() => move(section, e.item.id, -1)} aria-label={`Move ${e.item.title} up`}>▲</button>
+                                <button type="button" disabled={reorderBusy || i === group.entries.length - 1} onClick={() => move(section, e.item.id, 1)} aria-label={`Move ${e.item.title} down`}>▼</button>
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     );
                   })}
@@ -6964,7 +7143,9 @@ function ContentWorkspace({ assignments, contentItems, contentLoaded, cohorts, o
           </div>
         </div>
         <div className="admin-right">
-          <ContentLifecycleContext.Provider value={lifecycle}>{renderDetail()}</ContentLifecycleContext.Provider>
+          <CourseDayContext.Provider value={courseDay}>
+            <ContentLifecycleContext.Provider value={lifecycle}>{renderDetail()}</ContentLifecycleContext.Provider>
+          </CourseDayContext.Provider>
         </div>
       </div>
     </div>

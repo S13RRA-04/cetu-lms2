@@ -411,3 +411,22 @@ test('duplicate makes an unpublished, unpaired copy with fresh question ids', as
   assert.equal(created.questions[0].stem, 'E1');
   assert.equal(source.questions[0].id, 'q1', 'the original is untouched');
 });
+
+test('reorder rewrites only the group\'s own slots, in the new order, and rejects ids from another course', async (t) => {
+  const { Assignment } = require('../models');
+  const rows = [{ id: 'a', order_index: 19 }, { id: 'b', order_index: 19 }, { id: 'c', order_index: 2 }];
+  const writes = [];
+  stubModel(t, Assignment, {
+    findAll: async ({ where }) => rows.filter((r) => where.id.includes(r.id)),
+    update: async (values, { where }) => { writes.push({ id: where.id, ...values }); return [1]; },
+  });
+  const originalTransaction = sequelize.transaction;
+  sequelize.transaction = async (fn) => fn({});
+  t.after(() => { sequelize.transaction = originalTransaction; });
+
+  const result = await assignmentService.reorder('course-1', ['b', 'c', 'a']);
+  assert.deepEqual(result, [{ id: 'b', order_index: 2 }, { id: 'c', order_index: 19 }, { id: 'a', order_index: 20 }]);
+  assert.deepEqual(writes, result);
+
+  await assert.rejects(assignmentService.reorder('course-1', ['a', 'zzz']), (err) => err.statusCode === 422);
+});

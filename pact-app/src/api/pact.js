@@ -211,6 +211,19 @@ export const restoreAssignment = (assignmentId) =>
 export const deleteAssignment = (assignmentId) =>
   client.delete(`/courses/${COURSE_ID}/assignments/${assignmentId}`);
 
+// ids: one day group's assignment ids in their new order. Resolves to
+// [{ id, order_index }] — only that group's values change.
+export const reorderAssignments = (ids) =>
+  client.post(`/courses/${COURSE_ID}/assignments/reorder`, { ids }).then((r) => r.data);
+
+/* ── Course-day schedule (Command organization only) ── */
+export const getDropDays = () =>
+  client.get(`/courses/${COURSE_ID}/drop-days`).then((r) => r.data);
+
+// courseDay null clears the drop's day.
+export const setDropDay = (scenarioName, dropNumber, courseDay) =>
+  client.put(`/courses/${COURSE_ID}/drop-days`, { scenario_name: scenarioName ?? '', drop_number: dropNumber, course_day: courseDay }).then((r) => r.data);
+
 /* ── Assignment gating ── */
 export const unlockAssignment = (assignmentId, cohortId, squadId = null) =>
   client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/unlock`, { cohort_id: cohortId, squad_id: squadId }).then((r) => r.data);

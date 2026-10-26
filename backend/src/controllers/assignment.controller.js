@@ -117,6 +117,11 @@ async function duplicate(req, res, next) {
   catch (err) { return next(err); }
 }
 
+async function reorder(req, res, next) {
+  try { return res.json(await assignmentService.reorder(req.params.id, req.body.ids)); }
+  catch (err) { return next(err); }
+}
+
 async function getGrades(req, res, next) {
   try { return res.json(await gradeService.getGradesForAssignment(req.params.aid)); }
   catch (err) { return next(err); }
@@ -162,4 +167,4 @@ async function gradeSquad(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-module.exports = { listByCourse, getOne, create, update, remove, archive, restore, duplicate, getGrades, upsertGrade, unlockForCohort, lockForCohort, getProgress, getLiveOverview, gradeSquad, getMyGrades, getScoreboard, getSquadScoreboard, getCourseGrades, getCourseAnalytics, getCourseEffectiveness, getSurveyResults };
+module.exports = { listByCourse, getOne, create, update, remove, archive, restore, duplicate, reorder, getGrades, upsertGrade, unlockForCohort, lockForCohort, getProgress, getLiveOverview, gradeSquad, getMyGrades, getScoreboard, getSquadScoreboard, getCourseGrades, getCourseAnalytics, getCourseEffectiveness, getSurveyResults };
