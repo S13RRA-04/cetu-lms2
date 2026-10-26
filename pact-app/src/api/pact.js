@@ -195,6 +195,22 @@ export const deleteScenarioR2Object = (key) =>
 export const updateAssignment = (assignmentId, data) =>
   client.put(`/courses/${COURSE_ID}/assignments/${assignmentId}`, data).then((r) => r.data);
 
+export const createAssignment = (data) =>
+  client.post(`/courses/${COURSE_ID}/assignments`, data).then((r) => r.data);
+
+export const duplicateAssignment = (assignmentId) =>
+  client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/duplicate`).then((r) => r.data);
+
+export const archiveAssignment = (assignmentId) =>
+  client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/archive`).then((r) => r.data);
+
+export const restoreAssignment = (assignmentId) =>
+  client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/restore`).then((r) => r.data);
+
+// 409 when the assignment has submissions or grades — archive it instead.
+export const deleteAssignment = (assignmentId) =>
+  client.delete(`/courses/${COURSE_ID}/assignments/${assignmentId}`);
+
 /* ── Assignment gating ── */
 export const unlockAssignment = (assignmentId, cohortId, squadId = null) =>
   client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/unlock`, { cohort_id: cohortId, squad_id: squadId }).then((r) => r.data);

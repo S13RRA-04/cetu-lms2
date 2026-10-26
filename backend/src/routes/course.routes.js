@@ -82,6 +82,9 @@ router.post('/:id/assignments',             requireAuth, requireInstructor, vali
 router.get('/:id/assignments/:aid',         requireAuth,                    assignCtrl.getOne);
 router.put('/:id/assignments/:aid',         requireAuth, requireInstructor, validate(updateAssignmentSchema), auditLog('update', 'assignment'), assignCtrl.update);
 router.delete('/:id/assignments/:aid',      requireAuth, requireInstructor, auditLog('delete', 'assignment'), assignCtrl.remove);
+router.post('/:id/assignments/:aid/archive',   requireAuth, requireInstructor, auditLog('archive', 'assignment'), assignCtrl.archive);
+router.post('/:id/assignments/:aid/restore',   requireAuth, requireInstructor, auditLog('restore', 'assignment'), assignCtrl.restore);
+router.post('/:id/assignments/:aid/duplicate', requireAuth, requireInstructor, auditLog('duplicate', 'assignment'), assignCtrl.duplicate);
 router.get('/:id/assignments/:aid/grades',  requireAuth, requireInstructor, assignCtrl.getGrades);
 router.get('/:id/assignments/:aid/survey-results', requireAuth, requireInstructor, assignCtrl.getSurveyResults);
 router.put('/:id/assignments/:aid/grades/:uid', requireAuth, requireInstructor, validate(gradeSchema), assignCtrl.upsertGrade);

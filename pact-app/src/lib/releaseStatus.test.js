@@ -60,3 +60,11 @@ test('published items keep their release state; a missing is_published is never 
   assert.equal(contentStatus({ unlocks }, 'oct', 4).state, 'partial');
   assert.equal(contentStatus({ is_published: true, unlocks: [] }, 'oct', 4).state, 'locked');
 });
+
+test('an archived item is archived whatever its publish or unlock state', () => {
+  const unlocks = [{ cohort_id: 'oct', squad_id: null }];
+  const status = contentStatus({ archived_at: '2026-10-26T00:00:00Z', is_published: false, unlocks }, 'oct', 4);
+  assert.equal(status.state, 'archived');
+  assert.equal(status.release, 'live');
+  assert.equal(status.hiddenUnlocks, false);
+});

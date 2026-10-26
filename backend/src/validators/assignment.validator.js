@@ -15,6 +15,9 @@ const createAssignmentSchema = Joi.object({
   grading_mode: Joi.string().valid('individual', 'squad').default('individual'),
   order_index:  Joi.number().integer().min(0).default(0),
   questions:    Joi.array().default([]),
+  scenario_name: Joi.string().max(255).allow('', null),
+  victim_name:   Joi.string().max(255).allow('', null),
+  role_filters:  Joi.array().items(Joi.string().max(64)).default([]),
 });
 
 const updateAssignmentSchema = Joi.object({
@@ -32,6 +35,9 @@ const updateAssignmentSchema = Joi.object({
   drop_number:   Joi.number().integer().min(1).max(10).allow(null),
   scenario_name: Joi.string().max(255).allow('', null),
   victim_name:   Joi.string().max(255).allow('', null),
+  // Missing until now — and since validate() strips unknown keys, Command's
+  // role checkboxes sent a body that arrived empty and failed .min(1).
+  role_filters:  Joi.array().items(Joi.string().max(64)),
 }).min(1);
 
 const gradeSchema = Joi.object({

@@ -42,6 +42,11 @@ import {
   updateScenario,
   deleteScenario,
   updateAssignment,
+  createAssignment,
+  duplicateAssignment,
+  archiveAssignment,
+  restoreAssignment,
+  deleteAssignment,
   getLiveOverview,
   getAssignmentProgress,
   getSquadChallengeStateForSquad,
@@ -53,7 +58,7 @@ import {
 import { VICTIMS } from '../constants/victims.js';
 import { activeLearnerCount, defaultReleaseCohortId } from '../lib/releaseCohorts.js';
 import { contentStatus, splitActiveCohort } from '../lib/releaseStatus.js';
-import { TYPE_ORDER, TYPE_LABELS, STATUS_FILTERS, buildEntries, filterEntries, countBy, groupEntries } from '../lib/contentWorkspace.js';
+import { TYPE_ORDER, TYPE_LABELS, STATUS_FILTERS, buildEntries, filterEntries, countBy, countStatuses, groupEntries } from '../lib/contentWorkspace.js';
 import { PROFESSIONAL_ROLES } from '../constants/professionalRoles.js';
 import { CERTIFICATIONS } from '../constants/certifications.js';
 import TransmissionInterceptor from './TransmissionInterceptor.jsx';
@@ -4204,6 +4209,9 @@ function ActiveReleaseProvider({ cohorts, children }) {
 function ReleaseBadge({ item }) {
   const { cohort, squadCount } = useContext(ActiveReleaseContext);
   const status = contentStatus(item, cohort?.id, squadCount);
+  if (status.state === 'archived') {
+    return <span className="admin-release-badge admin-release-badge--draft" title="Archived — unpublished and hidden from the default list">ARCHIVED</span>;
+  }
   if (status.state === 'draft') {
     return status.hiddenUnlocks ? (
       <span className="admin-release-badge admin-release-badge--hidden" title={`Unlocked for ${status.unlockedSquads} squad${status.unlockedSquads === 1 ? '' : 's'} in ${cohort.name}, but unpublished — no student can see it`}>
@@ -6322,7 +6330,7 @@ function assignmentGatingProps(assignment, onPatch) {
     onLock:          (cohortId, squadId) => lockAssignment(assignment.id, cohortId, squadId),
     onUnlock:        (cohortId, squadId) => unlockAssignment(assignment.id, cohortId, squadId),
     isPublished:     assignment.is_published,
-    onPublish:       async () => { await updateAssignment(assignment.id, { is_published: true }); onPatch({ is_published: true }); },
+    onPublish:       assignment.archived_at ? undefined : async () => { await updateAssignment(assignment.id, { is_published: true }); onPatch({ is_published: true }); },
     onUnlocksChange: (unlocks) => onPatch({ unlocks }),
   };
 }
@@ -6345,39 +6353,158 @@ const ASSIGNMENT_TYPE_LABEL = {
   survey: 'Survey', investigation: 'Investigation',
 };
 
-// Title, status and the Published switch — the same for every assignment type,
-// so publishing never depends on which kind of item you happen to be editing.
+// List-level effects of the header's lifecycle actions (a duplicate appears
+// and is selected; a delete disappears), provided by ContentWorkspace so the
+// per-type detail panes don't have to thread them through.
+const ContentLifecycleContext = createContext({ onCreated: () => {}, onDeleted: () => {} });
+
+// Title, status, the Published switch and lifecycle actions — the same for
+// every assignment type, so none of them depends on which kind of item you
+// happen to be editing.
 function AssignmentDetailHeader({ assignment, sub, onPatch, children }) {
+  const { onCreated, onDeleted } = useContext(ContentLifecycleContext);
   const [err, setErr] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const setPublished = async (value) => {
-    setBusy(true); setErr(null);
-    try {
-      await updateAssignment(assignment.id, { is_published: value });
-      onPatch({ is_published: value });
-    } catch (e) {
-      setErr(e.response?.data?.error?.message ?? 'Could not change Published');
-    } finally { setBusy(false); }
+  const [busy, setBusy] = useState(null);
+  const archived = !!assignment.archived_at;
+
+  const run = async (kind, work) => {
+    setBusy(kind); setErr(null);
+    try { await work(); }
+    catch (e) { setErr(e.response?.data?.error?.message ?? 'Action failed'); }
+    finally { setBusy(null); }
   };
+  const setPublished = (value) => run('publish', async () => {
+    await updateAssignment(assignment.id, { is_published: value });
+    onPatch({ is_published: value });
+  });
+  const duplicate = () => run('duplicate', async () => onCreated(await duplicateAssignment(assignment.id)));
+  const toggleArchive = () => run('archive', async () => {
+    const updated = archived ? await restoreAssignment(assignment.id) : await archiveAssignment(assignment.id);
+    onPatch({ archived_at: updated.archived_at ?? null, is_published: updated.is_published });
+  });
+  const remove = () => {
+    if (!window.confirm(`Delete "${assignment.title}" permanently? This can't be undone.`)) return;
+    run('delete', async () => { await deleteAssignment(assignment.id); onDeleted(assignment.id); });
+  };
+
   return (
-    <div className="admin-right-header">
-      <div>
-        <div className="admin-right-title">{assignment.title}</div>
-        <div className="admin-right-sub">
-          {ASSIGNMENT_TYPE_LABEL[assignment.type] ?? assignment.type}
-          {sub ? ` · ${sub}` : ''}
-          {' '}<ReleaseBadge item={assignment} />
+    <>
+      <div className="admin-right-header">
+        <div>
+          <div className="admin-right-title">{assignment.title}</div>
+          <div className="admin-right-sub">
+            {ASSIGNMENT_TYPE_LABEL[assignment.type] ?? assignment.type}
+            {sub ? ` · ${sub}` : ''}
+            {' '}<ReleaseBadge item={assignment} />
+          </div>
         </div>
-        {err && <div className="err-msg" style={{ fontSize: 11 }}>{err}</div>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <label
+            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: archived ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
+            title={archived ? 'Restore it before publishing' : undefined}
+          >
+            <input type="checkbox" checked={!!assignment.is_published} disabled={!!busy || archived} onChange={(e) => setPublished(e.target.checked)} />
+            Published
+          </label>
+          {children}
+        </div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-          <input type="checkbox" checked={!!assignment.is_published} disabled={busy} onChange={(e) => setPublished(e.target.checked)} />
-          Published
-        </label>
-        {children}
+      <div className="content-ws-actions">
+        <button type="button" className="content-ws-action" onClick={duplicate} disabled={!!busy}>
+          {busy === 'duplicate' ? 'Duplicating…' : 'Duplicate'}
+        </button>
+        <button type="button" className="content-ws-action" onClick={toggleArchive} disabled={!!busy}>
+          {busy === 'archive' ? '…' : archived ? 'Restore' : 'Archive'}
+        </button>
+        <button
+          type="button"
+          className="content-ws-action content-ws-action--danger"
+          onClick={remove}
+          disabled={!!busy}
+          title="Only possible while nothing has been submitted or graded — otherwise archive it"
+        >
+          {busy === 'delete' ? 'Deleting…' : 'Delete'}
+        </button>
+        {err && <span className="err-msg" style={{ fontSize: 11 }}>{err}</span>}
       </div>
-    </div>
+      {archived && (
+        <p className="content-ws-archived-note">
+          Archived — hidden from students and from the default list. Restore it to edit it back into the course; it comes back as a draft.
+        </p>
+      )}
+    </>
+  );
+}
+
+// Unpublished starting point for a new assignment. Everything else (questions,
+// briefing, access) is edited in the normal detail pane once it exists.
+const NEW_ASSIGNMENT_TYPES = ['challenge', 'capstone', 'module', 'assessment', 'survey'];
+
+function NewAssignmentForm({ assignments, onCreated, onCancel }) {
+  const [title,       setTitle]       = useState('');
+  const [type,        setType]        = useState('challenge');
+  const [gradingMode, setGradingMode] = useState('squad');
+  const [scenario,    setScenario]    = useState('');
+  const [saving,      setSaving]      = useState(false);
+  const [err,         setErr]         = useState('');
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!title.trim()) { setErr('Title is required'); return; }
+    setSaving(true); setErr('');
+    try {
+      // Lands after the last existing item of the same type in the list.
+      const sameType = assignments.filter((a) => a.type === type).map((a) => a.order_index ?? 0);
+      const created = await createAssignment({
+        title:         title.trim(),
+        type,
+        grading_mode:  gradingMode,
+        order_index:   sameType.length ? Math.max(...sameType) + 1 : 0,
+        is_published:  false,
+        scenario_name: scenario || null,
+      });
+      onCreated(created);
+    } catch (e2) {
+      setErr(e2.response?.data?.error?.message ?? 'Create failed');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form className="content-form" onSubmit={submit}>
+      <div className="section-label" style={{ marginBottom: 16 }}>New Assignment</div>
+      <div className="form-field"><label>Title *</label><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Day 2 Workshop — Log Analysis" autoFocus /></div>
+      <div className="form-field">
+        <label>Type</label>
+        <select value={type} onChange={(e) => setType(e.target.value)}>
+          {NEW_ASSIGNMENT_TYPES.map((t) => <option key={t} value={t}>{ASSIGNMENT_TYPE_LABEL[t]}</option>)}
+        </select>
+      </div>
+      <div className="form-field">
+        <label>Graded as</label>
+        <select value={gradingMode} onChange={(e) => setGradingMode(e.target.value)}>
+          <option value="squad">Squad — one shared submission per squad</option>
+          <option value="individual">Individual — each student submits</option>
+        </select>
+      </div>
+      {(type === 'challenge' || type === 'capstone') && (
+        <div className="form-field">
+          <label>Scenario</label>
+          <select value={scenario} onChange={(e) => setScenario(e.target.value)}>
+            <option value="">— None (standalone) —</option>
+            {KNOWN_SCENARIOS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
+        </div>
+      )}
+      <p style={{ fontSize: 12, color: 'var(--muted)', margin: '4px 0 0' }}>
+        Created as an unpublished draft. Add questions, a briefing and access in the editor that opens next.
+      </p>
+      {err && <div className="err-msg">{err}</div>}
+      <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+        <button type="submit" className="btn-submit" disabled={saving}>{saving ? 'Creating…' : 'Create draft'}</button>
+        <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>
+      </div>
+    </form>
   );
 }
 
@@ -6618,7 +6745,7 @@ function AssignmentAccessDetail({ assignment, cohorts, onPatch }) {
 }
 
 // Library-wide actions that used to live on the Intel Library tab's toolbar.
-function LibraryTools({ onNewItem, onShowR2, r2Open, onLibraryChanged }) {
+function LibraryTools({ onNewAssignment, onNewItem, onShowR2, r2Open, onLibraryChanged }) {
   const [syncing, setSyncing] = useState(null);
   const [result,  setResult]  = useState(null);
 
@@ -6637,7 +6764,8 @@ function LibraryTools({ onNewItem, onShowR2, r2Open, onLibraryChanged }) {
 
   return (
     <div className="content-ws-tools">
-      <button type="button" className="content-ws-tool content-ws-tool--primary" onClick={onNewItem}>+ New item</button>
+      <button type="button" className="content-ws-tool content-ws-tool--primary" onClick={onNewAssignment}>+ Assignment</button>
+      <button type="button" className="content-ws-tool content-ws-tool--primary" onClick={onNewItem}>+ Library item</button>
       <button type="button" className={`content-ws-tool${r2Open ? ' active' : ''}`} onClick={onShowR2}>Add from R2</button>
       <button type="button" className="content-ws-tool" disabled={!!syncing} onClick={() => runSync('decks', syncDecksFromR2, 'deck')}>
         {syncing === 'decks' ? 'Syncing…' : 'Sync decks'}
@@ -6661,7 +6789,7 @@ function LibraryTools({ onNewItem, onShowR2, r2Open, onLibraryChanged }) {
 function ContentWorkspace({ assignments, contentItems, contentLoaded, cohorts, onAssignmentsChange, onContentItemsChange, onLibraryChanged }) {
   const { cohort: activeCohort, squadCount } = useContext(ActiveReleaseContext);
   const [selectedKey,  setSelectedKey]  = useState(null);
-  const [rightMode,    setRightMode]    = useState(null);   // null | 'new-item' | 'r2'
+  const [rightMode,    setRightMode]    = useState(null);   // null | 'new-assignment' | 'new-item' | 'r2'
   const [typeFilter,   setTypeFilter]   = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [query,        setQuery]        = useState('');
@@ -6670,7 +6798,7 @@ function ContentWorkspace({ assignments, contentItems, contentLoaded, cohorts, o
   const statusOf = useCallback((item) => contentStatus(item, activeCohort?.id, squadCount).state, [activeCohort?.id, squadCount]);
   const entries  = useMemo(() => buildEntries(assignments, contentItems), [assignments, contentItems]);
   const typeCounts   = useMemo(() => countBy(filterEntries(entries, { query, status: statusFilter, statusOf }), (e) => e.type), [entries, query, statusFilter, statusOf]);
-  const statusCounts = useMemo(() => countBy(filterEntries(entries, { query, type: typeFilter, statusOf }), (e) => statusOf(e.item)), [entries, query, typeFilter, statusOf]);
+  const statusCounts = useMemo(() => countStatuses(filterEntries(entries, { query, type: typeFilter, status: 'any', statusOf }), statusOf), [entries, query, typeFilter, statusOf]);
   const visible      = useMemo(() => filterEntries(entries, { type: typeFilter, status: statusFilter, query, statusOf }), [entries, typeFilter, statusFilter, query, statusOf]);
   const sections     = useMemo(() => groupEntries(visible, {
     scenarioLabel,
@@ -6690,11 +6818,18 @@ function ContentWorkspace({ assignments, contentItems, contentLoaded, cohorts, o
     return next;
   });
   const select = (key) => { setSelectedKey(key); setRightMode(null); };
+  const lifecycle = useMemo(() => ({
+    onCreated: (assignment) => { onAssignmentsChange((prev) => [...prev, assignment]); setSelectedKey(`a:${assignment.id}`); setRightMode(null); },
+    onDeleted: (id) => { onAssignmentsChange((prev) => prev.filter((a) => a.id !== id)); setSelectedKey(null); },
+  }), [onAssignmentsChange]);
 
   const typeChips = [['all', 'All'], ...TYPE_ORDER.filter((t) => typeCounts[t] || typeFilter === t).map((t) => [t, TYPE_LABELS[t]]),
     ...Object.keys(typeCounts).filter((t) => t !== 'all' && !TYPE_ORDER.includes(t)).map((t) => [t, t])];
 
   const renderDetail = () => {
+    if (rightMode === 'new-assignment') {
+      return <NewAssignmentForm assignments={assignments} onCreated={lifecycle.onCreated} onCancel={() => setRightMode(null)} />;
+    }
     if (rightMode === 'new-item') {
       return (
         <ContentItemForm
@@ -6764,7 +6899,7 @@ function ContentWorkspace({ assignments, contentItems, contentLoaded, cohorts, o
               ))}
             </div>
             <div className="content-ws-chips" role="group" aria-label="Filter by status">
-              {STATUS_FILTERS.filter(([value]) => value === 'all' || value === 'draft' || activeCohort).map(([value, label]) => (
+              {STATUS_FILTERS.filter(([value]) => value === 'all' || value === 'draft' || value === 'archived' || activeCohort).map(([value, label]) => (
                 <button
                   key={value}
                   type="button"
@@ -6776,6 +6911,7 @@ function ContentWorkspace({ assignments, contentItems, contentLoaded, cohorts, o
               ))}
             </div>
             <LibraryTools
+              onNewAssignment={() => { setRightMode('new-assignment'); setSelectedKey(null); }}
               onNewItem={() => { setRightMode('new-item'); setSelectedKey(null); }}
               onShowR2={() => setRightMode((m) => (m === 'r2' ? null : 'r2'))}
               r2Open={rightMode === 'r2'}
@@ -6827,7 +6963,9 @@ function ContentWorkspace({ assignments, contentItems, contentLoaded, cohorts, o
             })}
           </div>
         </div>
-        <div className="admin-right">{renderDetail()}</div>
+        <div className="admin-right">
+          <ContentLifecycleContext.Provider value={lifecycle}>{renderDetail()}</ContentLifecycleContext.Provider>
+        </div>
       </div>
     </div>
   );

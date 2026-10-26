@@ -337,3 +337,77 @@ test('getById with staffView reports is_unlocked from the active cohort, not the
   assert.deepEqual(unlockWhere, { assignment_id: 'a1', cohort_id: 'active-cohort' });
   assert.equal(result.is_unlocked, false);
 });
+
+// Stubs model statics for one test and restores them afterwards.
+function stubModel(t, model, overrides) {
+  const originals = Object.fromEntries(Object.keys(overrides).map((k) => [k, model[k]]));
+  Object.assign(model, overrides);
+  t.after(() => Object.assign(model, originals));
+}
+
+function fakeRow(fields) {
+  const row = { ...fields, updates: [] };
+  row.update = async (patch) => { row.updates.push(patch); Object.assign(row, patch); return row; };
+  row.destroy = async () => { row.destroyed = true; };
+  return row;
+}
+
+test('remove refuses to delete an assignment with student work, and deletes one without', async (t) => {
+  const { Assignment, Submission, Grade } = require('../models');
+  let row = fakeRow({ id: 'a1', title: 'Day 1 Quiz' });
+  let counts = { submissions: 3, grades: 0 };
+  stubModel(t, Assignment, { findByPk: async () => row });
+  stubModel(t, Submission, { count: async () => counts.submissions });
+  stubModel(t, Grade, { count: async () => counts.grades });
+
+  await assert.rejects(assignmentService.remove('a1'), (err) => err.statusCode === 409 && /archive it instead/.test(err.message));
+  assert.equal(row.destroyed, undefined);
+
+  counts = { submissions: 0, grades: 0 };
+  row = fakeRow({ id: 'a1', title: 'Day 1 Quiz' });
+  await assignmentService.remove('a1');
+  assert.equal(row.destroyed, true);
+});
+
+test('archive unpublishes; restore clears archived_at but leaves it a draft; publishing an archived item is refused', async (t) => {
+  const { Assignment } = require('../models');
+  const row = fakeRow({ id: 'a1', is_published: true, archived_at: null });
+  stubModel(t, Assignment, { findByPk: async () => row });
+
+  await assignmentService.archive('a1');
+  assert.equal(row.is_published, false);
+  assert.ok(row.archived_at instanceof Date);
+
+  await assert.rejects(assignmentService.update('a1', { is_published: true }), (err) => err.statusCode === 409);
+  await assignmentService.update('a1', { title: 'Renamed while archived' });
+  assert.equal(row.title, 'Renamed while archived');
+
+  await assignmentService.restore('a1');
+  assert.equal(row.archived_at, null);
+  assert.equal(row.is_published, false, 'restore never republishes on its own');
+});
+
+test('duplicate makes an unpublished, unpaired copy with fresh question ids', async (t) => {
+  const { Assignment } = require('../models');
+  const source = fakeRow({
+    id: 'a1', course_id: 'course-1', title: 'ATT&CK Workshop', type: 'challenge', grading_mode: 'squad',
+    order_index: 29, is_published: true, drop_number: 1, scenario_name: 'packet-heist', role_filters: ['cyber_analyst'],
+    questions: [{ id: 'q1', stem: 'E1', payload: { kind: 'true_false', correct: true } }],
+  });
+  let created;
+  stubModel(t, Assignment, {
+    findByPk: async () => source,
+    create: async (data) => { created = data; return { id: 'copy', ...data }; },
+  });
+
+  const copy = await assignmentService.duplicate('a1');
+  assert.equal(copy.title, 'ATT&CK Workshop (copy)');
+  assert.equal(created.is_published, false);
+  assert.equal(created.drop_number, null, 'a drop release must not publish the copy');
+  assert.equal(created.scenario_name, 'packet-heist');
+  assert.deepEqual(created.role_filters, ['cyber_analyst']);
+  assert.equal(created.questions.length, 1);
+  assert.notEqual(created.questions[0].id, 'q1');
+  assert.equal(created.questions[0].stem, 'E1');
+  assert.equal(source.questions[0].id, 'q1', 'the original is untouched');
+});

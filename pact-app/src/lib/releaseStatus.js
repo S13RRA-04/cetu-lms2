@@ -21,6 +21,9 @@ export function activeReleaseStatus(unlocks, activeCohortId, squadCount) {
 // treated as drafts.
 export function contentStatus(item, activeCohortId, squadCount) {
   const release = activeReleaseStatus(item?.unlocks, activeCohortId, squadCount);
+  // Archived wins over everything: it is always unpublished, and it's the
+  // one state the workspace hides unless asked for.
+  if (item?.archived_at) return { ...release, state: 'archived', release: release.state, hiddenUnlocks: false };
   if (item?.is_published !== false) return { ...release, release: release.state, hiddenUnlocks: false };
   const hasUnlocks = release.state === 'live' || release.state === 'partial';
   return { ...release, state: 'draft', release: release.state, hiddenUnlocks: hasUnlocks };

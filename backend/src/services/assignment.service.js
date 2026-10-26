@@ -2,7 +2,8 @@
 const { Op }             = require('sequelize');
 const { sequelize }      = require('../config/database');
 const { Assignment, AssignmentUnlock, Course, Cohort, Enrollment, User, Submission, CourseContentItem, CourseContentUnlock, Squad, Grade } = require('../models');
-const { NotFoundError, AppError } = require('../utils/errors');
+const { randomUUID }     = require('crypto');
+const { NotFoundError, AppError, ConflictError } = require('../utils/errors');
 const { paginate, paginatedResponse } = require('../utils/pagination');
 const TtlCache = require('../utils/ttlCache');
 const { getStudentLocationCodes, locationMatches } = require('../utils/dropLocation');
@@ -445,22 +446,90 @@ async function getById(id, userId = null, { staffView = false } = {}) {
   return assignment;
 }
 
+// Every write below flushes the list caches: without it, Command and students
+// kept seeing the pre-change list for up to a TTL after any edit.
 async function create(courseId, data) {
   const course = await Course.findByPk(courseId);
   if (!course) throw new NotFoundError('Course');
-  return Assignment.create({ ...data, course_id: courseId });
+  const assignment = await Assignment.create({ ...data, course_id: courseId });
+  invalidateAssignmentLists();
+  return assignment;
 }
 
 async function update(id, data) {
   const assignment = await Assignment.findByPk(id);
   if (!assignment) throw new NotFoundError('Assignment');
-  return assignment.update(data);
+  if (assignment.archived_at && data.is_published === true) {
+    throw new ConflictError('This assignment is archived — restore it before publishing.');
+  }
+  const updated = await assignment.update(data);
+  invalidateAssignmentLists();
+  return updated;
 }
 
+// Student work is never deleted from Command: submissions and grades cascade
+// on delete (models/index.js), so anything with either must be archived.
 async function remove(id) {
   const assignment = await Assignment.findByPk(id);
   if (!assignment) throw new NotFoundError('Assignment');
+  const [submissions, grades] = await Promise.all([
+    Submission.count({ where: { assignment_id: id } }),
+    Grade.count({ where: { assignment_id: id } }),
+  ]);
+  if (submissions > 0 || grades > 0) {
+    throw new ConflictError(`"${assignment.title}" has ${submissions} submission(s) and ${grades} grade(s) — archive it instead of deleting, so that student work is kept.`);
+  }
   await assignment.destroy();
+  invalidateAssignmentLists();
 }
 
-module.exports = { listByCourse, listForStudent, listForStaffView, getById, create, update, remove, unlockForCohort, lockForCohort, releaseVictimScopedAssignments, getUnlockStatus, getLiveOverview, getActiveCohortId, invalidateStudentCache, invalidateAssignmentLists, sanitizeQuestionsForStudent };
+// Archiving also unpublishes, which is what hides it from students. Unlock
+// rows are kept, so restoring and republishing brings back the same access.
+async function archive(id) {
+  const assignment = await Assignment.findByPk(id);
+  if (!assignment) throw new NotFoundError('Assignment');
+  const updated = await assignment.update({ archived_at: new Date(), is_published: false });
+  invalidateAssignmentLists();
+  return updated;
+}
+
+// Restores as a draft — republishing stays an explicit decision.
+async function restore(id) {
+  const assignment = await Assignment.findByPk(id);
+  if (!assignment) throw new NotFoundError('Assignment');
+  const updated = await assignment.update({ archived_at: null });
+  invalidateAssignmentLists();
+  return updated;
+}
+
+// Copies the authoring fields only: the copy is an unpublished draft with no
+// unlocks, and drop_number is left unset so a later releaseDrop() can't
+// publish it alongside the original by surprise. Question ids are fresh so
+// nothing keyed by question id (progress, rubric scores) can cross over.
+async function duplicate(id) {
+  const source = await Assignment.findByPk(id);
+  if (!source) throw new NotFoundError('Assignment');
+  const copy = await Assignment.create({
+    course_id:       source.course_id,
+    title:           `${source.title} (copy)`.slice(0, 255),
+    description:     source.description,
+    launch_briefing: source.launch_briefing,
+    debrief:         source.debrief,
+    max_score:       source.max_score,
+    due_date:        source.due_date,
+    type:            source.type,
+    grading_mode:    source.grading_mode,
+    order_index:     source.order_index,
+    questions:       (source.questions ?? []).map((q) => ({ ...q, id: randomUUID() })),
+    scenario_name:   source.scenario_name,
+    victim_name:     source.victim_name,
+    location_code:   source.location_code,
+    role_filters:    source.role_filters ?? [],
+    drop_number:     null,
+    is_published:    false,
+  });
+  invalidateAssignmentLists();
+  return copy;
+}
+
+module.exports = { listByCourse, listForStudent, listForStaffView, getById, create, update, remove, archive, restore, duplicate, unlockForCohort, lockForCohort, releaseVictimScopedAssignments, getUnlockStatus, getLiveOverview, getActiveCohortId, invalidateStudentCache, invalidateAssignmentLists, sanitizeQuestionsForStudent };

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildEntries, filterEntries, countBy, groupEntries } from './contentWorkspace.js';
+import { buildEntries, filterEntries, countBy, countStatuses, groupEntries } from './contentWorkspace.js';
 
 const assignments = [
   { id: 'c2', type: 'challenge', title: 'Drop 1 Quiz', order_index: 29, scenario_name: 'packet-heist' },
@@ -60,4 +60,16 @@ test('ungrouped sections render as a single unlabeled group', () => {
   const modules = groupEntries(entries).find((s) => s.type === 'module');
   assert.equal(modules.groups.length, 1);
   assert.equal(modules.groups[0].label, null);
+});
+
+test('archived items are hidden from All and only shown by the Archived filter; counts agree', () => {
+  const list = buildEntries([
+    { id: 'a', type: 'challenge', title: 'Old', archived_at: '2026-01-01' },
+    { id: 'b', type: 'challenge', title: 'Current' },
+  ]);
+  const statusOf = (item) => (item.archived_at ? 'archived' : 'live');
+  assert.deepEqual(filterEntries(list, { statusOf }).map((e) => e.item.id), ['b']);
+  assert.deepEqual(filterEntries(list, { status: 'archived', statusOf }).map((e) => e.item.id), ['a']);
+  assert.equal(filterEntries(list, { status: 'any', statusOf }).length, 2);
+  assert.deepEqual(countStatuses(list, statusOf), { all: 1, archived: 1, live: 1 });
 });

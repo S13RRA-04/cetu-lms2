@@ -35,6 +35,8 @@ module.exports = (sequelize) => {
       // and utils/dropLocation.js.
       location_code: { type: DataTypes.STRING(64),            allowNull: true,  defaultValue: null },
       role_filters:  { type: DataTypes.ARRAY(DataTypes.TEXT), allowNull: false, defaultValue: [] },
+      // Set by archive(); an archived assignment is always unpublished.
+      archived_at:   { type: DataTypes.DATE,                  allowNull: true,  defaultValue: null },
     },
     { tableName: 'assignments' }
   );

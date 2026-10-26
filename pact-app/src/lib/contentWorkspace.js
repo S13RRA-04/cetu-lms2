@@ -20,7 +20,7 @@ export const TYPE_LABELS = {
 };
 
 export const STATUS_FILTERS = [
-  ['all', 'All'], ['live', 'Live'], ['partial', 'Partial'], ['locked', 'Locked'], ['draft', 'Draft'],
+  ['all', 'All'], ['live', 'Live'], ['partial', 'Partial'], ['locked', 'Locked'], ['draft', 'Draft'], ['archived', 'Archived'],
 ];
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
@@ -33,12 +33,28 @@ export function buildEntries(assignments = [], contentItems = []) {
   ];
 }
 
+// 'all' means everything still in use — archived items only appear when the
+// Archived filter is chosen explicitly. 'any' applies no status filter at all
+// (for computing the per-status chip counts).
 export function filterEntries(entries, { type = 'all', status = 'all', query = '', statusOf } = {}) {
   const needle = query.trim().toLowerCase();
+  const statusMatches = (item) => {
+    if (status === 'any') return true;
+    if (status === 'all') return statusOf(item) !== 'archived';
+    return statusOf(item) === status;
+  };
   return entries.filter((e) =>
     (type === 'all' || e.type === type)
     && (!needle || (e.item.title ?? '').toLowerCase().includes(needle))
-    && (status === 'all' || statusOf(e.item) === status));
+    && statusMatches(e.item));
+}
+
+// Per-status counts for the filter chips; 'all' excludes archived to match
+// what the All filter actually shows.
+export function countStatuses(entries, statusOf) {
+  const counts = countBy(entries, (e) => statusOf(e.item));
+  counts.all -= counts.archived ?? 0;
+  return counts;
 }
 
 export function countBy(entries, keyOf) {
