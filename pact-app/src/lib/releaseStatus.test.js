@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { activeReleaseStatus, splitActiveCohort } from './releaseStatus.js';
+import { activeReleaseStatus, contentStatus, splitActiveCohort } from './releaseStatus.js';
 
 test('a cohort-wide unlock for the active cohort is live', () => {
   const status = activeReleaseStatus([{ cohort_id: 'oct', squad_id: null }], 'oct', 4);
@@ -33,4 +33,30 @@ test('splitActiveCohort pulls the active cohort out and keeps the rest in order'
   assert.equal(active.id, 'oct');
   assert.deepEqual(others.map((c) => c.id), ['july', 'dec']);
   assert.deepEqual(splitActiveCohort([{ id: 'july' }]).active, null);
+});
+
+test('an unpublished item is a draft even when every squad is unlocked, and flags the hidden unlocks', () => {
+  const unlocks = ['s1', 's2', 's3', 's4'].map((id) => ({ cohort_id: 'oct', squad_id: id }));
+  const status = contentStatus({ is_published: false, unlocks }, 'oct', 4);
+  assert.equal(status.state, 'draft');
+  assert.equal(status.release, 'live');
+  assert.equal(status.hiddenUnlocks, true);
+  assert.equal(status.unlockedSquads, 4);
+});
+
+test('a draft with no unlocks is a draft without the hidden-unlocks warning', () => {
+  const status = contentStatus({ is_published: false, unlocks: [] }, 'oct', 4);
+  assert.equal(status.state, 'draft');
+  assert.equal(status.hiddenUnlocks, false);
+});
+
+test('a draft is still a draft when no cohort is active', () => {
+  assert.equal(contentStatus({ is_published: false, unlocks: [] }, null, 0).state, 'draft');
+});
+
+test('published items keep their release state; a missing is_published is never a draft', () => {
+  const unlocks = [{ cohort_id: 'oct', squad_id: 's1' }];
+  assert.equal(contentStatus({ is_published: true, unlocks }, 'oct', 4).state, 'partial');
+  assert.equal(contentStatus({ unlocks }, 'oct', 4).state, 'partial');
+  assert.equal(contentStatus({ is_published: true, unlocks: [] }, 'oct', 4).state, 'locked');
 });

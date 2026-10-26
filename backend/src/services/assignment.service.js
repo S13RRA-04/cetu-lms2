@@ -261,6 +261,12 @@ async function unlockForCohort(assignmentId, cohortId, unlockerId, squadId = nul
     defaults: { unlocked_by: unlockerId, unlocked_at: new Date() },
   });
 
+  // Publishing stays a separate, explicit decision (Command's GatingPanel
+  // offers "publish when unlocking" for drafts) — unlocked-but-unpublished
+  // is a deliberate staging state. Without this flush, though, a new unlock
+  // took up to studentListCache's TTL to reach students.
+  invalidateAssignmentLists();
+
   if (assignment.type === 'module') {
     const linked = await CourseContentItem.findAll({ where: { linked_assignment_id: assignmentId } });
     await Promise.all(linked.map((item) =>
@@ -325,6 +331,7 @@ async function lockForCohort(assignmentId, cohortId, squadId = null) {
       });
     }
   }
+  invalidateAssignmentLists();
 }
 
 // One-shot overview for Command's "Live Progress" tab — every module/challenge

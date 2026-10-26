@@ -156,6 +156,38 @@ test('getById never sends a student the rubric’s model-answer notes, and withh
   assert.equal(afterGrade.questions[0].rubric.commonErrors, undefined);
 });
 
+test('unlockForCohort leaves a draft unpublished (publishing is its own decision) but flushes cached lists so the unlock is immediate', async (t) => {
+  const { Assignment, AssignmentUnlock } = require('../models');
+  const original = { findByPk: Assignment.findByPk, cohortFindByPk: Cohort.findByPk, findOrCreate: AssignmentUnlock.findOrCreate };
+  const updates = [];
+  Assignment.findByPk = async () => ({
+    id: 'a1', type: 'challenge', is_published: false,
+    update: async (patch) => { updates.push(patch); },
+  });
+  Cohort.findByPk = async () => ({ id: 'cohort-1' });
+  AssignmentUnlock.findOrCreate = async ({ where }) => [{ id: 'unlock-1', ...where }];
+  t.after(() => {
+    Assignment.findByPk = original.findByPk; Cohort.findByPk = original.cohortFindByPk;
+    AssignmentUnlock.findOrCreate = original.findOrCreate;
+  });
+
+  // Prime the published-list cache, unlock, and confirm the next read reloads.
+  let loads = 0;
+  const originalFindAndCount = Assignment.findAndCountAll;
+  Assignment.findAndCountAll = async () => { loads++; return { rows: [], count: 0 }; };
+  t.after(() => { Assignment.findAndCountAll = originalFindAndCount; });
+  await assignmentService.listByCourse('unlock-flush-course', {});
+  await assignmentService.listByCourse('unlock-flush-course', {});
+  assert.equal(loads, 1, 'second read is served from cache');
+
+  const unlock = await assignmentService.unlockForCohort('a1', 'cohort-1', 'instructor-1', 'squad-1');
+  assert.equal(unlock.squad_id, 'squad-1');
+  assert.deepEqual(updates, [], 'unlocking never publishes');
+
+  await assignmentService.listByCourse('unlock-flush-course', {});
+  assert.equal(loads, 2, 'unlock flushed the cached list');
+});
+
 test('listForStudent applies the same per-assignment grade gating to every item in the list', async (t) => {
   const { Assignment, Enrollment, AssignmentUnlock, Submission, Grade, User, DropLocationSelection } = require('../models');
   const original = {

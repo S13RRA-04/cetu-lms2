@@ -2752,6 +2752,19 @@ body {
 /* Gating panel */
 .admin-gating { padding: 20px 24px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 20px; }
 .admin-gating-desc { font-size: 13px; color: var(--muted); margin: 0; line-height: 1.5; }
+.admin-gating-draft {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px dashed var(--warning);
+  border-radius: var(--radius);
+  background: var(--warning-lt);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.admin-gating-draft-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
+.admin-gating-draft-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }
 
 .admin-gating-cohort {
   border: 1px solid var(--border);
@@ -2848,6 +2861,9 @@ body {
 .admin-release-badge--live    { color: var(--green); background: var(--green-lt); }
 .admin-release-badge--partial { color: var(--warning); background: var(--warning-lt); }
 .admin-release-badge--locked  { color: var(--muted); border-color: var(--border); }
+.admin-release-badge--draft   { color: var(--muted); border-style: dashed; }
+/* Unlocked but unpublished — the state that silently reaches nobody. */
+.admin-release-badge--hidden  { color: var(--danger); background: var(--danger-lt); border-style: dashed; }
 
 .admin-release-banner {
   display: flex;

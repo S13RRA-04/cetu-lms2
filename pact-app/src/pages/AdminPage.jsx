@@ -52,7 +52,7 @@ import {
 } from '../api/pact.js';
 import { VICTIMS } from '../constants/victims.js';
 import { activeLearnerCount, defaultReleaseCohortId } from '../lib/releaseCohorts.js';
-import { activeReleaseStatus, splitActiveCohort } from '../lib/releaseStatus.js';
+import { contentStatus, splitActiveCohort } from '../lib/releaseStatus.js';
 import { PROFESSIONAL_ROLES } from '../constants/professionalRoles.js';
 import { CERTIFICATIONS } from '../constants/certifications.js';
 import TransmissionInterceptor from './TransmissionInterceptor.jsx';
@@ -2589,10 +2589,7 @@ function IntelLibraryGating({ contentItems, cohorts, moduleAssignments = [], onI
         {(CONTENT_TYPE_LABELS[item.content_type] ?? item.content_type).toUpperCase()}
       </span>
       <span className="admin-assign-title">{item.title}</span>
-      {!item.is_published && (
-        <span style={{ fontSize: 9, color: 'var(--muted)', marginLeft: 4 }}>DRAFT</span>
-      )}
-      <ReleaseBadge unlocks={item.unlocks} />
+      <ReleaseBadge item={item} />
     </button>
   );
 
@@ -2701,7 +2698,29 @@ function IntelLibraryGating({ contentItems, cohorts, moduleAssignments = [], onI
   );
 }
 
+// GatingPanel's onPublish/onUnlocksChange both report a whole item back, and
+// one "publish when I unlock" click fires both inside the same async run —
+// before this component re-renders. Working from a ref (instead of the
+// render's `item`) keeps the unlock update from reverting the publish.
+function useContentItemGating(item, onUpdated) {
+  const latest = useRef(item);
+  useEffect(() => { latest.current = item; }, [item]);
+  return {
+    isPublished: item.is_published,
+    onPublish: async () => {
+      await updateContentItem(item.id, { is_published: true });
+      latest.current = { ...latest.current, is_published: true };
+      onUpdated(latest.current);
+    },
+    onUnlocksChange: (unlocks) => {
+      latest.current = { ...latest.current, unlocks };
+      onUpdated(latest.current);
+    },
+  };
+}
+
 function IntelItemCohortAccess({ item, cohorts, onUpdated }) {
+  const gating = useContentItemGating(item, onUpdated);
   return (
     <div>
       <div className="admin-right-header">
@@ -2720,7 +2739,7 @@ function IntelItemCohortAccess({ item, cohorts, onUpdated }) {
         allowCohortWide
         onLock={(cohortId, squadId) => lockContentItem(item.id, cohortId, squadId)}
         onUnlock={(cohortId, squadId) => unlockContentItem(item.id, cohortId, squadId)}
-        onUnlocksChange={(unlocks) => onUpdated({ ...item, unlocks })}
+        {...gating}
       />
     </div>
   );
@@ -2920,7 +2939,7 @@ function ModulesGating({ assignments, cohorts, contentItems = [], onUnlocksChang
           >
             <span className="admin-assign-type" style={{ color: TYPE_COLOR.module }}>MODULE</span>
             <span className="admin-assign-title">{a.title}</span>
-            <ReleaseBadge unlocks={a.unlocks} />
+            <ReleaseBadge item={a} />
           </button>
         ))}
       </div>
@@ -2951,6 +2970,12 @@ function ModulesGating({ assignments, cohorts, contentItems = [], onUnlocksChang
               cohorts={cohorts}
               onLock={(cohortId, squadId) => lockAssignment(selected.id, cohortId, squadId)}
               onUnlock={(cohortId, squadId) => unlockAssignment(selected.id, cohortId, squadId)}
+              isPublished={selected.is_published}
+              onPublish={async () => {
+                await updateAssignment(selected.id, { is_published: true });
+                setSelected((s) => ({ ...s, is_published: true }));
+                onAssignmentsChange?.((prev) => prev.map((a) => a.id === selected.id ? { ...a, is_published: true } : a));
+              }}
               onUnlocksChange={(unlocks) => {
                 setSelected((s) => ({ ...s, unlocks }));
                 onUnlocksChange(selected.id, unlocks);
@@ -3652,7 +3677,7 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
   const { cohort: activeCohort, squadCount } = useContext(ActiveReleaseContext);
   const filteredItems = releaseFilter === 'all'
     ? localItems
-    : localItems.filter((a) => activeReleaseStatus(a.unlocks, activeCohort?.id, squadCount).state === releaseFilter);
+    : localItems.filter((a) => contentStatus(a, activeCohort?.id, squadCount).state === releaseFilter);
   // These three drafts load from `selected` only once, when the id changes —
   // not on every render — so typing isn't clobbered by unrelated re-fetches
   // while the panel stays open. That means each one goes stale the moment
@@ -3729,7 +3754,7 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
           >
             <span className="admin-assign-type" style={{ color: TYPE_COLOR.challenge }}>CHALLENGE</span>
             <span className="admin-assign-title">{a.title}</span>
-            <ReleaseBadge unlocks={a.unlocks} />
+            <ReleaseBadge item={a} />
           </button>
         ))}
       </div>
@@ -3778,7 +3803,7 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
       <div className="admin-left">
         {activeCohort && localItems.length > 0 && (
           <div className="admin-release-filter">
-            {[['all', 'All'], ['live', 'Live'], ['partial', 'Partial'], ['locked', 'Locked']].map(([value, label]) => (
+            {[['all', 'All'], ['live', 'Live'], ['partial', 'Partial'], ['locked', 'Locked'], ['draft', 'Draft']].map(([value, label]) => (
               <button
                 key={value}
                 type="button"
@@ -3874,7 +3899,9 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
             </div>
             {!selected.is_published && (
               <p style={{ margin: 0, padding: '8px 20px', fontSize: 11, color: '#b45309', background: 'rgba(180,83,9,0.08)', borderBottom: '1px solid var(--border)' }}>
-                Draft — this challenge is unlocked for its cohort but won't appear to students until Published is checked.
+                {contentStatus(selected, activeCohort?.id, squadCount).hiddenUnlocks
+                  ? 'Draft — unlocked for squads in the active cohort, but hidden from every student until Published is checked.'
+                  : 'Draft — hidden from every student until Published is checked, even once unlocked.'}
               </p>
             )}
 
@@ -3971,6 +3998,12 @@ function ChallengesGating({ assignments, cohorts, onUnlocksChange, onAssignments
               cohorts={cohorts}
               onLock={(cohortId, squadId) => lockAssignment(selected.id, cohortId, squadId)}
               onUnlock={(cohortId, squadId) => unlockAssignment(selected.id, cohortId, squadId)}
+              isPublished={selected.is_published}
+              onPublish={async () => {
+                await updateAssignment(selected.id, { is_published: true });
+                setSelected((s) => ({ ...s, is_published: true }));
+                onAssignmentsChange?.((prev) => prev.map((a) => a.id === selected.id ? { ...a, is_published: true } : a));
+              }}
               onUnlocksChange={(unlocks) => {
                 setSelected((s) => ({ ...s, unlocks }));
                 onUnlocksChange(selected.id, unlocks);
@@ -4005,7 +4038,7 @@ function AssessmentSurveyGating({ assignments, cohorts, onUnlocksChange, onAssig
             >
               <span className="admin-assign-type" style={{ color }}>{a.type.toUpperCase()}</span>
               <span className="admin-assign-title">{a.title}</span>
-              <ReleaseBadge unlocks={a.unlocks} />
+              <ReleaseBadge item={a} />
             </button>
           );
         })}
@@ -4040,6 +4073,12 @@ function AssessmentSurveyGating({ assignments, cohorts, onUnlocksChange, onAssig
               cohorts={cohorts}
               onLock={(cohortId, squadId) => lockAssignment(selected.id, cohortId, squadId)}
               onUnlock={(cohortId, squadId) => unlockAssignment(selected.id, cohortId, squadId)}
+              isPublished={selected.is_published}
+              onPublish={async () => {
+                await updateAssignment(selected.id, { is_published: true });
+                setSelected((s) => ({ ...s, is_published: true }));
+                onAssignmentsChange?.((prev) => prev.map((a) => a.id === selected.id ? { ...a, is_published: true } : a));
+              }}
               onUnlocksChange={(unlocks) => {
                 setSelected((s) => ({ ...s, unlocks }));
                 onUnlocksChange(selected.id, unlocks);
@@ -5049,9 +5088,21 @@ function ActiveReleaseProvider({ cohorts, children }) {
   return <ActiveReleaseContext.Provider value={value}>{children}</ActiveReleaseContext.Provider>;
 }
 
-function ReleaseBadge({ unlocks }) {
+// `item` is the assignment/content item itself (needs is_published + unlocks)
+// — an unlock on an unpublished item reaches nobody, so the badge says DRAFT
+// rather than LIVE, and calls out unlocks that are silently hidden.
+function ReleaseBadge({ item }) {
   const { cohort, squadCount } = useContext(ActiveReleaseContext);
-  const status = activeReleaseStatus(unlocks, cohort?.id, squadCount);
+  const status = contentStatus(item, cohort?.id, squadCount);
+  if (status.state === 'draft') {
+    return status.hiddenUnlocks ? (
+      <span className="admin-release-badge admin-release-badge--hidden" title={`Unlocked for ${status.unlockedSquads} squad${status.unlockedSquads === 1 ? '' : 's'} in ${cohort.name}, but unpublished — no student can see it`}>
+        DRAFT · {status.unlockedSquads} HIDDEN
+      </span>
+    ) : (
+      <span className="admin-release-badge admin-release-badge--draft" title="Unpublished — hidden from every student, whatever is unlocked">DRAFT</span>
+    );
+  }
   if (status.state === 'no-cohort') return null;
   if (status.state === 'live') {
     return <span className="admin-release-badge admin-release-badge--live" title={`Live for every squad in ${cohort.name}`}>LIVE</span>;
@@ -5084,12 +5135,39 @@ function ActiveReleaseBanner() {
   );
 }
 
-function GatingPanel({ unlocks = [], cohorts, onUnlocksChange, onLock, onUnlock, noun = 'assignment', allowCohortWide = false }) {
+/* isPublished/onPublish: pass both for anything students only see once
+   published (assignments, content items). Unlocking a draft reaches nobody,
+   so while isPublished is false the panel says so up front and, by default,
+   publishes on the first unlock — "Unlock only" stays one click away for
+   deliberately staging a draft. Omit both and the panel is unlock-only. */
+function GatingPanel({ unlocks = [], cohorts, onUnlocksChange, onLock, onUnlock, noun = 'assignment', allowCohortWide = false, isPublished, onPublish }) {
   const [squadsByC,  setSquadsByC]  = useState({});   // cohortId → Squad[]
   const [loadingC,   setLoadingC]   = useState({});   // cohortId → bool
   const [busy,       setBusy]       = useState({});   // `${cohortId}:${squadId}` → bool
   const [errors,     setErrors]     = useState({});
   const [showOthers, setShowOthers] = useState(false);
+  const [publishOnUnlock, setPublishOnUnlock] = useState(true);
+  const [publishBusy,     setPublishBusy]     = useState(false);
+  const [publishError,    setPublishError]    = useState(null);
+  const isDraft = isPublished === false && !!onPublish;
+  // A bulk unlock runs several requests before the parent re-renders with the
+  // new is_published, so track "already published" here to publish once.
+  const draftRef = useRef(isDraft);
+  useEffect(() => { draftRef.current = isDraft; }, [isDraft]);
+
+  const publish = async () => {
+    setPublishBusy(true);
+    setPublishError(null);
+    try {
+      await onPublish();
+      draftRef.current = false;
+    } catch (err) {
+      setPublishError(err.response?.data?.error?.message ?? 'Publish failed');
+      throw err;
+    } finally {
+      setPublishBusy(false);
+    }
+  };
   const { active: activeCohort, others: otherCohorts } = splitActiveCohort(cohorts);
   // Past/future cohorts are history, not the live release — their squads
   // only load once someone actually opens them.
@@ -5121,6 +5199,7 @@ function GatingPanel({ unlocks = [], cohorts, onUnlocksChange, onLock, onUnlock,
   // cohort-wide row — same row shape, squad_id: null.
   const apply = async (current, cohortId, squadId, unlock) => {
     if (unlock) {
+      if (draftRef.current && publishOnUnlock) await publish();
       await onUnlock(cohortId, squadId);
       return [...current, { cohort_id: cohortId, squad_id: squadId }];
     }
@@ -5257,6 +5336,23 @@ function GatingPanel({ unlocks = [], cohorts, onUnlocksChange, onLock, onUnlock,
 
   return (
     <div className="admin-gating">
+      {isDraft && (
+        <div className="admin-gating-draft" role="status">
+          <div className="admin-gating-draft-msg">
+            <strong>Draft.</strong> Students can't see this {noun} — even in squads that are unlocked.
+          </div>
+          <div className="admin-gating-draft-actions">
+            <button type="button" className="admin-gate-btn gate-unlock" onClick={() => publish().catch(() => {})} disabled={publishBusy}>
+              {publishBusy ? '…' : 'Publish now'}
+            </button>
+            <label className="admin-gating-draft-toggle">
+              <input type="checkbox" checked={publishOnUnlock} onChange={(e) => setPublishOnUnlock(e.target.checked)} />
+              Publish when I unlock
+            </label>
+          </div>
+          {publishError && <div className="err-msg" style={{ fontSize: 11 }}>{publishError}</div>}
+        </div>
+      )}
       <p className="admin-gating-desc">
         {activeCohort
           ? <>Students in <strong>{activeCohort.name}</strong> see this {noun} once it is unlocked for their squad{allowCohortWide ? ' or the whole cohort' : ''}.</>
@@ -7156,10 +7252,7 @@ function CourseContentPanel({ items, cohorts, loaded, onItemsChange, assignments
                   >
                     <span className="admin-a-title">{item.title}</span>
                     <span className="admin-a-meta">
-                      {item.is_published
-                        ? <span style={{ fontSize: 10, color: '#10b981' }}>Published</span>
-                        : <span style={{ fontSize: 10, color: '#94a3b8' }}>Draft</span>}
-                      <ReleaseBadge unlocks={item.unlocks} />
+                      <ReleaseBadge item={item} />
                     </span>
                   </button>
                 ))}
@@ -7258,9 +7351,13 @@ function ContentItemDetail({ item, cohorts, moduleAssignments = [], onUpdated, o
   useEffect(() => {
     setTitle(item.title);
     setDescription(item.description ?? '');
-    setIsPublished(item.is_published);
     setLinkedAssignmentId(item.linked_assignment_id ?? '');
   }, [item.id]);
+  // Separate from the id-keyed reset above: the Access panel's "Publish now"
+  // changes is_published without changing the item, and a stale checkbox
+  // here would silently unpublish it again on the next Save.
+  useEffect(() => { setIsPublished(item.is_published); }, [item.id, item.is_published]);
+  const gating = useContentItemGating(item, onUpdated);
 
   const handleSave = async () => {
     setSaving(true); setErr('');
@@ -7352,7 +7449,7 @@ function ContentItemDetail({ item, cohorts, moduleAssignments = [], onUpdated, o
             allowCohortWide
             onLock={(cohortId, squadId) => lockContentItem(item.id, cohortId, squadId)}
             onUnlock={(cohortId, squadId) => unlockContentItem(item.id, cohortId, squadId)}
-            onUnlocksChange={(unlocks) => onUpdated({ ...item, unlocks })}
+            {...gating}
           />
           {err && <div className="err-msg" style={{ marginTop: 8 }}>{err}</div>}
         </>

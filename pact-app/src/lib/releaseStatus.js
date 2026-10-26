@@ -12,6 +12,20 @@ export function activeReleaseStatus(unlocks, activeCohortId, squadCount) {
   return { state: 'partial', unlockedSquads, squadCount };
 }
 
+// What students in the active cohort actually get for one assignment/content
+// item: an unlock alone isn't enough — student lists also require
+// is_published, so an unpublished item is a draft no matter how many squads
+// are unlocked. `hiddenUnlocks` flags exactly that trap (unlocked, yet
+// invisible). `release` keeps the underlying unlock state for callers that
+// still need it. Items without an is_published field (undefined) are never
+// treated as drafts.
+export function contentStatus(item, activeCohortId, squadCount) {
+  const release = activeReleaseStatus(item?.unlocks, activeCohortId, squadCount);
+  if (item?.is_published !== false) return { ...release, release: release.state, hiddenUnlocks: false };
+  const hasUnlocks = release.state === 'live' || release.state === 'partial';
+  return { ...release, state: 'draft', release: release.state, hiddenUnlocks: hasUnlocks };
+}
+
 // Active cohort first, then the rest in their original order — the gating
 // panel only expands the active one by default.
 export function splitActiveCohort(cohorts) {
