@@ -288,3 +288,57 @@ test('live roster is empty when no cohort is active', async (t) => {
   assert.deepEqual(await submissionService.getProgressForAssignment('module-1'), []);
   assert.equal(queriedEnrollments, false);
 });
+
+test('staff saving progress are gated by the active cohort\'s unlocks, not their own past-cohort enrollment', async (t) => {
+  const original = {
+    assignmentFind: Assignment.findByPk,
+    cohortFindOne: Cohort.findOne,
+    enrollmentFindOne: Enrollment.findOne,
+    unlockFindOne: AssignmentUnlock.findOne,
+    submissionFindOrCreate: Submission.findOrCreate,
+  };
+  Assignment.findByPk = async () => ({ id: 'a1', course_id: 'course-1', is_published: false });
+  Cohort.findOne = async () => ({ id: 'active-cohort' });
+  const enrollmentWheres = [];
+  // Instructor's only enrollment is in a past cohort's squad.
+  Enrollment.findOne = async ({ where }) => {
+    enrollmentWheres.push(where);
+    return where.cohort_id === 'active-cohort' ? null : { cohort_id: 'past-cohort', squad_id: 'past-squad' };
+  };
+  const releasedTo = new Set(['active-cohort']);
+  AssignmentUnlock.findOne = async ({ where }) => (releasedTo.has(where.cohort_id) ? { id: 'u1' } : null);
+  let createdWith;
+  const sub = { status: 'in_progress', async update() {} };
+  Submission.findOrCreate = async ({ defaults }) => { createdWith = defaults; return [sub, true]; };
+  t.after(() => {
+    Assignment.findByPk = original.assignmentFind;
+    Cohort.findOne = original.cohortFindOne;
+    Enrollment.findOne = original.enrollmentFindOne;
+    AssignmentUnlock.findOne = original.unlockFindOne;
+    Submission.findOrCreate = original.submissionFindOrCreate;
+  });
+
+  await submissionService.updateProgress('a1', 'instructor-1', 50, null, 'instructor');
+  assert.deepEqual(enrollmentWheres, [{ user_id: 'instructor-1', course_id: 'course-1', cohort_id: 'active-cohort' }]);
+  assert.equal(createdWith.squad_id, null, 'must not act as their past-cohort squad');
+
+  // Released only to the past cohort → locked for staff, same as for an active-cohort student.
+  releasedTo.clear();
+  releasedTo.add('past-cohort');
+  await assert.rejects(
+    submissionService.updateProgress('a1', 'instructor-1', 50, null, 'instructor'),
+    (error) => error.statusCode === 403 && error.code === 'LOCKED',
+  );
+});
+
+test('staff cannot save progress when no cohort is active', async (t) => {
+  const original = { assignmentFind: Assignment.findByPk, cohortFindOne: Cohort.findOne };
+  Assignment.findByPk = async () => ({ id: 'a1', course_id: 'course-1', is_published: true });
+  Cohort.findOne = async () => null;
+  t.after(() => { Assignment.findByPk = original.assignmentFind; Cohort.findOne = original.cohortFindOne; });
+
+  await assert.rejects(
+    submissionService.updateProgress('a1', 'instructor-1', 50, null, 'instructor'),
+    (error) => error.statusCode === 403,
+  );
+});

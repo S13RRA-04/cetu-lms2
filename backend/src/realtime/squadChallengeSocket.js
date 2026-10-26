@@ -3,6 +3,7 @@
 const jwt = require('jsonwebtoken');
 const { User, Enrollment, Assignment } = require('../models');
 const logger = require('../utils/logger');
+const { isStaffRole, getActiveCohortEnrollment } = require('../utils/staffView');
 const { createSquadLockCoordinator } = require('./squadLockCoordinator');
 const { attachSquadFieldSocket } = require('./squadFieldSocket');
 
@@ -35,7 +36,10 @@ async function defaultAuthorizeJoin(user, { courseId, assignmentId }) {
     throw new Error('Assignment is not available for this role');
   }
 
-  const enrollment = await Enrollment.findOne({ where: { user_id: user.id, course_id: courseId, status: 'active' } });
+  // Same staff rule as squadChallengeState.service.js: only an active-cohort squad.
+  const enrollment = isStaffRole(user.role)
+    ? await getActiveCohortEnrollment(courseId, user.id)
+    : await Enrollment.findOne({ where: { user_id: user.id, course_id: courseId, status: 'active' } });
   if (!enrollment?.squad_id) throw new Error('Not enrolled in a squad for this course');
   return { room: roomKey(assignmentId, enrollment.squad_id) };
 }

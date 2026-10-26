@@ -6,6 +6,7 @@ const logger      = require('../utils/logger');
 const gradeService = require('./grade.service');
 const { invalidateStudentCache, getActiveCohortId } = require('./assignment.service');
 const { gradeQuizAnswers, isFullyAutoGradable } = require('../utils/quizGrading');
+const { isStaffRole, getActiveCohortEnrollment, resolveStaffEnrollment } = require('../utils/staffView');
 
 async function listByAssignment(assignmentId) {
   const assignment = await Assignment.findByPk(assignmentId);
@@ -38,7 +39,7 @@ async function listByAssignment(assignmentId) {
   return submissions.map((s) => ({ ...s.toJSON(), cohort: cohortByUser[s.user_id] ?? null }));
 }
 
-async function getMySubmission(assignmentId, userId) {
+async function getMySubmission(assignmentId, userId, role = 'student') {
   const own = await Submission.findOne({
     where:   { assignment_id: assignmentId, user_id: userId },
     include: [{ model: Squad, as: 'squad', attributes: ['id', 'number', 'name'] }],
@@ -50,10 +51,12 @@ async function getMySubmission(assignmentId, userId) {
   // not as an empty attempt they could submit again.
   const assignment = await Assignment.findByPk(assignmentId, { attributes: ['id', 'course_id', 'grading_mode'] });
   if (assignment?.grading_mode !== 'squad') return own;
-  const enrollment = await Enrollment.findOne({
-    where: { user_id: userId, course_id: assignment.course_id, status: 'active' },
-    attributes: ['squad_id'],
-  });
+  const enrollment = isStaffRole(role)
+    ? await getActiveCohortEnrollment(assignment.course_id, userId)
+    : await Enrollment.findOne({
+        where: { user_id: userId, course_id: assignment.course_id, status: 'active' },
+        attributes: ['squad_id'],
+      });
   if (!enrollment?.squad_id) return own;
   return (await getSquadSubmission(assignmentId, enrollment.squad_id)) ?? own;
 }
@@ -139,8 +142,13 @@ async function getProgressForAssignment(assignmentId, filters = {}) {
   });
 }
 
-async function _checkUnlocked(assignment, userId) {
-  const enrollment = await Enrollment.findOne({ where: { user_id: userId, course_id: assignment.course_id } });
+async function _checkUnlocked(assignment, userId, role = 'student') {
+  // Staff work assignments as members of the active cohort (see
+  // utils/staffView.js), so the gate matches what Operations showed them —
+  // never their own past-cohort enrollment's unlocks.
+  const enrollment = isStaffRole(role)
+    ? await resolveStaffEnrollment(assignment.course_id, userId)
+    : await Enrollment.findOne({ where: { user_id: userId, course_id: assignment.course_id } });
   if (!enrollment) throw new AppError('Not enrolled in this course', 403, 'FORBIDDEN');
 
   if (!enrollment.cohort_id) throw new AppError('You are not assigned to a cohort yet', 403, 'FORBIDDEN');
@@ -155,11 +163,11 @@ async function _checkUnlocked(assignment, userId) {
   return enrollment;
 }
 
-async function updateProgress(assignmentId, userId, progress, quizState = null) {
+async function updateProgress(assignmentId, userId, progress, quizState = null, role = 'student') {
   const assignment = await Assignment.findByPk(assignmentId);
   if (!assignment) throw new NotFoundError('Assignment');
 
-  const enrollment = await _checkUnlocked(assignment, userId);
+  const enrollment = await _checkUnlocked(assignment, userId, role);
 
   const squadId = enrollment.squad_id ?? null;
 
@@ -183,11 +191,11 @@ async function updateProgress(assignmentId, userId, progress, quizState = null) 
   return sub;
 }
 
-async function submit(assignmentId, userId, content) {
+async function submit(assignmentId, userId, content, role = 'student') {
   const assignment = await Assignment.findByPk(assignmentId);
   if (!assignment) throw new NotFoundError('Assignment');
 
-  const enrollment = await _checkUnlocked(assignment, userId);
+  const enrollment = await _checkUnlocked(assignment, userId, role);
   const squadId = enrollment.squad_id ?? null;
 
   // grading_mode is the only thing that makes a submission shared: a squad

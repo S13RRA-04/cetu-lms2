@@ -84,11 +84,9 @@ export default function DashboardHome() {
 
   const role = user?.professional_role ? PROF_ROLE_LABELS[user.professional_role] ?? user.professional_role : null;
 
-  // An assignment is visible only when explicitly unlocked.
-  // Students get is_unlocked boolean; admins get an unlocks[] array — both must be non-empty.
-  const visibleAssignments = assignments.filter(
-    (a) => a.is_unlocked === true || (Array.isArray(a.unlocks) && a.unlocks.length > 0)
-  );
+  // An assignment is visible only when explicitly unlocked. Staff get the same
+  // is_unlocked flag, scoped server-side to the active cohort.
+  const visibleAssignments = assignments.filter((a) => a.is_unlocked === true);
 
   const total      = visibleAssignments.length;
   const completed  = visibleAssignments.filter((a) => (a.progress ?? 0) >= 100).length;

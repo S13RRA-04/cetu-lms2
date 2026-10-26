@@ -3,7 +3,7 @@ const caseTimelineService = require('../services/caseTimeline.service');
 
 async function getTimeline(req, res, next) {
   try {
-    const timeline = await caseTimelineService.getTimeline(req.params.id, req.user.id);
+    const timeline = await caseTimelineService.getTimeline(req.params.id, req.user.id, req.user.role);
     if (!timeline) return res.status(404).json({ error: 'No squad assigned' });
     res.json(timeline);
   } catch (err) { next(err); }
@@ -11,7 +11,7 @@ async function getTimeline(req, res, next) {
 
 async function saveTimeline(req, res, next) {
   try {
-    const timeline = await caseTimelineService.saveTimeline(req.params.id, req.user.id, req.body);
+    const timeline = await caseTimelineService.saveTimeline(req.params.id, req.user.id, req.body, req.user.role);
     res.json(timeline);
   } catch (err) { next(err); }
 }

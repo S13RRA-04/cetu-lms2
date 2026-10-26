@@ -249,3 +249,59 @@ test('listForStudent leaves an individually-graded assignment on the student\'s 
   const list = await assignmentService.listForStudent('course-solo-progress-test', 'user-solo-progress-test');
   assert.equal(list.find((a) => a.id === 'solo-quiz-1').progress, 25);
 });
+
+test('staff view lists every published assignment unlocked for the active cohort (cohort-wide or any squad), ignoring their own enrollment and role routing', async (t) => {
+  const { Assignment, AssignmentUnlock, Submission, Enrollment } = require('../models');
+  stubActiveCohort(t, 'active-cohort');
+  const original = { assignmentFindAll: Assignment.findAll, unlockFindAll: AssignmentUnlock.findAll, submissionFindAll: Submission.findAll, enrollmentFindOne: Enrollment.findOne };
+  const row = (id, extra = {}) => ({ id, ...extra, toJSON() { return { id, questions: [], ...extra }; } });
+  Assignment.findAll = async () => [row('cohort-wide'), row('squad-only', { role_filters: ['forensic_accountant'] }), row('not-released')];
+  let unlockWhere;
+  AssignmentUnlock.findAll = async ({ where }) => { unlockWhere = where; return [{ assignment_id: 'cohort-wide' }, { assignment_id: 'squad-only' }]; };
+  Submission.findAll = async () => [{ assignment_id: 'cohort-wide', progress: 40 }];
+  Enrollment.findOne = async () => { throw new Error('staff view must not read the viewer\'s own enrollment'); };
+  t.after(() => {
+    Assignment.findAll = original.assignmentFindAll;
+    AssignmentUnlock.findAll = original.unlockFindAll;
+    Submission.findAll = original.submissionFindAll;
+    Enrollment.findOne = original.enrollmentFindOne;
+  });
+
+  const result = await assignmentService.listForStaffView('staff-view-course', 'instructor-1');
+
+  assert.deepEqual(unlockWhere, { cohort_id: 'active-cohort' });
+  assert.deepEqual(result.map(({ id, is_unlocked, progress }) => ({ id, is_unlocked, progress })), [
+    { id: 'cohort-wide', is_unlocked: true, progress: 40 },
+    { id: 'squad-only', is_unlocked: true, progress: 0 },
+    { id: 'not-released', is_unlocked: false, progress: 0 },
+  ]);
+});
+
+test('staff view is empty when no cohort is active', async (t) => {
+  const { Assignment } = require('../models');
+  stubActiveCohort(t, null);
+  const original = Assignment.findAll;
+  Assignment.findAll = async () => { throw new Error('should not query assignments'); };
+  t.after(() => { Assignment.findAll = original; });
+
+  assert.deepEqual(await assignmentService.listForStaffView('no-active-staff-course', 'instructor-1'), []);
+});
+
+test('getById with staffView reports is_unlocked from the active cohort, not the viewer\'s enrollment', async (t) => {
+  const { Assignment, AssignmentUnlock, Enrollment } = require('../models');
+  stubActiveCohort(t, 'active-cohort');
+  const original = { find: Assignment.findByPk, unlockFind: AssignmentUnlock.findOne, enrollmentFind: Enrollment.findOne };
+  Assignment.findByPk = async () => ({ id: 'a1', course_id: 'course-1', is_published: true, toJSON() { return { id: 'a1', questions: [] }; } });
+  let unlockWhere;
+  AssignmentUnlock.findOne = async ({ where }) => { unlockWhere = where; return null; };
+  Enrollment.findOne = async () => { throw new Error('staff view must not read the viewer\'s own enrollment'); };
+  t.after(() => {
+    Assignment.findByPk = original.find;
+    AssignmentUnlock.findOne = original.unlockFind;
+    Enrollment.findOne = original.enrollmentFind;
+  });
+
+  const result = await assignmentService.getById('a1', 'instructor-1', { staffView: true });
+  assert.deepEqual(unlockWhere, { assignment_id: 'a1', cohort_id: 'active-cohort' });
+  assert.equal(result.is_unlocked, false);
+});

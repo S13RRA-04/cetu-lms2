@@ -2,11 +2,16 @@
 const { CaseTimeline, Enrollment, User } = require('../models');
 const { ForbiddenError } = require('../utils/errors');
 const { mergeManualState } = require('./squadChallengeState.service');
+const { isStaffRole, getActiveCohortEnrollment } = require('../utils/staffView');
 
 const EMPTY_STATE = { manual: { answers: {}, field_meta: {}, typing: {} } };
 
-async function _resolveSquadId(courseId, userId) {
-  const enrollment = await Enrollment.findOne({ where: { user_id: userId, course_id: courseId } });
+// Staff only get a squad timeline for a squad in the active cohort (see
+// utils/staffView.js) — never the past-cohort squad their enrollment points at.
+async function _resolveSquadId(courseId, userId, role) {
+  const enrollment = isStaffRole(role)
+    ? await getActiveCohortEnrollment(courseId, userId)
+    : await Enrollment.findOne({ where: { user_id: userId, course_id: courseId } });
   return enrollment?.squad_id ?? null;
 }
 
@@ -21,8 +26,8 @@ function _pruneTyping(row) {
   return pruned;
 }
 
-async function getTimeline(courseId, userId) {
-  const squadId = await _resolveSquadId(courseId, userId);
+async function getTimeline(courseId, userId, role = 'student') {
+  const squadId = await _resolveSquadId(courseId, userId, role);
   if (!squadId) return null; // no squad — caller (controller) reports 404, same as Intel Board
 
   const [row] = await CaseTimeline.findOrCreate({
@@ -34,8 +39,8 @@ async function getTimeline(courseId, userId) {
   return pruned;
 }
 
-async function saveTimeline(courseId, userId, incomingState) {
-  const squadId = await _resolveSquadId(courseId, userId);
+async function saveTimeline(courseId, userId, incomingState, role = 'student') {
+  const squadId = await _resolveSquadId(courseId, userId, role);
   if (!squadId) throw new ForbiddenError('You are not assigned to a squad');
 
   const user = await User.findByPk(userId, { attributes: ['id', 'first_name', 'last_name'] });

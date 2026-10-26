@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import useAuthStore from '../store/authStore.js';
 import { motion, AnimatePresence } from 'motion/react';
 import { getCourseContent } from '../api/pact.js';
 import DecryptText from '../components/DecryptText.jsx';
@@ -24,8 +23,6 @@ const MATERIAL_TYPES = ['slides', 'handout', 'agenda', 'form', 'resource'];
 const TYPE_ORDER = [...CAMPAIGN_TYPES, ...MATERIAL_TYPES];
 
 export default function CourseContentPage() {
-  const { user }     = useAuthStore();
-  const isAdmin      = user?.role === 'admin' || user?.role === 'instructor' || user?.role === 'superadmin';
   const [items,      setItems]      = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [filter,     setFilter]     = useState('all');
@@ -90,12 +87,8 @@ export default function CourseContentPage() {
               <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
             </svg>
           </div>
-          <div className="ops-empty-label">{isAdmin ? 'NO CONTENT ADDED YET' : 'NO MATERIALS AUTHORIZED'}</div>
-          <div className="ops-empty-sub">
-            {isAdmin
-              ? 'Add slides, handouts, or links via COMMAND → Content. These are separate from Assignments.'
-              : 'Stand by for Command authorization.'}
-          </div>
+          <div className="ops-empty-label">NO MATERIALS AUTHORIZED</div>
+          <div className="ops-empty-sub">Stand by for Command authorization.</div>
         </div>
       ) : (
         <>

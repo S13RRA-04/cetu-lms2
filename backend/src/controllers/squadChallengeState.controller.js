@@ -3,14 +3,14 @@ const svc = require('../services/squadChallengeState.service');
 
 async function getState(req, res, next) {
   try {
-    const state = await svc.getState(req.params.id, req.params.aid, req.user.id);
+    const state = await svc.getState(req.params.id, req.params.aid, req.user.id, req.user.role);
     return res.json(state);
   } catch (err) { return next(err); }
 }
 
 async function saveState(req, res, next) {
   try {
-    const state = await svc.saveState(req.params.id, req.params.aid, req.user.id, req.body ?? {});
+    const state = await svc.saveState(req.params.id, req.params.aid, req.user.id, req.body ?? {}, req.user.role);
     return res.json(state);
   } catch (err) { return next(err); }
 }

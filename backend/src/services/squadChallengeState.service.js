@@ -1,6 +1,7 @@
 'use strict';
 const { SquadChallengeState, Enrollment, Assignment, User } = require('../models');
 const { NotFoundError, AppError, ForbiddenError } = require('../utils/errors');
+const { isStaffRole, getActiveCohortEnrollment } = require('../utils/staffView');
 
 function isResolved(qs) {
   return !!(qs && (qs.revealed || qs.forced));
@@ -89,17 +90,21 @@ function mergeManualState(stored, incoming, user) {
   };
 }
 
-async function _resolveSquadId(courseId, userId) {
-  const enrollment = await Enrollment.findOne({ where: { user_id: userId, course_id: courseId } });
+// Staff only share state with a squad in the active cohort (see
+// utils/staffView.js) — never the past-cohort squad their enrollment points at.
+async function _resolveSquadId(courseId, userId, role) {
+  const enrollment = isStaffRole(role)
+    ? await getActiveCohortEnrollment(courseId, userId)
+    : await Enrollment.findOne({ where: { user_id: userId, course_id: courseId } });
   return enrollment?.squad_id ?? null;
 }
 
-async function getState(courseId, assignmentId, userId) {
+async function getState(courseId, assignmentId, userId, role = 'student') {
   const assignment = await Assignment.findByPk(assignmentId);
   if (!assignment) throw new NotFoundError('Assignment');
   if (assignment.grading_mode !== 'squad') return null;
 
-  const squadId = await _resolveSquadId(courseId, userId);
+  const squadId = await _resolveSquadId(courseId, userId, role);
   if (!squadId) return null;
 
   const row = await SquadChallengeState.findOne({ where: { assignment_id: assignmentId, squad_id: squadId } });
@@ -133,14 +138,14 @@ async function getStateForSquad(assignmentId, squadId) {
   return state;
 }
 
-async function saveState(courseId, assignmentId, userId, incomingState) {
+async function saveState(courseId, assignmentId, userId, incomingState, role = 'student') {
   const assignment = await Assignment.findByPk(assignmentId);
   if (!assignment) throw new NotFoundError('Assignment');
   if (assignment.grading_mode !== 'squad') {
     throw new AppError('This assignment is not squad-graded', 400, 'BAD_REQUEST');
   }
 
-  const squadId = await _resolveSquadId(courseId, userId);
+  const squadId = await _resolveSquadId(courseId, userId, role);
   if (!squadId) throw new ForbiddenError('You are not assigned to a squad');
 
   const questions = Array.isArray(assignment.questions) ? assignment.questions : [];

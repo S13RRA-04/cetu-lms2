@@ -4,6 +4,7 @@ const gradeService       = require('../services/grade.service');
 const submissionService  = require('../services/submission.service');
 const analyticsService   = require('../services/analytics.service');
 const surveyResultsService = require('../services/surveyResults.service');
+const { isStaffRole, getActiveCohortEnrollment } = require('../utils/staffView');
 
 async function getSurveyResults(req, res, next) {
   try {
@@ -14,7 +15,16 @@ async function getSurveyResults(req, res, next) {
 }
 
 async function getMyGrades(req, res, next) {
-  try { return res.json(await gradeService.getGradesForUser(req.user.id)); }
+  try {
+    // Staff only have an Operator Record as a member of the active cohort —
+    // grades they picked up in a past cohort (or another course) never show.
+    if (isStaffRole(req.user.role)) {
+      if (!await getActiveCohortEnrollment(req.params.id, req.user.id)) return res.json([]);
+      const grades = await gradeService.getGradesForUser(req.user.id);
+      return res.json(grades.filter((g) => g.Assignment?.course_id === req.params.id));
+    }
+    return res.json(await gradeService.getGradesForUser(req.user.id));
+  }
   catch (err) { return next(err); }
 }
 
@@ -53,10 +63,14 @@ async function listByCourse(req, res, next) {
     // Only the Command page's explicit management view (`manage=1`, itself
     // restricted to non-students) is meant to return every assignment in the
     // course regardless of who's looking, for authoring purposes.
+    // Staff outside manage=1 get the active cohort's view (see
+    // assignmentService.listForStaffView), not their own enrollment's.
     const manage = !isStudent && req.query.manage === '1';
     const data = manage
       ? await assignmentService.listByCourse(req.params.id, req.query, { includeUnpublished: true })
-      : await assignmentService.listForStudent(req.params.id, req.user.id);
+      : isStaffRole(req.user.role)
+        ? await assignmentService.listForStaffView(req.params.id, req.user.id)
+        : await assignmentService.listForStudent(req.params.id, req.user.id);
     return res.json(data);
   }
   catch (err) { return next(err); }
@@ -68,7 +82,7 @@ async function getOne(req, res, next) {
     // gets their own enrollment/grade-gated view, not just students. The
     // Command console's rubric/model-answer editing UI reads assignment data
     // from the separate manage=1 list (already unfiltered), never from here.
-    return res.json(await assignmentService.getById(req.params.aid, req.user.id));
+    return res.json(await assignmentService.getById(req.params.aid, req.user.id, { staffView: isStaffRole(req.user.role) }));
   }
   catch (err) { return next(err); }
 }

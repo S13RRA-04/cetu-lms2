@@ -3,6 +3,7 @@ const enrollmentService = require('../services/enrollment.service');
 const { Enrollment, Cohort, Squad, User } = require('../models');
 const { NotFoundError, ForbiddenError } = require('../utils/errors');
 const { ROLES } = require('../config/constants');
+const { isStaffRole, getActiveCohortId } = require('../utils/staffView');
 
 const MANAGER_ROLES = [ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.INSTRUCTOR];
 
@@ -39,15 +40,26 @@ async function unenroll(req, res, next) {
   catch (err) { return next(err); }
 }
 
+const MY_COHORT_ATTRIBUTES = ['id', 'name', 'start_date', 'end_date', 'is_active', 'target_revealed'];
+
 async function getMyEnrollment(req, res, next) {
   try {
+    const staff = isStaffRole(req.user.role);
+    const activeCohortId = staff ? await getActiveCohortId(req.params.id) : null;
     const enrollment = await Enrollment.findOne({
-      where: { user_id: req.user.id, course_id: req.params.id },
+      // Staff only ever see the active cohort here (see utils/staffView.js) —
+      // an enrollment in any other cohort is ignored so Operations' cohort
+      // name, drops and briefing never reflect a past cohort.
+      where: {
+        user_id: req.user.id,
+        course_id: req.params.id,
+        ...(staff ? { cohort_id: activeCohortId } : {}),
+      },
       include: [
         {
           model: Cohort,
           as:    'cohort',
-          attributes: ['id', 'name', 'start_date', 'end_date', 'is_active', 'target_revealed'],
+          attributes: MY_COHORT_ATTRIBUTES,
         },
         {
           model: Squad,
@@ -62,6 +74,11 @@ async function getMyEnrollment(req, res, next) {
         },
       ],
     });
+    if (!enrollment && staff && activeCohortId) {
+      // Observing the active cohort without being in it: its cohort, no squad.
+      const cohort = await Cohort.findByPk(activeCohortId, { attributes: MY_COHORT_ATTRIBUTES });
+      return res.json({ id: null, user_id: req.user.id, course_id: req.params.id, cohort_id: cohort.id, squad_id: null, cohort, squad: null });
+    }
     if (!enrollment) throw new NotFoundError('Enrollment');
     return res.json(enrollment);
   } catch (err) { return next(err); }

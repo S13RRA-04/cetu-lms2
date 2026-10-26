@@ -3,6 +3,7 @@
 const jwt = require('jsonwebtoken');
 const { User, Enrollment } = require('../models');
 const logger = require('../utils/logger');
+const { isStaffRole, getActiveCohortEnrollment } = require('../utils/staffView');
 const { createSquadLockCoordinator } = require('./squadLockCoordinator');
 const { attachSquadFieldSocket } = require('./squadFieldSocket');
 
@@ -24,7 +25,10 @@ async function defaultAuthenticate(token) {
 
 async function defaultAuthorizeJoin(user, { courseId }) {
   if (!courseId) throw new Error('courseId is required');
-  const enrollment = await Enrollment.findOne({ where: { user_id: user.id, course_id: courseId, status: 'active' } });
+  // Same staff rule as caseTimeline.service.js: only an active-cohort squad.
+  const enrollment = isStaffRole(user.role)
+    ? await getActiveCohortEnrollment(courseId, user.id)
+    : await Enrollment.findOne({ where: { user_id: user.id, course_id: courseId, status: 'active' } });
   if (!enrollment?.squad_id) throw new Error('Not enrolled in a squad for this course');
   return { room: roomKey(courseId, enrollment.squad_id) };
 }

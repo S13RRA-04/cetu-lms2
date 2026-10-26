@@ -8,6 +8,7 @@ const TtlCache = require('../utils/ttlCache');
 const { getStudentLocationCodes, locationMatches } = require('../utils/dropLocation');
 const { matchesRoleFilters } = require('../utils/campaignRelease');
 const { codeToName } = require('../constants/victims');
+const { getActiveCohortId } = require('../utils/staffView');
 
 // Admin assignment list is the same for every instructor request.
 // 15-second TTL absorbs thundering-herd without hiding new submissions long.
@@ -210,6 +211,44 @@ async function _queryListForStudent(courseId, userId) {
   }));
 }
 
+// Staff browsing Operations/AppShell nav see exactly what has been released
+// to the active cohort — every published assignment unlocked for it,
+// cohort-wide or for any of its squads — not what their own (often
+// past-cohort) enrollment would show. Role/victim/location routing is
+// per-student and deliberately not applied: if anyone in the active cohort
+// has it, it has been released. Shares listForStudent's cache key (a user is
+// never both) so the same submit/progress/unlock invalidations apply.
+async function listForStaffView(courseId, userId) {
+  return studentListCache.get(`listForStudent:${courseId}:${userId}`, () => _queryListForStaffView(courseId, userId));
+}
+
+async function _queryListForStaffView(courseId, userId) {
+  const cohortId = await getActiveCohortId(courseId);
+  if (!cohortId) return [];
+
+  const [assignments, unlocks] = await Promise.all([
+    Assignment.findAll({
+      where: { course_id: courseId, is_published: true },
+      order: [['order_index', 'ASC'], ['created_at', 'ASC']],
+    }),
+    AssignmentUnlock.findAll({ where: { cohort_id: cohortId }, attributes: ['assignment_id'] }),
+  ]);
+  const assignmentIds = assignments.map((a) => a.id);
+  const submissions = assignmentIds.length
+    ? await Submission.findAll({ where: { assignment_id: assignmentIds, user_id: userId }, attributes: ['assignment_id', 'progress'] })
+    : [];
+
+  const unlockedIds = new Set(unlocks.map((u) => u.assignment_id));
+  const progressMap = Object.fromEntries(submissions.map((s) => [s.assignment_id, s.progress ?? 0]));
+
+  return assignments.map((a) => ({
+    ...a.toJSON(),
+    questions:   sanitizeQuestionsForStudent(a.questions, false),
+    is_unlocked: unlockedIds.has(a.id),
+    progress:    progressMap[a.id] ?? 0,
+  }));
+}
+
 async function unlockForCohort(assignmentId, cohortId, unlockerId, squadId = null) {
   const assignment = await Assignment.findByPk(assignmentId);
   if (!assignment) throw new NotFoundError('Assignment');
@@ -298,11 +337,6 @@ const LIVE_ASSIGNMENT_TYPES = ['module', 'challenge', 'assessment', 'survey'];
 // (cohorts.is_active) — same rule as the scoreboard. Past cohorts' in-progress
 // and completed submissions must never mix into the live view, so any
 // requested cohort_id is ignored and no active cohort means no live data.
-async function getActiveCohortId(courseId) {
-  const cohort = await Cohort.findOne({ where: { course_id: courseId, is_active: true }, attributes: ['id'] });
-  return cohort?.id ?? null;
-}
-
 function normalizeLiveFilters(filters = {}) {
   return {
     squadId: filters.squad_id || null,
@@ -362,11 +396,23 @@ async function getUnlockStatus(assignmentId) {
   return assignment;
 }
 
-async function getById(id, userId = null) {
+async function getById(id, userId = null, { staffView = false } = {}) {
   const assignment = await Assignment.findByPk(id, {
     include: [{ model: Course, attributes: ['id', 'title', 'course_code'] }],
   });
   if (!assignment) throw new NotFoundError('Assignment');
+
+  // Same active-cohort rule as listForStaffView: unlocked if released to the
+  // active cohort at all (cohort-wide or any of its squads).
+  if (userId && staffView) {
+    const cohortId = await getActiveCohortId(assignment.course_id);
+    const unlock = cohortId
+      ? await AssignmentUnlock.findOne({ where: { assignment_id: id, cohort_id: cohortId }, attributes: ['id'] })
+      : null;
+    const json = assignment.toJSON();
+    json.questions = sanitizeQuestionsForStudent(json.questions, false);
+    return { ...json, is_unlocked: !!unlock };
+  }
 
   if (userId) {
     const [enrollment, grade] = await Promise.all([
@@ -410,4 +456,4 @@ async function remove(id) {
   await assignment.destroy();
 }
 
-module.exports = { listByCourse, listForStudent, getById, create, update, remove, unlockForCohort, lockForCohort, releaseVictimScopedAssignments, getUnlockStatus, getLiveOverview, getActiveCohortId, invalidateStudentCache, invalidateAssignmentLists, sanitizeQuestionsForStudent };
+module.exports = { listByCourse, listForStudent, listForStaffView, getById, create, update, remove, unlockForCohort, lockForCohort, releaseVictimScopedAssignments, getUnlockStatus, getLiveOverview, getActiveCohortId, invalidateStudentCache, invalidateAssignmentLists, sanitizeQuestionsForStudent };

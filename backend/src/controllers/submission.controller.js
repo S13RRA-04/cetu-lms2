@@ -8,14 +8,14 @@ async function listByAssignment(req, res, next) {
 
 async function getMine(req, res, next) {
   try {
-    const sub = await submissionService.getMySubmission(req.params.aid, req.user.id);
+    const sub = await submissionService.getMySubmission(req.params.aid, req.user.id, req.user.role);
     return res.json(sub || null);
   } catch (err) { return next(err); }
 }
 
 async function submit(req, res, next) {
   try {
-    const result = await submissionService.submit(req.params.aid, req.user.id, req.body.content);
+    const result = await submissionService.submit(req.params.aid, req.user.id, req.body.content, req.user.role);
     return res.status(201).json(result);
   } catch (err) { return next(err); }
 }
@@ -29,7 +29,7 @@ async function updateStatus(req, res, next) {
 
 async function updateProgress(req, res, next) {
   try {
-    const sub = await submissionService.updateProgress(req.params.aid, req.user.id, req.body.progress, req.body.quiz_state ?? null);
+    const sub = await submissionService.updateProgress(req.params.aid, req.user.id, req.body.progress, req.body.quiz_state ?? null, req.user.role);
     return res.json(sub);
   } catch (err) { return next(err); }
 }

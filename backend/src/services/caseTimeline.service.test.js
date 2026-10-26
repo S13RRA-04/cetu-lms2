@@ -107,3 +107,27 @@ test('getTimelineForSquad (admin) returns the empty-state shape for a squad with
   assert.equal(findOneCalled, true);
   assert.deepEqual(result, { manual: { answers: {}, field_meta: {}, typing: {} } });
 });
+
+test('staff only get a squad timeline for a squad in the active cohort, never a past-cohort one', async (t) => {
+  const { Cohort } = require('../models');
+  const original = { cohortFind: Cohort.findOne, enrollmentFind: Enrollment.findOne, timelineFindOrCreate: CaseTimeline.findOrCreate };
+  Cohort.findOne = async () => ({ id: 'active-cohort' });
+  const enrollmentWheres = [];
+  // Instructor's only enrollment is in a past cohort's squad.
+  Enrollment.findOne = async ({ where }) => {
+    enrollmentWheres.push(where);
+    return where.cohort_id === 'active-cohort' ? null : { squad_id: 'past-squad' };
+  };
+  let findOrCreateCalled = false;
+  CaseTimeline.findOrCreate = async () => { findOrCreateCalled = true; return [mockRow({}), true]; };
+  t.after(() => {
+    Cohort.findOne = original.cohortFind;
+    Enrollment.findOne = original.enrollmentFind;
+    CaseTimeline.findOrCreate = original.timelineFindOrCreate;
+  });
+
+  assert.equal(await caseTimelineService.getTimeline('course-1', 'instructor-1', 'instructor'), null);
+  assert.equal(findOrCreateCalled, false);
+  assert.deepEqual(enrollmentWheres, [{ user_id: 'instructor-1', course_id: 'course-1', cohort_id: 'active-cohort' }]);
+  await assert.rejects(caseTimelineService.saveTimeline('course-1', 'instructor-1', {}, 'instructor'), (error) => error.statusCode === 403);
+});
