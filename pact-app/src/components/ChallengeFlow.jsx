@@ -8,6 +8,7 @@ import useAuthStore from '../store/authStore.js';
 import SubmitSequence from './SubmitSequence.jsx';
 import { FormattedText, FormattedTextEditor } from './FormattedText.jsx';
 import { MultipleChoice, TrueFalse, FillBlank, DragMatch } from './QuizFlow.jsx';
+import { workModeOf } from '../lib/workMode.js';
 
 // A fill_blank answer is a string, so "answered" means non-empty text — an
 // input the student typed into then cleared must not count as answered (the
@@ -434,7 +435,9 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
       {isSquad && (
         <div className="challenge-squad-notice" style={{ borderColor: color, color }}>
           <span className="challenge-squad-icon"><IcUsers /></span>
-          SQUAD ASSIGNMENT — response will be graded for your entire squad
+          {workModeOf(assignment) === 'role'
+            ? 'ROLE TEAM ASSIGNMENT — work it with the others in your role on your squad; response will be graded for all of you'
+            : 'SQUAD ASSIGNMENT — response will be graded for your entire squad'}
         </div>
       )}
       {sharedChallenge && (

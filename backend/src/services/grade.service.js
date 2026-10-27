@@ -1,5 +1,6 @@
 'use strict';
 const { Grade, Assignment, User, Enrollment, Squad, Submission, Cohort } = require('../models');
+const { isRoleTeam, isOnRoleTeam } = require('../utils/roleTeam');
 const { NotFoundError, AppError }                    = require('../utils/errors');
 const ltiService                                     = require('./lti.service');
 const logger                                         = require('../utils/logger');
@@ -112,6 +113,19 @@ async function upsertGrade(assignmentId, userId, data, graderId) {
   });
 }
 
+// Who receives a squad-graded assignment's shared grade: the squad's student
+// members — and, for role-team work, only the members the assignment targets
+// (see utils/roleTeam.js). Staff accounts (admin/instructor) sometimes sit
+// inside a student squad for preview/testing; their own activity must never
+// become part of, or receive, the squad's shared grade.
+async function squadGradeRecipients(assignment, squadId) {
+  const enrollments = await Enrollment.findAll({
+    where: { squad_id: squadId, course_id: assignment.course_id },
+    include: [{ model: User, where: { role: 'student' }, attributes: ['professional_role', 'certifications'] }],
+  });
+  return enrollments.filter((e) => isOnRoleTeam(assignment, e.User));
+}
+
 async function gradeSquad(assignmentId, squadId, data, graderId) {
   const assignment = await Assignment.findByPk(assignmentId);
   if (!assignment) throw new NotFoundError('Assignment');
@@ -121,14 +135,12 @@ async function gradeSquad(assignmentId, squadId, data, graderId) {
   const squad = await Squad.findByPk(squadId);
   if (!squad) throw new NotFoundError('Squad');
 
-  // Staff accounts (admin/instructor) sometimes sit inside a student squad
-  // for preview/testing — their own activity must never become part of the
-  // squad's shared grade, and they should never receive one either.
-  const enrollments = await Enrollment.findAll({
-    where: { squad_id: squadId, course_id: assignment.course_id },
-    include: [{ model: User, where: { role: 'student' }, attributes: [] }],
-  });
-  if (enrollments.length === 0) throw new AppError('No members found in squad for this course', 400, 'BAD_REQUEST');
+  const enrollments = await squadGradeRecipients(assignment, squadId);
+  if (enrollments.length === 0) {
+    throw new AppError(isRoleTeam(assignment)
+      ? 'No one in this squad holds a role this assignment targets'
+      : 'No members found in squad for this course', 400, 'BAD_REQUEST');
+  }
 
   const grades = await sequelize.transaction(async (t) => {
     const gs = await Promise.all(enrollments.map(async (e) => {
@@ -180,14 +192,7 @@ async function gradeSquad(assignmentId, squadId, data, graderId) {
    above. Individually-graded assignments still land on just the one user. */
 async function autoGradeQuiz(assignment, userId, squadId, score, maxScore) {
   const targetUserIds = (assignment.grading_mode === 'squad' && squadId)
-    // Staff accounts (admin/instructor) sometimes sit inside a student squad
-    // for preview/testing — exclude them from the fan-out so their own
-    // activity never becomes part of, or receives, the squad's shared grade.
-    ? (await Enrollment.findAll({
-        where: { squad_id: squadId, course_id: assignment.course_id },
-        include: [{ model: User, where: { role: 'student' }, attributes: [] }],
-        attributes: ['user_id'],
-      })).map((e) => e.user_id)
+    ? (await squadGradeRecipients(assignment, squadId)).map((e) => e.user_id)
     : [userId];
 
   const grades = await sequelize.transaction(async (t) => {
@@ -337,7 +342,9 @@ async function _queryScoreboard(courseId, cohortId) {
        AND g.assignment_id IN (
          SELECT id FROM assignments
          WHERE course_id = :courseId
-           AND grading_mode != 'squad'
+           -- Whole-squad work belongs to the Squad standings; role-team work
+           -- (squad-graded but role-targeted) is graded per member and stays here.
+           AND (grading_mode != 'squad' OR cardinality(role_filters) > 0)
            AND (drop_number IS NULL OR drop_number != 7)
        )
      LEFT JOIN assignments a ON a.id = g.assignment_id
@@ -432,6 +439,9 @@ async function _querySquadScoreboard(courseId, cohortId) {
          ON unlocked_assignment.id = au.assignment_id
         AND unlocked_assignment.course_id = :courseId
         AND unlocked_assignment.grading_mode = 'squad'
+        -- Role-team work is scored per member (Operators standings): the
+        -- squad's single representative below may not be on the role team.
+        AND cardinality(unlocked_assignment.role_filters) = 0
        WHERE s.cohort_id = :cohortId
      )
      SELECT s.id           AS "squadId",

@@ -12,7 +12,7 @@ import ChallengeFlow    from '../components/ChallengeFlow.jsx';
 import InvestigationCase from '../components/InvestigationCase.jsx';
 import useDraft         from '../hooks/useDraft.js';
 import { TYPE_DEFINITIONS, WorkModeIcon } from './DashboardHome.jsx';
-import { WORK_MODES } from '../lib/workMode.js';
+import { WORK_MODES, workModeOf } from '../lib/workMode.js';
 import TransmissionInterceptor from './TransmissionInterceptor.jsx';
 
 const TYPE_COLOR = {
@@ -303,6 +303,7 @@ export default function AssignmentPage() {
 
   const color      = TYPE_COLOR[assignment.type] ?? TYPE_COLOR.module;
   const isSquad    = assignment.grading_mode === 'squad';
+  const workMode   = workModeOf(assignment);
   const isLocked   = assignment.is_unlocked === false;
   const isSurvey   = assignment.type === 'survey';
   // A challenge/capstone with at least one free-text "prompt" question is a
@@ -337,11 +338,11 @@ export default function AssignmentPage() {
             </span>
           )}
           <span
-            className={`ops-mode-chip ops-mode-chip--${isSquad ? 'squad' : 'individual'} ops-mode-chip--lg`}
-            title={WORK_MODES[isSquad ? 'squad' : 'individual'].hint}
+            className={`ops-mode-chip ops-mode-chip--${workMode} ops-mode-chip--lg`}
+            title={WORK_MODES[workMode].hint}
           >
-            <WorkModeIcon mode={isSquad ? 'squad' : 'individual'} />
-            {isSquad ? 'SQUAD TASKING' : 'INDIVIDUAL TASKING'}
+            <WorkModeIcon mode={workMode} />
+            {`${WORK_MODES[workMode].label.toUpperCase()} TASKING`}
           </span>
           {assignment.victim_name && (
             <span className="type-badge" style={{ color: '#f87171', borderColor: '#f87171', fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 700 }}>
@@ -484,7 +485,9 @@ export default function AssignmentPage() {
                 <div className="section-label">FIELD REPORT</div>
                 {isSquad && (
                   <div className="squad-notice">
-                    Squad tasking — your submission will be graded for your entire squad
+                    {workMode === 'role'
+                      ? 'Role team tasking — your submission will be graded for everyone in your role on your squad'
+                      : 'Squad tasking — your submission will be graded for your entire squad'}
                   </div>
                 )}
                 {submission && (

@@ -6914,6 +6914,7 @@ body {
   letter-spacing: .12em;
 }
 .ops-mode-term--individual { color: var(--primary); }
+.ops-mode-term--role       { color: var(--green); }
 .ops-mode-term--squad      { color: var(--warning); }
 .ops-mode-group + .ops-mode-group { margin-top: 18px; }
 .ops-mode-header {
@@ -6942,6 +6943,7 @@ body {
 }
 .ops-mode-chip .ops-mode-icon { width: 10px; height: 10px; }
 .ops-mode-chip--individual { color: var(--primary); background: var(--primary-lt); }
+.ops-mode-chip--role       { color: var(--green); background: var(--green-lt); }
 .ops-mode-chip--squad      { color: var(--warning); background: var(--warning-lt); }
 .ops-mode-chip--lg { padding: 4px 10px; font-size: 9px; }
 .ops-mode-chip--lg .ops-mode-icon { width: 12px; height: 12px; }

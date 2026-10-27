@@ -478,3 +478,21 @@ test('reorder rewrites only the group\'s own slots, in the new order, and reject
 
   await assert.rejects(assignmentService.reorder('course-1', ['a', 'zzz']), (err) => err.statusCode === 422);
 });
+
+test('update refuses to change grading mode once the active cohort has submissions, and allows it before', async (t) => {
+  const { Assignment } = require('../models');
+  stubActiveCohort(t, 'active-cohort');
+  const row = fakeRow({ id: 'a1', course_id: 'course-1', grading_mode: 'individual' });
+  stubModel(t, Assignment, { findByPk: async () => row });
+  let count = 2;
+  const originalQuery = sequelize.query;
+  sequelize.query = async () => [[{ n: count }]];
+  t.after(() => { sequelize.query = originalQuery; });
+
+  await assert.rejects(assignmentService.update('a1', { grading_mode: 'squad' }), (err) => err.statusCode === 409);
+  assert.equal(row.grading_mode, 'individual');
+
+  count = 0;
+  await assignmentService.update('a1', { grading_mode: 'squad' });
+  assert.equal(row.grading_mode, 'squad');
+});

@@ -7,19 +7,41 @@ import DecryptText from '../components/DecryptText.jsx';
 import PreRangeBriefing from '../components/PreRangeBriefing.jsx';
 import { WORK_MODES, workModeOf, splitByWorkMode } from '../lib/workMode.js';
 
-// One person vs. a group of people — decorative; the text label beside it
-// always carries the meaning.
+// One person / two people / three people for individual / role team / squad
+// — decorative; the text label beside it always carries the meaning.
 export function WorkModeIcon({ mode }) {
-  return mode === 'squad' ? (
-    <svg className="ops-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
-      <path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  ) : (
-    <svg className="ops-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+  const props = { className: 'ops-mode-icon', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true };
+  if (mode === 'squad') {
+    return (
+      <svg {...props}>
+        <circle cx="12" cy="6" r="3" /><path d="M7 20v-1.5a5 5 0 0 1 10 0V20" />
+        <circle cx="4.5" cy="9" r="2.5" /><path d="M1 20v-1a3.5 3.5 0 0 1 4.5-3.35" />
+        <circle cx="19.5" cy="9" r="2.5" /><path d="M23 20v-1a3.5 3.5 0 0 0-4.5-3.35" />
+      </svg>
+    );
+  }
+  if (mode === 'role') {
+    return (
+      <svg {...props}>
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...props}>
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
     </svg>
   );
+}
+
+// The role-team hint names the viewer's own role when we know it.
+function workModeHint(mode, professionalRole) {
+  const roleLabel = professionalRole ? PROF_ROLE_LABELS[professionalRole] : null;
+  if (mode === 'role' && roleLabel) {
+    return `Work these with the other ${roleLabel} members of your squad — your role team submits once, for all of you.`;
+  }
+  return WORK_MODES[mode].hint;
 }
 
 const PROF_ROLE_LABELS = {
@@ -296,7 +318,7 @@ export default function DashboardHome() {
                     <WorkModeIcon mode={mode} /> {WORK_MODES[mode].heading.toUpperCase()}
                   </span>
                   <span className="ops-mode-count">{items.length}</span>
-                  <span className="ops-mode-hint">{WORK_MODES[mode].hint}</span>
+                  <span className="ops-mode-hint">{workModeHint(mode, user?.professional_role)}</span>
                 </div>
                 <div className="ops-tasking-group" style={{ marginTop: 0 }}>
                   {items.map((a, i) => (

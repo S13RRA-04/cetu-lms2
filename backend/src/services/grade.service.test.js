@@ -290,3 +290,51 @@ test('gradeSquad invalidates every current squad member’s cache, not just the 
   await assignmentService.listForStudent('course-squad-cache-test', 'member-b');
   assert.equal(findAllCalls, 4, 'member-b’s cache was invalidated too, not just member-a’s');
 });
+
+test('role-team work: a squad grade (instructor or auto-graded quiz) reaches only the squad members in the targeted role', async (t) => {
+  const { Squad } = require('../models');
+  const original = {
+    transaction: sequelize.transaction, asgFindByPk: Assignment.findByPk, squadFindByPk: Squad.findByPk,
+    enrollmentFindAll: Enrollment.findAll, gradeFindOrCreate: Grade.findOrCreate, subUpdate: Submission.update,
+  };
+  const assignment = {
+    id: 'a-role-team', course_id: 'course-role-team', max_score: 100, grading_mode: 'squad',
+    role_filters: ['special_agent'], lineitem_url: null,
+  };
+  Assignment.findByPk = async () => assignment;
+  Squad.findByPk = async () => ({ id: 'squad-1' });
+  Enrollment.findAll = async () => [
+    { user_id: 'agent-1',   User: { professional_role: 'special_agent', certifications: [] } },
+    { user_id: 'agent-2',   User: { professional_role: 'special_agent', certifications: [] } },
+    { user_id: 'analyst-1', User: { professional_role: 'intelligence_analyst', certifications: [] } },
+  ];
+  let graded = [];
+  Grade.findOrCreate = async ({ where }) => { graded.push(where.user_id); return [{ user_id: where.user_id }, true]; };
+  Submission.update = async () => [0];
+  sequelize.transaction = async (callback) => callback({});
+  t.after(() => {
+    sequelize.transaction = original.transaction; Assignment.findByPk = original.asgFindByPk; Squad.findByPk = original.squadFindByPk;
+    Enrollment.findAll = original.enrollmentFindAll; Grade.findOrCreate = original.gradeFindOrCreate; Submission.update = original.subUpdate;
+  });
+
+  await gradeService.gradeSquad('a-role-team', 'squad-1', { score: 90 }, 'grader-1');
+  assert.deepEqual(graded.sort(), ['agent-1', 'agent-2']);
+
+  graded = [];
+  await gradeService.autoGradeQuiz(assignment, 'agent-1', 'squad-1', 8, 10);
+  assert.deepEqual(graded.sort(), ['agent-1', 'agent-2']);
+});
+
+test('the squad scoreboard counts only whole-squad work; the operator scoreboard keeps role-team work', async (t) => {
+  const originalQuery = sequelize.query;
+  const originalCohortFindOne = Cohort.findOne;
+  Cohort.findOne = async () => ({ id: 'active-cohort-rt' });
+  const sqls = [];
+  sequelize.query = async (q) => { sqls.push(q); return [[]]; };
+  t.after(() => { sequelize.query = originalQuery; Cohort.findOne = originalCohortFindOne; });
+
+  await gradeService.getSquadScoreboard('course-scoreboard-role-team');
+  await gradeService.getScoreboard('course-scoreboard-role-team');
+  assert.match(sqls.join('\n'), /unlocked_assignment\.grading_mode = 'squad'\s+--[^\n]*\n[^\n]*\n\s+AND cardinality\(unlocked_assignment\.role_filters\) = 0/);
+  assert.match(sqls.join('\n'), /grading_mode != 'squad' OR cardinality\(role_filters\) > 0/);
+});

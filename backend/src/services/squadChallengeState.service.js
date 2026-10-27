@@ -1,5 +1,6 @@
 'use strict';
 const { SquadChallengeState, Enrollment, Assignment, User } = require('../models');
+const { isRoleTeam, isOnRoleTeam } = require('../utils/roleTeam');
 const { NotFoundError, AppError, ForbiddenError } = require('../utils/errors');
 const { isStaffRole, getActiveCohortEnrollment } = require('../utils/staffView');
 
@@ -99,10 +100,18 @@ async function _resolveSquadId(courseId, userId, role) {
   return enrollment?.squad_id ?? null;
 }
 
+// Role-team state is shared only among the squad's members in that role.
+async function _onRoleTeam(assignment, userId) {
+  if (!isRoleTeam(assignment)) return true;
+  const user = await User.findByPk(userId, { attributes: ['professional_role', 'certifications'] });
+  return isOnRoleTeam(assignment, user);
+}
+
 async function getState(courseId, assignmentId, userId, role = 'student') {
   const assignment = await Assignment.findByPk(assignmentId);
   if (!assignment) throw new NotFoundError('Assignment');
   if (assignment.grading_mode !== 'squad') return null;
+  if (!(await _onRoleTeam(assignment, userId))) return null;
 
   const squadId = await _resolveSquadId(courseId, userId, role);
   if (!squadId) return null;
@@ -143,6 +152,9 @@ async function saveState(courseId, assignmentId, userId, incomingState, role = '
   if (!assignment) throw new NotFoundError('Assignment');
   if (assignment.grading_mode !== 'squad') {
     throw new AppError('This assignment is not squad-graded', 400, 'BAD_REQUEST');
+  }
+  if (!(await _onRoleTeam(assignment, userId))) {
+    throw new ForbiddenError('This tasking belongs to another role team in your squad');
   }
 
   const squadId = await _resolveSquadId(courseId, userId, role);

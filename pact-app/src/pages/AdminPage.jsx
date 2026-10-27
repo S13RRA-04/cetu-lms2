@@ -63,6 +63,7 @@ import { activeLearnerCount, defaultReleaseCohortId } from '../lib/releaseCohort
 import { contentStatus, splitActiveCohort } from '../lib/releaseStatus.js';
 import { TYPE_ORDER, TYPE_LABELS, STATUS_FILTERS, buildEntries, filterEntries, countBy, countStatuses, groupEntries, groupEntriesByDay, moveWithin } from '../lib/contentWorkspace.js';
 import { MAX_COURSE_DAY, buildDropDayMap, effectiveDay, listDrops } from '../lib/courseDays.js';
+import { WORK_MODES, workModeOf } from '../lib/workMode.js';
 import { PROFESSIONAL_ROLES } from '../constants/professionalRoles.js';
 import { CERTIFICATIONS } from '../constants/certifications.js';
 import TransmissionInterceptor from './TransmissionInterceptor.jsx';
@@ -1075,7 +1076,7 @@ export default function AdminPage() {
                 <div>
                   <div className="admin-right-title">{selectedAssignment.title}</div>
                   <div className="admin-right-sub">
-                    {selectedAssignment.grading_mode === 'squad' ? 'Squad graded' : 'Individually graded'}
+                    {{ individual: 'Individually graded', role: 'Role team graded', squad: 'Squad graded' }[workModeOf(selectedAssignment)]}
                     {' · '}{submissions.length} submission{submissions.length !== 1 ? 's' : ''}
                   </div>
                 </div>
@@ -6410,6 +6411,7 @@ function AssignmentDetailHeader({ assignment, sub, onPatch, children }) {
             <input type="checkbox" checked={!!assignment.is_published} disabled={!!busy || archived} onChange={(e) => setPublished(e.target.checked)} />
             Published
           </label>
+          <GradingModeSelect assignment={assignment} onPatch={onPatch} />
           <CourseDaySelect assignment={assignment} onPatch={onPatch} />
           {children}
         </div>
@@ -6622,6 +6624,7 @@ function ChallengeDetail({ assignment, cohorts, onPatch }) {
         </div>
         <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
           Leave all roles unchecked to show this to every professional role. Role and victim filters both apply if both are set.
+          On squad-graded work, choosing roles makes it role team work: in each squad, only those roles see it, work it together and share its grade.
         </p>
       </div>
 
@@ -6788,6 +6791,37 @@ function LibraryTools({ onNewAssignment, onNewItem, onShowR2, r2Open, onLibraryC
         </span>
       )}
     </div>
+  );
+}
+
+// Individual vs shared work. Role team isn't a separate grading_mode — it's
+// squad grading on an assignment that targets roles (see lib/workMode.js and
+// backend utils/roleTeam.js) — so the shared option is "Role team" when
+// roles are set and "Squad" when they aren't. The server refuses a change once
+// the active cohort has submissions, so in-flight work is never stranded.
+function GradingModeSelect({ assignment, onPatch }) {
+  const [err, setErr] = useState(null);
+  const mode = workModeOf(assignment);
+  const sharedMode = (assignment.role_filters ?? []).length > 0 ? 'role' : 'squad';
+  const change = async (value) => {
+    const grading_mode = value === 'individual' ? 'individual' : 'squad';
+    setErr(null);
+    try {
+      await updateAssignment(assignment.id, { grading_mode });
+      onPatch({ grading_mode });
+    } catch (e) {
+      setErr(e.response?.data?.error?.message ?? 'Could not change grading');
+    }
+  };
+  return (
+    <label className="content-ws-day-select" title={err ?? WORK_MODES[mode].hint}>
+      Graded as
+      <select value={mode === 'individual' ? 'individual' : sharedMode} onChange={(e) => change(e.target.value)} aria-invalid={!!err}>
+        <option value="individual">{WORK_MODES.individual.label}</option>
+        <option value={sharedMode}>{WORK_MODES[sharedMode].label}</option>
+      </select>
+      {err && <span className="err-msg" style={{ fontSize: 11, whiteSpace: 'normal' }}>{err}</span>}
+    </label>
   );
 }
 

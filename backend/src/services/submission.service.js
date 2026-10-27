@@ -1,6 +1,7 @@
 'use strict';
 const { Op } = require('sequelize');
 const { Submission, Assignment, AssignmentUnlock, Enrollment, Squad, User, Grade, Cohort } = require('../models');
+const { isRoleTeam, isOnRoleTeam } = require('../utils/roleTeam');
 const { NotFoundError, AppError, ForbiddenError } = require('../utils/errors');
 const logger      = require('../utils/logger');
 const gradeService = require('./grade.service');
@@ -160,6 +161,15 @@ async function _checkUnlocked(assignment, userId, role = 'student') {
     if (!assignment.is_published) throw new AppError('This assignment has not been unlocked for your cohort yet', 403, 'LOCKED');
   }
 
+  // Role-team work is one shared submission for the squad's members in that
+  // role — anyone else in the squad must not write into (or submit) it.
+  if (isRoleTeam(assignment)) {
+    const user = await User.findByPk(userId, { attributes: ['professional_role', 'certifications'] });
+    if (!isOnRoleTeam(assignment, user)) {
+      throw new AppError('This tasking belongs to another role team in your squad', 403, 'NOT_ON_ROLE_TEAM');
+    }
+  }
+
   return enrollment;
 }
 
@@ -198,10 +208,10 @@ async function submit(assignmentId, userId, content, role = 'student') {
   const enrollment = await _checkUnlocked(assignment, userId, role);
   const squadId = enrollment.squad_id ?? null;
 
-  // grading_mode is the only thing that makes a submission shared: a squad
-  // assignment is submitted once for the whole squad, an individual one only
-  // ever for the person submitting it — role_filters only control who can see
-  // an assignment, never who its submission or grade belongs to.
+  // grading_mode is what makes a submission shared: a squad assignment is
+  // submitted once for the squad (for role-team work, once for the squad's
+  // members in that role — see utils/roleTeam.js), an individual one only
+  // ever for the person submitting it.
   if (assignment.grading_mode === 'squad' && !squadId) {
     throw new AppError('You must be assigned to a squad to submit this assignment', 400, 'NO_SQUAD');
   }

@@ -482,6 +482,24 @@ async function update(id, data) {
   if (assignment.archived_at && data.is_published === true) {
     throw new ConflictError('This assignment is archived — restore it before publishing.');
   }
+  // Switching individual ↔ squad/role-team mid-flight would strand work the
+  // active cohort already has (separate per-person submissions vs. one shared
+  // one), so it's only allowed before anyone in that cohort has started.
+  if (data.grading_mode && data.grading_mode !== assignment.grading_mode) {
+    const cohortId = await getActiveCohortId(assignment.course_id);
+    if (cohortId) {
+      const [[{ n }]] = await sequelize.query(
+        `SELECT count(*)::int AS n
+         FROM submissions s
+         JOIN enrollments e ON e.user_id = s.user_id AND e.course_id = :courseId AND e.cohort_id = :cohortId
+         WHERE s.assignment_id = :id`,
+        { replacements: { id, courseId: assignment.course_id, cohortId } },
+      );
+      if (n > 0) {
+        throw new ConflictError(`The active cohort already has ${n} submission(s) on this assignment — its grading mode can't change mid-cohort.`);
+      }
+    }
+  }
   const updated = await assignment.update(data);
   invalidateAssignmentLists();
   return updated;
