@@ -4,7 +4,7 @@ const tacticalSpecialistService = require('../services/tacticalSpecialist.servic
 async function chat(req, res, next) {
   try {
     const { history, message } = req.body;
-    const result = await tacticalSpecialistService.chat(req.params.aid, history, message);
+    const result = await tacticalSpecialistService.chat(req.params.aid, req.user.id, history, message);
     return res.status(201).json(result);
   } catch (err) { return next(err); }
 }

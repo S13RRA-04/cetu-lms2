@@ -2,6 +2,7 @@
 const { CaseInterview, CasePersona } = require('../models');
 const { NotFoundError, AppError, ForbiddenError } = require('../utils/errors');
 const casePersonaService = require('./casePersona.service');
+const { traceAiTurn } = require('./ai/tracing');
 
 const MAX_TURNS = 12; // user+assistant pairs per interview; caps LLM cost/abuse
 
@@ -35,7 +36,14 @@ async function submitOrContinue(caseId, squadId, personaId, studentId, message, 
     throw new AppError('This interview has reached its turn limit', 429, 'TURN_LIMIT');
   }
 
-  const reply = await casePersonaService.chat(persona, transcript.slice(0, -1), message);
+  const reply = await traceAiTurn('case-interview', {
+    asType: 'agent',
+    userId: studentId,
+    sessionId: interview.id,
+    tags: ['case-file', 'interview'],
+    metadata: { caseId, squadId, personaId, personaName: persona.name },
+    input: message,
+  }, () => casePersonaService.chat(persona, transcript.slice(0, -1), message));
   transcript.push({ role: 'assistant', content: reply, created_at: new Date().toISOString() });
 
   interview.transcript = transcript;

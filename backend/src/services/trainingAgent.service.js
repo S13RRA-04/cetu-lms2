@@ -1,6 +1,7 @@
 'use strict';
 const { Assignment, Submission, LegalRequest } = require('../models');
 const { callGemini } = require('../config/gemini');
+const { traceAiTurn } = require('./ai/tracing');
 const { NotFoundError, AppError } = require('../utils/errors');
 
 const MAX_HISTORY = 20; // messages (both roles); caps LLM cost/abuse per session
@@ -84,7 +85,15 @@ async function chat(assignmentId, userId, history, message) {
   const rule = getNextHint(ctx);
   const systemPrompt = buildSystemPrompt(rule);
   const trimmedHistory = (Array.isArray(history) ? history : []).slice(-MAX_HISTORY);
-  const reply = await callGemini(systemPrompt, [...trimmedHistory, { role: 'user', content: message }]);
+  // History lives client-side, so the session is per student per assignment.
+  const reply = await traceAiTurn('training-agent-chat', {
+    asType: 'agent',
+    userId,
+    sessionId: `training-agent:${assignmentId}:${userId}`,
+    tags: ['capstone', 'training-agent'],
+    metadata: { assignmentId, hintRule: rule?.id ?? 'all-complete' },
+    input: message,
+  }, () => callGemini(systemPrompt, [...trimmedHistory, { role: 'user', content: message }], { name: 'generate-training-hint' }));
 
   return { reply };
 }

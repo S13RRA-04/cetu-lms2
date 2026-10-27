@@ -1,6 +1,7 @@
 'use strict';
 const { CaseEvidence } = require('../models');
 const aiProvider = require('./ai/aiProvider');
+const { traceAiTurn } = require('./ai/tracing');
 const caseEngine = require('./caseEngine.service');
 
 const ARTIFACT_SYSTEM_PROMPT =
@@ -23,7 +24,14 @@ async function renderArtifact(evidence) {
     `Facts (JSON):\n${JSON.stringify(evidence.authoritative_facts, null, 2)}\n` +
     (evidence.artifact_template ? `\nTemplate/format guidance:\n${evidence.artifact_template}` : '');
 
-  const rendered = await aiProvider.generateArtifact(ARTIFACT_SYSTEM_PROMPT, factsPrompt, { maxTokens: 600 });
+  // Rendered once and shared by every squad, so no user/session — `evidenceKey`
+  // is the filter. Metadata carries the facts for a faithfulness eval.
+  const rendered = await traceAiTurn('render-evidence-artifact', {
+    asType: 'chain',
+    tags: ['case-file', 'evidence'],
+    metadata: { caseId: evidence.case_id, evidenceKey: evidence.evidence_key, sourceType: evidence.source_type },
+    input: { sourceType: evidence.source_type, facts: evidence.authoritative_facts },
+  }, () => aiProvider.generateArtifact(ARTIFACT_SYSTEM_PROMPT, factsPrompt, { maxTokens: 600, name: 'generate-evidence-artifact' }));
   await evidence.update({ rendered_artifact: rendered });
   return rendered;
 }

@@ -1,6 +1,7 @@
 'use strict';
 const { LegalRequest, Assignment, Submission } = require('../models');
 const { callGemini } = require('../config/gemini');
+const { traceAiTurn } = require('./ai/tracing');
 const { NotFoundError, AppError, ForbiddenError } = require('../utils/errors');
 
 const MAX_TURNS = 8; // user+assistant pairs; caps LLM cost/abuse per request
@@ -204,7 +205,14 @@ async function submitOrContinue(assignmentId, userId, requestId, message) {
     .join('');
 
   const systemPrompt = buildSystemPrompt(processType, met, priorContext);
-  const reply = await callGemini(systemPrompt, transcript.map((t) => ({ role: t.role, content: t.content })));
+  const reply = await traceAiTurn('ausa-legal-request', {
+    asType: 'agent',
+    userId,
+    sessionId: request.id,
+    tags: ['capstone', 'ausa'],
+    metadata: { assignmentId, requestType: request.request_type, elementsMet: met, allElementsMet: allMet },
+    input: message,
+  }, () => callGemini(systemPrompt, transcript.map((t) => ({ role: t.role, content: t.content })), { name: 'generate-ausa-reply' }));
 
   transcript.push({ role: 'assistant', content: reply, created_at: new Date().toISOString() });
 

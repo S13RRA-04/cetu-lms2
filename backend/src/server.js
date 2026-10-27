@@ -1,5 +1,7 @@
 'use strict';
 require('dotenv').config();
+// Before any module that calls an LLM, so the tracer is registered first.
+const langfuse = require('./config/langfuse');
 
 const express      = require('express');
 const http         = require('node:http');
@@ -195,3 +197,13 @@ async function bootstrap() {
 }
 
 bootstrap();
+
+// Render sends SIGTERM on every deploy — flush buffered LLM traces before exiting.
+if (langfuse.enabled) {
+  for (const signal of ['SIGTERM', 'SIGINT']) {
+    process.once(signal, async () => {
+      await langfuse.shutdownTracing();
+      process.exit(0);
+    });
+  }
+}

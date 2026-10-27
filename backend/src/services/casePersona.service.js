@@ -46,7 +46,10 @@ function buildSystemPrompt(persona, { caseContext = '', extraInstructions = '' }
 async function chat(persona, transcript, message, opts = {}) {
   const systemPrompt = buildSystemPrompt(persona, opts);
   const history = transcript.map((t) => ({ role: t.role, content: t.content }));
-  return aiProvider.roleplay(systemPrompt, [...history, { role: 'user', content: message }], { maxTokens: opts.maxTokens ?? 400 });
+  return aiProvider.roleplay(systemPrompt, [...history, { role: 'user', content: message }], {
+    maxTokens: opts.maxTokens ?? 400,
+    name: 'generate-persona-reply',
+  });
 }
 
 module.exports = { buildSystemPrompt, chat };

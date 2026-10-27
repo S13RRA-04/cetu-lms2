@@ -1,6 +1,7 @@
 'use strict';
 const { CaseEntity, CaseEvidence } = require('../models');
 const aiProvider = require('./ai/aiProvider');
+const { traceAiTurn } = require('./ai/tracing');
 const caseEngine = require('./caseEngine.service');
 
 /**
@@ -73,13 +74,27 @@ async function interpret(caseId, freeText) {
   ]);
 
   const systemPrompt = buildSystemPrompt(actionTypes, entities);
-  const parsed = await aiProvider.classifyIntent(systemPrompt, freeText, { maxTokens: 300 });
+  const parsed = await aiProvider.classifyIntent(systemPrompt, freeText, { maxTokens: 300, name: 'classify-action-intent' });
 
   return resolveIntent(parsed, actionTypes, entities);
 }
 
 /** Interprets free text and immediately resolves it through the deterministic engine. */
 async function interpretAndEvaluate({ caseId, squadId, freeText, studentId, role }) {
+  // Trace covers interpretation AND the engine's verdict, so a reviewer sees
+  // request → classified intent → what the student was actually told.
+  return traceAiTurn('interpret-case-action', {
+    asType: 'chain',
+    userId: studentId,
+    sessionId: `case:${caseId}:squad:${squadId}`,
+    tags: ['case-file', 'action'],
+    metadata: { caseId, squadId, role },
+    input: freeText,
+    toOutput: (r) => ({ actionType: r.action?.action_type ?? null, status: r.status, narrative: r.narrative }),
+  }, () => interpretAndEvaluateUntraced({ caseId, squadId, freeText, studentId, role }));
+}
+
+async function interpretAndEvaluateUntraced({ caseId, squadId, freeText, studentId, role }) {
   const { actionType, targetEntityId, extractedIntent } = await interpret(caseId, freeText);
 
   if (!actionType) {

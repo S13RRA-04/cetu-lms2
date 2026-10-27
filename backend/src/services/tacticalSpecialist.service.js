@@ -1,6 +1,7 @@
 'use strict';
 const { Assignment } = require('../models');
 const { callGemini } = require('../config/gemini');
+const { traceAiTurn } = require('./ai/tracing');
 const { NotFoundError, AppError } = require('../utils/errors');
 
 const MAX_HISTORY = 20; // messages (both roles); caps LLM cost/abuse per session
@@ -68,7 +69,7 @@ function buildSystemPrompt(hit) {
   );
 }
 
-async function chat(assignmentId, history, message) {
+async function chat(assignmentId, userId, history, message) {
   const assignment = await Assignment.findByPk(assignmentId, { attributes: ['id', 'type'] });
   if (!assignment) throw new NotFoundError('Assignment');
   if (assignment.type !== 'capstone') throw new AppError('The Tactical Specialist is only available for capstone assignments', 400, 'NOT_A_CAPSTONE');
@@ -77,7 +78,15 @@ async function chat(assignmentId, history, message) {
   const trimmedHistory = (Array.isArray(history) ? history : []).slice(-MAX_HISTORY);
   const hit = findLookup(message);
   const systemPrompt = buildSystemPrompt(hit);
-  const reply = await callGemini(systemPrompt, [...trimmedHistory, { role: 'user', content: message }]);
+  // History lives client-side, so the session is per student per assignment.
+  const reply = await traceAiTurn('tactical-specialist-chat', {
+    asType: 'agent',
+    userId,
+    sessionId: `tactical-specialist:${assignmentId}:${userId}`,
+    tags: ['capstone', 'tactical-specialist'],
+    metadata: { assignmentId, lookup: hit?.id ?? 'no-match' },
+    input: message,
+  }, () => callGemini(systemPrompt, [...trimmedHistory, { role: 'user', content: message }], { name: 'generate-specialist-reply' }));
 
   return { reply };
 }

@@ -123,7 +123,7 @@ async function reviseHypothesis(req, res, next) {
 async function challengeHypothesis(req, res, next) {
   try {
     const { squadId } = await resolveContext(req);
-    res.json(await caseHypothesisService.challenge(req.params.hid, squadId));
+    res.json(await caseHypothesisService.challenge(req.params.hid, squadId, req.user.id));
   } catch (err) { next(err); }
 }
 

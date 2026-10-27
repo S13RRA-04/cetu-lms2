@@ -2,6 +2,7 @@
 const { CaseHypothesis } = require('../models');
 const { NotFoundError, AppError, ForbiddenError } = require('../utils/errors');
 const aiProvider = require('./ai/aiProvider');
+const { traceAiTurn } = require('./ai/tracing');
 
 /**
  * Hypothesis CRUD plus a Socratic-challenge trigger (design brief §16).
@@ -75,7 +76,7 @@ async function revise(hypothesisId, squadId, userId, data) {
   return revised;
 }
 
-async function challenge(hypothesisId, squadId) {
+async function challenge(hypothesisId, squadId, studentId = null) {
   const hypothesis = await CaseHypothesis.findByPk(hypothesisId);
   if (!hypothesis) throw new NotFoundError('Hypothesis');
   if (hypothesis.squad_id !== squadId) throw new ForbiddenError();
@@ -89,9 +90,16 @@ async function challenge(hypothesisId, squadId) {
     'You are a skeptical senior investigator reviewing a trainee\'s working theory. Deliver the following ' +
     'question in your own probing, professional words WITHOUT changing what it actually asks or adding new ' +
     `facts: "${trigger.prompt}" Keep it under 60 words, end with a question mark.`;
-  const question = await aiProvider.generate(systemPrompt, [
+  const question = await traceAiTurn('challenge-hypothesis', {
+    asType: 'chain',
+    userId: studentId,
+    sessionId: `case:${hypothesis.case_id}:squad:${squadId}`,
+    tags: ['case-file', 'hypothesis'],
+    metadata: { caseId: hypothesis.case_id, squadId, hypothesisId, triggerId: trigger.id },
+    input: hypothesis.statement,
+  }, () => aiProvider.generate(systemPrompt, [
     { role: 'user', content: `The current hypothesis is: "${hypothesis.statement}"` },
-  ], { maxTokens: 150 });
+  ], { maxTokens: 150, name: 'generate-challenge-question' }));
 
   return { question, triggerId: trigger.id };
 }

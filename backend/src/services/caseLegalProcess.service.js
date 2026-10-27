@@ -2,6 +2,7 @@
 const { CaseLegalProcess, InvestigationCase, CasePersona } = require('../models');
 const { NotFoundError, AppError, ForbiddenError } = require('../utils/errors');
 const casePersonaService = require('./casePersona.service');
+const { traceAiTurn } = require('./ai/tracing');
 
 const MAX_TURNS = 8; // user+assistant pairs per request; caps LLM cost/abuse
 
@@ -101,11 +102,18 @@ async function submitOrContinue(caseId, squadId, requestedBy, message, requestId
     .map((p) => p.caseContextAfterApproval ?? '')
     .join('');
 
-  const reply = await casePersonaService.chat(persona, transcript.slice(0, -1), message, {
+  const reply = await traceAiTurn('case-legal-process', {
+    asType: 'agent',
+    userId: requestedBy,
+    sessionId: request.id,
+    tags: ['case-file', 'legal-process'],
+    metadata: { caseId, squadId, requestType: request.request_type, elementsMet: met, allElementsMet: allMet },
+    input: message,
+  }, () => casePersonaService.chat(persona, transcript.slice(0, -1), message, {
     caseContext: investigationCase.synopsis + priorContext,
     extraInstructions: probeInstructionFor(processType, met),
     maxTokens: 300,
-  });
+  }));
 
   transcript.push({ role: 'assistant', content: reply, created_at: new Date().toISOString() });
   request.transcript = transcript;
