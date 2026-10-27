@@ -6901,6 +6901,53 @@ body {
   background: var(--surface);
   border-color: var(--border);
 }
+/* Individual vs squad work — text label plus icon, never color alone. Squad
+   keeps the amber the old "Squad Tasking" badge used. */
+.ops-mode-icon { width: 12px; height: 12px; flex-shrink: 0; }
+.ops-mode-term {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+}
+.ops-mode-term--individual { color: var(--primary); }
+.ops-mode-term--squad      { color: var(--warning); }
+.ops-mode-group + .ops-mode-group { margin-top: 18px; }
+.ops-mode-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 12px 0 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.ops-mode-count { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.ops-mode-hint { flex-basis: 100%; font-size: 12px; color: var(--muted); }
+.ops-mode-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .1em;
+}
+.ops-mode-chip .ops-mode-icon { width: 10px; height: 10px; }
+.ops-mode-chip--individual { color: var(--primary); background: var(--primary-lt); }
+.ops-mode-chip--squad      { color: var(--warning); background: var(--warning-lt); }
+.ops-mode-chip--lg { padding: 4px 10px; font-size: 9px; }
+.ops-mode-chip--lg .ops-mode-icon { width: 12px; height: 12px; }
+@media (max-width: 640px) {
+  .ops-tasking-row .ops-mode-chip { padding: 2px 5px; }
+}
 .ops-tasking-drop {
   font-family: var(--mono);
   font-size: 8px;

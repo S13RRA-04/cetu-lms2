@@ -11,7 +11,8 @@ import QuizFlow, { MultipleChoice, TrueFalse, DragMatch, FillBlank } from '../co
 import ChallengeFlow    from '../components/ChallengeFlow.jsx';
 import InvestigationCase from '../components/InvestigationCase.jsx';
 import useDraft         from '../hooks/useDraft.js';
-import { TYPE_DEFINITIONS } from './DashboardHome.jsx';
+import { TYPE_DEFINITIONS, WorkModeIcon } from './DashboardHome.jsx';
+import { WORK_MODES } from '../lib/workMode.js';
 import TransmissionInterceptor from './TransmissionInterceptor.jsx';
 
 const TYPE_COLOR = {
@@ -335,7 +336,13 @@ export default function AssignmentPage() {
               DROP {assignment.drop_number}
             </span>
           )}
-          {isSquad && <span className="squad-badge">Squad Tasking</span>}
+          <span
+            className={`ops-mode-chip ops-mode-chip--${isSquad ? 'squad' : 'individual'} ops-mode-chip--lg`}
+            title={WORK_MODES[isSquad ? 'squad' : 'individual'].hint}
+          >
+            <WorkModeIcon mode={isSquad ? 'squad' : 'individual'} />
+            {isSquad ? 'SQUAD TASKING' : 'INDIVIDUAL TASKING'}
+          </span>
           {assignment.victim_name && (
             <span className="type-badge" style={{ color: '#f87171', borderColor: '#f87171', fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 700 }}>
               {assignment.victim_name.toUpperCase()}

@@ -5,6 +5,22 @@ import { getMyEnrollment, getAssignments, getCampaignDrops, getPreRangeBriefing 
 import useAuthStore from '../store/authStore.js';
 import DecryptText from '../components/DecryptText.jsx';
 import PreRangeBriefing from '../components/PreRangeBriefing.jsx';
+import { WORK_MODES, workModeOf, splitByWorkMode } from '../lib/workMode.js';
+
+// One person vs. a group of people — decorative; the text label beside it
+// always carries the meaning.
+export function WorkModeIcon({ mode }) {
+  return mode === 'squad' ? (
+    <svg className="ops-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  ) : (
+    <svg className="ops-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+    </svg>
+  );
+}
 
 const PROF_ROLE_LABELS = {
   special_agent:                    'Special Agent',
@@ -245,6 +261,14 @@ export default function DashboardHome() {
                     <span className="ops-glossary-def">{def}</span>
                   </div>
                 ))}
+                {Object.entries(WORK_MODES).map(([mode, meta]) => (
+                  <div key={mode} className="ops-glossary-row">
+                    <span className={`ops-glossary-term ops-mode-term ops-mode-term--${mode}`}>
+                      <WorkModeIcon mode={mode} /> {meta.label.toUpperCase()}
+                    </span>
+                    <span className="ops-glossary-def">{meta.hint}</span>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -263,17 +287,29 @@ export default function DashboardHome() {
               ))}
             </div>
 
-            {/* Active section rows */}
-            <div className="ops-tasking-group" style={{ marginTop: 0 }}>
-              {currentSec.items.map((a, i) => (
-                <TaskingRow
-                  key={a.id}
-                  assignment={a}
-                  idx={i}
-                  onOpen={a.is_unlocked !== false ? () => navigate(`/assignment/${a.id}`) : null}
-                />
-              ))}
-            </div>
+            {/* Active section rows, split into individual vs squad work so it's
+                never ambiguous who is expected to submit */}
+            {splitByWorkMode(currentSec.items).map(({ mode, items }, groupIdx) => (
+              <div key={mode} className={`ops-mode-group ops-mode-group--${mode}`}>
+                <div className="ops-mode-header">
+                  <span className={`ops-mode-term ops-mode-term--${mode}`}>
+                    <WorkModeIcon mode={mode} /> {WORK_MODES[mode].heading.toUpperCase()}
+                  </span>
+                  <span className="ops-mode-count">{items.length}</span>
+                  <span className="ops-mode-hint">{WORK_MODES[mode].hint}</span>
+                </div>
+                <div className="ops-tasking-group" style={{ marginTop: 0 }}>
+                  {items.map((a, i) => (
+                    <TaskingRow
+                      key={a.id}
+                      assignment={a}
+                      idx={groupIdx * 4 + i}
+                      onOpen={a.is_unlocked !== false ? () => navigate(`/assignment/${a.id}`) : null}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         );
       })()}
@@ -308,6 +344,9 @@ function TaskingRow({ assignment: a, idx = 0, onOpen }) {
     >
       <span className="ops-tasking-type-dot" style={{ background: color }} />
       <span className="ops-tasking-title">{a.title}</span>
+      <span className={`ops-mode-chip ops-mode-chip--${workModeOf(a)}`} title={WORK_MODES[workModeOf(a)].hint}>
+        <WorkModeIcon mode={workModeOf(a)} /> {WORK_MODES[workModeOf(a)].label.toUpperCase()}
+      </span>
       {a.drop_number != null && (
         <span className="ops-tasking-drop">DROP {a.drop_number}</span>
       )}
