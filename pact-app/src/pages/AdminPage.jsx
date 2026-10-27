@@ -6913,6 +6913,10 @@ function ContentWorkspace({ assignments, contentItems, contentLoaded, cohorts, o
     })), [visible, groupBy, dropDayMap]);
   const selected = entries.find((e) => e.key === selectedKey) ?? null;
   const filtering = typeFilter !== 'all' || statusFilter !== 'all' || query.trim() !== '';
+  // Collapse state is always the user's — headers must respond to clicks even
+  // while filtering. A new search re-expands everything once, so matches
+  // can't sit hidden inside a section collapsed earlier.
+  useEffect(() => { if (query.trim()) setCollapsed(new Set()); }, [query]);
   // A reorder rewrites a whole day's order, so it needs the whole day on
   // screen: only in Day view with no filter narrowing the list.
   const canReorder = groupBy === 'day' && !filtering;
@@ -7092,7 +7096,7 @@ function ContentWorkspace({ assignments, contentItems, contentLoaded, cohorts, o
               <p className="content-ws-note">{filtering ? 'Nothing matches these filters.' : 'No content yet.'}</p>
             )}
             {sections.map((section) => {
-              const open = filtering || !collapsed.has(section.key);
+              const open = !collapsed.has(section.key);
               return (
                 <div key={section.key}>
                   <button type="button" className="admin-group-header" onClick={() => toggle(section.key)} aria-expanded={open}>
@@ -7101,7 +7105,7 @@ function ContentWorkspace({ assignments, contentItems, contentLoaded, cohorts, o
                     <span className="admin-group-chevron">{open ? '▲' : '▼'}</span>
                   </button>
                   {open && section.groups.map((group) => {
-                    const groupOpen = filtering || !collapsed.has(group.key);
+                    const groupOpen = !collapsed.has(group.key);
                     return (
                       <div key={group.key}>
                         {group.label && (
