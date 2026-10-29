@@ -293,6 +293,7 @@ async function _queryScoreboard(courseId, cohortId) {
        FROM assessment_scores
      )
      SELECT u.id AS "userId", u.first_name AS "firstName", u.last_name AS "lastName",
+            sq.number AS "squadNumber", sq.name AS "squadName",
             COALESCE(SUM(g.score) FILTER (
               WHERE a.lti_resource_link_id NOT IN ('assessment-pretest', 'assessment-posttest')
                  OR a.lti_resource_link_id IS NULL
@@ -338,6 +339,7 @@ async function _queryScoreboard(courseId, cohortId) {
             ) AS "performancePercent"
      FROM enrollments e
      JOIN users u ON u.id = e.user_id
+     LEFT JOIN squads sq ON sq.id = e.squad_id
      LEFT JOIN grades g ON g.user_id = e.user_id
        AND g.assignment_id IN (
          SELECT id FROM assignments
@@ -362,7 +364,7 @@ async function _queryScoreboard(courseId, cohortId) {
        -- or a withdrawn enrollment must not resurface as a phantom low-score
        -- row next to the student's real one.
        AND u.is_active = true AND e.status = 'active'
-     GROUP BY u.id, u.first_name, u.last_name, puzzle_points.points,
+     GROUP BY u.id, u.first_name, u.last_name, sq.number, sq.name, puzzle_points.points,
               assessment_improvement.points, assessment_scores.pretest_score,
               assessment_scores.posttest_score, assessment_scores.pretest_max,
               assessment_scores.posttest_max
@@ -378,6 +380,8 @@ async function _queryScoreboard(courseId, cohortId) {
     userId:     r.userId,
     firstName:  r.firstName,
     lastName:   r.lastName,
+    squadNumber: r.squadNumber == null ? null : parseInt(r.squadNumber, 10),
+    squadName:   r.squadName ?? null,
     assignmentPoints: Math.round(parseFloat(r.assignmentPoints)),
     pretestPoints: Math.round(parseFloat(r.pretestPoints ?? 0)),
     posttestPoints: Math.round(parseFloat(r.posttestPoints ?? 0)),

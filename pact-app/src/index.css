@@ -7223,6 +7223,14 @@ body {
   border-radius: 3px;
   padding: 1px 5px;
 }
+.ops-board-squad {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .06em;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .ops-board-bar-wrap {
   height: 4px;
   background: var(--surface-2);

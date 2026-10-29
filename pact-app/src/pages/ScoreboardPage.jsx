@@ -59,9 +59,10 @@ function StandingsEntry({ entry, rank, tab, isMe, leaderScore, delay = 0 }) {
       ? `+${rankingScore.toFixed(1)} pp`
       : `${squadPercent}%`;
   const barColor = RANK_COLORS[rank] ?? 'var(--primary)';
-  const label = tab === 'squad'
-    ? `Squad ${entry.squadNumber}${entry.squadName ? ` · ${entry.squadName}` : ''}`
-    : `${entry.firstName} ${entry.lastName}`;
+  const squadLabel = (e) => `Squad ${e.squadNumber}${e.squadName ? ` · ${e.squadName}` : ''}`;
+  const label = tab === 'squad' ? squadLabel(entry) : `${entry.firstName} ${entry.lastName}`;
+  // Operators and Most Improved rows carry the person's squad (null if unassigned).
+  const memberSquad = tab !== 'squad' && entry.squadNumber != null ? squadLabel(entry) : null;
 
   return (
     <motion.div
@@ -74,6 +75,7 @@ function StandingsEntry({ entry, rank, tab, isMe, leaderScore, delay = 0 }) {
         <RankBadge rank={rank} />
         <span className="ops-board-name">
           {label}
+          {memberSquad && <span className="ops-board-squad">{memberSquad}</span>}
           {isMe && <span className="ops-board-you">YOU</span>}
         </span>
         <div className="ops-board-bar-wrap">
