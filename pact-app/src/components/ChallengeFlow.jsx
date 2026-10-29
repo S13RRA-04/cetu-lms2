@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { loadDraftSync, clearDraftSync, draftKey } from '../hooks/useDraft.js';
-import { updateProgress, getSquadChallengeState, saveSquadChallengeState, COURSE_ID } from '../api/pact.js';
+import { updateProgress, getSquadChallengeState, saveSquadChallengeState, getCourseContent, COURSE_ID } from '../api/pact.js';
 import useSquadFieldSync from '../hooks/useSquadFieldSync.js';
 import useAuthStore from '../store/authStore.js';
 import SubmitSequence from './SubmitSequence.jsx';
@@ -143,6 +143,35 @@ function CaseBriefingPanel({ narrative }) {
           <FormattedText value={narrative} />
         </div>
       )}
+    </div>
+  );
+}
+
+// Files an instructor linked to this challenge (course_content_items.
+// linked_assignment_id) — e.g. a workshop's squad packet. Only items already
+// unlocked for the viewer come back with a download_url, so a linked but
+// unreleased file stays hidden here exactly as it does in the Intel Library.
+function ChallengeFilesPanel({ assignmentId }) {
+  const [files, setFiles] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    getCourseContent()
+      .then((items) => {
+        if (cancelled) return;
+        setFiles((items ?? []).filter((i) => i.linked_assignment_id === assignmentId && (i.download_url ?? i.url)));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [assignmentId]);
+  if (files.length === 0) return null;
+  return (
+    <div className="challenge-files-panel">
+      <span className="challenge-files-label">CHALLENGE FILES</span>
+      {files.map((f) => (
+        <a key={f.id} className="challenge-file-link" href={f.download_url ?? f.url} target="_blank" rel="noopener noreferrer">
+          ◇ {f.title}
+        </a>
+      ))}
     </div>
   );
 }
@@ -432,6 +461,7 @@ export default function ChallengeFlow({ assignment, color, onComplete, submitted
   return (
     <div className="challenge-flow">
       <CaseBriefingPanel narrative={assignment.launch_briefing} />
+      <ChallengeFilesPanel assignmentId={assignment.id} />
       {isSquad && (
         <div className="challenge-squad-notice" style={{ borderColor: color, color }}>
           <span className="challenge-squad-icon"><IcUsers /></span>
@@ -662,6 +692,7 @@ function ChallengeReview({ assignment, color, existingContent, grade }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <CaseBriefingPanel narrative={assignment.launch_briefing} />
+      <ChallengeFilesPanel assignmentId={assignment.id} />
 
       {/* Status bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 6, border: `1px solid ${isGraded ? 'rgba(16,185,129,.3)' : 'rgba(245,158,11,.25)'}`, background: isGraded ? 'rgba(16,185,129,.06)' : 'rgba(245,158,11,.05)', marginBottom: 4 }}>

@@ -3403,6 +3403,31 @@ body {
 }
 .challenge-briefing-body .formatted-text p { font-size: 13px; line-height: 1.7; color: var(--text); margin: 0 0 10px; }
 .challenge-briefing-body .formatted-text p:last-child { margin-bottom: 0; }
+.challenge-files-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2, rgba(0, 0, 0, 0.2));
+}
+.challenge-files-label { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; color: var(--primary); }
+.challenge-file-link {
+  font-size: 12px;
+  color: var(--bright);
+  text-decoration: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 9px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.challenge-file-link:hover { border-color: var(--primary); color: var(--primary); }
 
 .challenge-prompts { display: flex; flex-direction: column; gap: 18px; }
 .challenge-prompts-header {
