@@ -74,7 +74,34 @@ const LAUNCH_BRIEFING = `On May 7, 2024, the U.S. Department of Justice unsealed
 
 This case is independent of your case file — a real, fully public attribution case, used here to practice this morning's lecture on a fresh fact pattern. Work through the five evidence categories together, applying the structure from the whiteboard: what we know, how we know it, confidence level, and what would change the assessment. Each category opens with a quick comprehension check before your squad drafts its attribution statement. End by writing three final calibrated confidence statements in the lecture's exact format.
 
-Nothing below states an investigative method that isn't public — where the record is silent on how something was learned, that's noted as a gap, not filled in.`;
+Below is the public record from the Squad Packet, organized into the five evidence categories from this morning's lecture (the full packet is also in Course Files as "Attribution Workshop Squad Packet"). Nothing here states an investigative method that isn't public — where the record is silent on how something was learned, that's noted as a gap, not filled in.
+
+**Category 1 — Persona / forum identity**
+- The indictment names Khoroshev as "also known as LockBitSupp, LockBit, and putinkrab."
+- U.S. Attorney Philip Sellinger, at the announcement: Khoroshev "thought he could [operate] hidden by his notorious moniker 'LockBitSupp,' anonymous and free of any consequence."
+- LockBitSupp had a long public track record as LockBit's spokesperson — negotiating with victims, posting on forums, and publicly taunting law enforcement — all under the persona, never under a real name.
+
+**Category 2 — Infrastructure**
+- In February 2024, the UK's National Crime Agency (NCA) led "Operation Cronos," seizing LockBit's public-facing websites and the servers used by LockBit administrators, in cooperation with the DOJ, FBI, and other international partners.
+- From the infrastructure seized in February, law enforcement found evidence Khoroshev's group "retained copies of stolen data from victims who paid the ransom," despite promising deletion.
+- The May indictment followed roughly three months after the February infrastructure seizure.
+
+**Category 3 — Customer / affiliate relationships**
+- LockBit operated as ransomware-as-a-service: affiliates kept 80% of each ransom and paid LockBit's operators the remaining 20% for use of the malware and infrastructure.
+- Khoroshev is one of at least seven people charged as LockBit members in the District of New Jersey, including Artur Sungatov, Mikhail Vasiliev, Ruslan Astamirov, Mikhail Matveev, and others named across a series of related indictments.
+- The DOJ described Khoroshev specifically as LockBit's "creator, developer, and primary operator" — a different role than the affiliates who deployed the ransomware against individual victims.
+
+**Category 4 — Real-world identity**
+- The indictment names "Dmitry Yuryevich Khoroshev (Дмитрий Юрьевич Хорошев), also known as LockBitSupp, LockBit, and putinkrab, 31, of Voronezh, Russia."
+- The U.S. State Department announced a reward of up to $10 million for information leading to his arrest.
+- As of the indictment's unsealing, Khoroshev had not been arrested and remained in Russia — the charges and sanctions did not depend on custody.
+
+**Category 5 — Foreign partner threads**
+- The February 2024 infrastructure takedown was led by the UK's National Crime Agency Cyber Division, "in cooperation with the Justice Department, FBI, and other international law enforcement partners."
+- Sanctions were announced jointly and simultaneously by the U.S. Treasury's OFAC, the UK's Foreign, Commonwealth and Development Office, and Australia's Department of Foreign Affairs and Trade.
+- FBI Director Christopher Wray tied the May indictment directly to the February NCA-led disruption as one continuous effort.
+
+*Sources: U.S. Department of Justice press release (May 7, 2024); public reporting and direct quotations from Krebs on Security, CNBC, Courthouse News, TechTarget, Intel471, Cyberint, and Flashpoint.*`;
 
 const DESCRIPTION = 'Squad workshop applying the morning lecture\'s five-category attribution framework and confidence-language format to a real, fully public case (the May 2024 unmasking of "LockBitSupp" as Dmitry Khoroshev) — independent of any case-file materials.';
 
