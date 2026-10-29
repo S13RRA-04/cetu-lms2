@@ -113,11 +113,13 @@ async function createCampaignDrop(seq, transaction) {
 }
 
 async function createVaultPuzzle(seq, transaction, dropId) {
+  // Any enabled gate counts — Drop 4's live gate was later swapped to a
+  // cipher_wheel, and re-running this must not stack a second gate on it.
   const [existing] = await seq.query(
-    `SELECT id FROM campaign_drop_puzzles WHERE drop_id = :dropId AND puzzle_type = 'vault_lock'`,
+    `SELECT puzzle_type FROM campaign_drop_puzzles WHERE drop_id = :dropId AND enabled = true`,
     { replacements: { dropId }, transaction },
   );
-  if (existing.length > 0) { console.log('vault_lock puzzle already exists'); return; }
+  if (existing.length > 0) { console.log(`Drop already gated (${existing.map((p) => p.puzzle_type).join(', ')}); skipping vault_lock`); return; }
 
   const secret = 'ATTRIBUTION PROCEEDS AND CASE ASSEMBLY';
   const answer = crypto.createHash('sha256').update(secret).digest('hex');

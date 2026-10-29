@@ -338,3 +338,43 @@ test('the squad scoreboard counts only whole-squad work; the operator scoreboard
   assert.match(sqls.join('\n'), /unlocked_assignment\.grading_mode = 'squad'\s+--[^\n]*\n[^\n]*\n\s+AND cardinality\(unlocked_assignment\.role_filters\) = 0/);
   assert.match(sqls.join('\n'), /grading_mode != 'squad' OR cardinality\(role_filters\) > 0/);
 });
+
+test('role-team work: a squad grade never reaches same-role members of other squads', async (t) => {
+  const { Squad } = require('../models');
+  const original = {
+    transaction: sequelize.transaction, asgFindByPk: Assignment.findByPk, squadFindByPk: Squad.findByPk,
+    enrollmentFindAll: Enrollment.findAll, gradeFindOrCreate: Grade.findOrCreate, subUpdate: Submission.update,
+  };
+  const assignment = {
+    id: 'a-role-team-x', course_id: 'course-role-team-x', max_score: 100, grading_mode: 'squad',
+    role_filters: ['special_agent'], lineitem_url: null,
+  };
+  // Every special agent in the course, across two squads. The mock honours the
+  // query's where clause, so a fan-out that dropped the squad filter would
+  // grade squad-2's agents too.
+  const courseEnrollments = [
+    { user_id: 'agent-s1-a', squad_id: 'squad-1', course_id: assignment.course_id, User: { professional_role: 'special_agent', certifications: [] } },
+    { user_id: 'agent-s1-b', squad_id: 'squad-1', course_id: assignment.course_id, User: { professional_role: 'special_agent', certifications: [] } },
+    { user_id: 'agent-s2-a', squad_id: 'squad-2', course_id: assignment.course_id, User: { professional_role: 'special_agent', certifications: [] } },
+    { user_id: 'agent-s2-b', squad_id: 'squad-2', course_id: assignment.course_id, User: { professional_role: 'special_agent', certifications: [] } },
+  ];
+  Assignment.findByPk = async () => assignment;
+  Squad.findByPk = async (id) => ({ id });
+  Enrollment.findAll = async ({ where }) => courseEnrollments.filter((e) =>
+    Object.entries(where).every(([key, value]) => e[key] === value));
+  let graded = [];
+  Grade.findOrCreate = async ({ where }) => { graded.push(where.user_id); return [{ user_id: where.user_id }, true]; };
+  Submission.update = async () => [0];
+  sequelize.transaction = async (callback) => callback({});
+  t.after(() => {
+    sequelize.transaction = original.transaction; Assignment.findByPk = original.asgFindByPk; Squad.findByPk = original.squadFindByPk;
+    Enrollment.findAll = original.enrollmentFindAll; Grade.findOrCreate = original.gradeFindOrCreate; Submission.update = original.subUpdate;
+  });
+
+  await gradeService.gradeSquad('a-role-team-x', 'squad-1', { score: 90 }, 'grader-1');
+  assert.deepEqual(graded.sort(), ['agent-s1-a', 'agent-s1-b'], 'instructor grade stays inside squad-1');
+
+  graded = [];
+  await gradeService.autoGradeQuiz(assignment, 'agent-s2-a', 'squad-2', 8, 10);
+  assert.deepEqual(graded.sort(), ['agent-s2-a', 'agent-s2-b'], 'auto-graded quiz stays inside the submitter’s squad');
+});

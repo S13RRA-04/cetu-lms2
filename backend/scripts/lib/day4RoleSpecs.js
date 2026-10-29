@@ -17,6 +17,7 @@
  * Run: node backend/scripts/seed-pact-day4-role-assignments.js
  */
 const { v4: uuidv4 } = require('uuid');
+const { TRAVEL_QUESTIONS_BY_ROLE, TRAVEL_SQUAD_QUIZ_QUESTION } = require('./day4TravelAliasSpec');
 
 const SCENARIO = 'packet-heist-v2';
 const DROP = 4;
@@ -204,11 +205,13 @@ const SQUAD_QUIZ = [
   mc('What is the correct sequence of the proceeds trail?', ['CoinBridge → wallet w3 → sale → personal account', 'Sale (BH-0314) → escrow → wallet w3 → CoinBridge → RestonIT/personal accounts', 'Personal account → wallet w3 → sale', 'There is no traceable sequence'], 1, 'the CoinBridge KYC return'),
   mc('What should your squad do about SaturnV Mart\'s live access, relative to finishing the attribution memo?', ['Finish the memo first', 'Initiate the notification action immediately, in parallel with finishing the memo', 'Wait for Friday', 'Refer it to another squad'], 1, 'today\'s evidence'),
   mc('What is required before any seized item is used in today\'s charging-outline analysis?', ['Nothing', 'Custody reconciliation against Wednesday\'s on-scene forms', 'A second search warrant', 'A judge\'s pre-approval of each item'], 1, 'the seized evidence inventory'),
+  TRAVEL_SQUAD_QUIZ_QUESTION,
 ];
 
 function buildRoleQuestions(role) {
   const items = [...role.mc, ...role.blanks];
   if (role.dualBlankPrompt) items.push(role.dualBlankPrompt);
+  items.push(...(TRAVEL_QUESTIONS_BY_ROLE[role.code] ?? []));
   items.push(role.shortAnswer);
   return items;
 }
