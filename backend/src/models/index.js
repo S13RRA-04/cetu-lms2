@@ -46,6 +46,7 @@ const CaseLegalProcess       = require('./CaseLegalProcess')(sequelize);
 const CaseInterview          = require('./CaseInterview')(sequelize);
 const CaseAttributionAssessment = require('./CaseAttributionAssessment')(sequelize);
 const DropDay                = require('./DropDay')(sequelize);
+const TiebreakDuel           = require('./TiebreakDuel')(sequelize);
 
 // ── User ↔ Course (instructor relationship) ────────────────────────────────
 Course.belongsTo(User, { as: 'instructor', foreignKey: 'instructor_id' });
@@ -243,6 +244,7 @@ CaseAttributionAssessment.belongsTo(CaseEntity, { foreignKey: 'subject_entity_id
 module.exports = {
   sequelize,
   DropDay,
+  TiebreakDuel,
   User,
   Course,
   Module,

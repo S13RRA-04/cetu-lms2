@@ -1,5 +1,5 @@
 'use strict';
-const { Grade, Assignment, User, Enrollment, Squad, Submission, Cohort } = require('../models');
+const { Grade, Assignment, User, Enrollment, Squad, Submission, Cohort, TiebreakDuel } = require('../models');
 const { isRoleTeam, isOnRoleTeam } = require('../utils/roleTeam');
 const { NotFoundError, AppError }                    = require('../utils/errors');
 const ltiService                                     = require('./lti.service');
@@ -7,6 +7,7 @@ const logger                                         = require('../utils/logger'
 const { sequelize }                                  = require('../config/database');
 const TtlCache                                       = require('../utils/ttlCache');
 const { invalidateStudentCache }                     = require('./assignment.service');
+const { applyDuelResult }                            = require('../utils/tiebreakDuel');
 
 // Scoreboard changes only when grades are upserted — cache for 20 s to absorb
 // the thundering-herd of 35 students loading simultaneously.
@@ -246,8 +247,25 @@ async function getScoreboard(courseId) {
   return scoreboardCache.get(`scoreboard:${courseId}`, async () => {
     const cohortId = await _getActiveCohortId(courseId);
     if (!cohortId) return [];
-    return _queryScoreboard(courseId, cohortId);
+    return queryScoreboard(courseId, cohortId);
   });
+}
+
+function invalidateScoreboard(courseId) {
+  scoreboardCache.invalidate(`scoreboard:${courseId}`);
+}
+
+// A first-place tie is settled by the cohort's latest finished tiebreak duel
+// (see utils/tiebreakDuel.js); applyDuel: false gives the raw standings the
+// duel itself is opened from.
+async function queryScoreboard(courseId, cohortId, { applyDuel = true } = {}) {
+  const board = await _queryScoreboard(courseId, cohortId);
+  if (!applyDuel) return board;
+  const duel = await TiebreakDuel.findOne({
+    where: { course_id: courseId, cohort_id: cohortId, status: 'finished', practice: false },
+    order: [['updated_at', 'DESC']],
+  });
+  return applyDuelResult(board, duel);
 }
 
 async function _queryScoreboard(courseId, cohortId) {
@@ -527,4 +545,4 @@ async function _queryCourseGrades(courseId, cohortId, userId = null) {
   return rows;
 }
 
-module.exports = { getGradesForAssignment, getGradesForUser, upsertGrade, gradeSquad, autoGradeQuiz, getScoreboard, getSquadScoreboard, getCourseGrades };
+module.exports = { getGradesForAssignment, getGradesForUser, upsertGrade, gradeSquad, autoGradeQuiz, getScoreboard, queryScoreboard, invalidateScoreboard, getSquadScoreboard, getCourseGrades };

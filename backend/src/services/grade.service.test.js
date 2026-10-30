@@ -3,13 +3,15 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { sequelize } = require('../config/database');
-const { Assignment, User, Enrollment, Grade, Submission, Cohort } = require('../models');
+const { Assignment, User, Enrollment, Grade, Submission, Cohort, TiebreakDuel } = require('../models');
 const gradeService = require('./grade.service');
 
 test('operator scoreboard ranks by the displayed total including assessments and puzzle points', async (t) => {
   const originalQuery = sequelize.query;
   const originalCohortFindOne = Cohort.findOne;
+  const originalDuelFindOne = TiebreakDuel.findOne;
   Cohort.findOne = async () => ({ id: 'active-cohort-1' });
+  TiebreakDuel.findOne = async () => null;
   let sql;
   sequelize.query = async (query) => {
     sql = query;
@@ -32,7 +34,7 @@ test('operator scoreboard ranks by the displayed total including assessments and
       graded: '4',
     }]];
   };
-  t.after(() => { sequelize.query = originalQuery; Cohort.findOne = originalCohortFindOne; });
+  t.after(() => { sequelize.query = originalQuery; Cohort.findOne = originalCohortFindOne; TiebreakDuel.findOne = originalDuelFindOne; });
 
   const result = await gradeService.getScoreboard('operator-ranking-puzzle-points-test-course');
 

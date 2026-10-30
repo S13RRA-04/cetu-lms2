@@ -239,6 +239,25 @@ export const getDay5GrandJuryStatus = (cohortId) =>
 export const releaseDay5GrandJury = (cohortId, searchBySquad) =>
   client.post(`/courses/${COURSE_ID}/day5-grand-jury/release`, { cohort_id: cohortId, search_by_squad: searchBySquad }).then((r) => r.data);
 
+// First-place tiebreak duel (lightning round)
+export const getMyTiebreakDuel = () =>
+  client.get(`/courses/${COURSE_ID}/tiebreak-duel/mine`).then((r) => r.data.duel);
+
+export const answerTiebreakDuel = (duelId, round, choice) =>
+  client.post(`/courses/${COURSE_ID}/tiebreak-duel/${duelId}/answer`, { round, choice }).then((r) => r.data);
+
+export const getTiebreakDuelStatus = (cohortId) =>
+  client.get(`/courses/${COURSE_ID}/tiebreak-duel`, { params: { cohort_id: cohortId } }).then((r) => r.data);
+
+export const openTiebreakDuel = (cohortId, participantIds = null) =>
+  client.post(`/courses/${COURSE_ID}/tiebreak-duel`, { cohort_id: cohortId, participant_ids: participantIds }).then((r) => r.data);
+
+export const advanceTiebreakDuel = (duelId) =>
+  client.post(`/courses/${COURSE_ID}/tiebreak-duel/${duelId}/advance`).then((r) => r.data);
+
+export const cancelTiebreakDuel = (duelId) =>
+  client.post(`/courses/${COURSE_ID}/tiebreak-duel/${duelId}/cancel`).then((r) => r.data);
+
 /* ── Campaign Drops ── */
 export const getPuzzlePresets = () =>
   client.get(`/courses/${COURSE_ID}/campaign/puzzle-presets`).then((r) => r.data.data);

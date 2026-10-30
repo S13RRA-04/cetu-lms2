@@ -21,6 +21,7 @@ const tacticalSpecialistCtrl = require('../controllers/tacticalSpecialist.contro
 const trainingAgentCtrl = require('../controllers/trainingAgent.controller');
 const caseSimCtrl = require('../controllers/caseSimulation.controller');
 const day5GrandJuryCtrl = require('../controllers/day5GrandJury.controller');
+const tiebreakDuelCtrl = require('../controllers/tiebreakDuel.controller');
 const { requireAuth, requireInstructor, requireAdmin } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
 const { auditLog } = require('../middleware/audit');
@@ -152,6 +153,14 @@ router.post('/:id/assignments/:aid/lock',    requireAuth, requireInstructor, val
 // Day 5 grand jury prep — one-click release to each squad's victim + search scene
 router.get('/:id/day5-grand-jury',          requireAuth, requireInstructor, day5GrandJuryCtrl.getStatus);
 router.post('/:id/day5-grand-jury/release', requireAuth, requireInstructor, auditLog('release', 'day5-grand-jury'), day5GrandJuryCtrl.release);
+
+// First-place tiebreak duel (lightning round) on the Operators board
+router.get('/:id/tiebreak-duel/mine',            requireAuth,                    tiebreakDuelCtrl.getMine);
+router.get('/:id/tiebreak-duel',                 requireAuth, requireInstructor, tiebreakDuelCtrl.getStatus);
+router.post('/:id/tiebreak-duel',                requireAuth, requireInstructor, auditLog('create', 'tiebreak-duel'), tiebreakDuelCtrl.create);
+router.post('/:id/tiebreak-duel/:did/advance',   requireAuth, requireInstructor, tiebreakDuelCtrl.advance);
+router.post('/:id/tiebreak-duel/:did/cancel',    requireAuth, requireInstructor, auditLog('cancel', 'tiebreak-duel'), tiebreakDuelCtrl.cancel);
+router.post('/:id/tiebreak-duel/:did/answer',    requireAuth,                    tiebreakDuelCtrl.answer);
 
 // Squad grading
 router.put('/:id/assignments/:aid/grades/squad/:squadId', requireAuth, requireInstructor, validate(gradeSchema), assignCtrl.gradeSquad);

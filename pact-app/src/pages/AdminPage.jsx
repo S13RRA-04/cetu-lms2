@@ -40,6 +40,10 @@ import {
   announceWheelWinner,
   getDay5GrandJuryStatus,
   releaseDay5GrandJury,
+  getTiebreakDuelStatus,
+  openTiebreakDuel,
+  advanceTiebreakDuel,
+  cancelTiebreakDuel,
   quickReleaseScenario,
   updateScenario,
   deleteScenario,
@@ -79,6 +83,7 @@ import DropPuzzleGate from './DropPuzzleGate.jsx';
 import { getNextStage } from '../lib/dropPuzzles.js';
 import PreRangeBriefing from '../components/PreRangeBriefing.jsx';
 import WheelOfNames from '../components/WheelOfNames.jsx';
+import DuelStage, { duelPollMs } from '../components/TiebreakDuel.jsx';
 import { getGrandJuryQuestions } from '../constants/grandJuryQuestions.js';
 
 const TYPE_COLOR = {
@@ -668,7 +673,7 @@ export default function AdminPage() {
   const [selectedSub,        setSelectedSub]        = useState(null);
   const [savedGrades,        setSavedGrades]        = useState({});
 
-  // top-level admin panel: 'grading' | 'content' | 'campaign' | 'cohorts' | 'live' | 'users' | 'grand-jury'
+  // top-level admin panel: 'grading' | 'content' | 'campaign' | 'cohorts' | 'live' | 'users' | 'grand-jury' | 'tiebreak'
   const [adminPanel, setAdminPanel] = useState('grading');
 
   // course content state
@@ -904,6 +909,12 @@ export default function AdminPage() {
         >
           Grand Jury
         </button>
+        <button
+          className={`admin-panel-tab${adminPanel === 'tiebreak' ? ' active' : ''}`}
+          onClick={() => setAdminPanel('tiebreak')}
+        >
+          Tiebreak
+        </button>
       </div>
 
       {adminPanel === 'live' ? (
@@ -928,6 +939,8 @@ export default function AdminPage() {
           <Day5ReleasePanel cohorts={cohorts} />
           <GrandJuryWheelPanel cohorts={cohorts} />
         </>
+      ) : adminPanel === 'tiebreak' ? (
+        <TiebreakPanel cohorts={cohorts} />
       ) : adminPanel === 'content' ? (
         <ContentWorkspace
           assignments={assignments}
@@ -2140,6 +2153,162 @@ function Day5ReleasePanel({ cohorts }) {
           <p style={{ color: 'var(--muted)', fontSize: 12, margin: 0 }}>{message}</p>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TIEBREAK PANEL — first-place lightning-round duel
+═══════════════════════════════════════════════════════════ */
+function TiebreakPanel({ cohorts }) {
+  const [cohortId, setCohortId] = useState(() => (cohorts.find((c) => c.is_active) ?? cohorts[0])?.id ?? '');
+  const [status,   setStatus]   = useState(null);
+  const [busy,     setBusy]     = useState(false);
+  const [message,  setMessage]  = useState('');
+  const [practice, setPractice] = useState([]); // user ids picked for a practice duel
+
+  // Poll every second while a round is running so the projected view keeps
+  // up with the duelists' answers.
+  useEffect(() => {
+    if (!cohortId) return undefined;
+    let active = true;
+    let timer;
+    let latest = null;
+    const poll = () => getTiebreakDuelStatus(cohortId)
+      .then((data) => { latest = data; if (active) setStatus(data); })
+      .catch((e) => { if (active) setMessage(e.response?.data?.error?.message ?? 'Could not load the tiebreak status'); })
+      .finally(() => { if (active) timer = setTimeout(poll, duelPollMs(latest?.duel)); });
+    setStatus(null);
+    setMessage('');
+    poll();
+    return () => { active = false; clearTimeout(timer); };
+  }, [cohortId]);
+
+  const run = async (action) => {
+    setBusy(true);
+    setMessage('');
+    try {
+      const duel = await action();
+      setStatus((prev) => ({ ...prev, duel }));
+    } catch (e) {
+      setMessage(e.response?.data?.error?.message ?? 'That did not go through');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const duel = status?.duel ?? null;
+  const open = duel && (duel.status === 'ready' || duel.status === 'live');
+  // Past regulation, a closed round either has a sole leader (finish) or rolls
+  // into sudden death — the same call the server makes on advance.
+  const topTotal = duel ? Math.max(...duel.participants.map((p) => p.total)) : 0;
+  const decided = duel ? duel.participants.filter((p) => p.total === topTotal).length === 1 : false;
+  const nextLabel = !duel ? '' : duel.status === 'ready'
+    ? 'Start round 1'
+    : !duel.round_closed
+      ? 'Round in progress…'
+      : duel.round < duel.regulation_rounds
+        ? `Start round ${duel.round + 1}`
+        : decided ? 'Reveal the winner' : `Sudden death: round ${duel.round + 1}`;
+
+  const togglePractice = (id) => setPractice((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+
+  return (
+    <div style={{ padding: '20px 24px', maxWidth: 900 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
+        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)' }}>
+          FIRST-PLACE TIEBREAK — LIGHTNING ROUND DUEL
+        </div>
+        {cohorts.length > 1 && (
+          <select value={cohortId} onChange={(e) => setCohortId(e.target.value)} style={{ marginLeft: 'auto', fontSize: 12 }}>
+            {cohorts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
+      </div>
+      <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 16px', lineHeight: 1.6 }}>
+        When students are tied for first on the Operators board at the end of the course, they duel: 10 timed
+        questions on the case, answered on their own devices. Each correct answer scores 100 points plus up to 50 for
+        speed, and the highest total wins first place. If the totals are still level after round 10, sudden-death rounds
+        decide it. Students follow along on their Standings page; project this panel for the room.
+      </p>
+
+      {!status ? (
+        <p style={{ color: 'var(--muted)', fontSize: 12 }}>{message || 'Loading…'}</p>
+      ) : (
+        <>
+          {!open && (
+            <div style={{ border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', padding: 16, marginBottom: 16 }}>
+              {status.tie.length >= 2 ? (
+                <>
+                  <div style={{ fontSize: 13, marginBottom: 10 }}>
+                    <strong style={{ color: 'var(--bright, var(--text))' }}>Tie for first</strong> at {Number(status.tie[0].performance_percent).toFixed(2)}%:
+                  </div>
+                  <ul style={{ margin: '0 0 12px', paddingLeft: 18, fontSize: 13 }}>
+                    {status.tie.map((t) => <li key={t.id}>{t.name}{t.squad ? ` (${t.squad})` : ''}</li>)}
+                  </ul>
+                  <button className="btn-submit" disabled={busy} onClick={() => run(() => openTiebreakDuel(cohortId))}>
+                    Open tiebreak duel
+                  </button>
+                </>
+              ) : (
+                <div style={{ fontSize: 13 }}>
+                  No tie for first right now
+                  {status.leader ? ` — ${status.leader.name} leads at ${Number(status.leader.performance_percent).toFixed(2)}%.` : '.'}
+                </div>
+              )}
+
+              <details style={{ marginTop: 14 }}>
+                <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--muted)' }}>Run a practice duel (never affects standings)</summary>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '10px 0' }}>
+                  {status.students.map((st) => (
+                    <button
+                      key={st.id}
+                      type="button"
+                      className={`admin-mode-tab${practice.includes(st.id) ? ' active' : ''}`}
+                      style={{ fontSize: 11 }}
+                      onClick={() => togglePractice(st.id)}
+                    >
+                      {st.name}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  className="btn-submit"
+                  disabled={busy || practice.length < 2}
+                  onClick={() => run(() => openTiebreakDuel(cohortId, practice))}
+                >
+                  Open practice duel ({practice.length} picked)
+                </button>
+              </details>
+            </div>
+          )}
+
+          {duel && (
+            <DuelStage duel={duel}>
+              {open && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 16 }}>
+                  <button
+                    className="btn-submit"
+                    disabled={busy || (duel.status === 'live' && !duel.round_closed)}
+                    onClick={() => run(() => advanceTiebreakDuel(duel.id))}
+                  >
+                    {nextLabel}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => { if (window.confirm('Cancel this duel? Its rounds are discarded.')) run(() => cancelTiebreakDuel(duel.id)); }}
+                    style={{ fontSize: 11, padding: '8px 14px', border: '1px solid var(--border)', borderRadius: 5, background: 'transparent', color: 'var(--text)', cursor: 'pointer' }}
+                  >
+                    Cancel duel
+                  </button>
+                </div>
+              )}
+            </DuelStage>
+          )}
+          {message && <p style={{ color: 'var(--danger)', fontSize: 12, marginTop: 10 }}>{message}</p>}
+        </>
+      )}
     </div>
   );
 }

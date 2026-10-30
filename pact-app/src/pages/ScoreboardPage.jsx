@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { getScoreboard, getSquadScoreboard, getMyEnrollment } from '../api/pact.js';
+import { getScoreboard, getSquadScoreboard, getMyEnrollment, getMyTiebreakDuel, answerTiebreakDuel } from '../api/pact.js';
 import useAuthStore from '../store/authStore.js';
 import DecryptText from '../components/DecryptText.jsx';
+import DuelStage, { duelPollMs } from '../components/TiebreakDuel.jsx';
 
 const RANK_COLORS = { 0: '#f59e0b', 1: '#94a3b8', 2: '#cd7c3a' };
 const VISIBLE_COUNT = 5;
@@ -76,6 +77,7 @@ function StandingsEntry({ entry, rank, tab, isMe, leaderScore, delay = 0 }) {
         <span className="ops-board-name">
           {label}
           {memberSquad && <span className="ops-board-squad">{memberSquad}</span>}
+          {tab === 'individual' && entry.tiebreakWinner && <span className="ops-board-duel" title="Won the first-place tiebreak duel">⚡ TIEBREAK WINNER</span>}
           {isMe && <span className="ops-board-you">YOU</span>}
         </span>
         <div className="ops-board-bar-wrap">
@@ -161,6 +163,8 @@ export default function ScoreboardPage() {
   const [squads,       setSquads]       = useState([]);
   const [mySquadId,    setMySquadId]    = useState(null);
   const [loading,      setLoading]      = useState(true);
+  const [duel,         setDuel]         = useState(null);
+  const [duelError,    setDuelError]    = useState('');
 
   useEffect(() => {
     let active = true;
@@ -186,6 +190,30 @@ export default function ScoreboardPage() {
       window.removeEventListener('focus', load);
     };
   }, []);
+
+  // The tiebreak duel, polled on its own clock: every second while a round
+  // can change, slower otherwise.
+  useEffect(() => {
+    let active = true;
+    let timer;
+    let latest = null;
+    const poll = () => getMyTiebreakDuel()
+      .then((d) => { latest = d ?? null; if (active) setDuel(latest); })
+      .catch(() => {})
+      .finally(() => { if (active) timer = setTimeout(poll, duelPollMs(latest)); });
+    poll();
+    return () => { active = false; clearTimeout(timer); };
+  }, []);
+
+  const handleDuelAnswer = async (choice) => {
+    setDuelError('');
+    try {
+      setDuel(await answerTiebreakDuel(duel.id, duel.round, choice));
+    } catch (e) {
+      setDuelError(e.response?.data?.error?.message ?? 'Answer not recorded');
+      throw e;
+    }
+  };
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
@@ -228,6 +256,10 @@ export default function ScoreboardPage() {
     <div className="ops-dashboard">
       <div className="ops-dash-eyebrow"><DecryptText text="STANDINGS" speed={22} hold={3} /></div>
       <h1 className="ops-dash-name" style={{ marginBottom: 16 }}>Standings</h1>
+
+      {duel && (
+        <DuelStage duel={duel} meId={user?.id} onAnswer={handleDuelAnswer} error={duelError} />
+      )}
 
       {/* Tab toggle */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
