@@ -13,9 +13,14 @@
  *   2. replaces the workshop's launch_briefing with LAUNCH_BRIEFING from
  *      lib/day4AttributionWorkshopSpec.js, which now carries the evidence.
  *
- * Touches launch_briefing only — never questions. The seeder can't be
- * re-run: it refuses once submissions exist, and buildQuestions() mints new
- * question ids, which would orphan every submitted answer.
+ *   3. copies question wording (stem/prompt text) and fill-blank accepted
+ *      answers from the spec onto the live questions, matched by position.
+ *
+ * Live question ids, options, correct keys and points are never touched.
+ * The seeder can't be re-run: it refuses once submissions exist, and
+ * buildQuestions() mints new question ids, which would orphan every
+ * submitted answer (checks are keyed by question id, prompt responses by
+ * position — so wording changes are safe, reordering is not).
  *
  * Idempotent (handout upserted by r2_key). Dry run by default.
  * Run: node backend/scripts/apply-day4-attribution-workshop-packet.js <packet.pdf> [--apply]
@@ -27,13 +32,34 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const { getLiveSequelize } = require('./lib/liveDb');
 const { uploadFile } = require('./lib/uploadDropFolder');
-const { TITLE, EXISTING_ID, LAUNCH_BRIEFING } = require('./lib/day4AttributionWorkshopSpec');
+const { TITLE, EXISTING_ID, LAUNCH_BRIEFING, buildQuestions } = require('./lib/day4AttributionWorkshopSpec');
 
 const COURSE_ID = 'ae2fbd25-2f41-45b1-b9f8-f4fefbad4b63';
 const FILE_NAME = 'Attribution Workshop Squad Packet.pdf';
 const R2_KEY = `workshops/day4/${FILE_NAME}`;
 const PUBLIC_URL = `https://pact-storage.cetu.online/${R2_KEY}`;
 const APPLY = process.argv.includes('--apply');
+
+const kindOf = (q) => q.payload?.kind ?? q.kind;
+
+// Spec wording + accepted answers onto the live questions, by position.
+// Refuses on any shape drift (count or kind), since position is the join.
+function syncedQuestions(live) {
+  const spec = buildQuestions();
+  if (spec.length !== live.length) throw new Error(`Spec has ${spec.length} questions, live has ${live.length}`);
+  const changes = [];
+  const questions = live.map((q, i) => {
+    const s = spec[i];
+    if (kindOf(s) !== kindOf(q)) throw new Error(`Question ${i + 1}: spec is ${kindOf(s)}, live is ${kindOf(q)}`);
+    const next = structuredClone(q);
+    if (q.kind === 'prompt') next.text = s.text;
+    else next.stem = s.stem;
+    if (kindOf(q) === 'fill_blank') next.payload.blanks[0].accepted = s.payload.blanks[0].accepted;
+    if (JSON.stringify(next) !== JSON.stringify(q)) changes.push(i + 1);
+    return next;
+  });
+  return { questions, changes };
+}
 
 async function main() {
   const pdf = process.argv.slice(2).find((a) => !a.startsWith('--'));
@@ -43,7 +69,7 @@ async function main() {
   try {
     await seq.authenticate();
     const [[workshop]] = await seq.query(
-      'SELECT id, title, length(launch_briefing) AS briefing_len FROM assignments WHERE id = :id AND course_id = :courseId',
+      'SELECT id, title, questions, length(launch_briefing) AS briefing_len FROM assignments WHERE id = :id AND course_id = :courseId',
       { replacements: { id: EXISTING_ID, courseId: COURSE_ID } },
     );
     if (workshop?.title !== TITLE) throw new Error(`Workshop ${EXISTING_ID} not found as "${TITLE}"`);
@@ -52,7 +78,10 @@ async function main() {
       { replacements: { courseId: COURSE_ID, r2Key: R2_KEY } },
     );
 
+    const { questions, changes } = syncedQuestions(workshop.questions ?? []);
+
     console.log(`${TITLE}\n  launch_briefing ${workshop.briefing_len} -> ${LAUNCH_BRIEFING.length} chars`);
+    console.log(`  questions changed: ${changes.length ? changes.join(', ') : 'none'}`);
     console.log(`  handout ${R2_KEY}: ${handouts.length ? `update ${handouts[0].id}` : 'insert'} (${fs.statSync(pdf).size} bytes)`);
     if (!APPLY) { console.log('\nDry run only. Re-run with --apply to write.'); return; }
 
@@ -83,11 +112,11 @@ async function main() {
         );
       }
       await seq.query(
-        'UPDATE assignments SET launch_briefing = :briefing, updated_at = NOW() WHERE id = :id',
-        { replacements: { id: EXISTING_ID, briefing: LAUNCH_BRIEFING }, transaction },
+        'UPDATE assignments SET launch_briefing = :briefing, questions = :questions, updated_at = NOW() WHERE id = :id',
+        { replacements: { id: EXISTING_ID, briefing: LAUNCH_BRIEFING, questions: JSON.stringify(questions) }, transaction },
       );
     });
-    console.log(`\nUploaded ${path.basename(pdf)} -> ${PUBLIC_URL}; briefing updated.`);
+    console.log(`\nUploaded ${path.basename(pdf)} -> ${PUBLIC_URL}; briefing and questions updated.`);
   } finally {
     await seq.close();
   }

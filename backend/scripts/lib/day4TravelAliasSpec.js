@@ -92,7 +92,7 @@ const TRAVEL_QUESTIONS_BY_ROLE = {
       ['Madison', 'Madison County'], 'the death certificate'),
   ],
   CS: [
-    mc('cs-mc', 'The PNR shows the booking was made from IP 198.51.100.23 (residential broadband, Huntsville). What is the right next step?',
+    mc('cs-mc', 'The PNR shows the booking was made from IP 198.51.100.142 (residential broadband, Huntsville). What is the right next step?',
       ['Conclude it is Reston\'s home connection', 'Serve legal process on the provider for the subscriber assigned that IP at the booking timestamp', 'Geolocate it to a street address and stop there', 'Ignore it; the traveler already left the country'], 1,
       'the airline PNR return'),
     blank('cs-blank', 'The traveler departed Huntsville on the morning of ______ (date).',

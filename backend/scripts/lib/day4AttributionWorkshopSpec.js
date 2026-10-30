@@ -120,7 +120,7 @@ const CATEGORIES = [
     checks: [
       mc('What aliases does the indictment name together with LockBitSupp?', ['putinkrab and LockBit', 'DarkSide and REvil', 'Conti and Ryuk', 'No other aliases are named'], 0, 'Category 1'),
       mc('By itself, what does years of consistent persona activity establish?', ['The real-world identity behind the persona', 'That one persona has been operated consistently over time — not who operates it', 'Nothing usable at all', 'A criminal conviction'], 1, 'Category 1'),
-      blank('LockBitSupp had previously offered a $______ bounty to anyone who could unmask his real identity.', ['10 million', '$10 million', '10,000,000'], 'Category 1'),
+      blank('LockBitSupp had previously offered a $______ bounty to anyone who could unmask his real identity.', ['10 million', '$10 million', '10,000,000', '$10,000,000', '10000000', '$10000000', '10m', '$10m', '10 mil', '$10 mil', '10 million dollars', '$10 million dollars'], 'Category 1'),
     ],
     prompt: prompt(
       'Category 1 — Draft the attribution statement for this category: what the persona\'s public track record establishes, at what confidence, and what it does NOT establish on its own.',
@@ -138,7 +138,7 @@ const CATEGORIES = [
     checks: [
       mc('Who led the February 2024 operation that seized LockBit\'s infrastructure?', ['The FBI, acting alone', 'The UK\'s National Crime Agency (NCA)', 'Europol', 'The Australian Federal Police'], 1, 'Category 2'),
       mc('What did investigators find in the seized infrastructure regarding victim data?', ['It had been fully deleted as promised', 'Copies were retained despite promises of deletion', 'It was unreadable due to encryption', 'No victim data was ever present'], 1, 'Category 2'),
-      blank('The February infrastructure seizure was code-named Operation ______.', ['Cronos'], 'Category 2'),
+      blank('The February infrastructure seizure was code-named Operation ______.', ['Cronos', 'Operation Cronos'], 'Category 2'),
     ],
     prompt: prompt(
       'Category 2 — Draft the attribution statement for this category, and separately answer: was the February server seizure itself a U.S. criminal-process action?',
@@ -177,7 +177,7 @@ const CATEGORIES = [
       blank('Khoroshev is a resident of ______, Russia.', ['Voronezh'], 'Category 4'),
     ],
     prompt: prompt(
-      'Category 4 — Draft the attribution statement for the real-name-to-persona link specifically, and separately state what this category does NOT include (the reward and remaining-at-large status).',
+      'Category 4 — Draft the attribution statement for the real-name-to-persona link specifically. Then, separately, state what the $10 million reward offer and his remaining at large do NOT tell you about whether Khoroshev is LockBitSupp.',
       [
         'Names a confidence level for the real-name attribution specifically — reasoning about what a joint indictment-plus-sanctions action from three governments implies about the underlying confidence, not just restating that a name was announced',
         'Explicitly notes that the public record does not disclose the specific evidence (financial records, OPSEC failures, technical forensics) that ties Khoroshev personally to the persona — a real, named gap',
@@ -192,7 +192,14 @@ const CATEGORIES = [
     checks: [
       mc('Which U.S. agency\'s sanctions arm joined the joint action?', ['Department of Commerce', 'Treasury\'s Office of Foreign Assets Control (OFAC)', 'Department of Labor', 'The SEC'], 1, 'Category 5'),
       mc('Why might three countries\' agreement NOT represent fully independent confirmation?', ['They didn\'t actually agree', 'They may substantially share the same underlying seized material from one joint operation', 'International law forbids independent investigations', 'There\'s no reason to doubt it'], 1, 'Category 5'),
-      blank('The UK counterpart body that joined the sanctions action was the ______.', ['Foreign, Commonwealth and Development Office', 'FCDO', 'Foreign, Commonwealth and Development Office (FCDO)'], 'Category 5'),
+      blank('The UK counterpart body that joined the sanctions action was the ______.', [
+        'Foreign, Commonwealth and Development Office', 'FCDO', 'Foreign, Commonwealth and Development Office (FCDO)',
+        'Foreign Commonwealth and Development Office', 'Foreign, Commonwealth & Development Office', 'Foreign Commonwealth & Development Office',
+        'Foreign, Commonwealth & Development Office (FCDO)', 'Foreign Commonwealth and Development Office (FCDO)',
+        'Foreign, Commonwealth, and Development Office', 'Foreign Commonwealth Development Office',
+        'UK Foreign, Commonwealth and Development Office', "UK's Foreign, Commonwealth and Development Office",
+        'the Foreign, Commonwealth and Development Office', 'UK FCDO', 'the FCDO',
+      ], 'Category 5'),
     ],
     prompt: prompt(
       'Category 5 — Draft the attribution statement for what the multi-country coordination itself contributes to confidence — separate from any single piece of technical evidence.',
@@ -245,7 +252,7 @@ const SYNTHESIS = [
     SYNTHESIS_POINTS,
   ),
   prompt(
-    'Squad synthesis — Identify the one piece of information in this packet that is a public statement or announcement, not itself evidence. What\'s the difference, and why does it matter for how you\'d use it in a briefing?',
+    'Squad synthesis — Identify one piece of information in this packet that is a public statement or announcement, not itself evidence (there is more than one). What\'s the difference, and why does it matter for how you\'d use it in a briefing?',
     [
       'Identifies a specific public statement/announcement (e.g. U.S. Attorney Sellinger\'s quote, FBI Director Wray\'s statement, or the State Department reward announcement) as distinct from evidence',
       'Explains the statement-versus-evidence distinction in its own terms',
