@@ -20,6 +20,7 @@ const legalRequestCtrl = require('../controllers/legalRequest.controller');
 const tacticalSpecialistCtrl = require('../controllers/tacticalSpecialist.controller');
 const trainingAgentCtrl = require('../controllers/trainingAgent.controller');
 const caseSimCtrl = require('../controllers/caseSimulation.controller');
+const day5GrandJuryCtrl = require('../controllers/day5GrandJury.controller');
 const { requireAuth, requireInstructor, requireAdmin } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
 const { auditLog } = require('../middleware/audit');
@@ -147,6 +148,10 @@ router.post('/:id/assignments/:aid/case/inject',    requireAuth, requireInstruct
 // Assignment unlock/lock (per cohort)
 router.post('/:id/assignments/:aid/unlock',  requireAuth, requireInstructor, validate(unlockSchema), auditLog('unlock', 'assignment'), assignCtrl.unlockForCohort);
 router.post('/:id/assignments/:aid/lock',    requireAuth, requireInstructor, validate(unlockSchema), auditLog('lock',   'assignment'), assignCtrl.lockForCohort);
+
+// Day 5 grand jury prep — one-click release to each squad's victim + search scene
+router.get('/:id/day5-grand-jury',          requireAuth, requireInstructor, day5GrandJuryCtrl.getStatus);
+router.post('/:id/day5-grand-jury/release', requireAuth, requireInstructor, auditLog('release', 'day5-grand-jury'), day5GrandJuryCtrl.release);
 
 // Squad grading
 router.put('/:id/assignments/:aid/grades/squad/:squadId', requireAuth, requireInstructor, validate(gradeSchema), assignCtrl.gradeSquad);

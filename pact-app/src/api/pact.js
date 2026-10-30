@@ -231,6 +231,14 @@ export const unlockAssignment = (assignmentId, cohortId, squadId = null) =>
 export const lockAssignment = (assignmentId, cohortId, squadId = null) =>
   client.post(`/courses/${COURSE_ID}/assignments/${assignmentId}/lock`, { cohort_id: cohortId, squad_id: squadId }).then((r) => r.data);
 
+/* ── Day 5 grand jury prep release ── */
+export const getDay5GrandJuryStatus = (cohortId) =>
+  client.get(`/courses/${COURSE_ID}/day5-grand-jury`, { params: { cohort_id: cohortId } }).then((r) => r.data);
+
+// searchBySquad: { [squadId]: 'RESIDENCE' | 'OFFICE' | null }
+export const releaseDay5GrandJury = (cohortId, searchBySquad) =>
+  client.post(`/courses/${COURSE_ID}/day5-grand-jury/release`, { cohort_id: cohortId, search_by_squad: searchBySquad }).then((r) => r.data);
+
 /* ── Campaign Drops ── */
 export const getPuzzlePresets = () =>
   client.get(`/courses/${COURSE_ID}/campaign/puzzle-presets`).then((r) => r.data.data);

@@ -5,9 +5,11 @@
  * grand jury, carried all the way through attribution to Alex M. Reston, and
  * asks for a true bill.
  *
- * Every assignment is the squad's victim checks + the shared case checks +
- * five squad deliverables (ChallengeFlow's mixed shape: auto-graded checks
- * feed JUDGMENT CHECKS, prompts feed SQUAD DELIVERABLES).
+ * Every victim assignment is the squad's victim checks + the shared case
+ * checks + five squad deliverables (ChallengeFlow's mixed shape: auto-graded
+ * checks feed JUDGMENT CHECKS, prompts feed SQUAD DELIVERABLES). Two more
+ * search-testimony sets (SEARCHES) cover the Day 3 search each squad ran:
+ * the residence, or the RestonIT office plus the CyberDyne consent search.
  *
  * Grounded only in what v2 Drops 1–4 put in front of students — the live
  * Drop 1/2 victim quizzes, the Packet 2–4 instructor manifests, and the
@@ -25,6 +27,8 @@
  *
  * Pure data — no database access.
  */
+
+const { TITLE_PREFIX, SEARCH_SETS, victimTitle, searchTitle } = require('../../src/constants/day5GrandJury');
 
 const CHECK_POINTS = 10;
 const DELIVERABLE_POINTS = 30;
@@ -544,8 +548,220 @@ ${v.briefing}
 Work from your Case File. Answer the checks, then write the five deliverables as your witness will deliver them: plain language, exact facts, nothing overstated. The grand jury decides probable cause, not guilt.`;
 }
 
-const TITLE_PREFIX = 'Day 5: Grand Jury Prep (PACKET HEIST v2)';
-const titleFor = (victimCode) => `${TITLE_PREFIX} — ${VICTIMS[victimCode].victimName}`;
+/* ── Search testimony — one set per search team (Day 3 PM KCR operation) ──
+   Grounded in the KCR Practical instructor packet (scenes, role-players,
+   the CyberDyne dead-man's-switch inject) and the Drop 4 seized-evidence
+   inventory, photo log and extractions. */
+const SEARCHES = {
+  RESIDENCE: {
+    name: SEARCH_SETS.RESIDENCE.name,
+    briefing: `Your squad executed the search warrant at Alex Reston's residence on Wednesday afternoon, and your case agent testifies to it.
+
+**On scene:** Jordan Reston, Alex's spouse, was home. Alex was not. Jordan saw the business as "doing fine," had noticed higher household spending and long hours, knew about solo RV trips, and had never known of a second computer.
+**Seized (inventory 2B1–2B4):** the personal laptop (2B1), the spiral notebook (2B2), printed personal financial records including a page resembling a wallet backup (2B3), and Alex's mobile phone (2B4, extraction pending).
+**What it produced:** the laptop extraction recovered a PGP private key (0xA1C4 7E90 2B7F 11F0) matching the BRKR_AL vendor key, Tor Browser and Black Harbor session remnants, CoinBridge logins, and a wallet holding the BRKR_AL seller address.`,
+    checks: [
+      mc('gj5-res-basis',
+        'What was the legal authority for entering the Reston residence?',
+        [
+          'A search warrant, supported by the probable-cause package built from Packets 1–3 on Wednesday morning',
+          'Jordan Reston\'s consent',
+          'Exigent circumstances',
+          'The office warrant, which covered every RestonIT-linked location',
+        ], 0, 'the KCR operation order and Wednesday\'s PC package'),
+      mc('gj5-res-jordan',
+        'How should Jordan Reston be described to the grand jury?',
+        [
+          'As a witness: the spouse who was home, knew nothing about Black Harbor, BRKR_AL, CoinBridge or cryptocurrency, and had never known of a second computer',
+          'As a co-conspirator who hid the laptop',
+          'As the person who operated the BRKR_AL account',
+          'Jordan should not be mentioned',
+        ], 0, 'the residence scene and Jordan Reston\'s statements'),
+      blank('gj5-res-laptop-item', 'The personal laptop that held BRKR_AL\'s PGP private key was inventoried as item ______.', ['2B1'], 'the Drop 4 seized-evidence inventory'),
+      mc('gj5-res-concealment',
+        'Sam Smith had heard Alex mention a home laptop; Jordan had never known one existed. Why does that matter in testimony?',
+        [
+          'Concealing the device from his own spouse is itself evidence, and where the laptop was found was documented for that reason',
+          'It means one of the two witnesses is lying and both should be excluded',
+          'It shows the laptop belongs to Jordan',
+          'It doesn\'t matter',
+        ], 0, 'the KCR residence scene notes'),
+      mc('gj5-res-laptop-findings',
+        'What did the extraction of the residence laptop recover?',
+        [
+          'A PGP private key matching the BRKR_AL vendor key, Tor Browser and Black Harbor session remnants, CoinBridge logins, and a wallet holding the BRKR_AL seller address',
+          'The buyer\'s d.kort92 webmail sessions',
+          'The client access matrix',
+          'The Northwind server\'s disk image',
+        ], 0, 'the Drop 4 residence laptop extraction report and browser artifacts',
+        'the d.kort92 buyer account is not on his machine, which is consistent with Reston being the seller, not the buyer.'),
+      mc('gj5-res-scope',
+        'Household finances and ordinary family devices were also in the residence. What is the right approach?',
+        [
+          'Stay inside the warrant: seize what the warrant covers and leave the spouse\'s property and benign household items unless they fall within it',
+          'Seize everything, since anything could be relevant',
+          'Seize all of Jordan\'s devices too',
+          'Seize nothing financial',
+        ], 0, 'the KCR residence scene notes'),
+      mc('gj5-res-phone',
+        'A grand juror asks what was on Alex Reston\'s phone. What is the accurate answer?',
+        [
+          'The phone (item 2B4) was seized at the residence; its extraction is still pending, so the witness can\'t speak to its contents',
+          'It shows him booking the Cancun flight',
+          'It shows his Black Harbor messages',
+          'It was never found',
+        ], 0, 'the Drop 4 seized-evidence inventory',
+        'a witness testifies to what was done and found, not to what an unfinished extraction might show.'),
+      mc('gj5-res-photo',
+        'What was done before the laptop was moved or bagged?',
+        [
+          'It was photographed in place (IMG-058: open, Tor Browser window visible), its power state noted, and CART called before handling a powered device',
+          'It was powered off to preserve the battery',
+          'An agent browsed it to confirm what was on it',
+          'Nothing; photographs were taken afterward at the office',
+        ], 0, 'the Drop 4 photo log and the KCR digital-evidence standard'),
+    ],
+    deliverables: [
+      prompt('gj5-res-narrative',
+        'Search narrative: tell the grand jury how the residence search was conducted — the legal authority, entry, who was present and how they were treated, and what was found and where. Plain language, in order.',
+        [
+          'States the authority: a search warrant from the probable-cause package; describes knock-and-announce and entry',
+          'Describes Jordan Reston accurately, as a witness, and notes Alex was not home',
+          'Names the key items and where they were (laptop 2B1, notebook 2B2, financial records/wallet-backup page 2B3, phone 2B4) and that each was photographed before collection',
+          'Does not overstate: no claim about the phone\'s contents and no suggestion that Jordan was involved',
+        ],
+        'On Wednesday afternoon agents executed a federal search warrant at the Reston residence. They knocked, announced, and entered. Jordan Reston, Alex\'s spouse, was home and cooperative. Alex was not there. Before anything was moved, agents photographed the scene. They found a personal laptop open with a Tor Browser window showing, a spiral notebook on the desk, and printed bank statements with a page resembling a wallet backup. They also seized Alex\'s phone. Jordan told us they had never known Alex had a second computer.'),
+      prompt('gj5-res-custody',
+        'From scene to exhibit: pick the laptop (2B1) and one other residence item. For each, explain how it got from the residence to an exhibit the grand jury can rely on — photograph, item number, custody form, imaging or scanning, and the finding it produced.',
+        [
+          'Laptop: photo IMG-058, item 2B1, custody form at collection, power state noted and CART before handling, imaged, then the extraction report (PGP private key, Tor/Black Harbor, wallet)',
+          'A second item traced the same way (e.g. notebook 2B2, photo IMG-052, scanned; or 2B3, photo IMG-061, scanned)',
+          'Names residence items as their own custody chain, separate from the office and CyberDyne',
+          'Says how any custody gap the squad logged on scene would be disclosed rather than smoothed over',
+        ],
+        'Laptop: photographed in place as IMG-058, numbered 2B1, logged on the custody form at collection, with power state noted and CART called before anyone touched it. It was imaged, and the examiner\'s extraction from the image recovered the BRKR_AL PGP private key, the Tor and Black Harbor artifacts, and the seller wallet. Notebook: photographed as IMG-052, numbered 2B2, then scanned. Both stay on the residence custody chain.'),
+      prompt('gj5-res-hard-question',
+        'Grand juror question: "Alex Reston wasn\'t home, and his own spouse had never seen this laptop. How do you know it\'s his?" Write the answer your witness gives.',
+        [
+          'Location and control: found in his home office, among his personal papers, documented where found',
+          'Contents tie it to him: the BRKR_AL private key, Black Harbor sessions, CoinBridge logins, and a wallet whose proceeds the CoinBridge KYC routes to his accounts',
+          'Treats the concealment as evidence, not a gap: hiding it from the spouse is consistent with its purpose; Sam Smith heard Alex mention a home laptop',
+          'Stays calibrated: probable cause, not proof beyond a reasonable doubt; doesn\'t claim forensic user attribution the extraction didn\'t make',
+        ],
+        'Because of where it was, what was on it, and where its money went. It was in his home office with his papers. It held the private key for the BRKR_AL seller account, his Black Harbor sessions, and the wallet whose cash-outs CoinBridge traced to his personal and business accounts. His coworker had heard him talk about a home laptop. That his spouse didn\'t know about it doesn\'t weaken the link. Keeping it hidden fits what it was used for.'),
+    ],
+  },
+  OFFICE: {
+    name: SEARCH_SETS.OFFICE.name,
+    briefing: `Your squad executed the search warrant at RestonIT LLC, Suite 214, then secured CyberDyne's Rack C3 on consent, and your case agent testifies to both.
+
+**The office:** Sam Smith was present, an employee whose afternoon got interrupted. Seized: Reston's workstation (1B1, the access_matrix spreadsheet open on screen), a 2TB external drive (1B2), the "Clients" folder with a hanging file labeled SaturnV Mart (1B3), and Sam Smith's workstation (1B4), kept separate in the log.
+**The inject:** partway through, Reston's desk (RIT-DESK-01) showed a live session, \`ssh svc-rmm@10.14.8.77\`, into CyberDyne's appliance cdn-util-3. A cron job (\`0 23 * * * checkin.sh || purge.sh\`) would shred its tunnel and auth logs and reset its config at 23:00 unless a rotating check-in password was entered. Seizing the workstation could not stop it, because the wipe runs at CyberDyne.
+**CyberDyne:** on the consent of Marcus Iyer, CyberDyne's Facilities & IT Coordinator, a team secured Rack C3 and captured the appliance's state before 23:00.`,
+    checks: [
+      mc('gj5-off-basis',
+        'What was the legal authority at each of the two places your squad searched?',
+        [
+          'RestonIT office: a search warrant. CyberDyne Rack C3: consent from Marcus Iyer, CyberDyne\'s Facilities & IT Coordinator',
+          'A single warrant covered both locations',
+          'Both were consent searches',
+          'Both were warrantless exigent-circumstances entries',
+        ], 0, 'the KCR operation order and the CyberDyne inject'),
+      mc('gj5-off-why-consent',
+        'Why did the squad seek consent at CyberDyne instead of a second warrant?',
+        [
+          'The wipe was set to run on CyberDyne\'s appliance at 23:00, a second warrant would not arrive in time, and seizing Reston\'s workstation could not stop it',
+          'Consent searches are always preferred to warrants',
+          'The office warrant already covered CyberDyne',
+          'The magistrate refused a second warrant',
+        ], 0, 'the CyberDyne dead-man\'s-switch inject'),
+      blank('gj5-off-wipe-time', 'The dead-man\'s switch on cdn-util-3 was set to wipe the appliance\'s logs at ______ that night.', ['23:00', '2300', '11 pm', '11pm', '11:00 pm', '11:00pm', '11 p.m.', '11:00 p.m.'], 'the inject transcript (crontab: 0 23 * * *)'),
+      mc('gj5-off-session',
+        'What does the live session `ssh svc-rmm@10.14.8.77` on Reston\'s own desk establish?',
+        [
+          'Reston\'s workstation held working credentials to CyberDyne\'s appliance under the svc-rmm identity, the account that made the September 14, 2025 tunnel changes',
+          'That Reston was the buyer who received CyberDyne\'s data',
+          'That Sam Smith operated the appliance',
+          'That 203.0.113.9 is Reston\'s home IP',
+        ], 0, 'the inject transcript and the Drop 3 appliance session log'),
+      mc('gj5-off-hands-off',
+        'Why didn\'t the squad just type a check-in password, or close the session, to stop the wipe?',
+        [
+          'Any keystroke alters the evidence and the defense would attack it; the check-in password rotates and can\'t be known; the right move was hands off, photograph, escalate, and capture the appliance\'s state at CyberDyne',
+          'Agents may freely use a suspect\'s live sessions during a search',
+          'Closing the session would have stopped the wipe',
+          'The password was written on the monitor',
+        ], 0, 'the inject\'s correct-response sequence'),
+      mc('gj5-off-iyer-scope',
+        'What limits Marcus Iyer\'s consent, and how was that handled?',
+        [
+          'He has practical authority over the network closet and Rack C3, not the whole company, so consent was documented before entry with its scope limited to Rack C3 and the appliance',
+          'Any employee can consent to a search of any company space',
+          'His consent covered RestonIT\'s office too',
+          'Consent needs no documentation if given verbally',
+        ], 0, 'the KCR CyberDyne scene notes'),
+      mc('gj5-off-saturnv',
+        'What in the office required immediate action beyond evidence collection?',
+        [
+          'The SaturnV Mart client file and its matrix row: an access provisioned but LISTED and not yet sold, a fifth victim who could still be protected by notification',
+          'Sam Smith\'s routine help-desk invoices',
+          'The 2TB external drive',
+          'Nothing; everything could wait for Thursday',
+        ], 0, 'photo log IMG-021 and the access matrix'),
+      mc('gj5-off-203',
+        'A grand juror asks whether 203.0.113.9, the appliance\'s standing admin source, proves the buyer and Reston used the same machine. What is the accurate answer?',
+        [
+          'No — buyer-side VeilStream sessions also reach 203.0.113.9, but VeilStream describes it as an upstream anonymizer, so it\'s a correlation, not a single-origin attribution',
+          'Yes — it is Reston\'s home IP',
+          'Yes — it is the buyer\'s home IP',
+          'It is CyberDyne\'s own firewall',
+        ], 0, 'the KCR inject grading notes'),
+    ],
+    deliverables: [
+      prompt('gj5-off-narrative',
+        'Search narrative: tell the grand jury how the office search unfolded, from warrant entry through discovering the live session to the CyberDyne consent search, and what was found at each place. Plain language, in order.',
+        [
+          'Office: warrant entry, Sam Smith present and treated as a witness, items photographed before collection (workstation with access_matrix on screen, Clients folder incl. SaturnV Mart, external drive, Sam\'s workstation kept separate)',
+          'The live session: what it showed, that it was left untouched and photographed, and the escalation to the SA and Command Post',
+          'CyberDyne: why consent, who gave it, its scope, and that the appliance state was captured before 23:00',
+          'Keeps the two legal bases distinct and does not claim the office warrant covered CyberDyne',
+        ],
+        'On Wednesday afternoon agents executed a warrant at RestonIT\'s office, Suite 214. An employee, Sam Smith, was there and cooperated. Reston\'s workstation was on, with a spreadsheet called access_matrix open, and a desk drawer held client files, including one for SaturnV Mart. Partway through, an agent noticed a live remote session from Reston\'s computer into a device at CyberDyne, set to erase its logs at 11 p.m. Nobody touched the keyboard. It was photographed and reported. Since a warrant for CyberDyne couldn\'t arrive in time, agents asked CyberDyne\'s facilities and IT coordinator, Marcus Iyer, for consent to enter the rack room. He agreed, the scope was written down, and the device\'s state was captured before the deadline.'),
+      prompt('gj5-off-custody',
+        'From scene to exhibit: trace (1) Reston\'s workstation (1B1) and (2) the CyberDyne appliance from where they were found to an exhibit the grand jury can rely on, and explain why the two sit on separate custody chains.',
+        [
+          'Workstation: photo IMG-014, item 1B1, custody form at collection, power state and CART, imaged, then the extraction that produced client_access_matrix.csv',
+          'Appliance: consent documented, rack and appliance photographed as found, CART captured logs/cron/config before 23:00, separate custody chain started for CyberDyne items',
+          'Separate chains because of separate legal bases (warrant vs consent) and separate scenes; Sam\'s workstation (1B4) logged apart from Alex\'s',
+          'Says how any custody gap the squad logged on scene would be disclosed rather than smoothed over',
+        ],
+        'Workstation: photographed in place as IMG-014 with the access_matrix spreadsheet on screen, numbered 1B1, logged on the custody form at collection, then imaged by CART. The office extraction from that image produced client_access_matrix.csv. Appliance: Iyer\'s consent and its scope were documented first, then the rack was photographed as found and CART captured the logs, cron entry and config before 23:00. It sits on its own CyberDyne custody chain because it came in on consent, at a different place, under different authority.'),
+      prompt('gj5-off-hard-question',
+        'Grand juror question: "You went into CyberDyne\'s data center without a warrant. Was that legal, and couldn\'t the defense get that evidence thrown out?" Write the answer your witness gives.',
+        [
+          'Explains consent: voluntarily given by someone with authority over that space (Iyer controls the network closet and Rack C3), documented with scope before entry',
+          'Explains the urgency: the scheduled 23:00 wipe and why a second warrant couldn\'t arrive in time',
+          'Notes CyberDyne is the victim and cooperated; the search stayed within the consented scope',
+          'Stays honest about the limit: Iyer\'s authority is narrower than a corporate officer\'s; and the case does not depend on the appliance alone, since its September 2025 changes were already documented in CyberDyne\'s production',
+        ],
+        'It was legal because CyberDyne consented. Marcus Iyer runs the network closet and the rack where the device sat. We explained the urgency and he agreed, and we wrote down who consented, his authority, and exactly what we could search before going in. We needed consent because the device was set to wipe itself at 11 that night, and a warrant couldn\'t be obtained in time. CyberDyne is the victim here and wanted the device secured. The device\'s September 2025 changes were already documented in CyberDyne\'s own records, so the case doesn\'t rest on that night alone.'),
+    ],
+  },
+};
+
+const searchQuestions = (searchCode) => [...SEARCHES[searchCode].checks, ...SEARCHES[searchCode].deliverables];
+
+function searchBriefing(searchCode) {
+  return `Friday morning, the AUSA presents the BROKERED EXIT case to the federal grand jury. Every exhibit from Wednesday's searches comes in through the agents who seized it, so your case agent will testify to how your squad's search was conducted, what it found, and how each item got from the scene to the exhibit table. The witness the wheel picks this afternoon answers jurors' questions under oath.
+
+${SEARCHES[searchCode].briefing}
+
+Work from your on-scene notes, custody forms and the Drop 4 inventory and photo log. Say what was done and found, and nothing you didn't see.`;
+}
+
+const titleFor = (victimCode) => victimTitle(VICTIMS[victimCode].victimName);
+const searchTitleFor = (searchCode) => searchTitle(searchCode);
+const SEARCH_DESCRIPTION = 'Squad grand jury prep: the search your squad executed — legal authority, what was found, and how each item became an exhibit.';
 const DESCRIPTION = 'Squad grand jury prep: confirm the facts of your victim\'s thread and the case through attribution, then write the testimony that will take it to a true bill against Alex M. Reston.';
 
 module.exports = {
@@ -557,4 +773,10 @@ module.exports = {
   titleFor,
   launchBriefing,
   buildQuestions,
+  SEARCH_CODES: Object.keys(SEARCHES),
+  SEARCHES,
+  SEARCH_DESCRIPTION,
+  searchTitleFor,
+  searchBriefing,
+  searchQuestions,
 };

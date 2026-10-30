@@ -38,6 +38,8 @@ import {
   getSquadsByCohort,
   updateSquad,
   announceWheelWinner,
+  getDay5GrandJuryStatus,
+  releaseDay5GrandJury,
   quickReleaseScenario,
   updateScenario,
   deleteScenario,
@@ -922,7 +924,10 @@ export default function AdminPage() {
           onCohortsChange={setCohorts}
         />
       ) : adminPanel === 'grand-jury' ? (
-        <GrandJuryWheelPanel cohorts={cohorts} />
+        <>
+          <Day5ReleasePanel cohorts={cohorts} />
+          <GrandJuryWheelPanel cohorts={cohorts} />
+        </>
       ) : adminPanel === 'content' ? (
         <ContentWorkspace
           assignments={assignments}
@@ -2016,6 +2021,124 @@ function CohortScenarioPanel({ cohorts, onCohortsChange }) {
         <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 }}>
           When a scenario is assigned, students in that cohort will only see unlocked intel packages tagged with that scenario. Unassigned cohorts see all unlocked packages regardless of scenario.
         </p>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DAY 5 RELEASE PANEL
+   One click releases the Day 5 grand jury prep: each squad gets its own
+   victim's set plus the search-testimony set for the scene it searched on
+   Day 3. The scene isn't stored anywhere else, so it's picked here; once
+   released, the squad's current unlock is read back as its scene.
+═══════════════════════════════════════════════════════════ */
+const DAY5_SCENE_LABELS = { RESIDENCE: 'Reston residence', OFFICE: 'RestonIT office + CyberDyne' };
+
+function Day5ReleasePanel({ cohorts }) {
+  const [cohortId, setCohortId] = useState(() => (cohorts.find((c) => c.is_active) ?? cohorts[0])?.id ?? '');
+  const [status,   setStatus]   = useState(null);
+  const [scenes,   setScenes]   = useState({}); // squadId -> 'RESIDENCE' | 'OFFICE' | ''
+  const [loading,  setLoading]  = useState(false);
+  const [saving,   setSaving]   = useState(false);
+  const [message,  setMessage]  = useState('');
+
+  // Already-released squads keep their scene; otherwise default the first
+  // half of the squads to the residence and the rest to the office, the
+  // usual KCR split.
+  const applyStatus = (data) => {
+    setStatus(data);
+    const half = Math.ceil(data.squads.length / 2);
+    setScenes(Object.fromEntries(data.squads.map((sq, i) => [sq.id, sq.search ?? (i < half ? 'RESIDENCE' : 'OFFICE')])));
+  };
+
+  useEffect(() => {
+    if (!cohortId) return;
+    setLoading(true);
+    setMessage('');
+    getDay5GrandJuryStatus(cohortId)
+      .then(applyStatus)
+      .catch((e) => { setStatus(null); setMessage(e.response?.data?.error?.message ?? 'Could not load Day 5 status'); })
+      .finally(() => setLoading(false));
+  }, [cohortId]);
+
+  const handleRelease = async () => {
+    setSaving(true);
+    setMessage('');
+    try {
+      const searchBySquad = Object.fromEntries(Object.entries(scenes).map(([id, scene]) => [id, scene || null]));
+      applyStatus(await releaseDay5GrandJury(cohortId, searchBySquad));
+      setMessage('Released. Each squad now sees its victim set and its search set.');
+    } catch (e) {
+      setMessage(e.response?.data?.error?.message ?? 'Release failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const seeded = status && status.search_sets.every((s) => s.found) && status.squads.some((sq) => sq.victim_set_found);
+  const changed = status?.squads.some((sq) => !sq.victim_released || (sq.search ?? '') !== (scenes[sq.id] ?? ''));
+
+  return (
+    <div style={{ padding: '20px 24px 0', maxWidth: 900 }}>
+      <div style={{ border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', padding: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
+          <div style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.14em', color: 'var(--primary)' }}>
+            DAY 5 GRAND JURY PREP — RELEASE
+          </div>
+          {cohorts.length > 1 && (
+            <select value={cohortId} onChange={(e) => setCohortId(e.target.value)} style={{ marginLeft: 'auto', fontSize: 12 }}>
+              {cohorts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          )}
+        </div>
+        <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 12px', lineHeight: 1.6 }}>
+          Each squad gets its victim's prep set automatically. Pick the scene each squad searched on Day 3, then release.
+        </p>
+
+        {loading ? (
+          <p style={{ color: 'var(--muted)', fontSize: 12, margin: 0 }}>Loading…</p>
+        ) : status && !seeded ? (
+          <p style={{ color: 'var(--muted)', fontSize: 12, margin: 0 }}>
+            The Day 5 prep sets aren't seeded yet — run backend/scripts/seed-pact-day5-grand-jury-prep.js --apply.
+          </p>
+        ) : status?.squads.length === 0 ? (
+          <p style={{ color: 'var(--muted)', fontSize: 12, margin: 0 }}>No squads in this cohort.</p>
+        ) : status ? (
+          <>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+              {status.squads.map((sq) => (
+                <div key={sq.id} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 12 }}>
+                  <span style={{ fontFamily: 'var(--mono)', minWidth: 72 }}>SQUAD {sq.number}</span>
+                  <span style={{ flex: '1 1 180px', color: sq.victim_set_found ? 'var(--text)' : 'var(--muted)' }}>
+                    {sq.victim_name ?? 'No victim assigned'}{!sq.victim_set_found && sq.victim_name ? ' (no prep set)' : ''}
+                  </span>
+                  <select
+                    value={scenes[sq.id] ?? ''}
+                    onChange={(e) => setScenes((p) => ({ ...p, [sq.id]: e.target.value }))}
+                    style={{ fontSize: 12 }}
+                    aria-label={`Squad ${sq.number} search scene`}
+                  >
+                    <option value="RESIDENCE">{DAY5_SCENE_LABELS.RESIDENCE}</option>
+                    <option value="OFFICE">{DAY5_SCENE_LABELS.OFFICE}</option>
+                    <option value="">No search set</option>
+                  </select>
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '.08em', minWidth: 90, color: sq.victim_released ? 'var(--primary)' : 'var(--muted)' }}>
+                    {sq.victim_released ? 'RELEASED' : 'NOT RELEASED'}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <button className="btn-submit" onClick={handleRelease} disabled={saving || !changed}>
+                {saving ? 'Releasing…' : changed ? 'Release Day 5 prep' : 'Released'}
+              </button>
+              {message && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{message}</span>}
+            </div>
+          </>
+        ) : message ? (
+          <p style={{ color: 'var(--muted)', fontSize: 12, margin: 0 }}>{message}</p>
+        ) : null}
       </div>
     </div>
   );
